@@ -70,6 +70,10 @@ and the stage update at 0x243568).
 | 0x136CC0..0x137BD0 | eft_c.c | weather particles `EftWeather_*` (30, camera-relative; 15 per view in split screen) | no | libc `rand()`: **3 per particle per drawn view, inside the draw callback** | |
 | 0x137BD0..0x138178 | eft_c.c | **stage effect manager `EftStage_*` = scene layer 0**: creates a child task per kind the stage has | no | none | |
 | 0x138178..0x13A9D0 | eft_c.c | animated stage surfaces `EftSurf_*` (water / lava meshes, palette-lit reflections; continues in eft_d) | no | none | |
+| 0x15B550..0x15C728 | eft_l.c (same source file as eft_k.c) | type 9 `EftRushShot*`, rest: the projectile of a rush technique | **yes**: moves and homes, hit record per frame until the rush connects, then stops the technique timer; flag 0xA8 at its end. After connecting it is presentation driven by the victim's events | none | 17/18 standalone (18/18 in eft_k's unit) |
+| 0x15C728..0x15E5D0 | eft_l_b.c | type 4 `EftRingShot*`: up to 20 blast objects placed on rings around a fighter, or fired as a volley | **yes**: creates, places, aims and delays blast objects; hit records; flags 0xA8 / 0xA9; restarts the technique timer | **`BtlScene_RandF`: one per shot, reaching the shot's launch position (rings) or direction (volley)** | 20/20 |
+| 0x15E5D0..0x15EF18 | eft_l_c.c | `EftAbsorb*`: glow for drain and absorb (fighter requests 0x38 / 0x37) | no | none | 13/13 |
+| 0x15EF18..0x15F728 | eft_l_d.c | speed-line spawners (head of eft_m's module) | no | libc `rand()`: 33+ per call on every frame a fighter has request 0xB; 90 per part burst | 2/2 |
 | 0x23FB20..0x242D28 | stg_a.c | **stage core `BtlStage_*`**: file binding, bounds, zones, start placements, paths, water level, destructible objects; plus frustum and fade helpers (visual) and an unreachable stage viewer | **yes** | libc `rand()`: one in `BtlStage_DestroyObj`, hidden-item case only | 70/78 |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
@@ -313,3 +317,14 @@ blasts, simulation); layer 4 is the stage-change transition.
   and only when the breaker's input is not injected (CPU or replay): it decides an item award,
   not fight state, but the draw itself depends on who controls the fighter.
 - Ten functions with no caller are a development stage viewer.
+- (verified, eft_l_b) **The scene generator reaches the simulation in the ring shot**:
+  `BtlScene_RandF` decides each blast's bob phase (so where it is when launched) and the
+  volley's spread direction. Drawn at creation, in creation order, so the generator's sequence
+  depends on task update order between the two characters.
+- (verified, eft_l) Common shape of technique effect modules: the owner's events 2 / 4 start,
+  4 fires, 8 ends, 0x400 aborts; the hit pass writes results back into the task and the task's
+  post-update reacts.
+- (evidence) eft_l.c is the tail of eft_k.c's source file (`EftRushShot_UpdateAttached` needs
+  `EftRushShot_UpdateModels` in the same file); eft_l_d.c + eft_m.c are the speed-line object.
+- (verified) Original bugs: `EftSpdLine_SpawnBodyTrails` never resets its extra-trail count
+  between nodes; `EftAbsorb_Init` aims the second hand glow from the first hand for one frame.
