@@ -70,6 +70,10 @@ per-generator user lists are by address range, not traced call by call.)
 Consequences:
 - The first three reset themselves; both peers only need to reach the first Ready frame on
   the same frame.
+- **Draw code consumes libc `rand()`**: the depth haze (`StgHaze_Step`, called from a draw
+  pass) draws 2 values per mesh vertex per view, about 2000 per drawn frame, on stages with
+  that feature; the count depends on split screen, the demo camera and pause. A port must give
+  it its own generator. (verified)
 - **libc `rand()` must be synchronised**: it reaches the result through the double-KO
   tie-break, and its call count depends on camera shake and effects.
 - **The VU0 register and the Mersenne Twister must be synchronised** if anything that uses

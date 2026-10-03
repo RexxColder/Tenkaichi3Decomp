@@ -28,6 +28,7 @@ Names marked `// guess` in `config/symbols/*.txt` are best guesses.
 | [systems/battle.md](systems/battle.md) | Battle frame, sequence states, setup block, modes, loading, results, events, objects |
 | [systems/fighter.md](systems/fighter.md) | Roster, fighter object, per-frame phases, hit-stop, character changes, fighter camera |
 | [systems/combat.md](systems/combat.md) | Flags, actions, input conditions, movement, hits, damage, gauges, stats, clashes, time stop |
+| [systems/effects_stage.md](systems/effects_stage.md) | Effect objects, screen effects, stage: what is simulation and what only draws |
 | [systems/ai.md](systems/ai.md) | The CPU opponent |
 | [systems/script.md](systems/script.md) | The GSC script engine and battle (story) scripts |
 | [systems/save_data.md](systems/save_data.md) | The 0x4000-byte save block |
