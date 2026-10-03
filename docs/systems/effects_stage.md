@@ -70,6 +70,7 @@ and the stage update at 0x243568).
 | 0x136CC0..0x137BD0 | eft_c.c | weather particles `EftWeather_*` (30, camera-relative; 15 per view in split screen) | no | libc `rand()`: **3 per particle per drawn view, inside the draw callback** | |
 | 0x137BD0..0x138178 | eft_c.c | **stage effect manager `EftStage_*` = scene layer 0**: creates a child task per kind the stage has | no | none | |
 | 0x138178..0x13A9D0 | eft_c.c | animated stage surfaces `EftSurf_*` (water / lava meshes, palette-lit reflections; continues in eft_d) | no | none | |
+| 0x23FB20..0x242D28 | stg_a.c | **stage core `BtlStage_*`**: file binding, bounds, zones, start placements, paths, water level, destructible objects; plus frustum and fade helpers (visual) and an unreachable stage viewer | **yes** | libc `rand()`: one in `BtlStage_DestroyObj`, hidden-item case only | 70/78 |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -281,3 +282,34 @@ Layer 0 is the stage effect manager. Its init creates one child task per entry o
 
 Everything in layer 0 found so far is visual. Scene layer 1 is the shot layer (techniques and
 blasts, simulation); layer 4 is the stage-change transition.
+
+## Stage core (simulation; `stg_a.c`, verified unless marked)
+
+- **Stage file**: a pack with a header of byte offsets; +0x08 is the parameter block, member 16
+  an optional "MEF0" block, member 21 the path table. Bound once per load. Positions in the
+  parameter block are stored with y and z negated and flipped at bind time; path points are
+  not.
+- **Bounds**: radius, top, bottom. Fighters are clamped to radius - 100. While the stage is not
+  ready each getter returns the last value it read (and the inner radius comes back without
+  the -100). The AI subtracts another 100, so its limit is radius - 200.
+- **Zones**: rectangles on the ground plane with neighbour lists. A position's zone is the
+  first rectangle containing it in array order, falling back to zone 0. Collision queries and
+  fighter placement work per zone.
+- **Ground probe** (`BtlStage_ProbeGround`): a small box around the point is handed to the
+  collision query `func_001B14C0` (not decompiled; in the hit-detection range).
+- **Start placements**: one (position, target) pair per player, an alternative pair, and a
+  third; each is dropped onto the ground by probing from y = -700 and faces its target.
+- **Water**: an environment flag and a level, cached while the stage is not ready.
+- **Destructible objects**: 0x50 bytes each with hp, type bits and a parent index from the
+  stage data. `BtlStage_DamageObj` subtracts hp; `BtlStage_DestroyObj` breaks the object.
+  (read from disassembly) Breaking swaps the drawn model, disables the object's collision
+  records, shakes cameras and rumbles by a size bit, and breaks every child object in index
+  order. Debris then falls for 74 frames by default: keyed pieces by animation, single-key
+  pieces as rigid bodies. Debris is read by no fighter code.
+- What breaks objects: projectile collision (0x1B0E88), a fighter flying through (0x1B24B8,
+  using the fighter's two "stage break" tests), and the sweeping beam.
+- `BtlStage_Reset` restores everything whole. The stage change is a loader request.
+- Random draws: one libc `rand()` in `BtlStage_DestroyObj`, only for the story-mode hidden item
+  and only when the breaker's input is not injected (CPU or replay): it decides an item award,
+  not fight state, but the draw itself depends on who controls the fighter.
+- Ten functions with no caller are a development stage viewer.
