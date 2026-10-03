@@ -6,7 +6,7 @@ Usage: scripts/fdiff.py src/sys/heap.c [function ...]
 Relocated fields (jump targets, %hi/%lo/%gp_rel immediates) are masked out, so a function can be
 checked before the file is linked in. The linked build's byte comparison is the final word.
 Target addresses come from the symbol files in config/, so a newly added name works without
-re-running configure. The original bytes are read from build/*.elf, so run `ninja` once first.
+re-running configure. The original bytes are read from disc/, not from build/.
 """
 
 import re
@@ -121,12 +121,23 @@ def disasm(elf_or_obj, start, size, extra=()):
     return lines
 
 
+# Original images and their load addresses. Read from disc/ so the tool does not depend on the
+# state of build/ (another process may be relinking).
+ORIGINALS = {ELFS[0]: ("disc/SLUS_216.78.rom", 0x100000), ELFS[1]: ("disc/BIN/DBZP.BIN", OVERLAY_BASE)}
+
+
 def original_words(tmp, elf, addr, size):
-    raw = tmp / "orig.bin"
-    sh(BINUTILS + "objcopy", "-O", "binary", str(elf), str(raw))
-    base = int(sh(BINUTILS + "readelf", "-lW", elf).split("LOAD")[1].split()[1], 16)
-    data = raw.read_bytes()[addr - base: addr - base + size]
+    path, base = ORIGINALS[elf]
+    with open(ROOT / path, "rb") as f:
+        f.seek(addr - base)
+        data = f.read(size)
     return struct.unpack(f"<{len(data) // 4}I", data)
+
+
+def original_disasm(tmp, elf, addr, size):
+    path, base = ORIGINALS[elf]
+    return disasm(ROOT / path, addr, size,
+                  ("-D", "-b", "binary", "-m", "mips:5900", "-EL", f"--adjust-vma={base:#x}"))
 
 
 def main():
@@ -158,7 +169,7 @@ def main():
             continue
         ok = False
         print(f"{name}: {len(bad)} of {size // 4} instructions differ")
-        a = disasm(elf, addr, size)
+        a = original_disasm(obj.parent, elf, addr, size)
         b = disasm(obj, off, size)
         for i in range(max(len(a), len(b))):
             left = a[i] if i < len(a) else ""

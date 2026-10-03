@@ -58,3 +58,15 @@ guessed names; existing names or comments you believe are wrong; anything the in
 Also include a "Doc notes" section: the facts a reader of docs/systems/ should learn from your
 module, each marked verified (by your matching C) or inferred, written so it can be pasted into
 the docs.
+
+## Working while the build is in use (added for the fifth batch)
+- Another process may be re-splitting and relinking. Read disassembly from the frozen snapshot
+  your brief names (same layout as asm/), not from the live asm/ folder. fdiff reads the
+  original bytes from disc/, so it is unaffected.
+- File names: use exactly the file stem your brief assigns (you may add a suffix after it if
+  you split, e.g. `<stem>_b.c`). Never create a file under a different stem.
+- Fighter-side conventions already established (see docs/systems/fighter.md and the headers
+  under include/battle/): the fighter object is 0x1600 bytes; flags are tested with
+  `BtlChar_TestFlag(chr, n)`, set with `BtlChar_SetFlag` / `BtlChar_SetHeldFlag`, cleared with
+  `BtlChar_ClearFlag`; `BtlChar_GetObj(chr)` returns its battle object; the active member's
+  gauge block is `func_001CE1B8(chr)`; +Y is down; angles are radians; 30 frames per second.
