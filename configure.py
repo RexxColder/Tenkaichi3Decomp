@@ -19,6 +19,9 @@ BINUTILS = "tools/binutils/mips-ps2-decompals-"
 ROM_PAD_TO = 0x2FF180
 
 AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G0 -no-pad-sections -Iinclude"
+# Compiler output is assembled as o64 so that address arithmetic on 32-bit pointers expands to
+# addiu/addu as Sony's assembler did; with eabi the modern gas emits daddiu/daddu.
+CC_AS_FLAGS = "-EL -march=r5900 -mabi=o64 -no-pad-sections -mno-pdr -Iinclude"
 
 # The game was built with Sony's ee-gcc 2.96 at -O2. Spike's code uses the default
 # small-data threshold (-G8); the CRI middleware was built with -G0.
@@ -109,7 +112,8 @@ def write_ninja():
         # as daddu, the way Sony's assembler did.
         "rule cc",
         f"  command = {CC} {CC_FLAGS} $gflag -S $in -o $out.s && "
-        "$as $as_flags $gflag -mno-pdr include/gcc_prelude.inc $out.s -o $out",
+        f"$as {CC_AS_FLAGS} $gflag include/gcc_prelude.inc $out.s -o $out && "
+        f"{sys.executable} scripts/set_eabi64.py $out",
         "  description = CC $in",
         "",
         "rule ld",

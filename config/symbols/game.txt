@@ -73,7 +73,7 @@ Heap_Alloc = 0x002554D8; // type:func
 Heap_Free = 0x00255508; // type:func
 gHeapStart = 0x002FF080; // size:0x8
 gHeapEnd = 0x002FF088; // size:0x8
-gHeapSize = 0x002FF090; // size:0x4
+gHeapSize = 0x002FF090; // size:0x8
 
 // --- Battle-side memory pools (the f1A71B8(f1A7240(), ptr) idiom) ----------------------------
 // gBtlPool points at a 0x9C struct: 9 slots of {base, cur, ?, used} (0x10 each), +0x90 arena memory,
@@ -303,8 +303,8 @@ Mtx_MulVec4 = 0x00121FD0; // type:func
 Vec3_Dot = 0x00122088; // type:func
 Vec3_Cross = 0x001220B0; // type:func
 // emitted as raw .word by the disassembler; instruction count and first/last ops match a normalize / length routine.
-Vec3_Normalize = 0x00121E50; // type:func // guess
-Vec3_Length = 0x001221B8; // type:func // guess
+Vec3_Normalize = 0x00121E50; // splat emits this VU0 routine as raw words, so no type:func // guess
+Vec3_Length = 0x001221B8; // splat emits this VU0 routine as raw words, so no type:func // guess
 Mtx_StoreIdentity = 0x00120098; // type:func // guess
 
 // --- UI animation ("mc_" clips / "fl_" frame labels) ----------------------------------------
@@ -319,3 +319,29 @@ Res_RelocateOffsets = 0x0010A028; // type:func // guess
 // both are called in pairs around every draw pass with an RGBA constant (0x80FF4040 ...): CPU/GPU profiler bars.
 Dbg_ProfMark = 0x00263028; // type:func // guess
 Dbg_ProfColor = 0x00263030; // type:func // guess
+
+// --- Heap, added while decompiling src/sys/heap.c ---------------------------------------------
+// 0x254E28(block): returns block + 0x20, the first byte after the header.
+Heap_BlockData = 0x00254E28; // type:func
+// 0x255078 / 0x255168 (size, heap): Heap_FindFreeFromHead/Tail on one heap, or on each heap in turn when heap == 2.
+Heap_SearchFromHead = 0x00255078; // type:func
+Heap_SearchFromTail = 0x00255168; // type:func
+// 0x255728: empty function; its only caller is Heap_Free when the pointer is not a live block (stripped debug report).
+Heap_ReportBadFree = 0x00255728; // type:func // guess
+// 0x256158(v): (-(v & 3)) & 3, bytes needed to round v up to a multiple of 4. 0x256128(v): v & 3.
+Mem_Align4Pad = 0x00256158; // type:func
+Mem_Align4Rem = 0x00256128; // type:func
+// 0x255548(value, flag) calls the two one-line setters at 0x255570 / 0x255578. The globals they write are cleared by
+// Heap_Init and never read anywhere in either binary, so what they were for is unknown.
+Heap_SetDebug = 0x00255548; // type:func // guess
+Heap_SetDebugValue = 0x00255570; // type:func // guess
+Heap_SetDebugFlag = 0x00255578; // type:func // guess
+gHeapDebugValue = 0x002FF20C; // size:0x4 // guess
+gHeapDebugFlag = 0x002FF210; // size:0x1 // guess
+gHeapDebugUnused = 0x002FF214; // size:0x4 // guess
+// 0x255580 / 0x255600 / 0x255690: walk every block of both heaps summing dataSize of free blocks / of used blocks /
+// keeping the largest free dataSize. 0x255710: gHeapSize[0] + gHeapSize[1].
+Heap_GetFreeSize = 0x00255580; // type:func
+Heap_GetUsedSize = 0x00255600; // type:func
+Heap_GetLargestFree = 0x00255690; // type:func
+Heap_GetTotalSize = 0x00255710; // type:func
