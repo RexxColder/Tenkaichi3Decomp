@@ -19,10 +19,20 @@ by C that compiles to the original bytes; **inferred** means read from disassemb
 
 - **Fights do not use the menu input word.** Each fighter builds its own 16-byte `OPRT` record
   (player, stick X/Y, a button word, a command word) from the raw pad through a per-player
-  key-config table in the save. (inferred; being decompiled as `btl_input.c`)
-- That record passes through an existing 8-entry ring per fighter, normally with zero delay, and
-  there is an existing path that takes input from fields on the fighter instead of the pad.
-  These are the natural hooks for input delay and for injecting remote input. (inferred)
+  key-config table in the save. (verified, `btl_input.c`)
+- **What the game's own replay records is exactly `{buttons, stickX, stickY}` per fighter per
+  frame**, taken after key config and double-tap detection and before the ring and the gating.
+  The command word is recomputed from the buttons. This is the minimal input a peer needs.
+  (recorder and player read from disassembly; the record path around them is verified)
+- **The ring never delays.** The 8-entry ring per fighter is pushed and popped in the same call,
+  and its public push / pop wrappers have no callers. It is unused plumbing, and the natural
+  place to add input delay. (verified)
+- **CPU input is injected through fields on the fighter** (`chr+0x1278` on, buttons and stick at
+  `chr+0x127C..`). The same path could carry remote input. (verified)
+- **Key config is applied before recording**, so two peers with different button layouts still
+  exchange the same button word. (verified)
+- **Gating is outside the record:** neutral or masked input during the non-fight sequence states
+  depends on battle flags and fighter flags, which must therefore be in sync. (verified)
 - Menus read `gPad` fields directly from about 110 functions; menu netplay would have to
   synchronise the pad state itself or replace those reads. (verified for the main executable,
   counted from disassembly for the overlay)
@@ -30,11 +40,15 @@ by C that compiles to the original bytes; **inferred** means read from disassemb
 ## The game already has a replay system
 
 - The battle setup (0x5A8 bytes, tagged "btls" version 7) is copied into a 0x1ABA8-byte block
-  that the memory card code saves and loads, and input, camera and HUD code test whether it is
-  active. (code verified; "replay" meaning inferred)
-- If replays re-run the simulation from the setup plus recorded inputs, the simulation is
-  already deterministic enough for that, and a replay is a ready-made desync test: play it back
-  on the port and compare state. How inputs are stored in the block is not decompiled yet.
+  that the memory card code saves and loads. (verified code; the names are guesses)
+- After the setup come two per-player buffers of 9000 frames each: stick bytes and button
+  words, with a count and a position. 9000 frames is 5 minutes at 30 Hz. (read from disassembly)
+- So a replay is the setup plus per-frame inputs, re-simulated. The simulation is therefore
+  already deterministic enough for the developers' own replays on one machine, and a replay is
+  a ready-made desync test for a port: play it back and compare state.
+- Not yet known: whether the random seeds are stored with a replay or reset to fixed values at
+  battle start. Replays could not work otherwise, so one of the two must happen; finding it
+  tells netplay how to seed.
 
 ## Sources of randomness
 
@@ -53,11 +67,23 @@ timer.
 
 ## Things that could desynchronise
 
-- **Direct pad reads in battle code**, bypassing the input record: `func_0023F0F0` (L1 and the
-  sticks; looks like manual camera control), `func_0023F708` (sticks), `func_001D8590` (pad 0
-  up/down). If any of these feed the simulation, their input must be synchronised too. Fighter
-  movement in this game is camera-relative, so a locally controlled camera is a real risk.
-  (inferred; the camera module is being decompiled)
+- **Direct pad reads in battle-side code.** Two of the three are now known not to matter:
+  `DbgCam_Update` (L1 and the sticks) has no callers, and `OrbitCam_Update` belongs to a viewer
+  screen and writes only its own camera. `func_001D8590` (pad 0 up/down) is still unexamined.
+  (code verified; reachability inferred from the absence of callers)
+- **Camera-relative movement comes from the fighter's own camera** (fighter +0x430 / +0x440,
+  maintained at 0x1C69C8), not from the camera module, which only copies it out. That code is
+  not decompiled and is where to look for camera feedback into the simulation. (inferred)
+- **Camera shake advances `rand()`** five times per update while active, from the fighter camera
+  update and from the demo camera. It must run the same number of times on both peers,
+  including on re-simulated frames. (verified)
+- **The demo camera advances inside `BtlCam_UpdateOverride`,** and the battle sequence waits on
+  it, so the camera update cannot be skipped on some frames without shifting intro timing.
+  (verified)
+- **The default view depends on which side is human** (`BtlCam_GetDefaultView`), and that feeds
+  an "is this fighter's camera on screen" test used by the effect scene. If two peers set side
+  control differently, that test differs; whether it reaches the simulation is not traced.
+  (verified code, open consequence)
 - **The camera can force a single view** (`BtlCam_UpdateOverride`), which changes what is drawn
   but, as far as the frame loop shows, not what is simulated. (verified in the loop)
 - **Loading is asynchronous.** Character and stage loads run as jobs during battle and set
@@ -78,10 +104,10 @@ timer.
 
 ## Open items
 
-- Decompile and verify the fighter input path, including who sets the delay and the injection
-  flag.
-- Establish what the replay block records and how playback feeds the fighters.
-- Establish whether the pad-reading camera code affects the simulation.
+- Decompile the replay recorder and player (`func_001D8388`, `func_001D8470`, `func_001D8330`)
+  and find how random seeds are handled across a replay.
+- Decompile the fighter camera at 0x1C69C8.
+- Match `BtlInput_Update`.
 - Find every caller of the four generators inside the simulation.
 - The Wii build has online play; its game-side netcode has not been examined yet and would show
   what the developers themselves synchronised.

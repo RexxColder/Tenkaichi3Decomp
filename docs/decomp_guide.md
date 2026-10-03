@@ -97,3 +97,23 @@ and `include/`, including other agents' work in progress). After adding names, r
 `python3 scripts/apply_names.py`: it rewrites `func_XXXXXXXX` /
 `D_XXXXXXXX` in `src/` and `include/` to the current names, so one module's rename does not
 leave another module calling a symbol that no longer exists.
+
+## More matching lessons
+- A function whose early exits are all `return 0` and whose last statement is `return 1` keeps
+  its separate success blocks; ending on `return 0` makes the compiler merge them.
+- Whether a callee has already been compiled in the same file changes delay-slot filling and
+  branch-likely choices in its callers. A mismatch of that kind is evidence of an original file
+  boundary; as a stopgap, call through an aliased declaration
+  (`extern T f2(void) __asm__("f");`).
+- A helper the compiler can see is `const` (static, no side effects) lets callers keep values
+  in registers across the call; try `static` on a small helper.
+- Float literals: fdiff masks constant relocations, so compare each `.lit4` value with the
+  original data. Decimal literals are truncated: use `3.14159265f`, `6.2831853f`,
+  `1.41421356f`, `1.1666667f`.
+- An object's `.lit4` and `.rodata` are each contiguous. If a function left in assembly owns
+  constants in the middle of a file's pool, the file has to be split around it.
+
+## Scratch files
+Each agent uses its own subfolder for scratch scripts. Run Python scratch files with
+`python3 file.py`, never as `./file.py` or `sh file.py` (a shell runs `import` as ImageMagick's
+screenshot tool, which hangs). Never use `pkill` by name.

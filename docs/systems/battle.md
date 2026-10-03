@@ -3,10 +3,11 @@
 Sources: `src/battle/battle.c`, `btl_seq.c`, `battle_work.c`, `battle_load.c`, `battle_setup.c`,
 `btl_pool.c`. Layouts: `include/battle/*.h`.
 
-At the time of writing `battle_work.c`, `battle_load.c` and `battle_setup.c` match per function
-but are not linked yet, and three headers (`battle.h`, `battle_work.h`, `battle_setup.h`)
-describe the battle block with differing local views. The tables below use the most recent,
-most strongly evidenced reading; the headers will be unified at integration.
+`battle_load.c` and `battle_setup.c` match per function but are not linked: they were one object
+in the original (their read-only data only lines up together) and have to be merged first.
+Three headers (`battle.h`, `battle_work.h`, `battle_setup.h`) still describe the battle block
+with differing local views; the tables below use the most recent, most strongly evidenced
+reading.
 
 ## Entry (verified)
 
@@ -83,8 +84,7 @@ uses all seven. All poll callbacks test pad bit 0x1000 (skip / pause).
 
 ### End of battle
 
-`BtlSeq_CheckBattleEnd` is still in assembly (its C does not byte-match), so this is read from
-the disassembly:
+`BtlSeq_CheckBattleEnd` (verified):
 
 1. return 1 if a winner is already set;
 2. return 0 without ticking if end checks are off, the battle is paused, stage jobs are running,
@@ -226,6 +226,32 @@ at least 10: for the first active type-1 blast record, if a rule word is on and 
 below half health, it requests a stage change (the stage-destruction transition, inferred).
 
 The menu overlay also runs its own instance of this scene.
+
+## Camera (verified code; all names are guesses)
+
+Sources: `src/battle/btl_cam.c`, `btl_demo_cam.c`, `orbit_cam.c`.
+
+- `gBtlCam` (0xC50): three `View` layout templates (full, left half, right half) and two
+  `BtlCamView`s. A `View` (0x260) holds the world-to-view and projection matrices, the scissor,
+  and projection parameters: aspect 7/6, screen distance 433, near 0.3, far 65536.
+- The camera pose is not computed here. Each frame `BtlCam_UpdateView(i)` copies fighter i's own
+  camera pose (`func_00207DD0`, fighter +0x430 / +0x440) into the view and builds the matrices.
+  The fighter camera itself is maintained at 0x1C69C8 (not decompiled).
+- `BtlCam_UpdateOverride` returns 1 when the frame is drawn once, full screen: always outside
+  split-screen or during a replay; in split-screen only when one view has priority.
+- Demo camera: `DemoCam_PlayStageAnim(0..2)` plays the stage-intro cuts from a camera animation
+  file (channels of keys `{flags, time, value}`); it advances 2.0 per unpaused update, inside
+  `BtlCam_UpdateOverride`. The battle sequence waits on `DemoCam_IsActive`.
+- Camera shake calls the C library `rand()` five times per update while a shake is active.
+- The camera module never writes to a fighter. Of about 140 readers of the views, none is in
+  the fighter-logic address range except one that turns the view into sound volume and pan
+  (classified by address only).
+
+## Pause-menu skill list (verified code; names are guesses)
+
+The start of `btl_seq.c` (0x215420..0x216AC0) draws the pause menu's skill list from a UTF-16
+script: tags for page titles, entries with three icon digits, detail lines and notes. A line
+can be gated on a character-unlock bit in the save and is drawn at half alpha when locked.
 
 ## Not decompiled yet
 

@@ -43,6 +43,16 @@ options:
     - config/symbols/btl_seq.txt
     - config/symbols/game_pad.txt
     - config/symbols/save.txt
+    - config/symbols/battle_work.txt
+    - config/symbols/battle_setup.txt
+    - config/symbols/btl_cam.txt
+    - config/symbols/btl_input.txt
+    - config/symbols/btl_scene.txt
+    - config/symbols/btl_text.txt
+    - config/symbols/fade.txt
+    - config/symbols/gfx.txt
+    - config/symbols/math3d.txt
+    - config/symbols/snd.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

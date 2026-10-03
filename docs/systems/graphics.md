@@ -3,8 +3,7 @@
 Sources: `src/sys/dma.c`, `gfx.c`, `gfx_ot.c`, `fade.c`, `vu1_packet.c`. Layouts and register
 macros: `include/sys/dma.h`, `gfx.h`, `gfx_ot.h`, `fade.h`, `vu1_packet.h`.
 
-`gfx_ot.c` and `vu1_packet.c` each have one function still in assembly, and their matches are
-not linked yet at the time of writing.
+`gfx_ot.c` and `vu1_packet.c` each have one function still in assembly.
 
 ## Display lists (verified; purposes inferred from hardware addresses)
 

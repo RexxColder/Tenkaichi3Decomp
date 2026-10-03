@@ -12,16 +12,16 @@
  * Everything this file calls is another module; the ones still called func_XXXXXXXX are described here
  * from a first read of their code (not decompiled):
  *
- *   sound       func_001251A0(n)   two sound-driver commands (0xA, then 6 with (n, 0)); n = 0x3C at restart
- *               func_00125330      per-frame, walks both sides' fighters through 0x207460 / 0x2074B8
- *   scene mgr   func_0012C9F0(0) init / func_0012CAE8 term / func_0012CBC8(0) reset / func_0012CB60 and
- *               func_0012CB98 the two per-frame updates / func_0012CCD0(first) draw / func_0012D088(v)
+ *   sound       Snd_StopBankAndResume(n)   two sound-driver commands (0xA, then 6 with (n, 0)); n = 0x3C at restart
+ *               Snd_SendFighters      per-frame, walks both sides' fighters through 0x207460 / 0x2074B8
+ *   scene mgr   BtlScene_Init(0) init / BtlScene_Term term / BtlScene_Reset(0) reset / BtlScene_Update and
+ *               BtlScene_PostUpdate the two per-frame updates / BtlScene_Draw(first) draw / BtlScene_SetSingleView(v)
  *               stores v in mgr+0x24. Next module (0x12C9F0..), state at gp 0x2FE9A0 (0x34 bytes); its
  *               init also runs BtlPool_Init.
- *               func_0012D450      per-frame, not in modes 4..7: walks a table of that module (count at +0x6400)
- *   loader      func_001283F0 / func_00128318   per side: poll 0x20B200 / 0x20B248 for a pending request and
+ *               BtlScene_CheckStageChange      per-frame, not in modes 4..7: walks a table of that module (count at +0x6400)
+ *   loader      BtlLoad_PollCharaRequest / BtlLoad_PollObjectRequest   per side: poll 0x20B200 / 0x20B248 for a pending request and
  *               push a loader Job (step functions 0x1278B0 / 0x127680), i.e. in-battle streaming
- *               func_001291C0      at Term: fills the BattleResult block (calls 0x128BC8)
+ *               BattleResult_Finish      at Term: fills the BattleResult block (calls 0x128BC8)
  *   fighters    func_001C2AA8, func_001C2A28, func_001C2B30, func_001C2C80, func_001C2E90, func_001C2F10:
  *               each is a loop "for every BtlChar_Get(i): per-fighter step", skipped under
  *               BATTLE_FLAG_PAUSE and/or BATTLE_FLAG_LOADING. They are the phases of the fighter update.
@@ -39,9 +39,9 @@
  *   objects     func_0024AB70 per-frame update of the object list (lighting colour, list walk);
  *               func_0024AD08(view) builds the visibility data of every listed object for one view;
  *               func_0024ADF8(split) finishes it for 1 (split == 0) or 2 views
- *   gfx         func_00102458 init / func_00102530 term of a 0x48-byte block at gp 0x2FE8A0;
- *               func_001021D8 emits a direct GS packet (0x102208) before the fighter pass;
- *               func_00102708 ends the fighter pass; func_00102448(n) is an empty stub taking a pass id
+ *   gfx         Ot_Init init / Ot_Term term of a 0x48-byte block at gp 0x2FE8A0;
+ *               Gfx_AddDefaultEnv emits a direct GS packet (0x102208) before the fighter pass;
+ *               Ot_Draw ends the fighter pass; Gfx_MarkPass(n) is an empty stub taking a pass id
  *               func_0010FF40      a full-screen pass between the first two effect passes
  *   overlays    func_0023A2B8 (0x23A2D0(0)); func_0023D1E0 is an empty stub
  *   menu side   func_00257A50 walks the list at 0x333B80; func_00259030 acts in sequence states 3 and 5 only
@@ -81,28 +81,28 @@ extern void BtlGame_PreUpdate(void);
 extern s32 BtlGame_Update(void);
 extern void BtlGame_Draw(void);
 
-extern void func_001021D8(void);
-extern void func_00102448(s32 pass);
-extern void func_00102458(void);
-extern void func_00102530(void);
-extern void func_00102708(void);
+extern void Gfx_AddDefaultEnv(void);
+extern void Gfx_MarkPass(s32 pass);
+extern void Ot_Init(void);
+extern void Ot_Term(void);
+extern void Ot_Draw(void);
 extern void func_0010FF40(void);
 extern void func_00115170(void);
 extern void func_00115950(s32 view);
 extern void func_00115DE0(s32 view);
-extern void func_001251A0(s32 arg);
-extern void func_00125330(void);
-extern void func_00128318(void);
-extern void func_001283F0(void);
-extern void func_001291C0(void);
-extern void func_0012C9F0(s32 arg);
-extern void func_0012CAE8(void);
-extern void func_0012CB60(void);
-extern void func_0012CB98(void);
-extern void func_0012CBC8(s32 arg);
-extern void func_0012CCD0(s32 first);
-extern void func_0012D088(s32 singleView);
-extern void func_0012D450(void);
+extern void Snd_StopBankAndResume(s32 arg);
+extern void Snd_SendFighters(void);
+extern void BtlLoad_PollObjectRequest(void);
+extern void BtlLoad_PollCharaRequest(void);
+extern void BattleResult_Finish(void);
+extern void BtlScene_Init(s32 arg);
+extern void BtlScene_Term(void);
+extern void BtlScene_Update(void);
+extern void BtlScene_PostUpdate(void);
+extern void BtlScene_Reset(s32 arg);
+extern void BtlScene_Draw(s32 first);
+extern void BtlScene_SetSingleView(s32 singleView);
+extern void BtlScene_CheckStageChange(void);
 extern void func_001AF9C0(void);
 extern void func_001B35B8(void);
 extern void func_001B3670(void);
@@ -134,9 +134,9 @@ extern void func_00257A50(void);
 extern void func_00259030(void);
 /* Puts every battle subsystem back to the start of a match (first start and rematch) and fades in over 1 s. */
 s32 Battle_Restart(void) {
-    func_001251A0(0x3C);
+    Snd_StopBankAndResume(0x3C);
     Battle_ResetWork();
-    func_0012CBC8(0);
+    BtlScene_Reset(0);
     func_002473D8();
     BtlGame_Reset();
     func_0023FC40();
@@ -156,20 +156,20 @@ s32 Battle_Init(void) {
     BtlCam_Init();
     func_001B3670();
     BtlGame_Init();
-    func_00102458();
-    func_0012C9F0(0);
+    Ot_Init();
+    BtlScene_Init(0);
     Battle_Restart();
     return 0;
 }
 
 /* Stores the result and destroys every battle subsystem. */
 s32 Battle_Term(void) {
-    func_001291C0();
+    BattleResult_Finish();
     Adx_StopAll();
     BtlChar_FreeAll();
     BtlCam_Term();
-    func_0012CAE8();
-    func_00102530();
+    BtlScene_Term();
+    Ot_Term();
     func_00247500();
     func_0023FCD8();
     func_001BB250();
@@ -189,13 +189,13 @@ s32 Battle_Update(void) {
 
     func_001C2B30();
     func_001C2C80();
-    func_0012CB60();
+    BtlScene_Update();
     func_001AF9C0();
-    func_0012CB98();
+    BtlScene_PostUpdate();
     func_001C2E90();
-    func_0012D450();
-    func_001283F0();
-    func_00128318();
+    BtlScene_CheckStageChange();
+    BtlLoad_PollCharaRequest();
+    BtlLoad_PollObjectRequest();
     func_00243568();
     BtlCam_SelectView(0);
     BtlCam_UpdateView(0);
@@ -215,7 +215,7 @@ s32 Battle_Update(void) {
         func_0024AD08(0);
         func_0024ADF8(0);
     }
-    func_0012D088(singleView);
+    BtlScene_SetSingleView(singleView);
     return singleView == 0;
 }
 
@@ -225,46 +225,46 @@ s32 Battle_Draw(void) {
     s32 view = gBtlCamView;
 
     Dbg_ProfMark(prof);
-    func_00102448(1);
+    Gfx_MarkPass(1);
     func_00115950(view);
     func_00115DE0(view);
     Dbg_ProfColor(prof, 0x80FF4040);
     Dbg_ProfMark(prof);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247578();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
-    func_00102448(2);
+    Gfx_MarkPass(2);
     func_0010FF40();
     Dbg_ProfColor(prof, 0x8040FF40);
     Dbg_ProfMark(prof);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247660();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
-    func_00102448(4);
-    func_001021D8();
-    func_0012CCD0(1);
-    func_00102708();
+    Gfx_MarkPass(4);
+    Gfx_AddDefaultEnv();
+    BtlScene_Draw(1);
+    Ot_Draw();
     Dbg_ProfColor(prof, 0x804040FF);
     Dbg_ProfMark(prof);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247688();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     BtlGame_Draw();
     Dbg_ProfColor(prof, 0x80FF40FF);
     Dbg_ProfMark(prof);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     func_0023A2B8();
     func_0023D1E0();
     Dbg_ProfColor(prof, 0x80FF40FF);
     Dbg_ProfMark(prof);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_002476D8();
     Dbg_ProfColor(prof, 0x80FFFFFF);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     return 0;
 }
 
@@ -273,7 +273,7 @@ s32 Battle_DrawSplit(void) {
     s32 i;
 
     Dbg_ProfMark(gBattleProf);
-    func_00102448(1);
+    Gfx_MarkPass(1);
     for (i = 0; i < 2; i++) {
         BtlCam_SelectView(i);
         BtlCam_ApplyView(1);
@@ -282,45 +282,45 @@ s32 Battle_DrawSplit(void) {
     }
     Dbg_ProfColor(gBattleProf, 0x80FF4040);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247578();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(2);
+    Gfx_MarkPass(2);
     func_0010FF40();
     Dbg_ProfColor(gBattleProf, 0x8040FF40);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247660();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(4);
-    func_001021D8();
+    Gfx_MarkPass(4);
+    Gfx_AddDefaultEnv();
     for (i = 0; i < 2; i++) {
         BtlCam_SelectView(i);
         BtlCam_ApplyView(1);
-        func_0012CCD0(i == 0);
-        func_00102708();
+        BtlScene_Draw(i == 0);
+        Ot_Draw();
     }
     Dbg_ProfColor(gBattleProf, 0x804040FF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_00247688();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     BtlGame_Draw();
     Dbg_ProfColor(gBattleProf, 0x80FF40FF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     func_0023A2B8();
     func_0023D1E0();
     Dbg_ProfColor(gBattleProf, 0x80FF40FF);
     Dbg_ProfMark(gBattleProf);
-    func_00102448(3);
+    Gfx_MarkPass(3);
     func_002476D8();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
-    func_00102448(0);
+    Gfx_MarkPass(0);
     return 0;
 }
 
@@ -343,7 +343,7 @@ void Battle_Loop(void) {
         func_001C2AA8();
         Pad_Update();
         Snd_Update();
-        func_00125330();
+        Snd_SendFighters();
         BtlGame_PreUpdate();
         Battle_UpdateWork();
         func_001BB620();

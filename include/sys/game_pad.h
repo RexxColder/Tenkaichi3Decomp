@@ -64,22 +64,22 @@
 
    == Battle does NOT use the game button word ==
    Fights read the RAW word and go through their own per-player key config (battle code, not this file):
-     func_001D4A00(chr)  samples gPad[chr->padIndex] (via func_001DC2A0): status, lastStatus, raw Pad.held
+     BtlInput_Sample(chr)  samples gPad[chr->padIndex] (via func_001DC2A0): status, lastStatus, raw Pad.held
                          (+0x148) and the left stick (+0x130/+0x134, quantised to a byte, 0x7F = centre)
-                         into chr+0x570, then func_001D4370 turns that into a 16-byte record at chr+0x938:
+                         into chr+0x570, then BtlInput_BuildRecord turns that into a 16-byte record at chr+0x938:
                          'O','P','R','T', player, 0, stickX, stickY, u32 buttons, u32 commands.
-     func_001D3BB0(rawHeld, table)  the remap: battle bit i is set when rawHeld & table[i] (bit 15 needs
+     BtlInput_RemapButtons(rawHeld, table)  the remap: battle bit i is set when rawHeld & table[i] (bit 15 needs
                          all bits of its mask). table = 31 raw PAD_* masks at chr+0x578.
-     func_001D4870(chr)  builds that table from the key config: func_001D47C8(chr, action) looks `action`
+     BtlInput_BuildMaskTable(chr)  builds that table from the key config: BtlInput_GetKeyMask(chr, action) looks `action`
                          up in gSaveData->keyConfig[player][8] (s32, gSaveData + 0x160C + player * 0x20; a
                          backup copy sits at + 0x164C) and returns the matching entry of D_002EF050 =
                          { CIRCLE, CROSS, SQUARE, TRIANGLE, L1, L2, R1, R2 }. The option menu's default
                          (overlay 0x3A296C) is keyConfig = { 2, 1, 0, 3, 4, 5, 6, 7 }.
-     func_001D4A70(chr)  pushes the record through an 8-entry ring (chr+0x8C0..) and derives the per-frame
+     BtlInput_Update(chr)  pushes the record through an 8-entry ring (chr+0x8C0..) and derives the per-frame
                          held/prev/pressed/released words at chr+0x73C/0x740/0x744/0x748 (buttons) and
                          chr+0x74C.. (commands).
-     readers             func_001D4DD0 (held), func_001D4D98 (pressed), func_001D4DE0 (released),
-                         func_001D4DA8, func_001D4E40/4E50/4E60 (command word), func_001D4DF0.. (frame counters).
+     readers             BtlInput_IsHeld (held), BtlInput_IsPressed (pressed), BtlInput_IsReleased (released),
+                         BtlInput_IsHeldNotPrev, BtlInput_IsCmdPressed/4E50/4E60 (command word), BtlInput_GetHeldFrames.. (frame counters).
    The battle button/command word, not gameHeld, is what a fight consumes each frame. */
 
 /* Translates gPad[pad].held into the game button word and derives gamePressed / gameRepeat; copies the sticks. */

@@ -75,22 +75,107 @@ by the overlay.
 There are no reader functions: about 90 overlay functions and about 20 in the main executable
 read the `gPad` fields directly.
 
-## Battle input (inferred: read from disassembly, being decompiled as `src/battle/btl_input.c`)
+## Battle input (verified by `src/battle/btl_input.c` unless marked)
 
-Fights do not use the menu word. Each fighter samples the raw pad and remaps it through a
-per-player key-config table:
+Fights do not use the menu word. Layouts: `include/battle/btl_input.h`. One function,
+`BtlInput_Update`, is still in assembly (six instructions out of order); what it does is known
+from its near-matching C.
 
-- A 16-byte record at fighter+0x938 tagged `'O','P','R','T'`: player, stick X, stick Y, a 32-bit
-  button word and a 32-bit command word.
-- Key config: `gSaveData->key[player][8]` maps eight actions to {CIRCLE, CROSS, SQUARE, TRIANGLE,
-  L1, L2, R1, R2}; the default is `{2, 1, 0, 3, 4, 5, 6, 7}`.
-- The record goes through an 8-entry ring per fighter; normally it is pushed and popped in the
-  same call, so the delay is zero.
-- When fighter+0x1278 is non-zero, input comes from fields on the fighter instead of the pad
-  (AI or injected input).
-- Held / previous / pressed / released words are derived per fighter, plus per-bit frame counters.
+### Per-frame flow
 
-Battle-side code that reads the pad directly, bypassing the record: `func_0023F0F0` (L1 and the
-sticks; looks like camera control), `func_0023F708` (sticks), `func_001D8590` (pad 0 up/down).
+1. `func_001C2A28` (skipped under battle flags 0x100 or 0x2000) samples each fighter:
+   `BtlInput_Sample` copies `gPad[chr->pad]` and builds the record. The pad index is `chr+4`;
+   the key-config and replay index is `chr+0`.
+2. `func_001C2B30` later calls `BtlInput_Update`, which fetches the record through the ring,
+   applies gating, and derives held / previous / pressed / released words and frame counters.
 
-This section will be replaced with verified detail when `btl_input.c` is linked.
+### Input record
+
+`BtlInputRecord`, 16 bytes at `chr+0x938`:
+
+| Offset | Field | Content |
+|---|---|---|
+| +0 | tag | 'O','P','R','T' |
+| +4 | player | |
+| +5 | | always 0 |
+| +6, +7 | stickX, stickY | 0..0xFE, 0x7F neutral; forced to 0 / 0xFF when a d-pad bit is down |
+| +8 | buttons | u32 |
+| +0xC | commands | u32 |
+
+### Button word
+
+"Action k" is the physical button `i` with `gSaveData->key[player][i] == k`, over (Circle, Cross,
+Square, Triangle, L1, L2, R1, R2). The default config is `{2, 1, 0, 3, 4, 5, 6, 7}`. The mask
+table is built once per fighter reset, not per frame.
+
+| Bit | Source | Default button |
+|---|---|---|
+| 0 | action 2 | Circle |
+| 1 | action 1 | Cross |
+| 2 | action 3 | Triangle |
+| 3 | action 0 | Square |
+| 4-7 | up, down, left, right: d-pad, else the left stick's dominant axis | |
+| 8, 10 | right stick left, right | |
+| 9 | action 5 | L2 |
+| 11 | action 6 | R1 |
+| 12 | action 7 | R2 |
+| 13 | R3 | |
+| 14 | action 4 | L1 |
+| 15 | L3 and R3 together | |
+| 16-19 | right stick up, down, left, right | |
+| 20 | any of actions 0-3 | |
+| 21, 22 | bit 11 / bit 12 pressed again within 7 frames (double tap) | |
+| 23 | SELECT | |
+| 24 | action 3 again | |
+| 25, 26 | right stick up, down again | |
+| 27-30 | physical Circle, Cross, Triangle, Square (not remapped) | |
+
+The gameplay names in the header (`BTLB_GUARD`, `DASH`, `BLAST`, `RUSH`, `CHARGE`, ...) are
+guesses from the default layout; the bit sources are verified.
+
+### Command word
+
+Built from the button word and its history by `BtlInput_BuildCommands`: combinations such as
+"b1 held without b9", "b1 pressed while b9 held", "b3 released under 7 frames after its press",
+"b3 held exactly 6 frames", plus direction qualifier bits. The full table is in the header. It
+also depends on three pieces of fighter state (a frame counter block, `chr+0x1594`, and a
+per-fighter table entry), so it is a function of button history plus fighter state, and the
+game recomputes it rather than recording it.
+
+### Ring buffer
+
+Eight entries `{buttons, commands, stick[2]}` at `chr+0x8C0`. `BtlInput_Fetch` is the only user:
+it pushes the record and pops immediately, so the ring is always empty between frames and there
+is never any delay. The public push / pop / count wrappers have no callers.
+
+### Gating after the ring
+
+Not part of the record:
+- input is forced neutral under battle flag 0x200, or fighter flags 0x11E, 0x11F, 0xB1;
+- under battle flag 0x400 (the Ready state) it is neutral on stages 4 and 27, otherwise masked
+  to movement and guard (buttons 0x008F18F3, commands 0x3C010011).
+
+### CPU input
+
+`chr+0x1278` is set at fighter reset when the side is CPU-controlled. The CPU then writes
+buttons and stick floats to `chr+0x127C..0x1284` through `func_00208198`, whose only caller is
+`func_001B6CD8` (the AI, inferred). Injected input skips key config and double-tap detection
+and then goes through the same stick merge, command building and replay hook.
+
+### Replay hooks (read from disassembly; not decompiled)
+
+- Recorder `func_001D8388`: appends `{stick[2], buttons}` per fighter per frame; ignores the
+  command word. Stops at 9000 frames (5 minutes at 30 Hz).
+- Player `func_001D8470`: reads the next frame; past the end it returns neutral. The command
+  word is rebuilt from the replayed buttons.
+- Buffer per player (0xD2F8 bytes): `u8 stick[9000][2]`, `u32 buttons[9000]`, count, position.
+- The hook only runs when the fighter is taking input (fighter flag 2 or 3 set, flag 0x136
+  clear); otherwise the record is neutral and nothing is recorded or consumed.
+
+### Direct pad readers in battle-side code
+
+- `DbgCam_Update` (was `func_0023F0F0`): L1 and the sticks. No callers in either binary: dead
+  debug code (inferred from the absence of any call or table reference).
+- `OrbitCam_Update` (was `func_0023F708`): sticks of pad 0, for an orbiting viewer camera whose
+  callers look like a viewer screen, not the battle (inferred).
+- `func_001D8590`: pad 0 up/down. Not examined.

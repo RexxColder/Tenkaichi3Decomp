@@ -70,7 +70,7 @@ typedef struct SaveRec {
 typedef struct SaveData {
     /* 0x0000 */ s32 unk0;
     /* 0x0004 */ s32 unk4;
-    /* 0x0008 */ s32 unlockFlags;   /* bits 0-6 set by Save_UnlockAll; func_0012A470 tests `1 << n` for n < 7; the menu also uses bit 9 */
+    /* 0x0008 */ s32 unlockFlags;   /* bits 0-6 set by Save_UnlockAll; BattleSetup_FinishEx tests `1 << n` for n < 7; the menu also uses bit 9 */
     /* 0x000C */ s32 unkC;          /* 1 by default; picked from a list by menu func_0033EB88 */
     /* 0x0010 */ SaveSlot slot[SAVE_SLOT_COUNT];
     /* 0x00A0 */ u8 unkA0[0x208 - 0xA0];
@@ -83,7 +83,7 @@ typedef struct SaveData {
     /* 0x0A0C */ s32 unkA0C;        /* counter kept in 0..23 by menu func_00362160 */
     /* 0x0A10 */ s32 unkA10;
     /* 0x0A14 */ u8 unkA14[0xC10 - 0xA14];
-    /* 0x0C10 */ u64 charaBits[SAVE_CHARA_WORDS]; /* bit id: character unlocked (func_0025F610, func_00129D60) */
+    /* 0x0C10 */ u64 charaBits[SAVE_CHARA_WORDS]; /* bit id: character unlocked (func_0025F610, BattleSetup_InitCharaBits) */
     /* 0x0C28 */ u64 stageBits;     /* bit id: stage unlocked (func_0025FC50 turns locked ids into 0x24) */
     /* 0x0C30 */ u32 bgmBits;       /* bit id: entry of a 25-entry list unlocked (func_0025FD60 turns locked ids into 0x19); BGM is a guess */
     /* 0x0C34 */ s32 rule[SAVE_RULE_COUNT]; /* 3, 2, 2, 0, 0, 0 by default (Save_ResetRules); read by menu 0x348710 / 0x351508 / 0x353518 */
@@ -94,16 +94,16 @@ typedef struct SaveData {
     /* 0x1208 */ s32 unk1208;       /* menu func_003A9DF0 */
     /* 0x120C */ u8 unk120C[0x1608 - 0x120C];
     /* 0x1608 */ s32 flags;         /* SAVE_FLAG_* */
-    /* 0x160C */ s32 key[SAVE_PAD_COUNT][SAVE_KEY_COUNT];     /* button assignment used in battle: func_001D47C8 looks an action up in key[player] */
+    /* 0x160C */ s32 key[SAVE_PAD_COUNT][SAVE_KEY_COUNT];     /* button assignment used in battle: BtlInput_GetKeyMask looks an action up in key[player] */
     /* 0x164C */ s32 keyEdit[SAVE_PAD_COUNT][SAVE_KEY_COUNT]; /* the copy the controller page edits and resets (menu func_003A0808 / func_003A5E48) */
     /* 0x168C */ s32 unk168C[2];
-    /* 0x1694 */ s32 unk1694;       /* option copied to both players' battle setup (+0x30, +0x34) by func_00129E00 / func_00129FD8; reset with the screen page */
+    /* 0x1694 */ s32 unk1694;       /* option copied to both players' battle setup (+0x30, +0x34) by BattleSetup_DefaultOptions / BattleSetup_SetOption14; reset with the screen page */
     /* 0x1698 */ s32 unk1698;       /* same, to +0x38 and +0x3C */
     /* 0x169C */ s32 screenX;       /* display offset, Gfx_SetDisplayRegs */
     /* 0x16A0 */ s32 screenY;
-    /* 0x16A4 */ s32 soundMode;     /* 0 stereo, 1 mono: func_00261598 calls func_00124F08(soundMode ^ 1), which ends in Adx_SetMono(soundMode) */
+    /* 0x16A4 */ s32 soundMode;     /* 0 stereo, 1 mono: func_00261598 calls Snd_SetStereo(soundMode ^ 1), which ends in Adx_SetMono(soundMode) */
     /* 0x16A8 */ s32 bgmVolume;     /* 0..9; sys/adx.c channels 0-1 */
-    /* 0x16AC */ s32 seVolume;      /* 0..9; sys/adx.c channels 2-5 (stream SE, voice) and func_00124638 (sound effects) */
+    /* 0x16AC */ s32 seVolume;      /* 0..9; sys/adx.c channels 2-5 (stream SE, voice) and Snd_ScaleVolume (sound effects) */
     /* 0x16B0 */ u8 unk16B0[0x1808 - 0x16B0];
     /* 0x1808 */ SaveCustom custom[SAVE_CUSTOM_COUNT];
     /* 0x2D40 */ SaveRec rec[SAVE_REC_COUNT];

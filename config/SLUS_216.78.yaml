@@ -42,6 +42,16 @@ options:
     - config/symbols/btl_seq.txt
     - config/symbols/game_pad.txt
     - config/symbols/save.txt
+    - config/symbols/battle_work.txt
+    - config/symbols/battle_setup.txt
+    - config/symbols/btl_cam.txt
+    - config/symbols/btl_input.txt
+    - config/symbols/btl_scene.txt
+    - config/symbols/btl_text.txt
+    - config/symbols/fade.txt
+    - config/symbols/gfx.txt
+    - config/symbols/math3d.txt
+    - config/symbols/snd.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -97,22 +107,41 @@ segments:
       - [0x000000, asm, cod/000000] # .text
       - [0x000258, c, main]
       - [0x000670, c, sys/dma]
-      - [0x001D40, asm, cod/001D40]
+      - [0x001D40, c, sys/gfx]
+      - [0x002458, c, sys/gfx_ot]
+      - [0x002F28, asm, cod/002F28]
       - [0x022940, c, sys/pad]
-      - [0x023130, asm, cod/023130]
+      - [0x023130, c, sys/vu1_packet]
+      - [0x023F48, c, sys/snd]
+      - [0x025568, asm, cod/025568]
+      - [0x026EC8, c, battle/battle_work]
+      # battle_load.c (0x127120) and battle_setup.c (0x129170) match per function but were one
+      # object in the original (their .rodata only lines up together); they stay in assembly
+      # until the two files are merged.
+      - [0x027120, asm, cod/027120]
       - [0x02B570, c, battle/battle]
-      - [0x02BD58, asm, cod/02BD58]
+      - [0x02BD58, c, battle/btl_facade]
+      - [0x02C9F0, c, battle/btl_scene]
+      - [0x02DD80, asm, cod/02DD80]
       - [0x0A7018, c, battle/btl_pool]
       - [0x0A7608, asm, cod/0A7608]
-      - [0x115540, c, battle/btl_seq]
+      - [0x0D3B40, c, battle/btl_input]
+      - [0x0D4F30, asm, cod/0D4F30]
+      - [0x115420, c, battle/btl_seq]
       - [0x1187E0, asm, cod/1187E0]
+      - [0x13D1E8, c, battle/btl_demo_cam]
+      - [0x13E040, c, battle/btl_cam]
+      - [0x13F620, c, battle/orbit_cam]
+      - [0x13FB20, asm, cod/13FB20]
+      - [0x1527B0, c, sys/fade]
+      - [0x152F68, asm, cod/152F68]
       - [0x154A20, c, sys/rand]
       - [0x154E28, c, sys/heap]
       - [0x1557A8, c, sys/heap_info]
       - [0x155898, c, sys/list]
       - [0x155EE8, c, sys/queue]
       - [0x156128, c, sys/align]
-      - [0x1562A8, asm, cod/1562A8]
+      - [0x1562A8, c, sys/math3d]
       - [0x1574F0, c, sys/game_pad]
       - [0x157870, asm, cod/157870]
       - [0x163098, c, sys/debug]
@@ -135,8 +164,14 @@ segments:
       - [0x1EB380, rodata, cod/1EB380] # .rodata
       - [0x1EB3A8, .rodata, main]
       - [0x1EB550, .rodata, sys/dma]
-      - [0x1EB5B0, rodata, cod/1EB5B0]
-      - [0x1F1A80, .rodata, battle/btl_seq]
+      - [0x1EB5B0, .rodata, sys/gfx]
+      - [0x1EB610, .rodata, sys/gfx_ot]
+      - [0x1EB6A0, rodata, cod/1EB6A0]
+      - [0x1EC420, .rodata, battle/btl_scene]
+      - [0x1EC4E0, rodata, cod/1EC4E0]
+      - [0x1EF050, .rodata, battle/btl_input]
+      - [0x1EF070, rodata, cod/1EF070]
+      - [0x1F1A50, .rodata, battle/btl_seq]
       - [0x1F1B30, rodata, cod/1F1B30]
       - [0x1F3500, .rodata, sys/file]
       # The original padded each object's .rodata to 16 bytes; ours pads to 8, so the last 8
@@ -145,8 +180,18 @@ segments:
       - [0x1F4490, .rodata, cri/adxt]
       - [0x1F44C0, rodata, cod/1F44C0]
       - [0x1FC280, lit4, cod/1FC280] # .lit4
-      - [0x1FE1C8, .lit4, battle/btl_seq]
+      - [0x1FC334, .lit4, battle/btl_scene]
+      - [0x1FC340, lit4, cod/1FC340]
+      - [0x1FD290, .lit4, battle/btl_input]
+      - [0x1FD294, lit4, cod/1FD294]
+      - [0x1FE1C0, .lit4, battle/btl_seq]
       - [0x1FE1D8, lit4, cod/1FE1D8]
+      - [0x1FE4CC, .lit4, battle/btl_cam]
+      - [0x1FE550, lit4, cod/1FE550]
+      - [0x1FE55C, .lit4, battle/orbit_cam]
+      - [0x1FE588, lit4, cod/1FE588]
+      - [0x1FE764, .lit4, sys/math3d]
+      - [0x1FE794, lit4, cod/1FE794]
       - [0x1FE7B4, .lit4, sys/loading]
       - [0x1FE7C0, .lit4, sys/adx]
       - [0x1FE7C4, lit4, cod/1FE7C4]

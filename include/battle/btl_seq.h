@@ -5,7 +5,8 @@
 
 /*
  * Battle sequence: the state machine that drives one match from the stage intro to the fade out.
- * Source range 0x216AC0-0x2187E0 (core, clocks, win judgement and every state handler).
+ * Source range 0x216AC0-0x2187E0 (core, clocks, win judgement and every state handler); src/battle/btl_seq.c
+ * also holds the skill-list text of the pause menu, 0x215420-0x216AC0 (BtlText_*, at the end of this header).
  *
  * The frame loop calls BtlSeq_PreUpdate() before the battle simulation and BtlSeq_Update() after it.
  * BtlSeq_Update() returns 1 when the battle scene has to be left.
@@ -167,5 +168,40 @@ void BtlSeq_ResetSubClock(void);
 s32 BtlSeq_GetTimeLeft(void);
 void BtlSeq_StopTalk(void);
 s32 BtlSeq_CheckBattleEnd(void);
+
+/*
+ * Skill-list text of the pause menu, 0x215420-0x216AC0 (the first part of src/battle/btl_seq.c).
+ * Each side has a list of pages ('$' lines of the script) holding entries ('*' lines).
+ */
+
+/* One side's list state. */
+typedef struct BtlTextList {
+    /* 0x00 */ s32 pages;      /* number of '$' lines */
+    /* 0x04 */ s32 count[10];  /* '*' entries per page */
+    /* 0x2C */ s32 page;       /* current page */
+    /* 0x30 */ s32 scroll[10]; /* first visible entry per page */
+    /* 0x58 */ s32 cursor[10]; /* selected entry per page */
+} BtlTextList; /* size 0x80 */
+
+/* The work behind D_002FEB30 (owned by the pause menu code before this range). */
+typedef struct BtlTextWork {
+    /* 0x00 */ u8 unk0[0xC];
+    /* 0x0C */ s32 side;   /* which list is shown */
+    /* 0x10 */ s32 unk10;  /* bit number tested against a line's mask digit */
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ u16 *text;  /* func_00214FE0() */
+    /* 0x1C */ u16 *text2; /* func_00214FF0() */
+    /* 0x20 */ BtlTextList list[2];
+} BtlTextWork;
+
+void BtlText_DrawPart(void *pkt, s32 x, s32 y, s32 w, s32 h, s32 part);
+void BtlText_DrawPageIcon(void *pkt, s32 x, s32 y, u16 digit);
+s32 BtlText_CheckLineMask(u16 **cursor, s32 side);
+s32 BtlText_CheckUnlock(u16 **cursor);
+void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode);
+void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1);
+void BtlText_CountEntries(void);
+u16 *BtlText_FindEntry(s32 n);
+void BtlText_DrawEntryName(s32 x, s32 y, s32 n, s32 align, f32 alpha);
 
 #endif

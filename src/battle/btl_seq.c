@@ -3,24 +3,540 @@
 #include "sys/heap.h"
 #include "sys/adx.h"
 
-/* The original object started at 0x215540 with eight text/subtitle drawing functions. They are
- * not decompiled yet, but have to live in this file so its .rodata lines up (see below). */
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_00215540);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_002155F0);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_002156E8);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_002156F0);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_00216508);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_002166A0);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_00216818);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", func_002168F8);
+/* ---- Skill-list text of the pause menu, 0x215420-0x216AC0 ----
+ * The list is a UTF-16 script. Every line starts with two characters whose second one is a hex digit (a mask
+ * tested against work->unk10), optionally followed by "&ddd" (unlock condition), then a tag:
+ *   '$n'   page n title          '*abc' entry (three digits a, b, c)      '%0' / '%1' detail lines
+ *   '#'    note                  '@'    end of the script
+ * Lines are separated by func_002153E0(). BtlTextList / BtlTextWork are in battle/btl_seq.h.
+ *
+ * What the matching code says about the original source file (see also the note above BtlSeq_FirstState):
+ * - BtlText_DrawPart (0x215420) was defined in the same file as, and above, BtlText_DrawList: two branches of
+ *   DrawList are annulled / not annulled the right way only when the compiler has already compiled DrawPart.
+ *   That is why this file starts at 0x215420 and not at 0x215540. The file may well have started earlier still.
+ * - BtlText_IsLineDimmed was `static`: DrawList keeps the text pointer in a register across the call, which the
+ *   compiler only does for a function it has marked `const` itself, and it only does that for static ones. */
+
+extern f32 gBtlTextAlpha;
+extern u64 *gSaveData; /* local view: only charaBits (+0xC10) is used here */
+
+extern BtlTextWork *func_002145C0(void);
+extern u16 *func_00214FE0(void);
+extern u16 *func_00214FF0(void);
+extern u16 *func_002153E0(u16 *line);        /* start of the next line */
+extern void func_00215350(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1); /* GS scissor */
+extern void func_00215140(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u, s32 v, s32 w, s32 h, u32 color, s32 part);
+extern s32 func_0020C9B8(s32 side);
+extern s32 func_0023A458(void);
+extern void func_0023A2D0(s32 font);
+extern s32 func_0023A488(void);
+extern f32 func_0023A5F0(u16 *str, s32 width);
+extern void func_0023A848(s32 x, s32 y, u16 *str);
+extern void func_0023AC60(void);
+extern void func_0023AD48(void);
+extern void func_0023AE48(f32 a);
+extern void func_0023AE68(f32 sx, f32 sy);
+extern void func_0023AE80(f32 *sx, f32 *sy);
+extern void func_0023AED8(s32 x0, s32 y0, s32 x1, s32 y1);
+extern void func_0023AF28(s32 align);
+extern void func_0023AF48(s32 a);
+extern void func_0023AF68(s32 a);
+extern void func_0023AFE0(s32 r, s32 g, s32 b, s32 a);
+extern void func_0023B010(s32 r, s32 g, s32 b, s32 a);
+extern void func_0023B040(s32 r, s32 g, s32 b, s32 a);
+extern s32 func_0023D1A0(u16 *str);
+extern s32 Battle_IsSplitScreen(void);
+
+
+/* Draws one part of the list sprite sheet: a w x h rectangle at (x, y); a negative h flips it vertically. */
+void BtlText_DrawPart(void *pkt, s32 x, s32 y, s32 w, s32 h, s32 part) {
+    func_00215140(pkt, x, y, x + w, y + h, 0, 0, w, h < 0 ? -h : h, 0x80808080, part);
+}
+
+/* Draws the icon of a page title: digit '0'..'8' picks part 7..14 ('7' and '8' share the last one). */
+void BtlText_DrawPageIcon(void *pkt, s32 x, s32 y, u16 digit) {
+    s32 w = func_0023A488();
+    s32 idx = digit - '0';
+    s32 part = 0;
+
+    w *= 20;
+    switch (idx) {
+    case 0:
+        part = 0;
+        break;
+    case 1:
+        part = 1;
+        break;
+    case 2:
+        part = 2;
+        break;
+    case 3:
+        part = 3;
+        break;
+    case 4:
+        part = 4;
+        break;
+    case 5:
+        part = 5;
+        break;
+    case 6:
+        part = 6;
+        break;
+    case 7:
+    case 8:
+        part = 7;
+        break;
+    }
+    BtlText_DrawPart(pkt, x, y, w, 0x20, part + 7);
+}
+static s32 BtlText_IsLineDimmed(s32 page, s32 entry, s32 side);
+
+/* Reads the mask digit of a line, steps over the two leading characters and tells if the line is shown. */
+s32 BtlText_CheckLineMask(u16 **cursor, s32 side) {
+    BtlTextWork *work = func_002145C0();
+    u16 *p = *cursor;
+    u32 mask = 0;
+    s32 shift;
+
+    switch (p[1]) {
+    case 'F':
+        mask = 0xF;
+        break;
+    case '1':
+        mask = 1;
+        break;
+    case '2':
+        mask = 2;
+        break;
+    case '4':
+        mask = 4;
+        break;
+    case '8':
+        mask = 8;
+        break;
+    case 'E':
+        mask = 0xE;
+        break;
+    case 'D':
+        mask = 0xD;
+        break;
+    case 'B':
+        mask = 0xB;
+        break;
+    case '7':
+        mask = 7;
+        break;
+    }
+    p += 2;
+    shift = work->unk10;
+    *cursor = p;
+    return (mask >> shift) & 1;
+}
+
+/* Steps over an "&ddd" unlock prefix; 0 when the line is locked (character ddd not unlocked in the save). */
+s32 BtlText_CheckUnlock(u16 **cursor) {
+    BtlTextWork *work = func_002145C0();
+    s32 ret = 1;
+    u16 *p = *cursor;
+
+    if (p[0] == '&') {
+        s32 id = (p[1] - '0') * 100;
+
+        id += (p[2] - '0') * 10;
+        id += p[3] - '0';
+
+        p += 4;
+        if (id == 0x56) {
+            if (func_0020C9B8(work->side) != 0) {
+                ret = 0;
+            }
+        } else {
+            ret = (gSaveData[0xC10 / 8 + id / 64] >> (id % 64)) & 1;
+        }
+    }
+    *cursor = p;
+    return ret;
+}
+
+/* Stub: never dims a line. It has to be static: only then does the compiler see that it is a `const` function,
+ * which BtlText_DrawList needs (p stays in a register across the call). */
+static s32 BtlText_IsLineDimmed(s32 page, s32 entry, s32 side) {
+    return 0;
+}
+
+/* A colour component scaled by the line alpha. */
+#define BTLTEXT_COL(v) ((u8)(u32)(gBtlTextAlpha * (v)))
+
+/* Draws the list inside the clip rectangle (x0, y0)-(x1, y1). mode 0: the page title and the entries of the
+ * current page, scrolled, with the selected one highlighted; other modes: the detail lines ('%') and the note
+ * ('#') of the selected entry.
+ * Matching notes: the locals are declared in the order of their stack slots (most of them are spilled); the
+ * three entry digits are an array; `line` is a register copy of p taken once per line. */
+void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
+    s32 icon[3];
+    u16 *p;
+    f32 sx;
+    f32 sy;
+    BtlTextWork *work;
+    s32 side;
+    s32 lineH;
+    s32 go;
+    s32 page;
+    s32 entry;
+    s32 y;
+    BtlTextList *list;
+    f32 fit;
+    s32 tag;
+    u16 *line;
+    s32 h;
+
+    work = func_002145C0();
+    go = 1;
+    page = -1;
+    side = work->side;
+    y = y0;
+    entry = 0;
+    list = &work->list[side];
+    p = func_00214FE0();
+    lineH = func_0023A488() * 20;
+    if (p == NULL) {
+        return;
+    }
+    if (mode == 0) {
+        y -= list->scroll[list->page] * 28;
+    }
+    func_0023AC60();
+    func_0023AF48(1);
+    func_0023AE68(1.0f, 1.0f);
+    Battle_IsSplitScreen();
+    func_0023AF68(2);
+    func_0023AFE0(0xFF, 0xFF, 0xFF, 0x80);
+    func_0023B040(0, 0x10, 0x10, 0x40);
+    if (mode == 0) {
+        func_0023AED8(x0, y0, x1, y1);
+        func_00215350(pkt, x0, y0, x1, y1);
+    } else {
+        func_0023AED8(x0, y0 - 7, x1, y1 + 7);
+        func_00215350(pkt, x0, y0 - 7, x1, y1 + 7);
+    }
+    p += 1;
+    while (go && *p != 0) {
+        if (BtlText_CheckLineMask(&p, side) == 0) {
+            p = func_002153E0(p);
+            continue;
+        }
+        if (BtlText_CheckUnlock(&p) == 0) {
+            gBtlTextAlpha = 0.5f;
+        }
+        line = p;
+        tag = *line;
+        switch (tag) {
+        case '$':
+            page = line[1] - '0';
+            entry = -1;
+            break;
+        case '*':
+            entry++;
+            break;
+        }
+        if (tag != '@' && page != list->page) {
+            p = func_002153E0(line);
+            continue;
+        }
+        if (tag != '$' && BtlText_IsLineDimmed(page, entry, side) != 0) {
+            gBtlTextAlpha = 0.5f;
+        }
+        if (mode == 0) {
+            switch (tag) {
+            case '$':
+                func_0023AC60();
+                func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
+                func_0023AED8(0, 0, 0x1FF, 0x1BF);
+                func_0023AFE0(0xFF, 0xFF, 0xFF, 0x80);
+                func_0023B040(0x56, 0x3D, 0x39, 0x80);
+                func_0023A848(x0 + 0x1E, y0 - 0x22, p + 2);
+                BtlText_DrawPageIcon(pkt, x0, y0 - 0x28, p[1]);
+                func_00215350(pkt, x0, y0, x1, y1);
+                func_0023AD48();
+                break;
+            case '*':
+                if (y0 < y + 0x20 && y < y1) {
+                    icon[0] = p[1] - '0';
+                    icon[1] = p[2] - '0';
+                    icon[2] = p[3] - '0';
+                    if (entry == list->cursor[list->page]) {
+                        func_0023AFE0(BTLTEXT_COL(255.0f), BTLTEXT_COL(247.0f), BTLTEXT_COL(15.0f), 0x80);
+                        func_0023B040(BTLTEXT_COL(28.0f), BTLTEXT_COL(32.0f), BTLTEXT_COL(21.0f), 0x40);
+                    } else {
+                        func_0023AFE0(BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), 0x80);
+                        func_0023B040(BTLTEXT_COL(32.0f), BTLTEXT_COL(43.0f), BTLTEXT_COL(94.0f), 0x40);
+                    }
+                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x44);
+                    if (fit < 1.0f) {
+                        func_0023AC60();
+                        func_0023AE80(&sx, &sy);
+                        func_0023AE68(sx * fit, sy);
+                        func_0023A848(x0 + 0xF, y + 3, p + 4);
+                        func_0023AD48();
+                    } else {
+                        func_0023A848(x0 + 0xF, y + 3, p + 4);
+                    }
+                    h = lineH - 2;
+                    if (entry == list->cursor[list->page]) {
+                        BtlText_DrawPart(pkt, x0 - 1, y, h, 0x1F, 0x11);
+                    } else {
+                        BtlText_DrawPart(pkt, x0 - 1, y, h, 0x1F, 0x10);
+                    }
+                    if (icon[0] > 0) {
+                        BtlText_DrawPart(pkt, x1 - 0x35, y - 5, h, 0x1F, 0x13);
+                    }
+                    if (icon[1] > 0) {
+                        BtlText_DrawPart(pkt, x1 - 0x20, y - 5, h, 0x1F, icon[1] + 0x1C);
+                    }
+                    if (icon[2] > 0) {
+                        BtlText_DrawPart(pkt, x1 - 0x20, y - 5, h, 0x1F, icon[2] + 0x13);
+                    }
+                }
+                y += 0x1C;
+                break;
+            case '@':
+                go = 0;
+                break;
+            }
+        } else {
+            switch (tag) {
+            case '%':
+                switch (line[1]) {
+                case '0':
+                    if (entry != list->cursor[list->page]) {
+                        break;
+                    }
+                    func_0023AFE0(BTLTEXT_COL(170.0f), BTLTEXT_COL(215.0f), BTLTEXT_COL(255.0f), 0x80);
+                    func_0023B040(BTLTEXT_COL(43.0f), BTLTEXT_COL(54.0f), BTLTEXT_COL(64.0f), 0x40);
+                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x1E);
+                    if (fit < 1.0f) {
+                        func_0023AC60();
+                        func_0023AE80(&sx, &sy);
+                        func_0023AE68(sx * fit, sy);
+                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                        func_0023AD48();
+                    } else {
+                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                    }
+                    y += 0x1C;
+                    break;
+                case '1':
+                    if (entry != list->cursor[list->page]) {
+                        break;
+                    }
+                    func_0023AFE0(BTLTEXT_COL(239.0f), BTLTEXT_COL(89.0f), BTLTEXT_COL(89.0f), 0x80);
+                    func_0023B040(BTLTEXT_COL(64.0f), BTLTEXT_COL(17.0f), BTLTEXT_COL(0.0f), 0x40);
+                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x1E);
+                    if (fit < 1.0f) {
+                        func_0023AC60();
+                        func_0023AE80(&sx, &sy);
+                        func_0023AE68(sx * fit, sy);
+                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                        func_0023AD48();
+                    } else {
+                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                    }
+                    y += 0x1C;
+                    break;
+                }
+                break;
+            case '#':
+                if (entry == list->cursor[list->page]) {
+                    func_0023B010(BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), 0x80);
+                    func_0023A848(x0 + 0xF, y, p + 1);
+                    y += 0x1C;
+                    func_0023B010(0x80, 0x80, 0x80, 0x80);
+                    if (work->unk10 == 1) {
+                        if (func_0023D1A0(p + 1) > 0x20) {
+                            y += 0x14;
+                        }
+                    }
+                }
+                break;
+            case '@':
+                go = 0;
+                break;
+            }
+        }
+        gBtlTextAlpha = 1.0f;
+        p = func_002153E0(p);
+    }
+    func_0023AD48();
+    func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
+}
+
+/* Draws the scroll bar of the current page: the frame, and the thumb when there are more than 7 entries. */
+#if 0
+/* Not matching: 29 of 102 instructions differ, all from one register swap. The original keeps `half` in s2 and
+ * `y1` in s3, this C gets them the other way round (and so schedules two instructions and the epilogue restores
+ * in another order). Writing the last argument as `half += 0x1B; ... -half` gives the right registers but then
+ * the add is done in place (`addiu s2,s2,27` instead of `addiu t0,s2,27`). */
+void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
+    s32 visible = 7;
+    BtlTextWork *work = func_002145C0();
+    BtlTextList *list = &work->list[work->side];
+    s32 h = y1 - y0;
+    s32 half = h / 2;
+    s32 count = list->count[list->page];
+    s32 scroll = list->cursor[list->page];
+    s32 over;
+
+    BtlText_DrawPart(pkt, x, y0, 9, h - half, 5);
+    BtlText_DrawPart(pkt, x, y1, 9, -half, 5);
+    y0 += 2;
+    x += 2;
+    y1 -= 2;
+    over = visible < count;
+    count--;
+    if (count < 0) {
+        count = 0;
+    }
+    if (over) {
+        f32 unit = (f32)(y1 - y0) / (f32)(count + 7);
+
+        y0 += (s32)((f32)scroll * unit);
+        y1 = y0 + (s32)(unit * (f32)visible);
+        h = y1 - y0;
+        half = h / 2;
+        BtlText_DrawPart(pkt, x, y0 - 0x1B, 5, h - half + 0x1B, 6);
+    }
+    BtlText_DrawPart(pkt, x, y1 + 0x1B, 5, -(half + 0x1B), 6);
+}
+#else
+INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", BtlText_DrawScrollBar);
+#endif
+
+/* Counts the pages and the entries of each page of the current side's list. */
+void BtlText_CountEntries(void) {
+    u16 *p;
+    s32 go = 1;
+    s32 page = -1;
+    BtlTextWork *work = func_002145C0();
+    s32 side = work->side;
+    BtlTextList *list = &work->list[side];
+    s32 i;
+
+    p = func_00214FE0();
+    if (p == NULL) {
+        return;
+    }
+    list->pages = 0;
+    for (i = 9; i >= 0; i--) {
+        list->count[i] = 0;
+    }
+    p += 1;
+    while (go && *p != 0) {
+        s32 tag;
+
+        if (BtlText_CheckLineMask(&p, side) == 0) {
+            p = func_002153E0(p);
+            continue;
+        }
+        BtlText_CheckUnlock(&p);
+        tag = *p;
+        if (tag == '$') {
+            page = p[1] - '0';
+        }
+        switch (tag) {
+        case '$':
+            list->pages++;
+            break;
+        case '*':
+            list->count[page]++;
+            break;
+        case '@':
+            go = 0;
+            break;
+        }
+        p = func_002153E0(p);
+    }
+}
+
+/* Returns the name of the n-th entry of the second script (8 characters into its line), NULL when it has none.
+ * The bare `return;` is what the original does when there is no script: v0 is left as the NULL just returned. */
+u16 *BtlText_FindEntry(s32 n) {
+    u16 *p;
+    s32 go = 1;
+    u16 *ret = NULL;
+
+
+    p = func_00214FF0();
+    if (p == NULL) {
+        return;
+    }
+    p += 1;
+    while (go && *p != 0) {
+        p += 2;
+        BtlText_CheckUnlock(&p);
+        switch (*p) {
+        case '*':
+            if (n <= 0) {
+                ret = p + 4;
+                go = 0;
+            }
+            n--;
+            break;
+        case '@':
+            go = 0;
+            break;
+        }
+        p = func_002153E0(p);
+    }
+    return ret;
+}
+
+/* Draws the name of entry n at (x, y); align 0 / 1 / other picks the font alignment 0 / 2 / 1. */
+void BtlText_DrawEntryName(s32 x, s32 y, s32 n, s32 align, f32 alpha) {
+    u16 *str = BtlText_FindEntry(n);
+
+    if (str != NULL) {
+        s32 font = func_0023A458();
+
+        func_0023AC60();
+        func_0023AF48(1);
+        func_0023AE48(0.9f);
+        func_0023AE68(0.95f, 1.0f);
+        func_0023AFE0(0xFF, 0xFF, 0xFF, (u8)(u32)(alpha * 128.0f));
+        func_0023AF68(2);
+        func_0023B040(0x20, 0x20, 0xFF, (u8)(u32)(alpha * 64.0f));
+        switch (align) {
+        case 0:
+            func_0023AF28(0);
+            break;
+        case 1:
+            func_0023AF28(2);
+            break;
+        default:
+            func_0023AF28(1);
+            break;
+        }
+        func_0023A848(x, y, str);
+        func_0023AD48();
+        func_0023A2D0(font);
+    }
+}
 
 /* Battle sequence state machine, 0x216AC0-0x2187E0. See battle/btl_seq.h for the state list.
  *
- * Object boundary: the first .rodata item this file emits (the tick table of BtlClock_Tick, 0x2F1AD8) follows
- * jtbl_002F1A80 of func_00215540 with no padding, and the jump tables after it sit at +0x18 from it. So the
- * original object did not start here: it also held 0x58 (mod 16: 8) bytes of earlier .rodata, i.e. at least
- * func_00215540..func_002168F8 (text drawing, 0x215540-0x216AC0). Linked on its own this file puts the tick
- * table at a 16-byte boundary and the jump tables 8 bytes too early. */
+ * Object boundaries, from .rodata: the tick table of BtlClock_Tick (0x2F1AD8) follows jtbl_002F1A80 of
+ * BtlText_CheckLineMask with no padding, and the jump tables after it sit at +0x18 from it, so the text
+ * functions and at least BtlClock_Tick were one object. With the file starting at BtlText_DrawPart (0x215420,
+ * .rodata from jtbl_002F1A50) every table lands on its original address.
+ *
+ * Object boundaries, from code generation: a call to a function the compiler has already compiled in the same
+ * file is treated differently by the delay-slot pass than a call to an unknown one (it looks through the call
+ * when deciding whether a branch must be annulled). Two places depend on it:
+ * - BtlText_DrawList needs BtlText_DrawPart known (same file, above it): matches as written.
+ * - BtlSeq_CheckBattleEnd needs BtlSeq_TickClocks NOT known. So the state handlers and the win check
+ *   (BtlSeqIntroTalk_Setup .. the end; their first jump table, 0x2F1AF0, is 16-byte aligned, which is where a
+ *   new object's .rodata would start) were most likely a second source file, and this file should be split
+ *   somewhere after BtlSeq_TickClocks (0x217090) and before BtlSeq_CheckBattleEnd (0x217EF0). Until then
+ *   BtlSeq_CheckBattleEnd calls it through a second declaration of the same symbol. */
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 rand(void);
@@ -51,27 +567,27 @@ typedef struct BtlSeqObj {
 extern BtlSeqBattleWork *Battle_GetWork(void);
 extern s32 Battle_GetMode(void);
 extern BtlSeqResult *Battle_GetResult(void);   /* &Battle_GetWork()->result */
-extern void func_001288F0(s32 winner, s32 reason); /* sets the result */
-extern s32 func_00128960(void);             /* result.winner & BTL_RESULT_ABORT */
+extern void BattleResult_Set(s32 winner, s32 reason); /* sets the result */
+extern s32 BattleResult_IsAborted(void);             /* result.winner & BTL_RESULT_ABORT */
 extern s32 Battle_IsRematchRequested(void);             /* result.reason & BTL_REASON_RESTART */
-extern s32 func_001289B8(void);             /* result.winner & 3: a side won */
-extern s32 func_001289E0(void);             /* split screen, mode 8, mode 1, or side 0 won */
-extern s32 func_00128A78(void);             /* winning side: 0, or 1 when only bit 1 is set */
-extern s32 func_00128AB0(void);             /* result.reason bit 0 */
-extern s32 func_00128AD8(void);             /* result.reason bit 1 */
-extern s32 func_00128B00(void);             /* result.reason bit 2 */
-extern s32 func_00128B28(void);             /* result.reason bit 18 */
-extern s32 func_00128B78(void);
-extern s32 func_00128BA8(s32 side);         /* rule flag 0x3C of a side */
-extern s32 func_0012A9E8(void);
-extern s32 func_0012A9F8(void);
-extern s32 func_0012AA18(void);
-extern s32 func_0012AB58(void);             /* time limit in seconds (table D_002C3480) */
-extern s32 func_0012AB90(void);             /* time limit is off */
-extern s32 func_0012B1D0(s32 side);         /* object index of a side's fighter */
-extern void func_0012C000(s32 side);
+extern s32 BattleResult_HasWinner(void);             /* result.winner & 3: a side won */
+extern s32 BattleResult_IsPlayerWin(void);             /* split screen, mode 8, mode 1, or side 0 won */
+extern s32 BattleResult_GetWinnerSide(void);             /* winning side: 0, or 1 when only bit 1 is set */
+extern s32 BattleResult_IsKo(void);             /* result.reason bit 0 */
+extern s32 BattleResult_IsTimeUp(void);             /* result.reason bit 1 */
+extern s32 BattleResult_IsReasonBit2(void);             /* result.reason bit 2 */
+extern s32 BattleResult_IsReasonBit18(void);             /* result.reason bit 18 */
+extern s32 BattleResult_IsWinnerEvent59Clear(void);
+extern s32 BattleResult_IsEvent3CSet(s32 side);         /* rule flag 0x3C of a side */
+extern s32 BattleReplay_IsActive(void);
+extern s32 BattleReplay_IsLoaded(void);
+extern s32 BattleReplay_TestDataFlag(void);
+extern s32 Battle_GetTimeLimit(void);             /* time limit in seconds (table gBattleTimeLimitTbl) */
+extern s32 Battle_IsTimeLimitOff(void);             /* time limit is off */
+extern s32 BattleSide_GetObjId(s32 side);         /* object index of a side's fighter */
+extern void BtlFacade_SetCtrl10D(s32 side);
 extern BtlSeqObj *BtlObj_Get(s32 idx);
-extern void func_0024F5D8(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
+extern void BtlObj_SetSubState(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
 extern void func_00267AC8(BtlSeqTimer *timer, f32 seconds, f32 from, f32 to);
 extern s32 func_00267B00(BtlSeqTimer *timer); /* steps a timer, 1 when it ended */
 extern void func_00209EE8(s32 side);        /* character flag 0xEF: entrance pose */
@@ -79,12 +595,12 @@ extern void func_00209F20(s32 side);        /* character flag 0xF0: end of entra
 extern void func_00209F58(s32 side);        /* character flag 0xF1: win pose */
 extern void func_00209F90(s32 side);        /* character flag 0xF2: lose pose */
 extern s32 func_00209FC8(s32 side);         /* pose reached */
-extern void func_0023DE60(s32 side, s32 cut); /* fighter camera cut */
-extern void func_0023DE30(s32 a);
-extern s32 func_0023DFF8(s32 cut);          /* stage camera cut */
-extern s32 func_0023DBC0(void);             /* camera cut still playing */
-extern s32 func_0023DC20(void);
-extern void func_0023DCB8(void);            /* stop the camera cut */
+extern void DemoCam_PlayObjAnim(s32 side, s32 cut); /* fighter camera cut */
+extern void DemoCam_SetScaleHeight(s32 a);
+extern s32 DemoCam_PlayStageAnim(s32 cut);          /* stage camera cut */
+extern s32 DemoCam_IsActive(void);             /* camera cut still playing */
+extern s32 DemoCam_IsInUse(void);
+extern void DemoCam_Stop(void);            /* stop the camera cut */
 extern void func_00244870(void);
 extern void func_00244830(s32 a, f32 seconds);
 extern s32 func_002592D8(void);
@@ -101,7 +617,7 @@ extern s32 func_0022FBD8(void);
 extern s32 func_0022FC20(void);
 extern s32 func_00212FF8(s32 a, s32 b);     /* pause / result menu update */
 extern void func_00213220(void);
-extern void func_00125170(s32 a, s32 b);
+extern void Snd_SetPause(s32 a, s32 b);
 extern void func_00218A58(s32 on);          /* HUD visibility bits */
 extern void func_00218AE8(s32 on);
 extern void func_00218B08(s32 on);
@@ -188,7 +704,7 @@ s32 BtlSeq_Update(void) {
         BtlSeq_Call(gBtlSeq->table[gBtlSeq->state].exit, gBtlSeq->state);
         gBtlSeq->state = next;
         if (gBtlSeq->state == BTL_SEQ_EXIT) {
-            if (Battle_IsRematchRequested() || (Battle_GetMode() == 6 && func_00128B00())) {
+            if (Battle_IsRematchRequested() || (Battle_GetMode() == 6 && BattleResult_IsReasonBit2())) {
                 Battle_GetWork()->flags |= BTL_FLAG_RESTART;
                 return 0;
             }
@@ -281,7 +797,7 @@ void BtlSeq_ResetClocks(void) {
     BtlClock *clock = BtlSeq_GetClock();
 
     BtlClock_Clear(clock);
-    clock->timeLeft = func_0012AB58();
+    clock->timeLeft = Battle_GetTimeLimit();
     BtlClock_Clear(BtlSeq_GetSubClock());
 }
 
@@ -293,14 +809,14 @@ s32 BtlSeq_TickClocks(void) {
     BtlClock_Tick(BtlSeq_GetSubClock());
     clock = BtlSeq_GetClock();
     BtlClock_Tick(clock);
-    if (func_0012AB90()) {
+    if (Battle_IsTimeLimitOff()) {
         return 0;
     }
-    if (clock->minutes * 60 + clock->seconds >= func_0012AB58()) {
+    if (clock->minutes * 60 + clock->seconds >= Battle_GetTimeLimit()) {
         clock->timeLeft = 0;
         return 1;
     }
-    clock->timeLeft = func_0012AB58() - (clock->minutes * 60 + clock->seconds);
+    clock->timeLeft = Battle_GetTimeLimit() - (clock->minutes * 60 + clock->seconds);
     return 0;
 }
 
@@ -311,7 +827,7 @@ void BtlSeq_ResetSubClock(void) {
 
 /* Seconds left of the time limit, -1 when there is none. */
 s32 BtlSeq_GetTimeLeft(void) {
-    if (func_0012AB90()) {
+    if (Battle_IsTimeLimitOff()) {
         return -1;
     }
     return BtlSeq_GetClock()->timeLeft;
@@ -319,17 +835,17 @@ s32 BtlSeq_GetTimeLeft(void) {
 
 /* Stops both fighters' talk animation and both voice players. */
 void BtlSeq_StopTalk(void) {
-    func_0024F5D8(BtlObj_Get(func_0012B1D0(0)), 0, -1);
-    func_0024F5D8(BtlObj_Get(func_0012B1D0(1)), 0, -1);
+    BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(0)), 0, -1);
+    BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(1)), 0, -1);
     Voice_Stop(0);
     Voice_Stop(1);
 }
 
 /* Chooses the two entrance lines: the pair's special dialogue when both have a table entry, else random. */
 s32 BtlSeqIntroTalk_Setup(BtlSeqTalkCtx *ctx) {
-    BtlSeqObj *obj0 = BtlObj_Get(func_0012B1D0(0));
+    BtlSeqObj *obj0 = BtlObj_Get(BattleSide_GetObjId(0));
     u8 *tbl0 = obj0->talkTbl;
-    BtlSeqObj *obj1 = BtlObj_Get(func_0012B1D0(1));
+    BtlSeqObj *obj1 = BtlObj_Get(BattleSide_GetObjId(1));
     u8 *tbl1 = obj1->talkTbl;
 
     if (tbl0 != NULL && tbl1 != NULL) {
@@ -373,8 +889,8 @@ s32 BtlSeqIntroTalk_Setup(BtlSeqTalkCtx *ctx) {
 /* State 1 enter: prepares the entrance lines; mode 1 has none and waits for the skip request. */
 s32 BtlSeqIntroTalk_Enter(BtlSeqTalkCtx *ctx) {
     if (Battle_GetMode() == 1) {
-        func_0012C000(0);
-        func_0012C000(1);
+        BtlFacade_SetCtrl10D(0);
+        BtlFacade_SetCtrl10D(1);
         ctx->skip = 0;
         ctx->step = 99;
     } else {
@@ -390,17 +906,17 @@ s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
     case 0:
         func_00209EE8(ctx->side[0]);
         func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
-        func_0023DE60(ctx->side[0], 0);
+        DemoCam_PlayObjAnim(ctx->side[0], 0);
         Voice_PlayChara(ctx->side[0], ctx->chara[0], ctx->line[0]);
-        func_0024F5D8(BtlObj_Get(func_0012B1D0(ctx->side[0])), 2, ctx->line[0]);
+        BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[0])), 2, ctx->line[0]);
         ctx->step++;
         break;
     case 2:
         func_00209EE8(ctx->side[1]);
         func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
-        func_0023DE60(ctx->side[1], 0);
+        DemoCam_PlayObjAnim(ctx->side[1], 0);
         Voice_PlayChara(ctx->side[1], ctx->chara[1], ctx->line[1]);
-        func_0024F5D8(BtlObj_Get(func_0012B1D0(ctx->side[1])), 2, ctx->line[1]);
+        BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[1])), 2, ctx->line[1]);
         ctx->step++;
         break;
     case 3:
@@ -466,7 +982,7 @@ done:
 /* State 1 exit: stops the camera cut and ends both entrance poses (not in mode 1). */
 s32 BtlSeqIntroTalk_Exit(BtlSeqTalkCtx *ctx) {
     if (Battle_GetMode() != 1) {
-        func_0023DCB8();
+        DemoCam_Stop();
         func_00209F20(ctx->side[0]);
         func_00209F20(ctx->side[1]);
     }
@@ -485,14 +1001,14 @@ s32 BtlSeqIntroTalk_Skip(BtlSeqTalkCtx *ctx) {
 
 /* Chooses the speaker, line and announcement of the winner scene. */
 s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
-    s32 winner = func_00128A78();
+    s32 winner = BattleResult_GetWinnerSide();
     s32 loser = winner == 0;
-    BtlSeqObj *winObj = BtlObj_Get(func_0012B1D0(winner));
+    BtlSeqObj *winObj = BtlObj_Get(BattleSide_GetObjId(winner));
     u8 *winTbl = winObj->talkTbl;
-    BtlSeqObj *loseObj = BtlObj_Get(func_0012B1D0(loser));
+    BtlSeqObj *loseObj = BtlObj_Get(BattleSide_GetObjId(loser));
     u8 *loseTbl = loseObj->talkTbl;
 
-    if (func_001289E0()) {
+    if (BattleResult_IsPlayerWin()) {
         if (winTbl == NULL || loseTbl == NULL || func_00207270(winner) || func_00207270(loser)) {
             ctx->side[0] = winner;
             if (func_00207270(winner)) {
@@ -562,17 +1078,17 @@ s32 BtlSeqWinTalk_Enter(BtlSeqTalkCtx *ctx) {
 s32 BtlSeqWinTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
-        if (func_001289E0()) {
+        if (BattleResult_IsPlayerWin()) {
             func_00209F58(ctx->side[0]);
-            func_0023DE60(ctx->side[0], 1);
-            func_0023DE30(1);
+            DemoCam_PlayObjAnim(ctx->side[0], 1);
+            DemoCam_SetScaleHeight(1);
         } else {
             func_00209F90(ctx->side[0]);
-            func_0023DE60(ctx->side[0], 2);
+            DemoCam_PlayObjAnim(ctx->side[0], 2);
         }
         func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
         Voice_PlayChara(ctx->side[0], ctx->chara[0], ctx->line[0]);
-        func_0024F5D8(BtlObj_Get(func_0012B1D0(ctx->side[0])), 2, ctx->line[0]);
+        BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[0])), 2, ctx->line[0]);
         ctx->step++;
         break;
     case 2:
@@ -649,15 +1165,15 @@ s32 BtlSeqStageIntro_Enter(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqStageIntro_PreUpdate(BtlSeqWaitCtx *ctx) {
     switch (ctx->step) {
     case 0:
-        func_0023DFF8(0);
+        DemoCam_PlayStageAnim(0);
         ctx->step++;
         break;
     case 2:
-        func_0023DFF8(1);
+        DemoCam_PlayStageAnim(1);
         ctx->step++;
         break;
     case 4:
-        func_0023DFF8(2);
+        DemoCam_PlayStageAnim(2);
         ctx->step++;
         break;
     case 1:
@@ -676,7 +1192,7 @@ s32 BtlSeqStageIntro_Update(BtlSeqWaitCtx *ctx) {
     case 1:
     case 2:
     case 3:
-        if (!func_0023DBC0()) {
+        if (!DemoCam_IsActive()) {
             func_00244870();
             func_00244830(1, 1.0f);
             ctx->step++;
@@ -684,7 +1200,7 @@ s32 BtlSeqStageIntro_Update(BtlSeqWaitCtx *ctx) {
         break;
     case 4:
     case 5:
-        if (!func_0023DBC0()) {
+        if (!DemoCam_IsActive()) {
             ctx->step++;
             return 1;
         }
@@ -702,8 +1218,8 @@ s32 BtlSeqStageIntro_Update(BtlSeqWaitCtx *ctx) {
 
 /* State 0 exit: stops a camera cut that is still playing. */
 s32 BtlSeqStageIntro_Exit(BtlSeqWaitCtx *ctx) {
-    if (func_0023DBC0()) {
-        func_0023DCB8();
+    if (DemoCam_IsActive()) {
+        DemoCam_Stop();
     }
     func_00244870();
     func_00244830(1, 1.0f);
@@ -712,7 +1228,7 @@ s32 BtlSeqStageIntro_Exit(BtlSeqWaitCtx *ctx) {
 
 /* True when the battle ended by time up in mode 0: the only case where equal health is a draw. */
 s32 BtlSeq_CanDraw(void) {
-    if (func_00128AD8() && Battle_GetMode() == 0) {
+    if (BattleResult_IsTimeUp() && Battle_GetMode() == 0) {
         return 1;
     }
     return 0;
@@ -721,9 +1237,9 @@ s32 BtlSeq_CanDraw(void) {
 /* Picks the winner from the two sides' health; equal health falls back to a rule flag, a draw, or rand(). */
 void BtlSeq_JudgeByHealth(BtlSeqResult *result) {
     if (result->health[0] == result->health[1]) {
-        if (func_00128BA8(0)) {
+        if (BattleResult_IsEvent3CSet(0)) {
             result->winner = BTL_RESULT_WIN_P1;
-        } else if (func_00128BA8(1)) {
+        } else if (BattleResult_IsEvent3CSet(1)) {
             result->winner = BTL_RESULT_WIN_P2;
         } else if (BtlSeq_CanDraw()) {
             result->winner = BTL_RESULT_DRAW;
@@ -741,10 +1257,19 @@ void BtlSeq_JudgeByHealth(BtlSeqResult *result) {
     }
 }
 
-/* Ticks the clocks and decides whether the battle is over, filling the result block; 1 when it is. */
-#if 0
-/* Not matching: same instructions per block, but this compiler merges the three "set reason + judge by health"
- * blocks into one (cross-jumping) where the original keeps three copies, which also shifts every branch. */
+/* Ticks the clocks and decides whether the battle is over, filling the result block; 1 when it is.
+ *
+ * Two things were needed to match:
+ * - The function has to END with the last success path (`return 1` falling off the end) and every `return 0`
+ *   has to be an early return. Then the compiler shares only the final `return 1` between the blocks and keeps
+ *   the three "set reason + BtlSeq_JudgeByHealth" blocks separate; with `return 0` as the last statement it
+ *   merges those three blocks into one.
+ * - The call to BtlSeq_TickClocks() must look like a call to a function the compiler has not seen the body of
+ *   (the branch before it is `bnezl` only then). In the original this function was therefore compiled without
+ *   BtlSeq_TickClocks() defined above it, i.e. the clock code was most likely a separate source file. Until the
+ *   file is split, the call goes through a second declaration of the same symbol. */
+extern s32 BtlSeq_TickClocksExt(void) __asm__("BtlSeq_TickClocks");
+
 s32 BtlSeq_CheckBattleEnd(void) {
     BtlSeqResult *result = Battle_GetResult();
     s32 timeUp;
@@ -764,7 +1289,7 @@ s32 BtlSeq_CheckBattleEnd(void) {
     if (func_00207090()) {
         return 0;
     }
-    timeUp = BtlSeq_TickClocks();
+    timeUp = BtlSeq_TickClocksExt();
     if (Battle_GetMode() == 1) {
         return 0;
     }
@@ -803,16 +1328,16 @@ s32 BtlSeq_CheckBattleEnd(void) {
         result->reason = BTL_REASON_KO;
         return 1;
     }
-    if (func_0012A9E8() && func_0012AA18()) {
-        result->reason = BTL_REASON_BIT18;
-        result->winner = BTL_RESULT_OTHER;
-        return 1;
+    if (!BattleReplay_IsActive()) {
+        return 0;
     }
-    return 0;
+    if (!BattleReplay_TestDataFlag()) {
+        return 0;
+    }
+    result->winner = BTL_RESULT_OTHER;
+    result->reason = BTL_REASON_BIT18;
+    return 1;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", BtlSeq_CheckBattleEnd);
-#endif
 
 /* State 3 enter: releases the fighters (clears the demo and ready flags); mode 8 shows the HUD. */
 s32 BtlSeqFight_Enter(BtlSeqWaitCtx *ctx) {
@@ -834,20 +1359,20 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
     if (Battle_GetMode() != 8) {
         if (ctx->poll != NULL && !(Battle_GetWork()->flags & BTL_FLAG_PAUSE) && ctx->poll()) {
             if (Battle_GetMode() == 7) {
-                func_001288F0(BTL_RESULT_ABORT, 0);
-            } else if (func_0012A9E8() && func_0012A9F8() && func_0022FC20() == 1) {
+                BattleResult_Set(BTL_RESULT_ABORT, 0);
+            } else if (BattleReplay_IsActive() && BattleReplay_IsLoaded() && func_0022FC20() == 1) {
             } else if (Battle_GetMode() == 1 && func_002592D8()) {
                 func_00259360();
             } else {
                 Battle_GetWork()->flags |= BTL_FLAG_PAUSE | BTL_FLAG_SKIP;
                 Adx_PauseSeVoice();
-                func_00125170(4, 1);
+                Snd_SetPause(4, 1);
             }
         }
         if (Battle_GetWork()->flags & BTL_FLAG_PAUSE) {
             if (func_00212FF8(func_0022FBD8(), 0) == 0) {
                 Battle_GetWork()->flags &= ~(BTL_FLAG_PAUSE | BTL_FLAG_SKIP);
-                func_00125170(4, 0);
+                Snd_SetPause(4, 0);
             }
         }
     }
@@ -855,7 +1380,7 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
         if (Battle_GetMode() == 7) {
             return 6;
         }
-        return func_00128960() ? 6 : 4;
+        return BattleResult_IsAborted() ? 6 : 4;
     }
     return 3;
 }
@@ -911,7 +1436,7 @@ void BtlSeq_SetResultPad(void) {
     if (func_0022FB90() == 1) {
         func_0022FBB0(0);
     } else {
-        func_0022FBB0(func_00128A78());
+        func_0022FBB0(BattleResult_GetWinnerSide());
     }
 }
 
@@ -923,7 +1448,7 @@ s32 BtlSeq_IsModeZero(void) {
 /* State 6 enter: mode 0 with a finished battle opens the result menu (step 0); otherwise starts the 1.2 s fade out (step 1). */
 s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BTL_FLAG_DEMO;
-    if (func_00128960()) {
+    if (BattleResult_IsAborted()) {
         Fade_Start(0, 0, 1.0f);
         func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
         ctx->step = 1;
@@ -949,7 +1474,7 @@ s32 BtlSeqEnd_Update(BtlSeqWaitCtx *ctx) {
     case 0:
         func_00212FF8(func_0022FBD8(), 1);
         func_00213220();
-        if (func_00128960()) {
+        if (BattleResult_IsAborted()) {
             Fade_Start(0, 0, 1.0f);
             func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
             ctx->step = 1;
@@ -966,10 +1491,10 @@ s32 BtlSeqEnd_Update(BtlSeqWaitCtx *ctx) {
 
 /* State 6 exit: stops the camera cut. */
 s32 BtlSeqEnd_Exit(BtlSeqWaitCtx *ctx) {
-    if (func_0023DC20()) {
-        func_0023DCB8();
+    if (DemoCam_IsInUse()) {
+        DemoCam_Stop();
     }
-    func_0023DE30(0);
+    DemoCam_SetScaleHeight(0);
     return 1;
 }
 
@@ -980,17 +1505,17 @@ s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BTL_FLAG_DEMO;
     timer = &ctx->timer;
     func_00267AC8(timer, 3.5f, 0.0f, 1.0f);
-    if (func_00128AB0()) {
-        if (func_00128B78()) {
+    if (BattleResult_IsKo()) {
+        if (BattleResult_IsWinnerEvent59Clear()) {
             func_0022AB50(3);
         } else {
             func_0022AB50(2);
         }
-    } else if (func_00128AD8()) {
+    } else if (BattleResult_IsTimeUp()) {
         func_0022AB50(5);
-    } else if (func_00128B00()) {
+    } else if (BattleResult_IsReasonBit2()) {
         func_0022AB50(4);
-    } else if (func_00128B28()) {
+    } else if (BattleResult_IsReasonBit18()) {
         func_00267AC8(timer, 1.1f, 0.0f, 1.0f);
     }
     return 1;
@@ -1004,7 +1529,7 @@ s32 BtlSeqFinish_PreUpdate(BtlSeqWaitCtx *ctx) {
 /* State 4 update: when the wait ends goes to the winner scene (5) if a side won and the mode is not 8, else to 6. */
 s32 BtlSeqFinish_Update(BtlSeqWaitCtx *ctx) {
     if (func_00267B00(&ctx->timer)) {
-        if (Battle_GetMode() != 8 && func_001289B8()) {
+        if (Battle_GetMode() != 8 && BattleResult_HasWinner()) {
             return 5;
         }
         return 6;

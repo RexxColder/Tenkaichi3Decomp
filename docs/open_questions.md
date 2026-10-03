@@ -20,11 +20,17 @@
 
 | Function | File | What differs |
 |---|---|---|
-| `BtlSeq_CheckBattleEnd` | `btl_seq.c` | the compiler merges three blocks the original keeps separate |
+| `BtlInput_Update` | `btl_input.c` | 6 of 149 instructions: the emission order of twelve stores |
+| `DemoCam_Update` | `btl_demo_cam.c` | 11 of 384: two saved registers swapped in one branch |
+| `OrbitCam_Reset` | `orbit_cam.c` | the assembler prelude does not move a float load into a call's delay slot |
+| `BtlText_DrawScrollBar` | `btl_seq.c` | one register swap |
 | `Ot_Reset` | `gfx_ot.c` | the original copies an address through two extra registers |
 | `Vu1Node_Animate` | `vu1_packet.c` | one instruction short; different loop induction variables |
 | `BtlScene_TestCharPackBit` | `btl_scene.c` | the original keeps a mask in a saved register |
 | `BtlScene_IsEffectHidden` | `btl_scene.c` | the first switch's shared block and fall-through |
+
+Matching but not linked: `battle_load.c` and `battle_setup.c` (136 functions) were one object in
+the original and must be merged into one file before they can link.
 
 ## Game structure
 
