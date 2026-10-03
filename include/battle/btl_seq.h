@@ -67,7 +67,7 @@ typedef struct BtlSeqState {
     /* 0x14 */ BtlSeqPollFunc poll;  /* copied to BtlSeq.ctx.poll before every handler call */
 } BtlSeqState; /* size 0x18 */
 
-/* Linear ramp used as a frame timer (func_00267AC8 starts it, func_00267B00 steps it). */
+/* Linear ramp used as a frame timer (Ramp_Start starts it, Ramp_Step steps it). */
 typedef struct BtlSeqTimer {
     /* 0x00 */ s32 unk0;
     /* 0x04 */ s32 state;   /* 0 running, -1 makes the step function report "done" */

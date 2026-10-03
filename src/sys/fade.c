@@ -8,9 +8,9 @@ extern void Vec4_Add(f32 *dst, f32 *a, f32 *b);
 extern void Vec4_Sub(f32 *dst, f32 *a, f32 *b);
 extern void Vec4_Scale(f32 *dst, f32 *src, f32 scale);
 extern void Gfx_PutDefaultEnv(u64 **pp);  /* appends the common 2D GS state (13 quadwords) at *pp and advances it */
-extern void func_00267AB8(FadeRamp *ramp);  /* stops a ramp: state = -1 */
-extern void func_00267AC8(FadeRamp *ramp, f32 seconds, f32 from, f32 to); /* starts a ramp */
-extern s32 func_00267B00(FadeRamp *ramp); /* steps a ramp, 1 when it ended */
+extern void Ramp_Stop(FadeRamp *ramp);  /* stops a ramp: state = -1 */
+extern void Ramp_Start(FadeRamp *ramp, f32 seconds, f32 from, f32 to); /* starts a ramp */
+extern s32 Ramp_Step(FadeRamp *ramp); /* steps a ramp, 1 when it ended */
 
 /* The rectangle in GS primitive coordinates: the 512x448 screen centred on 2048,2048. */
 #define FADE_X 1792
@@ -57,7 +57,7 @@ void Fade_DrawRect(Fade *fade) {
 /* Turns a slot off and stops its ramp. */
 void FadeSlot_Reset(Fade *fade) {
     fade->flags = 0;
-    func_00267AB8(&fade->ramp);
+    Ramp_Stop(&fade->ramp);
 }
 
 /* Sets or clears the pause flag of a slot that is on. */
@@ -105,7 +105,7 @@ void FadeSlot_Update(Fade *fade) {
             if ((s32)fade->color[3] == 0) {
                 FadeSlot_Reset(fade);
             }
-        } else if (func_00267B00(&fade->ramp)) {
+        } else if (Ramp_Step(&fade->ramp)) {
             fade->flags |= FADE_FLAG_DONE;
         }
         do {
@@ -190,7 +190,7 @@ void Fade_Start(s32 idx, s32 dir, f32 seconds) {
         break;
     }
     Vec4_Sub(fade->delta, fade->to, fade->from);
-    func_00267AC8(&fade->ramp, seconds, 0.0f, 1.0f);
+    Ramp_Start(&fade->ramp, seconds, 0.0f, 1.0f);
     FadeSlot_Update(fade);
 }
 

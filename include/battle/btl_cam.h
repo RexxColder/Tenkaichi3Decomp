@@ -24,8 +24,8 @@
  *     BtlCam_UpdateView(i);
  *         id = BattleSide_GetObjId(i)                     the side's active fighter
  *         split-screen: BtlCam_SetLayout(1, 0)            back to its half if it was full screen
- *         func_00207DD0(id, &view->pos, &view->rot)       copy the fighter camera's pose
- *         view->priority = func_00207E78(id)              fighter flag 0xD3: 0 or 1
+ *         BtlCharApi_GetCamPose(id, &view->pos, &view->rot)       copy the fighter camera's pose
+ *         view->priority = BtlCharApi_HasCamPriority(id)              fighter flag 0xD3: 0 or 1
  *         BtlCam_BuildView(view, 1)                       pose -> matrices, loaded into VU0, scissor set
  * then BtlCam_UpdateOverride(). So both views always hold the pose of their own side's fighter camera,
  * in split-screen or not.
@@ -41,7 +41,7 @@
  *     have it, BtlCam_GetDefaultView(); when neither has it, -1.
  *   - BtlCam_GetDefaultView(): mode 8: 0 if BattleSide_GetControl(0) == 0, else 1 if
  *     BattleSide_GetControl(1) == 0, else the word at 0x2FF280 (no writer found: 0); other modes:
- *     func_002080C8() during a replay, else 0.
+ *     BtlCharApi_GetMgrUnk134() during a replay, else 0.
  *   - Last, if DemoCam_IsActive() (scripted camera: intro cuts, fixed pose) DemoCam_Update() builds and
  *     loads its view instead and the result is 1.
  *
@@ -99,11 +99,11 @@ typedef struct View {
 /* One player's battle view. */
 typedef struct BtlCamView {
     /* 0x000 */ View view;
-    /* 0x260 */ Vec4 pos;      /* camera position, copied from fighter + 0x430 (func_00207DD0) */
+    /* 0x260 */ Vec4 pos;      /* camera position, copied from fighter + 0x430 (BtlCharApi_GetCamPose) */
     /* 0x270 */ Vec4 rot;      /* camera rotation, copied from fighter + 0x440; w is forced to 1 by View_SetTransform */
     /* 0x280 */ s32 split;     /* 0 = full-screen layout, 1 = half-screen layout */
     /* 0x284 */ s32 index;     /* 0 / 1 */
-    /* 0x288 */ s32 priority;  /* 1 when the side's fighter has flag 0xD3 (func_00207E78), else 0 */
+    /* 0x288 */ s32 priority;  /* 1 when the side's fighter has flag 0xD3 (BtlCharApi_HasCamPriority), else 0 */
     /* 0x28C */ s32 unk28C;
 } BtlCamView; /* size 0x290 */
 

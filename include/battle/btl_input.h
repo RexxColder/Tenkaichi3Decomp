@@ -14,7 +14,7 @@
  *   buttons, the recCount frame counters and three pieces of fighter state (BtlInput_BuildCommands,
  *   BtlInput_TestSwitch: chr->unk1594, fighter flags 0xA2 / 0xA3, the entry of func_002119A0).
  *   The game's own replay feature stores only {buttons, stickX, stickY} per fighter per frame
- *   (func_001D8388 writes, func_001D8470 reads; gBattleReplay data at 0x301810: per player 9000 x u8[2] stick,
+ *   (BtlReplay_Record writes, BtlReplay_Play reads; gBattleReplay data at 0x301810: per player 9000 x u8[2] stick,
  *   9000 x u32 buttons, s32 count, s32 position = 0xD2F8 bytes, then a flag word whose bit 0 means "ran out")
  *   and rebuilds the commands, so that triple is sufficient as far as this file is concerned.
  * - The record is only recorded / replaced by the replay when the fighter takes input this frame (fighter flag
@@ -28,9 +28,9 @@
  *   7 frames) is the natural place to add one.
  * - After the ring, BtlInput_Fetch can blank or mask the input from battle state (BTL_INPUT_FLAG_*, fighter
  *   flags 0x11E, 0x11F, 0xB1). This gating is not part of the record.
- * - CPU fighters: chr->injectOn is set once, by the fighter reset func_001C02C8, to BattleSide_IsCpu(side)
+ * - CPU fighters: chr->injectOn is set once, by the fighter reset BtlChar_Reset, to BattleSide_IsCpu(side)
  *   (side control type == 2). The AI writes chr->injectButtons / injectStickX / injectStickY every frame through
- *   func_00208198(objId, buttons, x, y) (only caller: func_001B6CD8, which passes the AI work's +0x268, +0x26C,
+ *   BtlCharApi_SetInjectedInput(objId, buttons, x, y) (only caller: BtlAi_SendInput, which passes the AI work's +0x268, +0x26C,
  *   +0x270). The pad is still sampled for such a fighter but not used. Injected input skips the key config and
  *   the double-tap bits, and goes through the same replay hook as pad input.
  */
@@ -172,7 +172,7 @@ typedef struct BtlCharInput {
     /* 0x1F4 [0x764] */ f32 stickPrev[2];  /* stick of the previous frame */
     /* 0x1FC [0x76C] */ f32 stickRaw[2];   /* the fetched stick bytes as floats */
     /* 0x204 [0x774] */ f32 stickRawPrev[2];
-    /* 0x20C [0x77C] */ f32 stickTurn;     /* angle between stickRaw and stickRawPrev, wrapped by func_001DBF20; 0 when either is neutral */
+    /* 0x20C [0x77C] */ f32 stickTurn;     /* angle between stickRaw and stickRawPrev, wrapped by BtlUtil_WrapAngle; 0 when either is neutral */
     /* 0x210 [0x780] */ BtlInputCounters count;    /* counters of held */
     /* 0x2B0 [0x820] */ BtlInputCounters cmdCount; /* counters of cmdHeld */
     /* 0x350 [0x8C0] */ u32 ringButtons[BTL_INPUT_RING];
@@ -189,7 +189,7 @@ typedef struct BtlCharInput {
 /* Partial view of a fighter (0x1600 bytes, BtlChar_Get): only what this file touches. */
 typedef struct BtlInputChr {
     /* 0x0000 */ s32 player;        /* index into SaveData.key[] and the replay buffers; BtlInputRecord.player */
-    /* 0x0004 */ s32 pad;           /* index into gPad (func_001DC2A0) */
+    /* 0x0004 */ s32 pad;           /* index into gPad (BtlChar_GetPad) */
     /* 0x0008 */ u8 unk8[0x570 - 0x8];
     /* 0x0570 */ BtlCharInput input;
     /* 0x0948 */ u8 unk948[0x1278 - 0x948];

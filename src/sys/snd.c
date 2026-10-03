@@ -40,7 +40,7 @@
  *
  * Banks. Eight slots; a bank is always named by the mask 1 << slot (Snd_BankIndex gives the slot of the lowest set
  * bit). A bank file is { u32 ?, bodyOfs, hdOfs, seqOfs, endOfs } followed by three sections:
- *     body  the ADPCM samples; uploaded to SPU2 RAM (SPU heap func_0011EDC8, addresses 0x5010 up)
+ *     body  the ADPCM samples; uploaded to SPU2 RAM (SPU heap SpuHeap_Alloc, addresses 0x5010 up)
  *     hd    a Sony HD header (SCEIVers / SCEIHead ...); copied to an IOP heap block
  *     seq   a third table, contents not looked at here (the name is a guess); copied to an IOP heap block
  * Snd_LoadBank allocates the three blocks, copies hd and seq with sceSifSetDma (Dma_SendToIop), then either uploads
@@ -58,7 +58,7 @@
  *             (gSndBankVolume = { 0xD8, 0xE0, 0x80, 0x80, 0x80, 0x80, 0x80, 0 }; seVolume 0..9, so 0x480 = 128 * 9)
  *     pan     -0x40..0x3F, 0 = centre; sent as pan + 0x40 clamped to 0..0x7F
  *     pitch   1/64 octave steps; sent as (s32)(pitch * 18.75f) cents clamped to -1200..1200
- *     returns the handle, or -1: bank not loaded, bank still pending, bank 0x10 / 0x20 while func_00259E20(0 / 1, 0)
+ *     returns the handle, or -1: bank not loaded, bank still pending, bank 0x10 / 0x20 while BtlScript_IsSlotBusy(0 / 1, 0)
  *             is set (per-side mute), queue full, or id / volume / pan / pitch out of range.
  *
  * Verified by the matching C: everything above about what the EE does. Inferred: the meaning of each command on the
@@ -84,16 +84,16 @@ extern s32 sceSdRemoteInit(void);
 extern s32 func_00296B48(s32 priority);          /* sceSdRemoteCallbackInit */
 extern s32 func_002967C0(s32 block, s32 cmd, ...); /* sceSdRemote */
 
-extern void *func_0011EC28(s32 size);  /* sceSifAllocIopHeap wrapper */
-extern void func_0011EC40(void *addr); /* sceSifFreeIopHeap wrapper */
-extern void func_0011ED80(void);       /* SPU RAM heap: init (0x5010..0x1F0FD0 + 0x5010) */
-extern s32 func_0011EDC8(s32 size);    /* SPU RAM heap: alloc, returns the SPU address */
-extern void func_0011EEC8(s32 addr);   /* SPU RAM heap: free */
-extern s32 func_0011F0C0(void);        /* SPU RAM heap: bytes in use */
+extern void *IopHeap_Alloc(s32 size);  /* sceSifAllocIopHeap wrapper */
+extern void IopHeap_Free(void *addr); /* sceSifFreeIopHeap wrapper */
+extern void SpuHeap_Init(void);       /* SPU RAM heap: init (0x5010..0x1F0FD0 + 0x5010) */
+extern s32 SpuHeap_Alloc(s32 size);    /* SPU RAM heap: alloc, returns the SPU address */
+extern void SpuHeap_Free(s32 addr);   /* SPU RAM heap: free */
+extern s32 SpuHeap_GetFreeSize(void);        /* SPU RAM heap: bytes in use */
 
-extern s32 func_00259E20(s32 side, s32 idx);
-extern s32 func_00207460(s32 side);
-extern void func_002074B8(s32 side, s32 idx, s32 *id, s32 *a3, s32 *a4);
+extern s32 BtlScript_IsSlotBusy(s32 side, s32 idx);
+extern s32 BtlCharApi_GetSoundCount(s32 side);
+extern void BtlCharApi_GetSound(s32 side, s32 idx, s32 *id, s32 *a3, s32 *a4);
 
 /* Sends one command to SOUNDS.IRX and waits for the answer; returns the first reply word. */
 s32 Snd_RpcCall(s32 cmd, void *data, s32 size) {
@@ -377,7 +377,7 @@ void Snd_SetupBank(SndBank *bank, u32 mask, SndBankFile *file, s32 alloc) {
                 break;
         }
         bank->spuSize = size;
-        bank->spuAddr = func_0011EDC8(size);
+        bank->spuAddr = SpuHeap_Alloc(size);
 
         size = file->seqOfs - file->hdOfs;
         switch (mask) {
@@ -390,7 +390,7 @@ void Snd_SetupBank(SndBank *bank, u32 mask, SndBankFile *file, s32 alloc) {
                 break;
         }
         bank->hdIopSize = size;
-        bank->hdIop = func_0011EC28(size);
+        bank->hdIop = IopHeap_Alloc(size);
 
         size = file->endOfs - file->seqOfs;
         switch (mask) {
@@ -403,7 +403,7 @@ void Snd_SetupBank(SndBank *bank, u32 mask, SndBankFile *file, s32 alloc) {
                 break;
         }
         bank->seqIopSize = size;
-        bank->seqIop = func_0011EC28(size);
+        bank->seqIop = IopHeap_Alloc(size);
     }
     bank->vagMax = SndHd_GetVagMax(file);
     SndHd_GetLoopBits(file, bank->loopBits);
@@ -427,8 +427,8 @@ void Snd_SendBank(SndBank *bank, s32 sync) {
 void Snd_Init(void) {
     gSndMgr = Heap_Alloc(sizeof(SndMgr), 0x20, 0, 2);
     memset(gSndMgr, 0, sizeof(SndMgr));
-    gSndMgr->iopBuf = func_0011EC28(0xA4800);
-    func_0011ED80();
+    gSndMgr->iopBuf = IopHeap_Alloc(0xA4800);
+    SpuHeap_Init();
     sceSdRemoteInit();
     func_00296B48(5);
     Snd_RpcInit();
@@ -446,7 +446,7 @@ void Snd_Term(void) {
             Snd_UnloadBank(1 << i);
         }
     }
-    func_0011EC40(gSndMgr->iopBuf);
+    IopHeap_Free(gSndMgr->iopBuf);
     gSndMgr->iopBuf = NULL;
     Heap_Free(gSndMgr);
     gSndMgr = NULL;
@@ -566,11 +566,11 @@ void Snd_UnloadBank(u32 mask) {
 
     if (Snd_IsBankLoaded(mask)) {
         bank = &gSndMgr->bank[idx];
-        func_0011EEC8(bank->spuAddr);
+        SpuHeap_Free(bank->spuAddr);
         bank->spuAddr = 0;
-        func_0011EC40(bank->hdIop);
+        IopHeap_Free(bank->hdIop);
         bank->hdIop = NULL;
-        func_0011EC40(bank->seqIop);
+        IopHeap_Free(bank->seqIop);
         bank->seqIop = NULL;
         Snd_RpcFreeBank(mask);
     }
@@ -594,14 +594,14 @@ s32 Snd_IsUploadDone(void) {
 
 /* Pushes the SPU heap's current usage on a small stack. No callers. */
 void Snd_PushSpuMark(void) {
-    gSndMgr->spuMark[gSndMgr->spuMarkCount] = func_0011F0C0();
+    gSndMgr->spuMark[gSndMgr->spuMarkCount] = SpuHeap_GetFreeSize();
     gSndMgr->spuMarkCount++;
 }
 
 /* Pops that stack and returns the current usage. No callers. */
 s32 Snd_PopSpuMark(void) {
     gSndMgr->spuMarkCount--;
-    return func_0011F0C0();
+    return SpuHeap_GetFreeSize();
 }
 
 /* Options: stereo (non-zero) or mono (0) for the driver and for the ADX streams. */
@@ -646,7 +646,7 @@ s32 Snd_PlaySeEx(u32 mask, s32 id, s32 volume, s32 pan, s32 pitch) {
     } else {
         side = 0;
     }
-    if (func_00259E20(side, 0)) {
+    if (BtlScript_IsSlotBusy(side, 0)) {
         return -1;
     }
 play:
@@ -739,12 +739,12 @@ void Snd_SendFighters(void) {
     s32 count = 0;
     s32 i;
 
-    for (i = 0; i < func_00207460(0); i++) {
-        func_002074B8(0, i, &ids[count], NULL, NULL);
+    for (i = 0; i < BtlCharApi_GetSoundCount(0); i++) {
+        BtlCharApi_GetSound(0, i, &ids[count], NULL, NULL);
         count++;
     }
-    for (i = 0; i < func_00207460(1); i++) {
-        func_002074B8(1, i, &ids[count], NULL, NULL);
+    for (i = 0; i < BtlCharApi_GetSoundCount(1); i++) {
+        BtlCharApi_GetSound(1, i, &ids[count], NULL, NULL);
         count++;
     }
     Snd_RpcSetFighters(count, ids);

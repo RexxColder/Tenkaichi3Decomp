@@ -53,6 +53,17 @@ options:
     - config/symbols/gfx.txt
     - config/symbols/math3d.txt
     - config/symbols/snd.txt
+    - config/symbols/btl_1bb.txt
+    - config/symbols/btl_ai.txt
+    - config/symbols/btl_char_api.txt
+    - config/symbols/btl_char_cam.txt
+    - config/symbols/btl_char_mgr.txt
+    - config/symbols/btl_obj.txt
+    - config/symbols/btl_replay.txt
+    - config/symbols/btl_script.txt
+    - config/symbols/movie.txt
+    - config/symbols/sys_helpers.txt
+    - config/symbols/sys_rigid.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

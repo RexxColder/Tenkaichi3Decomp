@@ -72,12 +72,12 @@ extern void FlushCache(s32 mode);
 /* Other modules (local declarations). */
 extern void Dbg_ProfColor(void *prof, u32 rgba);
 extern u8 gBattleProf[];
-extern void func_00248F38(void);
+extern void BtlObj_RebuildTable(void);
 extern void Fade_UpdateAll(void);
 extern void Fade_DrawScreen(void);
 extern void func_0023D160(s32 vsyncs);
-extern void func_00267DC0(void);
-extern void func_00268208(void);
+extern void PadWatch_Update(void);
+extern void PadWatch_Draw(void);
 extern void func_00121DE0(void);
 
 /* GS privileged (display) registers. */
@@ -169,7 +169,7 @@ void Gfx_Init(void) {
 /* Start of a frame: debug hook, rebuilds the battle object table, advances the screen fades. */
 void Gfx_BeginFrame(void) {
     Dbg_BeginFrame();
-    func_00248F38();
+    BtlObj_RebuildTable();
     Fade_UpdateAll();
 }
 
@@ -180,8 +180,8 @@ void Gfx_BeginFrame(void) {
 void Gfx_EndFrame(s32 vsyncs) {
     Fade_DrawScreen();
     func_0023D160(vsyncs);
-    func_00267DC0();
-    func_00268208();
+    PadWatch_Update();
+    PadWatch_Draw();
     Dbg_ProfColor(gBattleProf, 0x80404040);
     Dbg_EndFrame();
     func_00121DE0();

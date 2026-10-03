@@ -17,17 +17,17 @@
 extern void *memset(void *dst, s32 c, u32 n);
 
 extern BattleWork gBattleWork;
-extern s32 D_002C6EC0[]; /* table handed to func_002579C0 */
+extern s32 gBtlScriptCommands[]; /* table handed to Gsc_InitDefault */
 
-extern s32 func_00249BB0(s32 id);
-extern void func_00249CF0(s32 arg);
-extern void func_00249D80(void);
-extern void func_002579C0(s32 *tbl);
-extern void func_002579E0(void);
-extern s32 func_00258038(s32 script);
-extern void func_00258D98(void);
-extern void func_00259008(void);
-extern void func_00259288(void);
+extern s32 BtlObj_CreateChara(s32 id);
+extern void BtlObj_Init(s32 arg);
+extern void BtlObj_Term(void);
+extern void Gsc_InitDefault(s32 *tbl);
+extern void Gsc_Exit(void);
+extern s32 Gsc_StartMain(s32 script);
+extern void BtlScript_Init(void);
+extern void BtlScript_Restart(void);
+extern void BtlScript_Free(void);
 
 /* Returns the battle's shared state. */
 BattleWork *Battle_GetWork(void) {
@@ -55,8 +55,8 @@ void Battle_ResetWork(void) {
     Bgm_Play(Battle_GetBgm() + 0x10B16);
     if (Battle_GetMode() == 1) {
         ev = Battle_GetEventWork();
-        func_00259008();
-        ev->unk4 = func_00258038(ev->script);
+        BtlScript_Restart();
+        ev->unk4 = Gsc_StartMain(ev->script);
     }
 }
 
@@ -91,21 +91,21 @@ BattleMemberPool *Battle_GetWork5A8(void) {
 
 /* Loads everything a battle needs (blocking, behind the loading screen) and creates the two sides' objects. */
 s32 Battle_Load(void) {
-    func_00249CF0(1);
-    func_002579C0(D_002C6EC0);
-    func_00258D98();
+    BtlObj_Init(1);
+    Gsc_InitDefault(gBtlScriptCommands);
+    BtlScript_Init();
     BtlLoad_PushInitialJob();
     Load_RunBlocking();
-    BattleSide_SetObjId(0, func_00249BB0(BattleSide_GetModelSlot(0)));
-    BattleSide_SetObjId(1, func_00249BB0(BattleSide_GetModelSlot(1)));
+    BattleSide_SetObjId(0, BtlObj_CreateChara(BattleSide_GetModelSlot(0)));
+    BattleSide_SetObjId(1, BtlObj_CreateChara(BattleSide_GetModelSlot(1)));
     return 1;
 }
 
 /* Frees everything Battle_Load made. */
 s32 Battle_Unload(void) {
-    func_00249D80();
+    BtlObj_Term();
     BtlLoad_FreeAll();
-    func_00259288();
-    func_002579E0();
+    BtlScript_Free();
+    Gsc_Exit();
     return 1;
 }

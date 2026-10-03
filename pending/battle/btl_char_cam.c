@@ -1,0 +1,1280 @@
+#include "common.h"
+#include "battle/btl_char_cam.h"
+#include "battle/btl_demo_cam.h"
+
+/* The fighter's own camera, 0x1C4BF8-0x1C7B30. See battle/btl_char_cam.h for the structures and the frame flow.
+ *
+ * Callers: BtlChar_UpdateCamera (0x1C2218) runs ChrCam_StartCut, ChrCam_UpdateDemo, ChrCam_UpdateInput;
+ * BtlChar_PostScene (0x1C2318) runs ChrCam_Update. Everything else in the fighter code reaches the camera
+ * through ChrCam_AddShake, ChrCam_RequestCut, ChrCam_SetCut and ChrCam_EndCut.
+ */
+
+extern f32 atan2f(f32 y, f32 x);
+
+/* Vector maths (VU0 routines). */
+extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
+extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
+extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
+extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
+extern f32 Vec3_Length(Vec4 *v);
+extern void func_00121E18(Vec4 *dst);                            /* dst = (0, 0, 0, 1) */
+extern void func_00121E20(Vec4 *dst);                            /* dst = (0, 0, 0, 0) */
+extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);   /* dst = a * t + b * (1 - t) */
+extern void func_00122030(Vec4 *dst, Vec4 *angles, Vec4 *src);   /* dst = src rotated by Euler angles */
+extern void func_00122140(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamp x, y, z */
+extern f32 Mathf_Sin(f32 a);
+extern f32 Mathf_Cos(f32 a);
+extern f32 Mathf_Tan(f32 a);
+extern f32 Mathf_Asin(f32 a); /* argument clamped to -1..1 */
+extern f32 Mathf_Atan(f32 a);
+extern Vec4 D_002EC2A0[2];    /* shared constants: (0, 0, 0, 0) and (1, 1, 1, 1) */
+
+/* Small float helpers of the fighter code. */
+extern f32 BtlUtil_WrapAngle(f32 a);                       /* wrap to -pi..pi (one turn at most) */
+extern void BtlUtil_WrapAngles(Vec4 *dst, Vec4 *src);      /* the same for x, y, z */
+extern f32 BtlUtil_LengthXZ(Vec4 *v);                      /* sqrt(x * x + z * z) */
+extern f32 BtlUtil_ApproachF(f32 cur, f32 goal, f32 step); /* move cur towards goal by at most |step| */
+extern f32 BtlUtil_ClampF(f32 v, f32 lo, f32 hi);
+extern f32 BtlUtil_MinF(f32 a, f32 b);
+extern f32 BtlUtil_MaxF(f32 a, f32 b);
+
+/* Fighter helpers (0x1C.... / 0x1D....: not decompiled). */
+extern ChrCamMgr *gBtlChars;
+extern ChrCamChr *BtlChar_Get(s32 side);
+extern s32 BtlChar_TestFlag(ChrCamChr *chr, s32 flag);          /* the flag, raised this frame or held */
+extern void BtlChar_SetFlag(ChrCamChr *chr, s32 flag);          /* raise a one-frame flag */
+extern s32 func_001DACB0(ChrCamChr *chr, s32 flag);             /* the flag in the second pair of flag arrays (+0x10D5 / +0x10FD): the previous frame, inferred */
+extern s32 func_001DACE8(ChrCamChr *chr, s32 flag);             /* flag set in the first pair and not in the second: newly raised, inferred */
+extern ChrCamBody *BtlChar_GetPos(ChrCamChr *chr);              /* &chr->body */
+extern void *BtlChar_GetObj(ChrCamChr *chr);                    /* BtlObj_Get(chr->objId) */
+extern s32 func_001C4638(ChrCamChr *chr);                       /* chr->unk974 */
+extern s32 func_001D63A8(void);                                 /* gBtlChars->unk274 */
+extern void func_001DB048(ChrCamChr *chr, Vec4 *out);           /* the opponent's override position 6 (+0x340 when bit 6 of +0x3C0 is set), else its position */
+extern void func_001DB100(ChrCamChr *chr, Vec4 *out);           /* the same for the opponent's rotation (func_001D8208) */
+extern f32 func_001DB308(ChrCamChr *chr);                       /* distance to the opponent */
+extern f32 func_001DB3A8(ChrCamChr *chr);                       /* yaw of the direction to the opponent (0 when on top of it) */
+extern f32 func_001DB5A8(ChrCamChr *chr);                       /* (own body scale - the opponent's) / 2 */
+extern f32 func_001DB6B0(ChrCamChr *chr);                       /* the opponent's body scale */
+extern s32 func_001DB7B0(ChrCamChr *chr);                       /* the opponent's objId */
+extern void *func_001DB7F0(ChrCamChr *chr);                     /* the opponent's model object */
+extern void func_001DB9D8(ChrCamChr *chr, s32 node, Vec4 *out); /* world position of a node of the opponent's model */
+
+/* Fighter input (battle/btl_input.h; declared here for this file's view of the fighter). */
+extern s32 BtlInput_IsPressed(ChrCamChr *chr, u32 mask);
+extern s32 BtlInput_IsHeld(ChrCamChr *chr, u32 mask);
+extern f32 func_001D5FB8(ChrCamChr *chr);                       /* smoothed stick x (BtlCharInput.stick[0]) */
+extern s32 func_001D4F30(ChrCamChr *chr, s32 action, s32 arg);  /* action input test, built on BtlInput_* */
+
+/* Model objects and stage. */
+extern f32 func_00204EA0(s32 objId);                            /* body scale, obj + 0xFF4 (10 when no object) */
+extern f32 func_00204F30(s32 objId);                            /* obj + 0x1000 (5 when no object) */
+extern void func_002058E0(s32 objId, s32 node, Vec4 *out);      /* world position of a model node (obj + 0x970 when the node is missing) */
+extern f32 func_0023FE70(void);                                 /* stage: first float of the stage's limit block (horizontal radius, inferred) */
+extern f32 func_0023FF38(void);                                 /* stage: third float of the same block (a height, inferred) */
+extern s32 Battle_IsSplitScreen(void);
+
+#define PI 3.14159265f
+#define HALF_PI 1.5707963f
+
+/* Offset of the follow camera from the fighter for a distance preset; returns the pitch. */
+f32 ChrCam_GetOffset(ChrCamChr *chr, Vec4 *out, s32 mode) {
+    f32 scale;
+    f32 dist;
+    f32 pitch;
+
+    scale = func_00204EA0(chr->objId);
+    pitch = 0.0f;
+    dist = scale * 0.5f + 1.0f;
+    if (dist < 10.0f) {
+        dist = 10.0f;
+    }
+    switch (mode) {
+        case 1:
+            out->x = 0.0f;
+            out->y = -dist * 1.5f;
+            out->z = -dist * 2.8f;
+            pitch = scale * -0.001f + -0.06f;
+            break;
+        case 2:
+            out->x = 0.0f;
+            out->y = -dist * 2.0f;
+            out->z = -dist * 3.3f;
+            pitch = scale * -0.001f + -0.1f;
+            break;
+        case 0:
+            out->x = 0.0f;
+            out->y = -dist * 1.2f;
+            out->z = -dist * 2.4f;
+            pitch = scale * -0.001f + -0.05f;
+            break;
+    }
+    out->w = 1.0f;
+    return pitch;
+}
+
+/* Smoothing factor for a camera at this distance from its target: 0.2 + 0.2 * distance / body scale, at most 1. */
+f32 ChrCam_CalcRate(ChrCamChr *chr, Vec4 *eye, Vec4 *target) {
+    Vec4 d;
+    f32 len;
+    f32 rate;
+
+    Vec4_Sub(&d, target, eye);
+    len = Vec3_Length(&d);
+    rate = len / func_00204EA0(chr->objId) * 0.2f + 0.2f;
+    if (1.0f < rate) {
+        rate = 1.0f;
+    }
+    return rate;
+}
+
+/* Moves cam->rate towards ChrCam_CalcRate (1/75 per frame), then lets the fighter flags override it. */
+f32 ChrCam_GetRate(ChrCamChr *chr, Vec4 *eye, Vec4 *target) {
+    ChrCam *cam = &chr->cam;
+
+    cam->rate = BtlUtil_ApproachF(cam->rate, ChrCam_CalcRate(chr, eye, target), 0.4f / 30.0f);
+    if (BtlChar_TestFlag(chr, 0xCF)) {
+        cam->rate = 0.3f;
+    } else if (BtlChar_TestFlag(chr, 0xD0)) {
+        cam->rate = 0.25f;
+    } else if (BtlChar_TestFlag(chr, 0xD1)) {
+        cam->rate = 0.2f;
+    } else if (func_001D63A8()) {
+        cam->rate = 1.0f;
+    }
+    return cam->rate;
+}
+
+/* Vertical swing of the camera: advances the phase while flag 0xE is up, else lets it die out.
+   The C is right but the build needs a prelude fix: gas has to move the `li.s $f14` in front of the unfilled
+   `jal BtlUtil_ApproachF` into its delay slot, as the original assembler did (see the report). */
+f32 ChrCam_GetBob(ChrCamChr *chr) {
+    ChrCam *cam = &chr->cam;
+
+    if (func_001D63A8() || cam->unk98 == 0) {
+        cam->bob = 0.0f;
+        return cam->bob;
+    }
+    if (BtlChar_TestFlag(chr, 0xE)) {
+        cam->bob = BtlUtil_WrapAngle(cam->bob + PI / 75.0f);
+    } else {
+        if (HALF_PI < cam->bob) {
+            cam->bob = PI - cam->bob;
+        }
+        if (cam->bob < -HALF_PI) {
+            cam->bob = -PI - cam->bob;
+        }
+        cam->bob = BtlUtil_ApproachF(cam->bob, 0.0f, PI / 30.0f);
+    }
+    return Mathf_Sin(cam->bob) * 1.5f;
+}
+
+/* Camera cut: orbit point, look-at point and angles blended over the cut's length; steps the cut's timer. */
+/* NOT MATCHING (248 of 565 instructions differ): the control flow, calls, stack layout and float code are the same as
+   the original; the differences are register allocation in the four "resolve a node" blocks. The original keeps
+   the node id in s1 and the masked id in s0 (computed after BtlChar_Get(0) returns) and re-materialises &tmp0
+   with addiu in v0 / v1; this C puts the node id and the masked id both in s0 (computed before the call) and
+   keeps &tmp0 in s1. */
+#if 0
+void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
+    Vec4 look;
+    Vec4 dir;
+    Vec4 tmp0;
+    Vec4 tmp1;
+    Vec4 tmp2;
+    Vec4 tmp3;
+    ChrCamCut *cut = &chr->cut;
+    s32 frozen;
+    ChrCam *cam;
+    s32 refreshed;
+    s32 usedOpp;
+    s32 usedMid;
+    f32 t;
+    s32 node;
+    s32 other;
+    s32 id;
+    f32 eps;
+    f32 yaw;
+    f32 pitch;
+    f32 dist;
+    f32 len;
+    f32 limit;
+    f32 a;
+
+    frozen = BtlChar_TestFlag(chr, 0xB4);
+    cam = &chr->cam;
+    t = 0.0f;
+    refreshed = 0;
+    usedOpp = 0;
+    usedMid = 0;
+    if (cut->total > 0) {
+        t = 1.0f - (f32)cut->timer / (f32)cut->total;
+    }
+
+    node = cut->unk88;
+    if (node >= 0) {
+        other = 0;
+        if (node & CHRCUT_NODE_OPP) {
+            usedOpp = 1;
+            id = func_001DB7B0(chr);
+            other = 1;
+        } else if (node & CHRCUT_NODE_MID) {
+            id = -1;
+            usedMid = 1;
+        } else {
+            id = chr->objId;
+        }
+        if (id < 0) {
+            node &= CHRCUT_NODE_MASK;
+            func_002058E0(BtlChar_Get(0)->objId, node, &tmp0);
+            func_002058E0(BtlChar_Get(1)->objId, node, &tmp1);
+            func_00122168(&cut->vecA, &tmp0, &tmp1, 0.5f);
+        } else if (frozen == 0 || other == 0) {
+            func_002058E0(id, cut->unk88 & CHRCUT_NODE_MASK, &cut->vecA);
+        }
+        refreshed = 1;
+    }
+
+    node = cut->unk8C;
+    if (node >= 0) {
+        if (cut->unk88 == node) {
+            func_00121E18(&cut->vecADelta);
+        } else {
+            other = 0;
+            if (node & CHRCUT_NODE_OPP) {
+                usedOpp = 1;
+                id = func_001DB7B0(chr);
+                other = 1;
+            } else if (node & CHRCUT_NODE_MID) {
+                id = -1;
+                usedMid = 1;
+            } else {
+                id = chr->objId;
+            }
+            if (id < 0) {
+                node &= CHRCUT_NODE_MASK;
+                func_002058E0(BtlChar_Get(0)->objId, node, &tmp2);
+                func_002058E0(BtlChar_Get(1)->objId, node, &tmp3);
+                func_00122168(&tmp0, &tmp2, &tmp3, 0.5f);
+            } else if (frozen == 0 || other == 0) {
+                func_002058E0(id, cut->unk8C & CHRCUT_NODE_MASK, &tmp0);
+            }
+            Vec4_Sub(&cut->vecADelta, &tmp0, &cut->vecA);
+        }
+        refreshed = 1;
+    }
+
+    node = cut->unk90;
+    if (node >= 0) {
+        other = 0;
+        if (node & CHRCUT_NODE_OPP) {
+            id = func_001DB7B0(chr);
+            other = 1;
+        } else if (node & CHRCUT_NODE_MID) {
+            id = -1;
+        } else {
+            id = chr->objId;
+        }
+        if (id < 0) {
+            node &= CHRCUT_NODE_MASK;
+            func_002058E0(BtlChar_Get(0)->objId, node, &tmp0);
+            func_002058E0(BtlChar_Get(1)->objId, node, &tmp1);
+            func_00122168(&cut->vecC, &tmp0, &tmp1, 0.5f);
+        } else if (frozen == 0 || other == 0) {
+            func_002058E0(id, node & CHRCUT_NODE_MASK, &cut->vecC);
+        }
+    }
+
+    node = cut->unk94;
+    if (node >= 0) {
+        if (cut->unk90 == node) {
+            func_00121E18(&cut->vecCDelta);
+        } else {
+            other = 0;
+            if (node & CHRCUT_NODE_OPP) {
+                id = func_001DB7B0(chr);
+                other = 1;
+            } else if (node & CHRCUT_NODE_MID) {
+                id = -1;
+            } else {
+                id = chr->objId;
+            }
+            if (id < 0) {
+                node &= CHRCUT_NODE_MASK;
+                func_002058E0(BtlChar_Get(0)->objId, node, &tmp1);
+                func_002058E0(BtlChar_Get(1)->objId, node, &tmp2);
+                func_00122168(&tmp0, &tmp1, &tmp2, 0.5f);
+            } else if (frozen == 0 || other == 0) {
+                func_002058E0(id, node & CHRCUT_NODE_MASK, &tmp0);
+            }
+            Vec4_Sub(&cut->vecCDelta, &tmp0, &cut->vecC);
+        }
+    }
+    if (refreshed) {
+        if (usedOpp) {
+            Vec4_Copy(&cut->vecB, *(Vec4 **)((u8 *)func_001DB7F0(chr) + 0xFA0));
+        } else if (usedMid) {
+            Vec4_Copy(&tmp0, *(Vec4 **)((u8 *)func_001DB7F0(chr) + 0xFA0));
+            Vec4_Copy(&tmp1, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
+            func_00122168(&cut->vecB, &tmp0, &tmp1, 0.5f);
+        } else {
+            Vec4_Copy(&cut->vecB, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
+        }
+        func_00121E18(&cut->vecBDelta);
+    }
+
+    eps = 0.001f;
+    Vec4_Scale(eye, &cut->vecADelta, t);
+    Vec4_Add(eye, &cut->vecA, eye);
+    Vec4_Scale(target, &cut->vecBDelta, t);
+    Vec4_Add(target, &cut->vecB, target);
+    Vec4_Scale(&look, &cut->vecCDelta, t);
+    Vec4_Add(&look, &cut->vecC, &look);
+    yaw = cut->valA + cut->valADelta * t;
+    pitch = -(cut->valB + cut->valBDelta * t);
+    dist = cut->valC + cut->valCDelta * t;
+    dir.x = Mathf_Cos(pitch) * Mathf_Sin(yaw);
+    dir.y = Mathf_Sin(pitch);
+    dir.z = Mathf_Cos(pitch) * Mathf_Cos(yaw);
+    Vec4_Scale(&dir, &dir, dist);
+    Vec4_Sub(eye, eye, &dir);
+    func_00121E20(rot);
+    Vec4_Sub(&dir, &look, eye);
+    len = Vec3_Length(&dir);
+    if (eps < len) {
+        Vec4_Scale(&dir, &dir, 1.0f / len);
+        func_00122140(&dir, &dir, -1.0f, 1.0f);
+        rot->x = Mathf_Asin(-dir.y);
+        if (__builtin_fabsf(dir.x) < eps && __builtin_fabsf(dir.z) < eps) {
+            rot->y = 0.0f;
+        } else {
+            rot->y = atan2f(dir.x, dir.z);
+        }
+    }
+
+    if (cut->flags & CHRCUT_F_SNAP_RUN) {
+        BtlChar_SetFlag(chr, 0xCD);
+    }
+    if (cut->flags & CHRCUT_F_RATE_RUN) {
+        BtlChar_SetFlag(chr, 0xD1);
+    }
+    if (cut->flags & CHRCUT_F_PRIORITY) {
+        BtlChar_SetFlag(chr, 0xD3);
+    }
+    if (cut->timer > 0) {
+        cut->timer--;
+        if (cut->timer == 0 && !(cut->flags & CHRCUT_F_HOLD)) {
+            if (cut->flags & CHRCUT_F_SNAP_END) {
+                BtlChar_SetFlag(chr, 0xCE);
+            }
+            ChrCam_EndCut(chr);
+        }
+    }
+    if (cut->flags & CHRCUT_F_SET_SIDE) {
+        Vec4_Sub(&tmp2, &BtlChar_GetPos(chr)->pos, &cam->eye);
+        if (0.001f < __builtin_fabsf(tmp2.x) || 0.001f < __builtin_fabsf(tmp2.z)) {
+            limit = ChrCam_GetSideLimit(chr);
+            a = atan2f(tmp2.x, tmp2.z);
+            chr->cam.side = BtlUtil_ClampF(-BtlUtil_WrapAngle(a - BtlChar_GetPos(chr)->yaw), -limit, limit);
+        }
+    }
+    BtlChar_SetFlag(chr, 0xD4);
+}
+#else
+INCLUDE_ASM("asm/nonmatchings/battle/btl_char_cam", ChrCam_CalcCut);
+#endif
+
+/* Fixed-distance camera (fighter flags 0xDC / 0xB8): beside the fighter, angled by the height of the opponent. */
+void ChrCam_CalcFixed(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
+    ChrCam *cam = &chr->cam;
+    Vec4 pos;
+    Vec4 opp;
+    Vec4 toOpp;
+    Vec4 dir;
+    Vec4 ofs;
+    Vec4 out;
+    Vec4 ang;
+    Vec4 ang2;
+    f32 scale;
+    f32 len;
+    f32 a;
+    f32 b;
+    f32 horiz;
+    f32 yaw;
+    f32 camYaw;
+    f32 sign;
+    f32 s;
+    f32 c;
+    f32 t;
+    f32 y;
+    f32 maxPitch;
+    f32 pitch;
+    f32 k;
+    f32 base;
+
+    scale = func_00204EA0(chr->objId);
+    Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
+    func_001DB048(chr, &opp);
+    Vec4_Sub(&toOpp, &opp, &pos);
+    toOpp.y += func_001DB5A8(chr);
+    len = Vec3_Length(&toOpp);
+    if (len < 0.01f) {
+        Vec4_Set(&dir, 0.0f, 0.0f, 1.0f, 0.0f);
+    } else {
+        Vec4_Scale(&dir, &toOpp, 1.0f / len);
+    }
+    y = -(scale * 0.7f);
+    maxPitch = PI * 0.35f;
+    k = 0.4f;
+    base = -0.1f;
+    Vec4_Set(target, 0.0f, y, 0.0f, 1.0f);
+    ofs.x = 0.0f;
+    ofs.y = -func_00204EA0(chr->objId) * k - 10.0f;
+    ofs.z = -35.0f;
+    Vec4_Sub(&ofs, &ofs, target);
+    yaw = cam->yaw;
+    camYaw = yaw;
+    if (1.0f < dir.y) {
+        dir.y = 1.0f;
+    }
+    if (dir.y < -1.0f) {
+        dir.y = -1.0f;
+    }
+    a = -Mathf_Asin(dir.y) / maxPitch;
+    if (1.0f < a) {
+        a = 1.0f;
+    }
+    if (a < -1.0f) {
+        a = -1.0f;
+    }
+    b = a;
+    if (b < 0.0f) {
+        b = 0.0f;
+    }
+    b = b * 2.0f - 1.0f;
+    a = -a * __builtin_fabsf(a) + a * 2.0f;
+    b = -b * __builtin_fabsf(b) + b * 2.0f;
+    pitch = a * maxPitch * k;
+    b = b * 0.5f + 0.5f;
+    Vec4_Set(&ang, pitch, 0.0f, 0.0f, 0.0f);
+    ofs.w = 0.0f;
+    func_00122030(&ofs, &ang, &ofs);
+    Vec4_Scale(&ofs, &ofs, 1.0f - b * 0.3f);
+    base = pitch - b * base + base;
+    horiz = BtlUtil_LengthXZ(&toOpp);
+    sign = 1.0f;
+    if (cam->side < 0.0f) {
+        sign = -1.0f;
+    }
+    Vec4_Set(&ang2, 0.0f, sign * (PI * 0.4f), 0.0f, 0.0f);
+    ofs.w = 0.0f;
+    func_00122030(&ofs, &ang2, &ofs);
+    t = atan2f(-ofs.x, horiz * 0.5f - ofs.z);
+    cam->yawOfs = t;
+    yaw = BtlUtil_WrapAngle(yaw - t);
+    target->x += pos.x;
+    target->y += pos.y;
+    target->z += pos.z;
+    target->w = 1.0f;
+    s = Mathf_Sin(camYaw);
+    c = Mathf_Cos(camYaw);
+    out.x = -c * ofs.x + s * ofs.z;
+    out.y = ofs.y;
+    out.z = s * ofs.x + c * ofs.z;
+    out.w = 1.0f;
+    eye->x = target->x + out.x;
+    eye->y = target->y + out.y;
+    eye->z = target->z + out.z;
+    eye->w = 1.0f;
+    rot->x = base;
+    rot->y = yaw;
+    rot->z = 0.0f;
+    rot->w = 0.0f;
+    eye->y += ChrCam_GetBob(chr);
+}
+
+/* Lock-on camera: behind and to one side of the fighter so that both fighters stay in view. */
+void ChrCam_CalcLockOn(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
+    ChrCam *cam = &chr->cam;
+    Vec4 pos;
+    Vec4 opp;
+    Vec4 toOpp;
+    Vec4 dir;
+    Vec4 ofs;
+    Vec4 out;
+    Vec4 ang;
+    Vec4 ang2;
+    f32 scale;
+    f32 len;
+    f32 a;
+    f32 b;
+    f32 u;
+    f32 horiz;
+    f32 ofsLen;
+    f32 yaw;
+    f32 camYaw;
+    f32 s;
+    f32 c;
+    f32 maxPitch;
+    f32 pitch;
+    f32 base;
+    f32 floorY;
+    f32 limit;
+    f32 width;
+    f32 fov;
+    f32 half;
+    f32 tn;
+    f32 spread;
+    f32 side;
+    f32 turn;
+    f32 d;
+    f32 m;
+
+    scale = func_00204EA0(chr->objId);
+    Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
+    floorY = func_0023FF38() + scale * 0.5f;
+    if (floorY < pos.y) {
+        pos.y = floorY;
+    }
+    func_001DB048(chr, &opp);
+    Vec4_Sub(&toOpp, &opp, &pos);
+    toOpp.y += func_001DB5A8(chr);
+    len = Vec3_Length(&toOpp);
+    if (len < 0.01f) {
+        Vec4_Set(&dir, 0.0f, 0.0f, 1.0f, 0.0f);
+    } else {
+        Vec4_Scale(&dir, &toOpp, 1.0f / len);
+    }
+    Vec4_Set(target, 0.0f, -(scale * 0.7f), 0.0f, 1.0f);
+    base = ChrCam_GetOffset(chr, &ofs, cam->distMode);
+    Vec4_Sub(&ofs, &ofs, target);
+    yaw = cam->yaw;
+    camYaw = yaw;
+    if (len < 0.0f) {
+        u = 0.0f;
+    } else if (len < 100.0f) {
+        u = (len - 0.0f) / 100.0f;
+    } else {
+        u = 1.0f;
+    }
+    u = u * 2.0f - 1.0f;
+    u = -u * __builtin_fabsf(u) + u * 2.0f;
+    u = u * 0.5f + 0.5f;
+    u = u * 0.2f + 0.8f;
+    Vec4_Scale(&ofs, &ofs, u);
+    Vec4_Scale(target, target, 1.0f - (1.0f - u) * 0.5f);
+    maxPitch = PI * 0.35f;
+    if (BtlChar_TestFlag(chr, 0xD6)) {
+        maxPitch = PI * 0.99f;
+    }
+    if (1.0f < dir.y) {
+        dir.y = 1.0f;
+    }
+    if (dir.y < -1.0f) {
+        dir.y = -1.0f;
+    }
+    a = -Mathf_Asin(dir.y) / maxPitch;
+    if (1.0f < a) {
+        a = 1.0f;
+    }
+    if (a < -1.0f) {
+        a = -1.0f;
+    }
+    b = a;
+    if (b < 0.0f) {
+        b = 0.0f;
+    }
+    b = b * 2.0f - 1.0f;
+    a = -a * __builtin_fabsf(a) + a * 2.0f;
+    b = -b * __builtin_fabsf(b) + b * 2.0f;
+    pitch = maxPitch * a * 0.4f;
+    b = b * 0.5f + 0.5f;
+    Vec4_Set(&ang, pitch, 0.0f, 0.0f, 0.0f);
+    ofs.w = 0.0f;
+    func_00122030(&ofs, &ang, &ofs);
+    Vec4_Scale(&ofs, &ofs, 1.0f - b * 0.3f);
+    base = base + (pitch - base * b);
+    limit = ChrCam_GetSideLimit(chr);
+    horiz = BtlUtil_LengthXZ(&toOpp);
+    ofsLen = BtlUtil_LengthXZ(&ofs);
+    width = Battle_IsSplitScreen() ? 256.0f : 512.0f;
+    fov = Mathf_Atan(width * 0.5f / 433.0f) * 2.0f;
+    half = fov * 0.7f;
+    tn = Mathf_Tan(half);
+    if (0.01f < horiz) {
+        spread = Mathf_Atan(tn * (ofsLen / horiz));
+    } else {
+        spread = HALF_PI;
+        if (!(0.0f < tn * ofsLen * horiz)) {
+            spread = -HALF_PI;
+        }
+    }
+    d = limit - fov;
+    side = cam->side / limit;
+    m = spread * d;
+    m = m / limit;
+    turn = half + m;
+    Vec4_Set(&ang2, 0.0f, turn * side, 0.0f, 0.0f);
+    ofs.w = 0.0f;
+    func_00122030(&ofs, &ang2, &ofs);
+    turn = turn + spread * (limit / HALF_PI);
+    turn = turn * 0.5f;
+    turn = turn * side;
+    cam->yawOfs = turn;
+    yaw = BtlUtil_WrapAngle(yaw - turn);
+    target->x += pos.x;
+    target->y += pos.y;
+    target->z += pos.z;
+    target->w = 1.0f;
+    s = Mathf_Sin(camYaw);
+    c = Mathf_Cos(camYaw);
+    out.x = -c * ofs.x + s * ofs.z;
+    out.y = ofs.y;
+    out.z = s * ofs.x + c * ofs.z;
+    out.w = 1.0f;
+    eye->x = target->x + out.x;
+    eye->y = target->y + out.y;
+    eye->z = target->z + out.z;
+    eye->w = 1.0f;
+    rot->x = base;
+    rot->y = yaw;
+    rot->z = 0.0f;
+    rot->w = 0.0f;
+    eye->y += ChrCam_GetBob(chr);
+}
+
+/* Free (no lock-on) camera: behind the fighter at cam->yaw, at the preset distance. */
+void ChrCam_CalcFree(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
+    ChrCam *cam = &chr->cam;
+    Vec4 pos;
+    Vec4 ofs;
+    Vec4 look;
+    f32 one;
+    f32 scale;
+    f32 pitch;
+    f32 yaw;
+    f32 s;
+    f32 c;
+    ChrCamBody *body;
+
+    body = BtlChar_GetPos(chr);
+    one = 1.0f;
+    scale = func_00204EA0(chr->objId);
+    Vec4_Copy(&pos, &body->pos);
+    scale *= 0.7f;
+    look.w = one;
+    look.x = 0.0f;
+    look.z = 0.0f;
+    look.y = -scale;
+    pitch = ChrCam_GetOffset(chr, &ofs, cam->distMode);
+    yaw = cam->yaw;
+    s = Mathf_Sin(yaw);
+    eye->x = pos.x + s * (ofs.z - look.z) + look.z;
+    eye->y = pos.y + (ofs.y - look.y) + look.y;
+    c = Mathf_Cos(yaw);
+    eye->w = one;
+    eye->z = pos.z + c * (ofs.z - look.z) + look.z;
+    target->x = look.x + pos.x;
+    target->y = look.y + pos.y;
+    target->z = look.z + pos.z;
+    target->w = one;
+    rot->x = pitch;
+    rot->y = yaw;
+    rot->z = 0.0f;
+    rot->w = 0.0f;
+    eye->y += ChrCam_GetBob(chr);
+}
+
+/* Pushes the eye back onto a vertical plane behind model node 0x30 so the camera never passes it. */
+void ChrCam_KeepBehindHead(ChrCamChr *chr, Vec4 *eye, Vec4 *rot) {
+    Vec4 plane;
+    Vec4 node;
+    Vec4 dir;
+    Vec4 push;
+    f32 one;
+    f32 margin;
+    f32 d;
+
+    one = 1.0f;
+    func_002058E0(chr->objId, 0x30, &node);
+    margin = func_00204EA0(chr->objId) * 0.15f;
+    dir.x = Mathf_Sin(rot->y);
+    dir.y = 0.0f;
+    dir.z = Mathf_Cos(rot->y);
+    plane.x = dir.x;
+    plane.y = dir.y;
+    plane.z = dir.z;
+    dir.w = 0.0f;
+    plane.w = -Vec3_Dot(&dir, &node);
+    plane.w = plane.w + margin * (Mathf_Cos(rot->x) + one) + 10.0f;
+    d = Vec3_Dot(&plane, eye) + plane.w;
+    if (0.0f < d) {
+        Vec4_Scale(&push, &plane, d);
+        Vec4_Sub(eye, eye, &push);
+        eye->w = one;
+    }
+}
+
+/* Lock-on: turns cam->yaw towards the opponent and updates which side of the fighter the camera sits on. */
+void ChrCam_UpdateLockOnYaw(ChrCamChr *chr) {
+    ChrCam *cam;
+    f32 step;
+    f32 limit;
+    f32 d;
+
+    step = func_001DB3A8(chr);
+    cam = &chr->cam;
+    step = BtlUtil_WrapAngle(step - cam->yaw);
+    if (!BtlChar_TestFlag(chr, 0xCD)) {
+        step *= 0.25f;
+    }
+    cam->yaw = BtlUtil_WrapAngle(cam->yaw + step);
+    cam->yawStep = step;
+    if (BtlChar_TestFlag(chr, 0xD2)) {
+        return;
+    }
+    limit = ChrCam_GetSideLimit(chr);
+    if (func_001DACE8(chr, 5)) {
+        goto keep;
+    }
+    if (BtlInput_IsHeld(chr, 0x100)) {
+        cam->side = -limit;
+    } else if (BtlInput_IsHeld(chr, 0x400)) {
+        cam->side = limit;
+    } else if (BtlChar_TestFlag(chr, 0xD5)) {
+    keep:
+        if (0.0f < cam->side) {
+            cam->side = limit;
+        } else {
+            cam->side = -limit;
+        }
+    } else {
+        d = cam->yawStep;
+        if (HALF_PI < d) {
+            d -= PI;
+        }
+        if (d < -HALF_PI) {
+            d += PI;
+        }
+        cam->side += d;
+        if (cam->side < -limit) {
+            cam->side = -limit;
+        }
+        if (limit < cam->side) {
+            cam->side = limit;
+        }
+    }
+}
+
+/* No lock-on: the stick (flag 0xC9) or the fighter's facing (flag 0xCA) drives cam->yaw. */
+void ChrCam_UpdateFreeYaw(ChrCamChr *chr) {
+    ChrCam *cam = &chr->cam;
+    f32 d;
+
+    if (BtlChar_TestFlag(chr, 0xC9)) {
+        cam->yaw = BtlUtil_WrapAngle(cam->yaw + func_001D5FB8(chr) * 0.0333333333f);
+        if (func_001D4F30(chr, 0x61, 1)) {
+            cam->yaw -= PI / 60.0f;
+        }
+        if (func_001D4F30(chr, 0x62, 1)) {
+            cam->yaw += PI / 60.0f;
+        }
+    } else if (BtlChar_TestFlag(chr, 0xCA)) {
+        d = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - cam->yaw);
+        cam->yaw = BtlUtil_WrapAngle(BtlUtil_ApproachF(cam->yaw, cam->yaw + d,
+                                               BtlUtil_MinF(Mathf_Sin(__builtin_fabsf(d)) * 0.05f, 0.0333333333f)));
+    }
+}
+
+/* Camera blocked by the stage: turns the yaw towards the opponent, more the closer it is and the nearer the hit. */
+void ChrCam_TurnToOpponent(ChrCamChr *chr, Vec4 *rot) {
+    Vec4 camPos;
+    Vec4 pos;
+    Vec4 opp;
+    Vec4 d;
+    ChrCam *cam;
+    f32 t;
+    f32 yaw;
+    f32 dist;
+    
+
+    Vec4_Copy(&camPos, &chr->cam.pos);
+    cam = &chr->cam;
+    
+    Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
+    func_001DB048(chr, &opp);
+    Vec4_Sub(&d, &opp, &camPos);
+    yaw = atan2f(d.x, d.z);
+    dist = func_001DB308(chr);
+    if (dist < 50.0f) {
+        t = 1.0f;
+    } else if (dist < 1000.0f) {
+        t = 1.0f - (dist - 50.0f) / 950.0f;
+    } else {
+        t = 0.0f;
+    }
+    t = t * 2.0f - 1.0f;
+    t = -t * __builtin_fabsf(t) + t * 2.0f;
+    t = t * 0.5f + 0.5f;
+    t *= 1.0f - cam->hitFrac;
+    if (0.0f < t) {
+        rot->y = BtlUtil_WrapAngle(rot->y + BtlUtil_WrapAngle(yaw - rot->y) * t);
+    }
+}
+
+/* Camera controls, run in the fighter's control phase: SELECT steps the distance preset, then the yaw update. */
+void ChrCam_UpdateInput(ChrCamChr *chr) {
+    Vec4 *dst = &chr->cam.unk40;
+
+    if (BtlInput_IsPressed(chr, 0x800000)) {
+        chr->cam.distMode++;
+        chr->cam.distMode %= CHRCAM_DIST_COUNT;
+    }
+    if (BtlChar_TestFlag(chr, 5)) {
+        ChrCam_UpdateLockOnYaw(chr);
+    } else {
+        ChrCam_UpdateFreeYaw(chr);
+    }
+    func_001C4638(chr);
+    Vec4_Copy(dst, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
+}
+
+/* Per-frame camera update: picks the mode, adds shake, smooths, and keeps the camera out of the stage. */
+void ChrCam_Update(ChrCamChr *chr) {
+    ChrCam *cam = &chr->cam;
+    Vec4 eye;
+    Vec4 rot;
+    Vec4 target;
+    Vec4 shakePos;
+    Vec4 shakeRot;
+    Vec4 d;
+    s32 keepBehind = 0;
+    s32 turn = 0;
+    s32 smooth;
+    f32 limit;
+    f32 len;
+    f32 rate;
+
+    if (BtlChar_TestFlag(chr, 0xCC)) {
+        Vec4_Copy(&eye, &chr->cam.pos);
+        Vec4_Copy(&rot, &chr->cam.rot);
+        Vec4_Copy(&target, &chr->cam.target);
+        if (func_001DACB0(chr, 0xD3)) {
+            BtlChar_SetFlag(chr, 0xD3);
+            goto shake;
+        }
+    } else if (ChrCam_IsCutActive(chr)) {
+        ChrCam_CalcCut(chr, &eye, &rot, &target);
+        goto shake;
+    } else if (BtlChar_TestFlag(chr, 0xDC) || BtlChar_TestFlag(chr, 0xB8)) {
+        ChrCam_CalcFixed(chr, &eye, &rot, &target);
+        turn = 1;
+    } else if (BtlChar_TestFlag(chr, 5)) {
+        ChrCam_CalcLockOn(chr, &eye, &rot, &target);
+        keepBehind = 1;
+        turn = 1;
+    } else {
+        ChrCam_CalcFree(chr, &eye, &rot, &target);
+        keepBehind = 1;
+    }
+shake:
+    CamShake_Calc(&cam->shake, &shakePos, &shakeRot);
+    Vec4_Add(&eye, &eye, &shakePos);
+    CamShake_Tick(&cam->shake);
+    limit = func_0023FE70();
+    len = BtlUtil_LengthXZ(&eye);
+    if (limit < len) {
+        f32 k = limit / len;
+        eye.x *= k;
+        eye.z *= k;
+    }
+    len = BtlUtil_LengthXZ(&target);
+    if (limit < len) {
+        f32 k = limit / len;
+        target.x *= k;
+        target.z *= k;
+    }
+    smooth = BtlChar_TestFlag(chr, 0xCD) == 0;
+    if (func_001DACB0(chr, 0xCE)) {
+        smooth = 0;
+    }
+    rate = ChrCam_GetRate(chr, &eye, &target);
+    if (smooth) {
+        func_00122168(&cam->eye, &eye, &cam->eye, rate);
+    } else {
+        Vec4_Copy(&cam->eye, &eye);
+        cam->rate = ChrCam_CalcRate(chr, &eye, &target);
+    }
+    Vec4_Copy(&cam->target, &target);
+    if (keepBehind) {
+        ChrCam_KeepBehindHead(chr, &cam->eye, &rot);
+    }
+    cam->hit = BtlCam_TraceStage(&cam->pos, &cam->eye, &cam->target, &cam->hitFrac, &cam->hitObj);
+    if (cam->hit && turn) {
+        ChrCam_TurnToOpponent(chr, &rot);
+    }
+    if (smooth) {
+        Vec4_Sub(&d, &rot, &cam->rot);
+        BtlUtil_WrapAngles(&d, &d);
+        Vec4_Scale(&d, &d, rate);
+        Vec4_Add(&cam->rot, &cam->rot, &d);
+        BtlUtil_WrapAngles(&cam->rot, &cam->rot);
+    } else {
+        Vec4_Copy(&cam->rot, &rot);
+    }
+    Vec4_Add(&cam->rot, &cam->rot, &shakeRot);
+    BtlUtil_WrapAngles(&cam->rot, &cam->rot);
+    cam->eye.w = 1.0f;
+    cam->rot.w = 0.0f;
+    cam->pos.w = 1.0f;
+    cam->target.w = 1.0f;
+}
+
+/* Largest side angle of the lock-on camera: atan(obj + 0x1000), at least pi/4. */
+f32 ChrCam_GetSideLimit(ChrCamChr *chr) {
+    f32 a;
+
+    a = Mathf_Atan(func_00204F30(chr->objId));
+    if (a < 0.785398163f) {
+        a = 0.785398163f;
+    }
+    return a;
+}
+
+/* Requests a camera shake on this fighter's camera (ignored while cam->unk98 is 0). */
+void ChrCam_AddShake(ChrCamChr *chr, f32 strength, f32 time) {
+    if (chr->cam.unk98 != 0) {
+        CamShake_Add(&chr->cam.shake, strength, time);
+    }
+}
+
+/* Fighter flags 0xDA / 0xD7 / 0xD8 / 0xD9: stop the scripted camera / play one of the character's three camera animations. */
+void ChrCam_UpdateDemo(ChrCamChr *chr) {
+    if (BtlChar_TestFlag(chr, 0xDA)) {
+        DemoCam_Stop();
+    }
+    if (BtlChar_TestFlag(chr, 0xD7)) {
+        DemoCam_PlayCharAnim0(chr->side);
+    }
+    if (BtlChar_TestFlag(chr, 0xD8)) {
+        DemoCam_PlayCharAnim1(chr->side);
+    }
+    if (BtlChar_TestFlag(chr, 0xD9)) {
+        DemoCam_PlayCharAnim2(chr->side);
+    }
+}
+
+/* Starts a camera cut from explicit (start, delta) pairs. */
+void ChrCam_SetCut(ChrCamChr *chr, Vec4 *vecA, Vec4 *vecADelta, Vec4 *vecB, Vec4 *vecBDelta, Vec4 *vecC,
+                   Vec4 *vecCDelta, s32 unk88, f32 valA, f32 valADelta, f32 valB, f32 valBDelta, f32 valC,
+                   f32 valCDelta, s32 unk8C, s32 unk90, s32 unk94, s32 time, s32 flags) {
+    ChrCamCut *cut = &chr->cut;
+
+    Vec4_Copy(&chr->cut.vecA, vecA);
+    Vec4_Copy(&chr->cut.vecADelta, vecADelta);
+    Vec4_Copy(&chr->cut.vecB, vecB);
+    Vec4_Copy(&chr->cut.vecBDelta, vecBDelta);
+    Vec4_Copy(&chr->cut.vecC, vecC);
+    Vec4_Copy(&chr->cut.vecCDelta, vecCDelta);
+    cut->unk88 = unk88;
+    cut->unk8C = unk8C;
+    cut->unk90 = unk90;
+    cut->unk94 = unk94;
+    cut->valA = valA;
+    cut->valADelta = valADelta;
+    cut->valB = valB;
+    cut->valBDelta = valBDelta;
+    cut->valC = valC;
+    cut->valCDelta = valCDelta;
+    cut->timer = time;
+    cut->total = time;
+    cut->flags = flags;
+    if (flags & CHRCUT_F_SNAP) {
+        BtlChar_SetFlag(chr, 0xCD);
+    }
+    if (flags & CHRCUT_F_RATE) {
+        BtlChar_SetFlag(chr, 0xD1);
+    }
+}
+
+/* Starts a cut that begins where the camera is now: the running cut's current values, or the live camera. */
+void ChrCam_BlendToCut(ChrCamChr *chr, Vec4 *vecADelta, Vec4 *vecBDelta, Vec4 *vecCDelta, s32 unk8C, s32 unk94,
+                       f32 valADelta, f32 valBDelta, f32 valCDelta, s32 time, s32 flags) {
+    Vec4 vecA;
+    Vec4 vecB;
+    Vec4 vecC;
+    Vec4 dir;
+    f32 valA;
+    f32 valB;
+    f32 valC;
+    f32 pitch;
+    ChrCamCut *cut = &chr->cut;
+    ChrCam *cam;
+    Vec4 *pb;
+    Vec4 *pc;
+    s32 unk88;
+    s32 unk90;
+    f32 t = 0.0f;
+
+    if (cut->timer > 0 || (cut->flags & CHRCUT_F_HOLD)) {
+        if (cut->total > 0) {
+            t = 1.0f - (f32)cut->timer / (f32)cut->total;
+        }
+        Vec4_Scale(&vecA, &chr->cut.vecADelta, t);
+        Vec4_Add(&vecA, &chr->cut.vecA, &vecA);
+        pb = &vecB;
+        Vec4_Scale(pb, &chr->cut.vecBDelta, t);
+        Vec4_Add(pb, &chr->cut.vecB, pb);
+        pc = &vecC;
+        Vec4_Scale(pc, &chr->cut.vecCDelta, t);
+        Vec4_Add(pc, &chr->cut.vecC, pc);
+        unk88 = cut->unk88;
+        valA = cut->valA + cut->valADelta * t;
+        valB = cut->valB + cut->valBDelta * t;
+        unk90 = cut->unk90;
+        valC = cut->valC + cut->valCDelta * t;
+    } else {
+        cam = &chr->cam;
+        unk90 = -1;
+        unk88 = -1;
+        pb = &vecB;
+        valB = cam->rot.x;
+        valA = cam->rot.y;
+        Vec4_Copy(pb, &chr->cam.target);
+        pitch = -valB;
+        Vec4_Sub(&dir, &chr->cam.target, &cam->eye);
+        valC = Vec3_Length(&dir);
+        dir.x = Mathf_Cos(pitch) * Mathf_Sin(valA);
+        dir.y = Mathf_Sin(pitch);
+        dir.z = Mathf_Cos(pitch) * Mathf_Cos(valA);
+        Vec4_Scale(&dir, &dir, valC);
+        Vec4_Add(&vecA, &cam->eye, &dir);
+        pc = &vecC;
+        Vec4_Copy(pc, &vecA);
+    }
+    flags &= ~9;
+    ChrCam_SetCut(chr, &vecA, vecADelta, pb, vecBDelta, pc, vecCDelta, unk88, valA, valADelta, valB, valBDelta,
+                  valC, valCDelta, unk8C, unk90, unk94, time, flags);
+}
+
+/* Asks for cut `index` of table `table` (0: the character's own, 1: the common one); ChrCam_StartCut acts on it. */
+void ChrCam_RequestCut(ChrCamChr *chr, s32 table, s32 index) {
+    chr->cut.unk0 = table;
+    chr->cut.unk4 = index;
+    BtlChar_SetFlag(chr, 0xDB);
+}
+
+/* Starts the cut asked for with ChrCam_RequestCut from its table entry. */
+void ChrCam_StartCut(ChrCamChr *chr) {
+    Vec4 vecA;
+    Vec4 vecADelta;
+    Vec4 vecB;
+    Vec4 vecC;
+    Vec4 vecCDelta;
+    Vec4 oppRot;
+    Vec4 tmpA;
+    Vec4 own;
+    Vec4 opp;
+    Vec4 mid;
+    f32 scales[2];
+    Vec4 tmpB;
+    Vec4 own2;
+    Vec4 opp2;
+    Vec4 mid2;
+    ChrCamCutDef *def = NULL;
+    s32 unk88;
+    u8 *obj;
+    u16 flags;
+    s32 unk8C;
+    s32 unk90;
+    s32 unk94;
+    f32 yaw;
+    f32 scale;
+    f32 pi;
+    f32 half;
+    f32 valA;
+    f32 valADelta;
+    f32 valB;
+    f32 valBDelta;
+    f32 valC;
+    f32 valCDelta;
+    s32 time;
+    s32 cutFlags;
+
+    obj = BtlChar_GetObj(chr);
+    if (!BtlChar_TestFlag(chr, 0xDB)) {
+        return;
+    }
+    switch (chr->cut.unk0) {
+        case 0:
+            def = &(*(ChrCamCutDef **)(obj + 0x938))[chr->cut.unk4];
+            break;
+        case 1:
+            def = &gBtlChars->cutDefs[chr->cut.unk4];
+            break;
+    }
+    if (def == NULL) {
+        return;
+    }
+    flags = def->flags;
+    if (flags & CHRCUTDEF_OPP) {
+        func_001DB100(chr, &oppRot);
+        yaw = oppRot.y;
+        scale = func_001DB6B0(chr);
+        if (flags & CHRCUTDEF_A_TRACK) {
+            func_00121E18(&vecA);
+            func_00121E18(&vecADelta);
+            unk88 = def->nodeA | CHRCUT_NODE_OPP;
+            unk8C = def->nodeA2 | CHRCUT_NODE_OPP;
+        } else {
+            unk88 = -1;
+            func_001DB9D8(chr, def->nodeA, &vecA);
+            func_001DB9D8(chr, def->nodeA2, &tmpA);
+            Vec4_Sub(&vecADelta, &tmpA, &vecA);
+            unk8C = -1;
+        }
+        Vec4_Copy(&vecB, *(Vec4 **)((u8 *)func_001DB7F0(chr) + 0xFA0));
+    } else if (flags & CHRCUTDEF_MID) {
+        yaw = BtlChar_GetPos(chr)->yaw;
+        scales[0] = func_00204EA0(chr->objId);
+        scales[1] = func_001DB6B0(chr);
+        scale = (scales[1] < scales[0]) ? scales[0] : scales[1];
+        unk88 = -1;
+        func_002058E0(chr->objId, def->nodeA, &own);
+        half = 0.5f;
+        func_001DB9D8(chr, def->nodeA, &opp);
+        func_00122168(&vecA, &own, &opp, half);
+        unk8C = -1;
+        func_002058E0(chr->objId, def->nodeA2, &own);
+        func_001DB9D8(chr, def->nodeA2, &opp);
+        func_00122168(&mid, &own, &opp, half);
+        Vec4_Sub(&vecADelta, &mid, &vecA);
+        Vec4_Copy(&vecB, &vecA);
+        if (flags & CHRCUTDEF_A_TRACK) {
+            func_00121E18(&vecA);
+            func_00121E18(&vecADelta);
+            unk88 = def->nodeA | CHRCUT_NODE_MID;
+            unk8C = def->nodeA2 | CHRCUT_NODE_MID;
+        }
+    } else {
+        yaw = BtlChar_GetPos(chr)->yaw;
+        scale = func_00204EA0(chr->objId);
+        if (flags & CHRCUTDEF_A_TRACK) {
+            func_00121E18(&vecA);
+            func_00121E18(&vecADelta);
+            unk88 = def->nodeA;
+            unk8C = def->nodeA2;
+        } else {
+            unk88 = -1;
+            func_002058E0(chr->objId, def->nodeA, &vecA);
+            unk8C = -1;
+            func_002058E0(chr->objId, def->nodeA2, &tmpB);
+            Vec4_Sub(&vecADelta, &tmpB, &vecA);
+        }
+        Vec4_Copy(&vecB, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
+    }
+    if (flags & CHRCUTDEF_C_OPP) {
+        if (flags & CHRCUTDEF_C_TRACK) {
+            func_00121E18(&vecC);
+            unk90 = def->nodeC | CHRCUT_NODE_OPP;
+        } else {
+            func_001DB9D8(chr, def->nodeC, &vecC);
+            unk90 = -1;
+        }
+    } else if (flags & CHRCUTDEF_C_MID) {
+        if (flags & CHRCUTDEF_C_TRACK) {
+            func_00121E18(&vecC);
+            unk90 = def->nodeC | CHRCUT_NODE_MID;
+        } else {
+            func_002058E0(chr->objId, 3, &own2);
+            func_001DB9D8(chr, 3, &opp2);
+            unk90 = -1;
+            func_00122168(&vecC, &own2, &opp2, 0.5f);
+        }
+    } else {
+        if (flags & CHRCUTDEF_C_TRACK) {
+            func_00121E18(&vecC);
+            unk90 = def->nodeC;
+        } else {
+            func_002058E0(chr->objId, def->nodeC, &vecC);
+            unk90 = -1;
+        }
+    }
+    if (flags & CHRCUTDEF_C2_OPP) {
+        if (flags & CHRCUTDEF_C2_TRACK) {
+            func_00121E18(&vecCDelta);
+            unk94 = def->nodeC2 | CHRCUT_NODE_OPP;
+        } else {
+            func_001DB9D8(chr, def->nodeC2, &own2);
+            Vec4_Sub(&vecCDelta, &own2, &vecC);
+            unk94 = -1;
+        }
+    } else if (flags & CHRCUTDEF_C2_MID) {
+        if (flags & CHRCUTDEF_C2_TRACK) {
+            func_00121E18(&vecCDelta);
+            unk94 = def->nodeC2 | CHRCUT_NODE_MID;
+        } else {
+            func_002058E0(chr->objId, 3, &own2);
+            func_001DB9D8(chr, 3, &opp2);
+            unk94 = -1;
+            func_00122168(&mid2, &own2, &opp2, 0.5f);
+            Vec4_Sub(&vecCDelta, &mid2, &vecC);
+        }
+    } else {
+        if (flags & CHRCUTDEF_C2_TRACK) {
+            func_00121E18(&vecCDelta);
+            unk94 = def->nodeC2;
+        } else {
+            func_002058E0(chr->objId, def->nodeC2, &own2);
+            unk94 = -1;
+            Vec4_Sub(&vecCDelta, &own2, &vecC);
+        }
+    }
+    if (flags & CHRCUTDEF_MIN_SCALE) {
+        scale = BtlUtil_MaxF(scale, 15.0f);
+    }
+    pi = PI;
+    valA = BtlUtil_WrapAngle(yaw + def->yaw * pi / 180.0f);
+    valADelta = def->yawDelta * pi / 180.0f;
+    valB = def->pitch * pi / 180.0f;
+    valBDelta = def->pitchDelta * pi / 180.0f;
+    valC = def->dist * scale;
+    valCDelta = def->distDelta * scale;
+    time = def->seconds * 30.0f;
+    if (time <= 0) {
+        time = 1;
+    }
+    cutFlags = def->cutFlags;
+    if (flags & CHRCUTDEF_BLEND) {
+        ChrCam_BlendToCut(chr, &vecADelta, (Vec4 *)&D_002EC2A0, &vecCDelta, unk8C, unk94, valADelta, valBDelta,
+                          valCDelta, time, cutFlags);
+    } else {
+        ChrCam_SetCut(chr, &vecA, &vecADelta, &vecB, (Vec4 *)&D_002EC2A0, &vecC, &vecCDelta, unk88, valA,
+                      valADelta, valB, valBDelta, valC, valCDelta, unk8C, unk90, unk94, time, cutFlags);
+    }
+}
+
+/* Ends the running cut, raising the flags its end bits ask for. */
+void ChrCam_EndCut(ChrCamChr *chr) {
+    ChrCamCut *cut = &chr->cut;
+
+    if (cut->flags & CHRCUT_F_SNAP_END) {
+        BtlChar_SetFlag(chr, 0xCD);
+    }
+    if (cut->flags & CHRCUT_F_RATE_END) {
+        BtlChar_SetFlag(chr, 0xD1);
+    }
+    cut->timer = 0;
+    cut->flags = 0;
+}
+
+/* Whether a cut owns the camera this frame: one is running, held, or was just requested. */
+s32 ChrCam_IsCutActive(ChrCamChr *chr) {
+    ChrCamCut *cut = &chr->cut;
+
+    if (cut->timer > 0 || (cut->flags & CHRCUT_F_HOLD)) {
+        return 1;
+    }
+    return BtlChar_TestFlag(chr, 0xDB) != 0;
+}

@@ -7,7 +7,7 @@
 /*
  * Per-fighter battle input: 0x1D3B40..0x1D4F30.
  *
- * Once per unpaused frame, for every fighter whose chr+0x1320 is not positive (func_001C2A28 -> func_001C1AD0):
+ * Once per unpaused frame, for every fighter whose chr+0x1320 is not positive (BtlChars_SampleInput -> BtlChar_SampleInput):
  *   BtlInput_Sample      copies gPad[chr->pad] (raw button word, left stick as two bytes, pad status) into
  *                        chr->input and calls
  *   BtlInput_BuildRecord which builds the frame's BtlInputRecord (chr->input.rec):
@@ -16,7 +16,7 @@
  *       - the fighter takes no input (flag 2 or 3 clear, flag 0x136 set, or func_001D63A8() != 0): all neutral;
  *       - otherwise the replay hook: when a replay is playing, buttons and stick are REPLACED by the recorded
  *         frame and the commands rebuilt; when not, {buttons, stick} are appended to the replay buffer.
- * Later in the same frame, in the fighter update (func_001C2B30 -> func_001C1B20):
+ * Later in the same frame, in the fighter update (BtlChars_UpdateInput -> BtlChar_BeginFrame):
  *   BtlInput_Update      BtlInput_Fetch pushes the record into the 8-entry ring and pops the oldest entry (the
  *                        ring is empty before the push, so this is the same frame: no delay), blanks or filters
  *                        it according to battle flags, then held / prev / pressed / released, the smoothed
@@ -35,11 +35,11 @@ extern s32 BtlChar_TestFlag(BtlInputChr *chr, s32 bit);
 extern s32 BattleReplay_IsActive(void); /* 0x12A9E8: a replay is being played back */
 extern BtlInputSwitchEntry *func_002119A0(BtlInputChr *chr, s32 arg);
 extern s32 func_001D63A8(void);          /* gBtlChars->unk274 */
-extern void func_001D8470(BtlInputChr *chr, u32 *buttons, u8 *stick);              /* replay: read this frame */
-extern void func_001D8388(BtlInputChr *chr, u32 buttons, u32 commands, u8 *stick); /* replay: record this frame */
-extern s32 func_001DC480(void);          /* Battle_GetStage() is 4 or 27 */
-extern Pad *func_001DC2A0(BtlInputChr *chr); /* &gPad[chr->pad] */
-extern f32 func_001DBF20(f32 angle);     /* wraps an angle into -pi..pi */
+extern void BtlReplay_Play(BtlInputChr *chr, u32 *buttons, u8 *stick);              /* replay: read this frame */
+extern void BtlReplay_Record(BtlInputChr *chr, u32 buttons, u32 commands, u8 *stick); /* replay: record this frame */
+extern s32 BtlChar_IsStage4Or27(void);          /* Battle_GetStage() is 4 or 27 */
+extern Pad *BtlChar_GetPad(BtlInputChr *chr); /* &gPad[chr->pad] */
+extern f32 BtlUtil_WrapAngle(f32 angle);     /* wraps an angle into -pi..pi */
 
 /* Turns a stick value (-1..1) into a byte (0..0xFE, 0x7F = centre). */
 u8 BtlInput_StickToByte(f32 v) {
@@ -417,10 +417,10 @@ void BtlInput_BuildRecord(BtlInputChr *chr) {
     }
     if (active) {
         if (BattleReplay_IsActive()) {
-            func_001D8470(chr, &buttons, stick);
+            BtlReplay_Play(chr, &buttons, stick);
             commands = BtlInput_BuildCommands(chr, buttons, prevButtons);
         } else {
-            func_001D8388(chr, buttons, commands, stick);
+            BtlReplay_Record(chr, buttons, commands, stick);
         }
     } else {
         buttons = 0;
@@ -456,7 +456,7 @@ void BtlInput_Fetch(BtlInputChr *chr, u32 *outButtons, u32 *outCommands, u8 *sti
     BtlInput_RingPush(chr, chr->input.rec.buttons, chr->input.rec.commands, &chr->input.rec.stickX);
     BtlInput_RingPop(chr, &buttons, &commands, stick);
     if (Battle_GetWork()->flags & BTL_INPUT_FLAG_FILTER) {
-        if (func_001DC480()) {
+        if (BtlChar_IsStage4Or27()) {
             block = 1;
         } else {
             filter = 1;
@@ -540,7 +540,7 @@ void BtlInput_Init(BtlInputChr *chr) {
 
 /* Samples the fighter's controller and builds this frame's input record. */
 void BtlInput_Sample(BtlInputChr *chr) {
-    Pad *pad = func_001DC2A0(chr);
+    Pad *pad = BtlChar_GetPad(chr);
     BtlCharInput *in = &chr->input;
 
     in->padStatus = pad->status;
@@ -565,7 +565,7 @@ void BtlInput_Update(BtlInputChr *chr) {
     BtlCharInput *in = &chr->input;
     f32 len;
 
-    func_001DC2A0(chr);
+    BtlChar_GetPad(chr);
     BtlInput_Fetch(chr, &buttons, &commands, stick);
     in->pressed = buttons & ~in->held;
     in->stickRawPrev[0] = in->stickRaw[0];
@@ -597,7 +597,7 @@ void BtlInput_Update(BtlInputChr *chr) {
     }
     if ((__builtin_fabsf(in->stickRaw[0]) > 0.01f || __builtin_fabsf(in->stickRaw[1]) > 0.01f) &&
         (__builtin_fabsf(in->stickRawPrev[0]) > 0.01f || __builtin_fabsf(in->stickRawPrev[1]) > 0.01f)) {
-        in->stickTurn = func_001DBF20(atan2f(in->stickRaw[0], in->stickRaw[1]) - atan2f(in->stickRawPrev[0], in->stickRawPrev[1]));
+        in->stickTurn = BtlUtil_WrapAngle(atan2f(in->stickRaw[0], in->stickRaw[1]) - atan2f(in->stickRawPrev[0], in->stickRawPrev[1]));
     } else {
         in->stickTurn = 0.0f;
     }

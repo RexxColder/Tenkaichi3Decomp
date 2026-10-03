@@ -30,11 +30,11 @@
  * used in this range. The pointers live in BattleRes, the 0x50 bytes at gCommonRes + 0x20.
  *
  * --- Battle_Load(): the first load (job BtlLoad_StepInitial, run to completion by Load_RunBlocking) ---
- *   Before the job: func_00249CF0(1), func_002579C0(D_002C6EC0), func_00258D98(), BtlJob_InitPool().
+ *   Before the job: BtlObj_Init(1), Gsc_InitDefault(gBtlScriptCommands), BtlScript_Init(), BtlJob_InitPool().
  *   The job starts at step 0, or at step 0x5A when setup.script != 0 (Battle_GetScript() >= 0).
  *   0x5A  request file 0x1FF + (setup.script - 1) (heap)                       -> res->script
- *   0x5B  wait; events->script = func_00257DA0(res->script); func_00258050(script, 1000);
- *         func_00258DB8(script); func_00258DB0(); BattleSetup_Finish(); then go to step 0.
+ *   0x5B  wait; events->script = Gsc_LoadFile(res->script); Gsc_RunAction(script, 1000);
+ *         BtlScript_ScanEvents(script); BtlScript_Nop(); BattleSetup_Finish(); then go to step 0.
  *   0     request, all heap-allocated by the file layer:
  *           0x14A                                    -> res->sndCommon   (common battle sound bank)
  *           0x14E + rule.stage                       -> res->sndStage
@@ -43,7 +43,7 @@
  *   1     wait for the reads
  *   2     Snd_LoadBank(4, sndCommon), (8, sndStage), (0x10, sndChara[0]), (0x20, sndChara[1])
  *   3     wait until Snd_IsUploadDone() (no sound bank transfer pending), then Heap_Free the four files
- *   4     for each side: objA = func_00249C60(side, chara, costume, variant) -> side->modelSlot (BattleSide_SetModelSlot)
+ *   4     for each side: objA = BtlObj_RequestCharaModel(side, chara, costume, variant) -> side->modelSlot (BattleSide_SetModelSlot)
  *         res->stage = Heap_Alloc(0x6CB800) (zeroed), res->stageSize = 0x6CB800   (stage model buffer)
  *         res->bank  = Heap_Alloc(0x90800)  (zeroed), res->bankSize  = 0x90800    (sound bank reload buffer)
  *         for each side, for each of the 5 members: member->buf[0], buf[1] = Heap_Alloc(0x1000) (zeroed),
@@ -53,32 +53,32 @@
  *           8 + member->chara * 2 + side into member->buf[0] (0x1000 bytes)
  *         request file 6 + gProgress->unk0[0] (heap) -> res->unk8
  *   5     wait; Res_RelocateOffsets(&member->buf[0], buf[0], buf[0]) for every member in use; done.
- *   After the job: side->objId = func_00249BB0(side->modelSlot) for both sides (BattleSide_SetObjId).
+ *   After the job: side->objId = BtlObj_CreateChara(side->modelSlot) for both sides (BattleSide_SetObjId).
  *   The character models themselves are not loaded here: Battle_Restart -> Battle_ResetWork ->
  *   BtlLoad_Reload pushes one BtlLoad_StepChara job per side whose current character differs from
  *   the initial one (always the case after the memset of the first load).
  *
  * --- BtlLoad_StepChara (flag BATTLE_FLAG_LOAD_CHARA while it runs) -----------------------------------
  *   0  model file = 0x590 + chara * 10 + costume (+4 when `variant` is non-zero).
- *      Full load (modelOnly == 0): func_0024B9A8(side->modelSlot, model, 0x598 + animChara * 10, 0x599 + unk1C * 10);
+ *      Full load (modelOnly == 0): BtlRes_Reload(side->modelSlot, model, 0x598 + animChara * 10, 0x599 + unk1C * 10);
  *        voice bank 0xBDA / 0xC7B + voiceChara into res->bank; unless func_0020BEC8(side), file
  *        8 + chara * 2 + side into the member's second buffer (member = 0 for the initial load, else
  *        func_0020B5E8(side)).
- *      Model only: func_0024B9A8(side->modelSlot, model, -1, -1).
+ *      Model only: BtlRes_Reload(side->modelSlot, model, -1, -1).
  *   1  wait; for kind 1 (in-battle change) func_0020B350().
  *   2  kind 1 waits for func_0020B368() (fighter manager request state 4, not paused); then
- *      func_0024BAC0(); Snd bank 0x10 (side 0) / 0x20 (side 1) reloaded from res->bank through Snd_ReloadBank;
- *      func_00249BD8(side->objId, side->modelSlot); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
- *      func_001C29A0(side); full load: func_001BB1F0(side), BtlScene_CreateChar(side), relocate the member's
+ *      BtlRes_CommitReload2(); Snd bank 0x10 (side 0) / 0x20 (side 1) reloaded from res->bank through Snd_ReloadBank;
+ *      BtlObj_Rebind(side->objId, side->modelSlot); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
+ *      BtlChars_OnModelLoaded(side); full load: BtlAiMgr_ResetSide(side), BtlScene_CreateChar(side), relocate the member's
  *      second buffer and make it member->data. Clears the flag.
  *
  * --- BtlLoad_StepObject (flag BATTLE_FLAG_LOAD_OBJECT) ------------------------------------------------
  *   0  file = id + 0xC1C when id >= 0x100, else the character model file as above;
- *      gBtlLoadHandle = func_0024B7A8(0, file, -1, -1)
+ *      gBtlLoadHandle = BtlRes_Request(0, file, -1, -1)
  *   1  wait; kind 2: func_0020B350()
  *   2  not while paused; kind 2 waits for func_0020B368() (fighter manager request state 4);
- *      kind 0: gBtlLoadObj = func_00249AB8(2, func_0024B910(handle), 1), func_0024D390(BtlObj_Get(obj), 0, 2)
- *      kind 2: gBtlLoadObj = func_00249AB8(job->costume [request word +0x20], func_0024B910(handle), 1), func_0020B3C0(side, handle, obj)
+ *      kind 0: gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(handle), 1), func_0024D390(BtlObj_Get(obj), 0, 2)
+ *      kind 2: gBtlLoadObj = BtlObj_Create(job->costume [request word +0x20], BtlRes_GetSlot(handle), 1), func_0020B3C0(side, handle, obj)
  *
  * --- Stage jobs (flag BATTLE_FLAG_LOADING) ---------------------------------------------------------
  *   BtlLoad_StepStageReload: 0 set flag; 1 BtlLoad_BeginStageSwap(), request 0x171/0x198 + rule.curStage into
@@ -146,7 +146,7 @@ typedef struct BtlJob {
     /* 0x18 */ s32 animChara;  /* file 0x598 + n * 10; BtlLoad_StepObject: costume */
     /* 0x1C */ s32 unk1C;      /* file 0x599 + n * 10; BtlLoad_StepObject: variant */
     /* 0x20 */ s32 voiceChara; /* voice bank 0xBDA + n */
-    /* 0x24 */ s32 costume;    /* BtlLoad_StepObject: first argument of func_00249AB8 */
+    /* 0x24 */ s32 costume;    /* BtlLoad_StepObject: first argument of BtlObj_Create */
     /* 0x28 */ s32 variant;    /* non-zero: model file + 4 */
     /* 0x2C */ s32 modelOnly;  /* 1: only the model is replaced (transformation without new voice/data) */
     /* 0x30 */ s32 initial;    /* 1: pushed by BtlLoad_Reload, uses member 0 */

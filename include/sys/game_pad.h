@@ -64,7 +64,7 @@
 
    == Battle does NOT use the game button word ==
    Fights read the RAW word and go through their own per-player key config (battle code, not this file):
-     BtlInput_Sample(chr)  samples gPad[chr->padIndex] (via func_001DC2A0): status, lastStatus, raw Pad.held
+     BtlInput_Sample(chr)  samples gPad[chr->padIndex] (via BtlChar_GetPad): status, lastStatus, raw Pad.held
                          (+0x148) and the left stick (+0x130/+0x134, quantised to a byte, 0x7F = centre)
                          into chr+0x570, then BtlInput_BuildRecord turns that into a 16-byte record at chr+0x938:
                          'O','P','R','T', player, 0, stickX, stickY, u32 buttons, u32 commands.

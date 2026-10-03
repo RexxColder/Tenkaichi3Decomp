@@ -33,7 +33,7 @@ extern s32 sceCdMmode(s32 media);
 /* Subsystem set-up called once from Game_Main. */
 extern void Gfx_Init(void);
 extern void Snd_Init(void);
-extern void func_001259F0(void);
+extern void Movie_Init(void);
 extern void Common_Init(void);
 extern void Common_LoadBoot(void);
 extern void Common_Reload(void);
@@ -47,7 +47,7 @@ extern void func_00116BA8(void);
 extern void func_00239FF0(s32);
 extern void func_0023D0E0(void);
 extern void Fade_Init(void);
-extern void func_00268188(void);
+extern void PadWatch_Init(void);
 extern void Sys_InitIopHeap(void);
 
 extern void func_336A90(s32); /* DBZP.BIN entry: menu / mode dispatcher */
@@ -136,7 +136,7 @@ void Game_Main(void) {
     Gfx_Init();
     Snd_Init();
     File_Init();
-    func_001259F0();
+    Movie_Init();
     Common_Init();
     Common_LoadBoot();
     Common_Reload();
@@ -151,7 +151,7 @@ void Game_Main(void) {
     func_00239FF0(1);
     func_0023D0E0();
     Fade_Init();
-    func_00268188();
+    PadWatch_Init();
     for (;;) {
         Overlay_Load(0);
         func_336A90(0);

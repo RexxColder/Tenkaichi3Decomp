@@ -32,8 +32,8 @@ extern void BtlObj_SetSubState(void *obj, s32 state, s32 arg);
 extern s32 BtlObj_GetSubState(void *obj);
 
 /* per-side controller block at gp 0x2FEB10 (two 0x520-byte entries) */
-extern void func_001BB3E0(s32 side, s32 value);
-extern void func_001BB478(s32 side, s32 value);
+extern void BtlAiMgr_SetType(s32 side, s32 value);
+extern void BtlAiMgr_SetLevel(s32 side, s32 value);
 
 /* script control of a fighter, 0x20A050..0x20B200; `side` is the BtlChar_Get index */
 extern void BtlCtrl_StartMove(s32 side, s32 type, s32 mode, f32 value);
@@ -112,14 +112,14 @@ void BtlFacade_EndObjSubState3(s32 side) {
 
 /* Stores a value in word +8 of both sides' 0x1BBxxx controller and restarts it. */
 void BtlFacade_SetCpuParam8(s32 arg) {
-    func_001BB478(0, arg);
-    func_001BB478(1, arg);
+    BtlAiMgr_SetLevel(0, arg);
+    BtlAiMgr_SetLevel(1, arg);
 }
 
 /* Stores a value in word +4 of both sides' 0x1BBxxx controller and restarts it (no caller). */
 void BtlFacade_SetCpuParam4(s32 arg) {
-    func_001BB3E0(0, arg);
-    func_001BB3E0(1, arg);
+    BtlAiMgr_SetType(0, arg);
+    BtlAiMgr_SetType(1, arg);
 }
 
 /* Requests a fighter position (BtlCtrl_SetPos). */

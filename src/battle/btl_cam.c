@@ -36,9 +36,9 @@ extern void func_00121420(Mtx44 *dst);                /* ... stored here */
 extern s32 BattleSide_GetObjId(s32 side);                 /* id of the side's fighter object */
 extern s32 BattleReplay_IsActive(void);
 extern s32 BattleSide_GetControl(s32 side);
-extern void func_00207DD0(s32 objId, Vec4 *pos, Vec4 *rot); /* the fighter camera's pose */
-extern s32 func_00207E78(s32 objId);                /* the fighter camera's priority */
-extern s32 func_002080C8(void);
+extern void BtlCharApi_GetCamPose(s32 objId, Vec4 *pos, Vec4 *rot); /* the fighter camera's pose */
+extern s32 BtlCharApi_HasCamPriority(s32 objId);                /* the fighter camera's priority */
+extern s32 BtlCharApi_GetMgrUnk134(void);
 extern s32 func_001B1A38(s32 obj, void *seg, Vec4 *hitPos, f32 *frac, void *unk);
 extern s32 func_0023FF78(s32 arg0, Vec4 *pos);
 extern s32 D_002FF280[2];
@@ -333,8 +333,8 @@ void BtlCam_UpdateView(s32 side) {
     if (Battle_IsSplitScreen()) {
         BtlCam_SetLayout(1, 0);
     }
-    func_00207DD0(objId, &view->pos, &view->rot);
-    view->priority = func_00207E78(objId);
+    BtlCharApi_GetCamPose(objId, &view->pos, &view->rot);
+    view->priority = BtlCharApi_HasCamPriority(objId);
     BtlCam_BuildView(view, 1);
 }
 
@@ -417,7 +417,7 @@ s32 BtlCam_GetDefaultView(void) {
         return 0;
     }
     if (BattleReplay_IsActive() != 0) {
-        return func_002080C8();
+        return BtlCharApi_GetMgrUnk134();
     }
     return 0;
 }

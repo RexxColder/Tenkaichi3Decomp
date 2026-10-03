@@ -17,12 +17,12 @@ extern s32 Fade_IsDone(s32 idx);
 extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void File_Stub264D90(void);
 
-extern void func_00267BB8(s32 enable);                 /* stores (enable == 0) at +0x20 of the object at D_002FF158 */
+extern void PadWatch_SetEnabled(s32 enable);                 /* stores (enable == 0) at +0x20 of the object at gPadWatch */
 extern void Fade_ResetAll(void);                       /* resets the three gFade entries */
-extern void *func_00126608(void *src, void *dst, s32 *rawSize); /* wrapper of Bpe_Decode */
-extern void func_00126880(void *res, s32 x, s32 y, LoadSprite *list); /* draws a sprite run at an offset */
-extern s32 func_0011F8F8(s32 a, s32 b);                /* random integer in [a, b] */
-extern f32 func_0011F588(f32 angle);                   /* sine */
+extern void *Sprite_Unpack(void *src, void *dst, s32 *rawSize); /* wrapper of Bpe_Decode */
+extern void Sprite_DrawList(void *res, s32 x, s32 y, LoadSprite *list); /* draws a sprite run at an offset */
+extern s32 Rand_IntRange(s32 a, s32 b);                /* random integer in [a, b] */
+extern f32 Mathf_Sin(f32 angle);                   /* sine */
 extern s32 func_0025E5E8(u8 *digits, s32 value, s32 count, s32 zeroPad); /* decimal digits, 10 = blank */
 extern s32 func_0025EC78(s32 value);                   /* number of decimal digits */
 
@@ -62,7 +62,7 @@ void Load_RunBlocking(void) {
     s32 done = 0;
     s32 prev;
 
-    func_00267BB8(0);
+    PadWatch_SetEnabled(0);
     Dma_ResetBuffers();
     Load_InitScreen();
     Fade_ResetAll();
@@ -93,7 +93,7 @@ void Load_RunBlocking(void) {
     }
     Dma_ResetBuffers();
     gProgress->flags &= ~PROGRESS_FLAG_LOADING;
-    func_00267BB8(1);
+    PadWatch_SetEnabled(1);
 }
 
 /* Fills the sprite list for the current screen type (and scatters the items of type 2). */
@@ -146,8 +146,8 @@ void Load_BuildSprites(void) {
         SPRITE_END(spr);
         memset(gLoadScreen.items, 0, sizeof(gLoadScreen.items));
         for (i = 0; i < LOAD_ITEM_COUNT; i++) {
-            gLoadScreen.items[i * LOAD_ITEM_WORDS + LOAD_ITEM_X] = func_0011F8F8(0x10, 0x19C);
-            gLoadScreen.items[i * LOAD_ITEM_WORDS + LOAD_ITEM_Y] = func_0011F8F8(0x30, 0x160);
+            gLoadScreen.items[i * LOAD_ITEM_WORDS + LOAD_ITEM_X] = Rand_IntRange(0x10, 0x19C);
+            gLoadScreen.items[i * LOAD_ITEM_WORDS + LOAD_ITEM_Y] = Rand_IntRange(0x30, 0x160);
         }
         gLoadScreen.target = Rand_Range(LOAD_ITEM_COUNT);
         break;
@@ -163,7 +163,7 @@ void Load_InitScreen(void) {
     /* (*&...): the original reloads gProgress after each of these two stores (see the note on LoadScreen). */
     (*&gProgress->lastLoadType) = gLoadScreen.type + 1;
     (*&gProgress->loadPack) = File_LoadSync(gLoadScreen.type + LOAD_FILE_FIRST, gProgress->loadPack, LOAD_PACK_MAX);
-    func_00126608(gProgress->loadPack, gProgress->loadRes, NULL);
+    Sprite_Unpack(gProgress->loadPack, gProgress->loadRes, NULL);
     gLoadScreen.res = gProgress->loadRes;
     Res_RelocateOffsets(&gLoadScreen.res, gLoadScreen.res, gLoadScreen.res);
     switch (gLoadScreen.type) {
@@ -285,29 +285,29 @@ void Load_DrawScreen(void) {
 
     switch (gLoadScreen.type) {
     case LOAD_TYPE_0:
-        func_00126880(NULL, 0, 0, gLoadScreen.sprites);
+        Sprite_DrawList(NULL, 0, 0, gLoadScreen.sprites);
         gLoadScreen.sprites[2].u0 = gLoadScreen.frame << 6;
         gLoadScreen.sprites[2].u1 = gLoadScreen.sprites[2].u0 + 0x40;
-        func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[2]);
+        Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[2]);
         for (i = 0; i < 10; i++) {
             gLoadScreen.sprites[5 + i].flags = 0;
         }
         for (i = 0; i < gLoadScreen.count % 10; i++) {
             gLoadScreen.sprites[5 + i].flags = LOAD_SPR_DRAW;
         }
-        func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[5]);
+        Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[5]);
         for (i = 0; i < 10; i++) {
             gLoadScreen.sprites[5 + i].flags = LOAD_SPR_DRAW;
         }
         for (i = 0; i < gLoadScreen.count / 10; i++) {
-            func_00126880(gLoadScreen.res, 30 + i * 25, 60, &gLoadScreen.sprites[5]);
+            Sprite_DrawList(gLoadScreen.res, 30 + i * 25, 60, &gLoadScreen.sprites[5]);
         }
         break;
     case LOAD_TYPE_1:
-        func_00126880(NULL, 0, 0, gLoadScreen.sprites);
+        Sprite_DrawList(NULL, 0, 0, gLoadScreen.sprites);
         gLoadScreen.sprites[2].tex = gLoadScreen.frame;
-        func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[2]);
-        gLoadScreen.pulse.size += func_0011F588(gLoadScreen.pulse.angle) * gLoadScreen.pulse.amp;
+        Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[2]);
+        gLoadScreen.pulse.size += Mathf_Sin(gLoadScreen.pulse.angle) * gLoadScreen.pulse.amp;
         gLoadScreen.pulse.angle += gLoadScreen.pulse.speed;
         /* The compiler truncates float literals: these give 0x40490FDA and 0x40C90FDA, as in the original .lit4. */
         if (gLoadScreen.pulse.angle >= 3.14159265f) {
@@ -317,7 +317,7 @@ void Load_DrawScreen(void) {
         gLoadScreen.sprites[4].y1 = gLoadScreen.pulse.rect[3] + (s32)gLoadScreen.pulse.size;
         gLoadScreen.sprites[4].x0 = gLoadScreen.pulse.rect[0] - (s32)gLoadScreen.pulse.size;
         gLoadScreen.sprites[4].x1 = gLoadScreen.pulse.rect[2] + (s32)gLoadScreen.pulse.size;
-        func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[4]);
+        Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[4]);
         if (gLoadScreen.count != 0) {
             func_0025E5E8(digits, gLoadScreen.count, 3, 0);
             for (i = 0; i < 3; i++) {
@@ -331,42 +331,42 @@ void Load_DrawScreen(void) {
             }
             switch (func_0025EC78(gLoadScreen.count)) {
             default:
-                func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[6]);
+                Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[6]);
                 break;
             case 1:
-                func_00126880(gLoadScreen.res, -14, 0, &gLoadScreen.sprites[6]);
+                Sprite_DrawList(gLoadScreen.res, -14, 0, &gLoadScreen.sprites[6]);
                 break;
             case 2:
-                func_00126880(gLoadScreen.res, -7, 0, &gLoadScreen.sprites[6]);
+                Sprite_DrawList(gLoadScreen.res, -7, 0, &gLoadScreen.sprites[6]);
                 break;
             }
         } else {
-            func_00126880(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[6]);
+            Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[6]);
         }
         break;
     case LOAD_TYPE_2:
-        func_00126880(NULL, 0, 0, gLoadScreen.sprites);
+        Sprite_DrawList(NULL, 0, 0, gLoadScreen.sprites);
         for (i = 0; i < LOAD_ITEM_COUNT; i++) {
             if (gLoadScreen.target != i && !(ITEM_FLAGS(i) & 1) &&
                 ITEM_Y(i) + 0x20 <= ITEM_Y(gLoadScreen.target) + 0x40) {
-                func_00126880(gLoadScreen.res, ITEM_X(i), ITEM_Y(i), &gLoadScreen.sprites[4]);
+                Sprite_DrawList(gLoadScreen.res, ITEM_X(i), ITEM_Y(i), &gLoadScreen.sprites[4]);
             }
         }
         if (gLoadScreen.flags & LOAD_FLAG_TAKEN) {
             gLoadScreen.sprites[6].u0 = 0;
             gLoadScreen.sprites[6].u1 = gLoadScreen.sprites[6].u0 + 0x40;
             gLoadScreen.sprites[6].tex = 1;
-            func_00126880(gLoadScreen.res, ITEM_X(gLoadScreen.target), ITEM_Y(gLoadScreen.target), &gLoadScreen.sprites[2]);
+            Sprite_DrawList(gLoadScreen.res, ITEM_X(gLoadScreen.target), ITEM_Y(gLoadScreen.target), &gLoadScreen.sprites[2]);
         } else {
             gLoadScreen.sprites[6].u0 = gLoadScreen.frame << 6;
             gLoadScreen.sprites[6].u1 = gLoadScreen.sprites[6].u0 + 0x40;
             gLoadScreen.sprites[6].tex = 0;
         }
-        func_00126880(gLoadScreen.res, ITEM_X(gLoadScreen.target), ITEM_Y(gLoadScreen.target) - 0x40, &gLoadScreen.sprites[6]);
+        Sprite_DrawList(gLoadScreen.res, ITEM_X(gLoadScreen.target), ITEM_Y(gLoadScreen.target) - 0x40, &gLoadScreen.sprites[6]);
         for (i = 0; i < LOAD_ITEM_COUNT; i++) {
             if (gLoadScreen.target != i && !(ITEM_FLAGS(i) & 1) &&
                 ITEM_Y(i) + 0x20 > ITEM_Y(gLoadScreen.target) + 0x40) {
-                func_00126880(gLoadScreen.res, ITEM_X(i), ITEM_Y(i), &gLoadScreen.sprites[4]);
+                Sprite_DrawList(gLoadScreen.res, ITEM_X(i), ITEM_Y(i), &gLoadScreen.sprites[4]);
             }
         }
         break;
@@ -375,7 +375,7 @@ void Load_DrawScreen(void) {
 
 /* Shows the loading screen until the file request queue has been read. No callers. */
 void Load_RunFileQueue(void) {
-    func_00267BB8(0);
+    PadWatch_SetEnabled(0);
     Dma_ResetBuffers();
     Load_InitScreen();
     for (;;) {
@@ -393,5 +393,5 @@ void Load_RunFileQueue(void) {
         Load_ReadInput();
     }
     Dma_ResetBuffers();
-    func_00267BB8(1);
+    PadWatch_SetEnabled(1);
 }

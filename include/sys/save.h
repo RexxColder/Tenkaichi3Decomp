@@ -34,7 +34,7 @@
 
 /* SaveData.flags (0x1608). Defaults: bits 0-2 set. */
 #define SAVE_FLAG_VOICE 1        /* voice set: set = file base 0xCC32, clear = 0x8D4E (sys/adx.c). First choice of the menu's voice item sets it. */
-#define SAVE_FLAG_PAD_A(pad) (2 << (pad)) /* bits 1-2, one per controller; battle reads `flags & (2 << player)` (func_001C02C8). Vibration: guess. */
+#define SAVE_FLAG_PAD_A(pad) (2 << (pad)) /* bits 1-2, one per controller; battle reads `flags & (2 << player)` (BtlChar_Reset). Vibration: guess. */
 #define SAVE_FLAG_PAD_B(pad) (8 << (pad)) /* bits 3-4, one per controller; toggled and reset (cleared) only by the menu's controller page */
 #define SAVE_FLAG_DEFAULT 7
 

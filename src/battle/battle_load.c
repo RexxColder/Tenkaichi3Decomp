@@ -68,9 +68,9 @@ extern void func_002473C8(s32 arg);
 extern void func_002473D8(void);
 
 /* Fighters. */
-extern void func_001BB1F0(s32 side);
-extern void func_001C29A0(s32 side);
-extern void func_001C29D8(void);
+extern void BtlAiMgr_ResetSide(s32 side);
+extern void BtlChars_OnModelLoaded(s32 side);
+extern void BtlChars_OnStageLoaded(void);
 extern s32 func_0020B200(s32 side); /* pending request of type 0 for this side */
 extern s32 func_0020B248(s32 side); /* pending request of type 1 for this side */
 extern void func_0020B290(s32 *a, s32 *b, s32 *c, s32 *d, s32 *e, s32 *f, s32 *g); /* request words +8..+0x20 */
@@ -82,32 +82,32 @@ extern s32 func_0020B5E8(s32 side); /* member index */
 extern s32 func_0020BEC8(s32 side);
 
 /* Battle objects / models. */
-extern s32 func_00249AB8(s32 slot, s32 model, s32 arg);
-extern s32 func_00249BB0(s32 id);
-extern void func_00249BD8(s32 objId, s32 id);
-extern s32 func_00249C60(s32 side, s32 chara, s32 costume, s32 variant);
-extern void func_00249CD8(void);
-extern void func_00249CF0(s32 arg);
-extern void func_00249D80(void);
-extern s32 func_0024B7A8(s32 arg, s32 file, s32 file8, s32 file9);
-extern s32 func_0024B910(s32 handle);
-extern void func_0024B9A8(s32 id, s32 file, s32 file8, s32 file9);
-extern void func_0024BAC0(void);
+extern s32 BtlObj_Create(s32 slot, s32 model, s32 arg);
+extern s32 BtlObj_CreateChara(s32 id);
+extern void BtlObj_Rebind(s32 objId, s32 id);
+extern s32 BtlObj_RequestCharaModel(s32 side, s32 chara, s32 costume, s32 variant);
+extern void BtlRes_CommitReloadEx(void);
+extern void BtlObj_Init(s32 arg);
+extern void BtlObj_Term(void);
+extern s32 BtlRes_Request(s32 arg, s32 file, s32 file8, s32 file9);
+extern s32 BtlRes_GetSlot(s32 handle);
+extern void BtlRes_Reload(s32 id, s32 file, s32 file8, s32 file9);
+extern void BtlRes_CommitReload2(void);
 extern void func_0024D330(s32 obj, s32 arg, s32 arg2);
 extern void func_0024D390(s32 obj, s32 arg, s32 arg2);
 
 /* Script / message objects. */
-extern void func_002579C0(s32 *tbl);
-extern void func_002579E0(void);
-extern s32 func_00257DA0(void *data);
-extern void func_00257E80(s32 script);
-extern s32 func_00258038(s32 script);
-extern void func_00258050(s32 script, s32 arg);
-extern void func_00258D98(void);
-extern void func_00258DB0(void);
-extern void func_00258DB8(s32 script);
-extern void func_00259008(void);
-extern void func_00259288(void);
+extern void Gsc_InitDefault(s32 *tbl);
+extern void Gsc_Exit(void);
+extern s32 Gsc_LoadFile(void *data);
+extern void Gsc_UnloadFile(s32 script);
+extern s32 Gsc_StartMain(s32 script);
+extern void Gsc_RunAction(s32 script, s32 arg);
+extern void BtlScript_Init(void);
+extern void BtlScript_Nop(void);
+extern void BtlScript_ScanEvents(s32 script);
+extern void BtlScript_Restart(void);
+extern void BtlScript_Free(void);
 
 #define BATTLE_RES ((BattleRes *)((u8 *)gCommonRes + 0x20))
 
@@ -164,7 +164,7 @@ void BtlLoad_BeginStageSwap(void) {
 /* Brings them back up on the new stage. */
 void BtlLoad_EndStageSwap(void) {
     func_00115170();
-    func_001C29D8();
+    BtlChars_OnStageLoaded();
     func_001B3628();
     func_00137BD0();
     func_002473D8();
@@ -309,7 +309,7 @@ s32 BtlLoad_StepObject(BtlJob *job) {
                 id = job->chara * 10 + job->animChara + BTL_FILE_CHARA;
             }
         }
-        gBtlLoadHandle = func_0024B7A8(0, id, -1, -1);
+        gBtlLoadHandle = BtlRes_Request(0, id, -1, -1);
         job->state++;
         return 0;
     case 1:
@@ -342,11 +342,11 @@ s32 BtlLoad_StepObject(BtlJob *job) {
         }
         switch (job->kind) {
         case 0:
-            gBtlLoadObj = func_00249AB8(2, func_0024B910(gBtlLoadHandle), 1);
+            gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(gBtlLoadHandle), 1);
             func_0024D390(BtlObj_Get(gBtlLoadObj), 0, 2);
             break;
         case BTL_JOB_KIND_OBJECT:
-            gBtlLoadObj = func_00249AB8(job->costume, func_0024B910(gBtlLoadHandle), 1);
+            gBtlLoadObj = BtlObj_Create(job->costume, BtlRes_GetSlot(gBtlLoadHandle), 1);
             func_0020B3C0(job->side, gBtlLoadHandle, gBtlLoadObj);
             break;
         }
@@ -381,7 +381,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
             file8 = job->animChara * 10 + (BTL_FILE_CHARA + 8);
             file9 = job->unk1C * 10 + (BTL_FILE_CHARA + 9);
             voice = job->voiceChara + ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE);
-            func_0024B9A8(BattleSide_GetModelSlot(job->side), model, file8, file9);
+            BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, file8, file9);
             res->bank = File_Request3(voice, res->bank, res->bankSize);
             if (!func_0020BEC8(job->side)) {
                 BattleMember *next;
@@ -394,7 +394,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
                 next->buf[1] = File_Request3(job->chara * 2 + job->side + BTL_FILE_CHARA_DATA, next->buf[1], BTL_MEMBER_BUF_SIZE);
             }
         } else {
-            func_0024B9A8(BattleSide_GetModelSlot(job->side), model, -1, -1);
+            BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, -1, -1);
         }
         Battle_GetWork()->flags |= BATTLE_FLAG_LOAD_CHARA;
         job->state++;
@@ -425,7 +425,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
             break;
         }
         job->state++;
-        func_0024BAC0();
+        BtlRes_CommitReload2();
         if (job->modelOnly == 0) {
             if (job->side == 0) {
                 Snd_ReloadBank(0x10, res->bank, 0);
@@ -433,17 +433,17 @@ s32 BtlLoad_StepChara(BtlJob *job) {
                 Snd_ReloadBank(0x20, res->bank, 0);
             }
         }
-        func_00249BD8(BattleSide_GetObjId(job->side), BattleSide_GetModelSlot(job->side));
+        BtlObj_Rebind(BattleSide_GetObjId(job->side), BattleSide_GetModelSlot(job->side));
         switch (job->kind) {
         case 0:
             func_0024D330(BtlObj_Get(BattleSide_GetObjId(job->side)), 0, 2);
             break;
         case BTL_JOB_KIND_CHANGE:
-            func_001C29A0(job->side);
+            BtlChars_OnModelLoaded(job->side);
             break;
         }
         if (job->modelOnly == 0) {
-            func_001BB1F0(job->side);
+            BtlAiMgr_ResetSide(job->side);
             BtlScene_CreateChar(job->side);
             if (!func_0020BEC8(job->side)) {
                 m = BattleSide_GetMember(job->side, func_0020B5E8(job->side));
@@ -507,8 +507,8 @@ s32 BtlLoad_StepInitial(BtlJob *job) {
         job->state++;
         break;
     case 4:
-        BattleSide_SetModelSlot(0, func_00249C60(0, BattleSide_GetStartChara(0), BattleSide_GetStartCostume(0), BattleSide_GetStartVariant(0)));
-        BattleSide_SetModelSlot(1, func_00249C60(1, BattleSide_GetStartChara(1), BattleSide_GetStartCostume(1), BattleSide_GetStartVariant(1)));
+        BattleSide_SetModelSlot(0, BtlObj_RequestCharaModel(0, BattleSide_GetStartChara(0), BattleSide_GetStartCostume(0), BattleSide_GetStartVariant(0)));
+        BattleSide_SetModelSlot(1, BtlObj_RequestCharaModel(1, BattleSide_GetStartChara(1), BattleSide_GetStartCostume(1), BattleSide_GetStartVariant(1)));
         res->stageSize = BTL_STAGE_BUF_SIZE;
         res->stage = Heap_Alloc(res->stageSize, 0x40, 0, HEAP_ANY);
         memset(res->stage, 0, res->stageSize);
@@ -561,10 +561,10 @@ s32 BtlLoad_StepInitial(BtlJob *job) {
             return 0;
         }
         ev = Battle_GetEventWork();
-        ev->script = func_00257DA0(res->script);
-        func_00258050(ev->script, 1000);
-        func_00258DB8(ev->script);
-        func_00258DB0();
+        ev->script = Gsc_LoadFile(res->script);
+        Gsc_RunAction(ev->script, 1000);
+        BtlScript_ScanEvents(ev->script);
+        BtlScript_Nop();
         BattleSetup_Finish();
         job->state = 0;
         break;
@@ -702,7 +702,7 @@ void BtlLoad_Reload(void) {
         Heap_Free(res->transition);
         res->transition = NULL;
     }
-    func_00249CD8();
+    BtlRes_CommitReloadEx();
     Job_Clear();
     BtlJob_InitPool();
     /* The original passes a second argument (0) that the function does not have. */
@@ -729,7 +729,7 @@ void BtlLoad_Reload(void) {
             BtlScene_FreeChar(side);
             Job_Push((Job *)job);
         } else {
-            func_00249BD8(BattleSide_GetObjId(side), BattleSide_GetModelSlot(side));
+            BtlObj_Rebind(BattleSide_GetObjId(side), BattleSide_GetModelSlot(side));
         }
     }
     if (BtlJob_GetFreeCount() != BTL_JOB_COUNT) {
@@ -767,7 +767,7 @@ void BtlLoad_FreeAll(void) {
     s32 i;
 
     if (Battle_GetMode() == 1) {
-        func_00257E80(ev->script);
+        Gsc_UnloadFile(ev->script);
         Heap_Free(res->script);
         res->script = NULL;
     }
@@ -986,7 +986,7 @@ s32 BtlFacade_AreBothInterruptible(void);  /* BtlCtrl_IsInterruptible(0) && BtlC
 void BtlFacade_SetFlag200(void); /* battle flags |= 0x200 */
 void BtlFacade_ClearFlag200(void); /* battle flags &= ~0x200 */
 void BtlFacade_ClearFixedCamera(void); /* tail call of DemoCam_ClearFixed (camera module) */
-void func_00259910(void); /* script module: reacts to events 0x5A / 0x5B */
+void BtlScript_StartWaitEvents(void); /* script module: reacts to events 0x5A / 0x5B */
 void func_00219690(f32 t); /* five HUD parts (0x21FAF0, 0x21AD40, 0x22F2F0, 0x22E0B0, 0x2240A0), duration t */
 void func_002196D0(f32 t); /* their counterparts (0x21FB18, ...), duration t */
 /* Sums the four stat bonuses and ORs the four ability words of the items; stats[4] = AI type. */
@@ -1154,7 +1154,7 @@ void BtlEvent_Raise(s32 side, s32 ev) {
     switch (ev) {
     case 0x5A:
     case 0x5B:
-        func_00259910();
+        BtlScript_StartWaitEvents();
         break;
     }
 }
@@ -1861,7 +1861,7 @@ s32 BattleSide_GetObjId(s32 side) {
     return Side(side)->objId;
 }
 
-/* Returns side word 0x26C (model slot from func_00249C60). */
+/* Returns side word 0x26C (model slot from BtlObj_RequestCharaModel). */
 s32 BattleSide_GetModelSlot(s32 side) {
     return Side(side)->modelSlot;
 }

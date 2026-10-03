@@ -39,10 +39,10 @@
  *     func_00205E00(id)  the fighter is in hit-stop (+0x1320 > 0); func_00205E38() any fighter is
  *     func_00206C20(id)  action id in 0x12D..0x12F or 0x139..0x13B
  *     func_00206E88(id)  action id in 0xEC..0xF8 or 0x103..0x104
- *     func_00207388(id)  sets held flag 0xAB on the fighter
- *     func_00207790(a, b)  both alive and b's HP below half of its maximum
- *     func_00207830(a, b)  a second test on a's current technique (0x80000 bit of 0x210D80)
- *     func_00207FB0(id)  split-screen visibility test; func_002080E0() any fighter with flag 0xD3
+ *     BtlCharApi_SetHeldFlagAB(id)  sets held flag 0xAB on the fighter
+ *     BtlCharApi_IsTargetBelowHalfHp(a, b)  both alive and b's HP below half of its maximum
+ *     BtlCharApi_CanTechniqueFinish(a, b)  a second test on a's current technique (0x80000 bit of 0x210D80)
+ *     BtlCharApi_IsCamShown(id)  split-screen visibility test; BtlCharApi_AnyCamPriority() any fighter with flag 0xD3
  *   func_00241E38     BtlLoad_RequestStageChange(func_00243470()): asks for the changed stage
  *   func_00247D60     returns the block at 0x31C4A0
  *   func_002129F0     tail call of BtlSeq_IsFighting
@@ -112,11 +112,11 @@ extern s32 func_00205E00(s32 objId);
 extern s32 func_00205E38(void);
 extern s32 func_00206C20(s32 objId);
 extern s32 func_00206E88(s32 objId);
-extern void func_00207388(s32 objId);
-extern s32 func_00207790(s32 objId, s32 targetId);
-extern s32 func_00207830(s32 objId, s32 targetId);
-extern s32 func_00207FB0(s32 objId);
-extern s32 func_002080E0(void);
+extern void BtlCharApi_SetHeldFlagAB(s32 objId);
+extern s32 BtlCharApi_IsTargetBelowHalfHp(s32 objId, s32 targetId);
+extern s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId);
+extern s32 BtlCharApi_IsCamShown(s32 objId);
+extern s32 BtlCharApi_AnyCamPriority(void);
 extern s32 func_002129F0(void);
 extern void func_00241E38(void);
 extern u8 *func_00247D60(void);
@@ -330,11 +330,11 @@ s32 BtlScene_IsCharInView(s32 objId) {
             if (func_0012F6D8()) {
                 return 1;
             }
-            return func_00207FB0(objId);
+            return BtlCharApi_IsCamShown(objId);
         }
         return BtlScene_IsSecondView() == objId;
     }
-    return func_00207FB0(objId);
+    return BtlCharApi_IsCamShown(objId);
 }
 
 /* Returns 1 on stages 3, 15, 16, 24, 26, 30 and 32, else byte 0x58 of the block at 0x31C4A0. */
@@ -517,7 +517,7 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
         }
     }
     if (kind == 0) {
-        if (func_002080E0()) {
+        if (BtlCharApi_AnyCamPriority()) {
             result = 1;
         } else if (func_00206C20(0)) {
             result = 1;
@@ -552,7 +552,7 @@ void BtlScene_ClearStageChangeRequest(void) {
  * Once per frame, while fighting, outside modes 4..7 and with the time limit off or at least 10: looks for the
  * first active blast record whose definition is of type 1 (flags & 3) and, when that definition has bit 0x4000,
  * whose own flag 0x10 is set. hit is 1 when rule word 0x18 is on, func_0012E910(rec) holds and the opponent is
- * below half HP (func_00207790), else 2 when func_00207830 holds. hit 1 marks the record (flags 2 and 8, two
+ * below half HP (BtlCharApi_IsTargetBelowHalfHp), else 2 when BtlCharApi_CanTechniqueFinish holds. hit 1 marks the record (flags 2 and 8, two
  * separate stores in the source: with one `|= 0xA` the loop is short enough for the compiler to hoist its
  * constants) and asks for the stage change; hit 2 sets held flag 0xAB on the opponent. A pending
  * BtlScene_RequestStageChange() forces the stage change.
@@ -588,9 +588,9 @@ void BtlScene_CheckStageChange(void) {
         target = func_00205260(rec->objId);
         attr = func_0012E0A8(i);
         if (rec->active != 0) {
-            if (Battle_GetRuleUnk10() && func_0012E910(rec) && func_00207790(rec->objId, target)) {
+            if (Battle_GetRuleUnk10() && func_0012E910(rec) && BtlCharApi_IsTargetBelowHalfHp(rec->objId, target)) {
                 hit = 1;
-            } else if (func_00207830(rec->objId, target)) {
+            } else if (BtlCharApi_CanTechniqueFinish(rec->objId, target)) {
                 hit = 2;
             } else {
                 hit = 0;
@@ -627,7 +627,7 @@ void BtlScene_CheckStageChange(void) {
         if (hit == 1) {
             func_00241E38();
         } else if (hit == 2) {
-            func_00207388(target);
+            BtlCharApi_SetHeldFlagAB(target);
         }
     }
 }

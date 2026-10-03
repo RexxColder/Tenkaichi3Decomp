@@ -17,14 +17,14 @@
  *    1. restart      if (flags & BATTLE_FLAG_RESTART) { Battle_Restart(); clear the flag; }
  *    2. Job_Run()    background loader jobs (character/stage streaming pushed by step 9)
  *    3. Gfx_BeginFrame()
- *    4. unless BATTLE_FLAG_PAUSE: func_00257A50 (walks the list at 0x333B80) and func_00259030
+ *    4. unless BATTLE_FLAG_PAUSE: Gsc_Update (walks the list at 0x333B80) and BtlScript_Update
  *       (only acts in sequence states 3 and 5)
- *    5. func_001C2AA8()   fighter manager: first-frame hook when the sequence reaches state 2 or 3
+ *    5. BtlChars_CheckStart()   fighter manager: first-frame hook when the sequence reaches state 2 or 3
  *    6. Pad_Update()      <- controller input is sampled here, once per frame
  *    7. Snd_Update(), Snd_SendFighters() (per-fighter sound update)
  *    8. BtlGame_PreUpdate()   HUD pre-update + BtlSeq_PreUpdate (sequence state's preUpdate)
  *    9. Battle_UpdateWork()   play-time counter and event bit sets (skipped while paused)
- *   10. func_001BB620(), func_001C2A28()   two more fighter-side passes (see battle.c)
+ *   10. BtlAiMgr_Update(), BtlChars_SampleInput()   two more fighter-side passes (see battle.c)
  *   11. Battle_Update()       the simulation: fighters, objects/effects, cameras, visibility lists
  *   12. BtlGame_Update()      BtlSeq_Update: runs the state's update, switches state; returns 1 = leave
  *   13. draw                  Battle_DrawSplit() when split-screen and Battle_Update() returned 1,
@@ -172,7 +172,7 @@ typedef struct BattleSide {
     /* 0x250 */ BattleForm startForm; /* the lead member's, set by BattleSetup_FinishEx */
     /* 0x25C */ BattleForm form;      /* what is loaded now; the loader compares it with startForm at a restart */
     /* 0x268 */ s32 objId;         /* BtlObj_Get() argument of the side's fighter object */
-    /* 0x26C */ s32 modelSlot;     /* result of func_00249C60(side, chara, costume, variant) */
+    /* 0x26C */ s32 modelSlot;     /* result of BtlObj_RequestCharaModel(side, chara, costume, variant) */
 } BattleSide; /* size 0x270 */
 
 /* Battle rules: setup + 8. All offsets verified. */
@@ -241,8 +241,8 @@ typedef struct BattleEventSet {
 
 /* Event work: battle work + 0x1980 (Battle_GetEventWork()). */
 typedef struct BattleEvents {
-    /* 0x00 */ s32 script;     /* handle made by func_00257DA0 from BattleRes.script; kept by BtlEvent_Reset */
-    /* 0x04 */ s32 unk4;       /* func_00258038(script), mode 1 only */
+    /* 0x00 */ s32 script;     /* handle made by Gsc_LoadFile from BattleRes.script; kept by BtlEvent_Reset */
+    /* 0x04 */ s32 unk4;       /* Gsc_StartMain(script), mode 1 only */
     /* 0x08 */ BattleEventSet set[2];
     /* 0x68 */ s32 interrupt;  /* 1: waiting for BtlFacade_AreBothInterruptible() to raise event 0x4C */
     /* 0x6C */ s32 waitFlag;   /* 1 until event 0x4D or 0x4E is new on a side */

@@ -28,7 +28,7 @@
 
 #define PROGRESS_FLAG_LOADING 0x4000 /* set in Progress.flags while Load_RunBlocking runs */
 
-/* One entry of the list drawn by func_00126880 (0x38 bytes). */
+/* One entry of the list drawn by Sprite_DrawList (0x38 bytes). */
 typedef struct LoadSprite {
     /* 0x00 */ s32 flags; /* LOAD_SPR_* */
     /* 0x04 */ s32 x0;

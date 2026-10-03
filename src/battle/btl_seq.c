@@ -554,8 +554,8 @@ typedef struct BtlSeqObj {
 extern void BtlFacade_SetCtrl10D(s32 side);
 extern BtlSeqObj *BtlObj_Get(s32 idx);
 extern void BtlObj_SetSubState(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
-extern void func_00267AC8(BtlSeqTimer *timer, f32 seconds, f32 from, f32 to);
-extern s32 func_00267B00(BtlSeqTimer *timer); /* steps a timer, 1 when it ended */
+extern void Ramp_Start(BtlSeqTimer *timer, f32 seconds, f32 from, f32 to);
+extern s32 Ramp_Step(BtlSeqTimer *timer); /* steps a timer, 1 when it ended */
 extern void func_00209EE8(s32 side);        /* character flag 0xEF: entrance pose */
 extern void func_00209F20(s32 side);        /* character flag 0xF0: end of entrance */
 extern void func_00209F58(s32 side);        /* character flag 0xF1: win pose */
@@ -569,12 +569,12 @@ extern s32 DemoCam_IsInUse(void);
 extern void DemoCam_Stop(void);            /* stop the camera cut */
 extern void func_00244870(void);
 extern void func_00244830(s32 a, f32 seconds);
-extern s32 func_002592D8(void);
-extern void func_00259360(void);
-extern u8 *func_00259528(void);
+extern s32 BtlScript_IsEventRunning(void);
+extern void BtlScript_AbortEvents(void);
+extern u8 *BtlScript_GetCurrentEvent(void);
 extern void func_0022AB50(s32 id);          /* HUD announcement */
-extern s32 func_00207090(void);             /* any character has flag 0x128 */
-extern s32 func_00207270(s32 side);
+extern s32 BtlCharApi_AnyHasFlag128(void);             /* any character has flag 0x128 */
+extern s32 BtlCharApi_HasMemberUnk70(s32 side);
 extern s32 func_0020B8F0(s32 side);         /* character flag 7 */
 extern s32 func_0020B878(s32 side);         /* every character of the side has no health */
 extern s32 func_0022FB90(void);
@@ -848,7 +848,7 @@ s32 BtlSeqIntroTalk_Setup(BtlSeqTalkCtx *ctx) {
         ctx->line[1] = rand() % 2;
     }
     ctx->step = 0;
-    func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
+    Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
     return 1;
 }
 
@@ -871,7 +871,7 @@ s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
         func_00209EE8(ctx->side[0]);
-        func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
         DemoCam_PlayObjAnim(ctx->side[0], 0);
         Voice_PlayChara(ctx->side[0], ctx->chara[0], ctx->line[0]);
         BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[0])), 2, ctx->line[0]);
@@ -879,7 +879,7 @@ s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
         break;
     case 2:
         func_00209EE8(ctx->side[1]);
-        func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
         DemoCam_PlayObjAnim(ctx->side[1], 0);
         Voice_PlayChara(ctx->side[1], ctx->chara[1], ctx->line[1]);
         BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[1])), 2, ctx->line[1]);
@@ -901,7 +901,7 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
                 func_00244870();
                 func_00244830(1, 1.0f);
                 ctx->step++;
-            } else if (func_00267B00(&ctx->timer)) {
+            } else if (Ramp_Step(&ctx->timer)) {
                 func_00244870();
                 func_00244830(1, 1.0f);
                 ctx->step++;
@@ -911,7 +911,7 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
     case 2:
     case 3:
         if (func_00209FC8(ctx->side[1])) {
-            if (Voice_IsStopped(ctx->side[1]) || func_00267B00(&ctx->timer)) {
+            if (Voice_IsStopped(ctx->side[1]) || Ramp_Step(&ctx->timer)) {
                 func_00244870();
                 func_00244830(1, 1.0f);
                 ctx->step++;
@@ -933,8 +933,8 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
             if (ctx->step != 4) {
                 func_00244870();
                 func_00244830(1, 1.0f);
-                if (func_002592D8()) {
-                    func_00259360();
+                if (BtlScript_IsEventRunning()) {
+                    BtlScript_AbortEvents();
                 }
             }
 done:
@@ -975,9 +975,9 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
     u8 *loseTbl = loseObj->talkTbl;
 
     if (BattleResult_IsPlayerWin()) {
-        if (winTbl == NULL || loseTbl == NULL || func_00207270(winner) || func_00207270(loser)) {
+        if (winTbl == NULL || loseTbl == NULL || BtlCharApi_HasMemberUnk70(winner) || BtlCharApi_HasMemberUnk70(loser)) {
             ctx->side[0] = winner;
-            if (func_00207270(winner)) {
+            if (BtlCharApi_HasMemberUnk70(winner)) {
                 ctx->chara[0] = 0x56;
             } else {
                 ctx->chara[0] = winObj->chara;
@@ -1000,7 +1000,7 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
         func_0022AB50(6);
     } else {
         ctx->side[0] = loser;
-        if (func_00207270(loser)) {
+        if (BtlCharApi_HasMemberUnk70(loser)) {
             ctx->chara[0] = 0x56;
         } else {
             ctx->chara[0] = loseObj->chara;
@@ -1009,7 +1009,7 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
         ctx->line[0] = 0x2A;
         func_0022AB50(7);
     }
-    func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
+    Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
     return 1;
 }
 
@@ -1019,7 +1019,7 @@ s32 BtlSeqWinTalk_Enter(BtlSeqTalkCtx *ctx) {
     func_00244870();
     func_00244830(1, 1.0f);
     if (Battle_GetMode() == 1) {
-        if (*func_00259528() & 0x10) {
+        if (*BtlScript_GetCurrentEvent() & 0x10) {
             ctx->skip = 0;
             ctx->step = 99;
         } else {
@@ -1052,13 +1052,13 @@ s32 BtlSeqWinTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
             func_00209F90(ctx->side[0]);
             DemoCam_PlayObjAnim(ctx->side[0], 2);
         }
-        func_00267AC8(&ctx->timer, 10.0f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
         Voice_PlayChara(ctx->side[0], ctx->chara[0], ctx->line[0]);
         BtlObj_SetSubState(BtlObj_Get(BattleSide_GetObjId(ctx->side[0])), 2, ctx->line[0]);
         ctx->step++;
         break;
     case 2:
-        func_00267AC8(&ctx->timer, 1.5f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 1.5f, 0.0f, 1.0f);
         ctx->step++;
         break;
     case 3:
@@ -1073,14 +1073,14 @@ s32 BtlSeqWinTalk_Update(BtlSeqTalkCtx *ctx) {
     case 0:
     case 1:
         if (func_00209FC8(ctx->side[0])) {
-            if (Voice_IsStopped(ctx->side[0]) || func_00267B00(&ctx->timer)) {
+            if (Voice_IsStopped(ctx->side[0]) || Ramp_Step(&ctx->timer)) {
                 ctx->step = 2;
             }
         }
         break;
     case 2:
     case 3:
-        if (func_00267B00(&ctx->timer)) {
+        if (Ramp_Step(&ctx->timer)) {
             ctx->step = 4;
         }
         break;
@@ -1252,7 +1252,7 @@ s32 BtlSeq_CheckBattleEnd(void) {
     if (Battle_GetWork()->flags & BATTLE_FLAG_LOADING) {
         return 0;
     }
-    if (func_00207090()) {
+    if (BtlCharApi_AnyHasFlag128()) {
         return 0;
     }
     timeUp = BtlSeq_TickClocksExt();
@@ -1327,8 +1327,8 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
             if (Battle_GetMode() == 7) {
                 BattleResult_Set(BTL_RESULT_ABORT, 0);
             } else if (BattleReplay_IsActive() && BattleReplay_IsLoaded() && func_0022FC20() == 1) {
-            } else if (Battle_GetMode() == 1 && func_002592D8()) {
-                func_00259360();
+            } else if (Battle_GetMode() == 1 && BtlScript_IsEventRunning()) {
+                BtlScript_AbortEvents();
             } else {
                 Battle_GetWork()->flags |= BATTLE_FLAG_PAUSE_MENU | BATTLE_FLAG_PAUSE;
                 Adx_PauseSeVoice();
@@ -1360,7 +1360,7 @@ s32 BtlSeqFight_Exit(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqReady_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     ctx->step = 0;
-    func_00267AC8(&ctx->timer, 0.8f, 0.0f, 1.0f);
+    Ramp_Start(&ctx->timer, 0.8f, 0.0f, 1.0f);
     func_00218A58(1);
     return 1;
 }
@@ -1374,16 +1374,16 @@ s32 BtlSeqReady_PreUpdate(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqReady_Update(BtlSeqWaitCtx *ctx) {
     switch (ctx->step) {
     case 0:
-        if (func_00267B00(&ctx->timer)) {
+        if (Ramp_Step(&ctx->timer)) {
             func_0022AB50(0);
             Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
             Battle_GetWork()->flags |= BATTLE_FLAG_READY;
-            func_00267AC8(&ctx->timer, 2.0f, 0.0f, 1.0f);
+            Ramp_Start(&ctx->timer, 2.0f, 0.0f, 1.0f);
             ctx->step++;
         }
         break;
     case 1:
-        if (func_00267B00(&ctx->timer)) {
+        if (Ramp_Step(&ctx->timer)) {
             return 3;
         }
         break;
@@ -1416,14 +1416,14 @@ s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     if (BattleResult_IsAborted()) {
         Fade_Start(0, 0, 1.0f);
-        func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 1.2f, 0.0f, 1.0f);
         ctx->step = 1;
     } else if (BtlSeq_IsModeZero()) {
         ctx->step = 0;
         BtlSeq_SetResultPad();
     } else {
         Fade_Start(0, 0, 1.0f);
-        func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
+        Ramp_Start(&ctx->timer, 1.2f, 0.0f, 1.0f);
         ctx->step = 1;
     }
     return 1;
@@ -1442,12 +1442,12 @@ s32 BtlSeqEnd_Update(BtlSeqWaitCtx *ctx) {
         func_00213220();
         if (BattleResult_IsAborted()) {
             Fade_Start(0, 0, 1.0f);
-            func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
+            Ramp_Start(&ctx->timer, 1.2f, 0.0f, 1.0f);
             ctx->step = 1;
         }
         break;
     case 1:
-        if (func_00267B00(&ctx->timer)) {
+        if (Ramp_Step(&ctx->timer)) {
             return BTL_SEQ_EXIT;
         }
         break;
@@ -1470,7 +1470,7 @@ s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
 
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     timer = &ctx->timer;
-    func_00267AC8(timer, 3.5f, 0.0f, 1.0f);
+    Ramp_Start(timer, 3.5f, 0.0f, 1.0f);
     if (BattleResult_IsKo()) {
         if (BattleResult_IsWinnerEvent59Clear()) {
             func_0022AB50(3);
@@ -1482,7 +1482,7 @@ s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     } else if (BattleResult_IsReasonBit2()) {
         func_0022AB50(4);
     } else if (BattleResult_IsReasonBit18()) {
-        func_00267AC8(timer, 1.1f, 0.0f, 1.0f);
+        Ramp_Start(timer, 1.1f, 0.0f, 1.0f);
     }
     return 1;
 }
@@ -1494,7 +1494,7 @@ s32 BtlSeqFinish_PreUpdate(BtlSeqWaitCtx *ctx) {
 
 /* State 4 update: when the wait ends goes to the winner scene (5) if a side won and the mode is not 8, else to 6. */
 s32 BtlSeqFinish_Update(BtlSeqWaitCtx *ctx) {
-    if (func_00267B00(&ctx->timer)) {
+    if (Ramp_Step(&ctx->timer)) {
         if (Battle_GetMode() != 8 && BattleResult_HasWinner()) {
             return 5;
         }

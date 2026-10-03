@@ -17,8 +17,8 @@
 /* Bank masks with a special meaning in this file. */
 #define SND_BANK_COMMON 0x01 /* always loaded (Common_LoadBoot, file 0x14B) */
 #define SND_BANK_FIXED_8 0x08  /* fixed-size slot: 0x13800 bytes of SPU RAM, reloadable in place */
-#define SND_BANK_SIDE_0 0x10   /* fixed-size slot: 0x8F000 bytes of SPU RAM, muted by func_00259E20(0, 0) */
-#define SND_BANK_SIDE_1 0x20   /* fixed-size slot: 0x8F000 bytes of SPU RAM, muted by func_00259E20(1, 0) */
+#define SND_BANK_SIDE_0 0x10   /* fixed-size slot: 0x8F000 bytes of SPU RAM, muted by BtlScript_IsSlotBusy(0, 0) */
+#define SND_BANK_SIDE_1 0x20   /* fixed-size slot: 0x8F000 bytes of SPU RAM, muted by BtlScript_IsSlotBusy(1, 0) */
 #define SND_BANK_ALL 0xFF
 
 /* Function numbers of the SOUNDS.IRX RPC server. Every call is blocking (sceSifCallRpc mode 0); the payload is

@@ -6,8 +6,8 @@ extern float fabsf(float x);
 extern float sinf(float x);
 extern float cosf(float x);
 extern float atan2f(float y, float x);
-extern float func_0011F780(float x); /* acosf with the argument clamped to [-1, 1] */
-extern float func_0011F740(float x); /* asinf with the argument clamped to [-1, 1] */
+extern float Mathf_Acos(float x); /* acosf with the argument clamped to [-1, 1] */
+extern float Mathf_Asin(float x); /* asinf with the argument clamped to [-1, 1] */
 
 extern void Vec4_Copy(void *dst, void *src);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
@@ -98,7 +98,7 @@ void Quat_SlerpIdentity(Quat *out, Quat *q, float t) {
     if (w > 1.0f) {
         w = 1.0f;
     }
-    angle = func_0011F780(w);
+    angle = Mathf_Acos(w);
     s = sinf(angle);
     if (s < 0.000001f) {
         out->x = 0.0f;
@@ -127,7 +127,7 @@ float Quat_GetAngle(Quat *q) {
     if (w > 1.0f) {
         w = 1.0f;
     }
-    return func_0011F780(w) * 2.0f;
+    return Mathf_Acos(w) * 2.0f;
 }
 
 /* Conjugate: negated vector part. */
@@ -192,7 +192,7 @@ void Quat_Slerp(Quat *out, Quat *a, Quat *b, float t) {
     if (c > 1.0f) {
         c = 1.0f;
     }
-    angle = func_0011F780(c);
+    angle = Mathf_Acos(c);
     s = sinf(angle);
     if (s < 0.000001f) {
         out->x = qa.x;
@@ -365,7 +365,7 @@ void Mtx_ToEuler(Vec4 *out, Mtx44 *m) {
     if (s > 1.0f) {
         s = 1.0f;
     }
-    out->x = func_0011F740(s);
+    out->x = Mathf_Asin(s);
     if (m->m[2][1] < 0.9999f) {
         if (m->m[2][1] > -0.9999f) {
             out->y = atan2f(m->m[2][0], m->m[2][2]);

@@ -13,8 +13,8 @@ extern void ADXT_StartFname(ADXT_HN adxt, char *fname);
 extern void ADXT_SetOutputMono(s32 flag);
 
 /* game */
-extern f32 func_0011F588(f32 angle);          /* sinf of the angle wrapped to [-pi, pi] */
-extern s32 func_00259E20(s32 voice, s32 kind); /* D_00334788[voice][kind] != 0: the voice channel is reserved */
+extern f32 Mathf_Sin(f32 angle);          /* sinf of the angle wrapped to [-pi, pi] */
+extern s32 BtlScript_IsSlotBusy(s32 voice, s32 kind); /* D_00334788[voice][kind] != 0: the voice channel is reserved */
 
 #define ADX_CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : (x) > (hi) ? (hi) : (x))
 
@@ -43,7 +43,7 @@ s32 Adx_CalcOutVol(s32 ch, s32 vol) {
     if (vol == 0) {
         vol = ADX_OUTVOL_MUTE;
     } else {
-        f32 s = func_0011F588((ADX_VOL_MAX - vol) * 0.0078125f);
+        f32 s = Mathf_Sin((ADX_VOL_MAX - vol) * 0.0078125f);
 
         vol = s * s * 0.28f * -960.0f;
     }
@@ -128,18 +128,18 @@ void Adx_ResumeSeVoice(void) {
 void Adx_Play(s32 ch, s32 id, s32 vol, s32 pan) {
     switch (ch) {
     case ADX_CH_VOICE0:
-        if (func_00259E20(0, 0)) {
+        if (BtlScript_IsSlotBusy(0, 0)) {
             return;
         }
-        if (func_00259E20(0, 1)) {
+        if (BtlScript_IsSlotBusy(0, 1)) {
             return;
         }
         break;
     case ADX_CH_VOICE1:
-        if (func_00259E20(1, 0)) {
+        if (BtlScript_IsSlotBusy(1, 0)) {
             return;
         }
-        if (func_00259E20(1, 1)) {
+        if (BtlScript_IsSlotBusy(1, 1)) {
             return;
         }
         break;

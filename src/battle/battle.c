@@ -22,10 +22,10 @@
  *   loader      BtlLoad_PollCharaRequest / BtlLoad_PollObjectRequest   per side: poll 0x20B200 / 0x20B248 for a pending request and
  *               push a loader Job (step functions 0x1278B0 / 0x127680), i.e. in-battle streaming
  *               BattleResult_Finish      at Term: fills the BattleResult block (calls 0x128BC8)
- *   fighters    func_001C2AA8, func_001C2A28, func_001C2B30, func_001C2C80, func_001C2E90, func_001C2F10:
+ *   fighters    BtlChars_CheckStart, BtlChars_SampleInput, BtlChars_UpdateInput, BtlChars_UpdateMain, BtlChars_PostScene, BtlChars_EndFrame:
  *               each is a loop "for every BtlChar_Get(i): per-fighter step", skipped under
  *               BATTLE_FLAG_PAUSE and/or BATTLE_FLAG_LOADING. They are the phases of the fighter update.
- *               func_001BB208 init / func_001BB250 term / func_001BB620 update: 0xA60-byte block at gp
+ *               BtlAiMgr_Init init / BtlAiMgr_Term term / BtlAiMgr_Update update: 0xA60-byte block at gp
  *               0x2FEB10 holding two 0x520-byte entries (one per side)
  *               func_001B3670 init / func_001B35B8 term: 0x14-byte manager at gp 0x2FEB0C with two 0xC00 buffers
  *               func_001AF9C0      four sub-updates (0x1AF8D8, 0x1B0910, 0x1B10F0, 0x1B0030), skipped when paused
@@ -36,15 +36,15 @@
  *   effects     func_00247468 init / func_00247500 term / func_002473D8 reset of a group of a dozen
  *               subsystems (0x105F30..0x109848 and 0x244000..0x248000), enable word at gp 0x2FF208;
  *               func_00247578, func_00247660, func_00247688, func_002476D8 are its four draw passes
- *   objects     func_0024AB70 per-frame update of the object list (lighting colour, list walk);
- *               func_0024AD08(view) builds the visibility data of every listed object for one view;
- *               func_0024ADF8(split) finishes it for 1 (split == 0) or 2 views
+ *   objects     BtlObj_UpdateAll per-frame update of the object list (lighting colour, list walk);
+ *               BtlObj_UpdateVisibility(view) builds the visibility data of every listed object for one view;
+ *               BtlObj_FinishVisibility(split) finishes it for 1 (split == 0) or 2 views
  *   gfx         Ot_Init init / Ot_Term term of a 0x48-byte block at gp 0x2FE8A0;
  *               Gfx_AddDefaultEnv emits a direct GS packet (0x102208) before the fighter pass;
  *               Ot_Draw ends the fighter pass; Gfx_MarkPass(n) is an empty stub taking a pass id
  *               func_0010FF40      a full-screen pass between the first two effect passes
  *   overlays    func_0023A2B8 (0x23A2D0(0)); func_0023D1E0 is an empty stub
- *   menu side   func_00257A50 walks the list at 0x333B80; func_00259030 acts in sequence states 3 and 5 only
+ *   menu side   Gsc_Update walks the list at 0x333B80; BtlScript_Update acts in sequence states 3 and 5 only
  */
 
 extern s32 gBtlCamView;    /* current view, set by BtlCam_SelectView / BtlCam_ApplyView */
@@ -106,15 +106,15 @@ extern void BtlScene_CheckStageChange(void);
 extern void func_001AF9C0(void);
 extern void func_001B35B8(void);
 extern void func_001B3670(void);
-extern void func_001BB208(void);
-extern void func_001BB250(void);
-extern void func_001BB620(void);
-extern void func_001C2A28(void);
-extern void func_001C2AA8(void);
-extern void func_001C2B30(void);
-extern void func_001C2C80(void);
-extern void func_001C2E90(void);
-extern void func_001C2F10(void);
+extern void BtlAiMgr_Init(void);
+extern void BtlAiMgr_Term(void);
+extern void BtlAiMgr_Update(void);
+extern void BtlChars_SampleInput(void);
+extern void BtlChars_CheckStart(void);
+extern void BtlChars_UpdateInput(void);
+extern void BtlChars_UpdateMain(void);
+extern void BtlChars_PostScene(void);
+extern void BtlChars_EndFrame(void);
 extern void func_0023A2B8(void);
 extern void func_0023D1E0(void);
 extern void func_0023FC40(void);
@@ -127,11 +127,11 @@ extern void func_00247578(void);
 extern void func_00247660(void);
 extern void func_00247688(void);
 extern void func_002476D8(void);
-extern void func_0024AB70(void);
-extern void func_0024AD08(s32 view);
-extern void func_0024ADF8(s32 split);
-extern void func_00257A50(void);
-extern void func_00259030(void);
+extern void BtlObj_UpdateAll(void);
+extern void BtlObj_UpdateVisibility(s32 view);
+extern void BtlObj_FinishVisibility(s32 split);
+extern void Gsc_Update(void);
+extern void BtlScript_Update(void);
 /* Puts every battle subsystem back to the start of a match (first start and rematch) and fades in over 1 s. */
 s32 Battle_Restart(void) {
     Snd_StopBankAndResume(0x3C);
@@ -152,7 +152,7 @@ s32 Battle_Init(void) {
     func_00247468();
     func_00115170();
     BtlChar_AllocAll(2);
-    func_001BB208();
+    BtlAiMgr_Init();
     BtlCam_Init();
     func_001B3670();
     BtlGame_Init();
@@ -172,7 +172,7 @@ s32 Battle_Term(void) {
     Ot_Term();
     func_00247500();
     func_0023FCD8();
-    func_001BB250();
+    BtlAiMgr_Term();
     func_001B35B8();
     BtlGame_Term();
     Battle_Unload();
@@ -187,12 +187,12 @@ s32 Battle_Update(void) {
     s32 i;
     s32 singleView;
 
-    func_001C2B30();
-    func_001C2C80();
+    BtlChars_UpdateInput();
+    BtlChars_UpdateMain();
     BtlScene_Update();
     func_001AF9C0();
     BtlScene_PostUpdate();
-    func_001C2E90();
+    BtlChars_PostScene();
     BtlScene_CheckStageChange();
     BtlLoad_PollCharaRequest();
     BtlLoad_PollObjectRequest();
@@ -202,18 +202,18 @@ s32 Battle_Update(void) {
     BtlCam_SelectView(1);
     BtlCam_UpdateView(1);
     singleView = BtlCam_UpdateOverride();
-    func_001C2F10();
-    func_0024AB70();
+    BtlChars_EndFrame();
+    BtlObj_UpdateAll();
     if (Battle_IsSplitScreen() && !singleView) {
         for (i = 0; i < 2; i++) {
             BtlCam_SelectView(i);
             BtlCam_ApplyView(0);
-            func_0024AD08(i);
+            BtlObj_UpdateVisibility(i);
         }
-        func_0024ADF8(1);
+        BtlObj_FinishVisibility(1);
     } else {
-        func_0024AD08(0);
-        func_0024ADF8(0);
+        BtlObj_UpdateVisibility(0);
+        BtlObj_FinishVisibility(0);
     }
     BtlScene_SetSingleView(singleView);
     return singleView == 0;
@@ -337,17 +337,17 @@ void Battle_Loop(void) {
         Job_Run();
         Gfx_BeginFrame();
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
-            func_00257A50();
-            func_00259030();
+            Gsc_Update();
+            BtlScript_Update();
         }
-        func_001C2AA8();
+        BtlChars_CheckStart();
         Pad_Update();
         Snd_Update();
         Snd_SendFighters();
         BtlGame_PreUpdate();
         Battle_UpdateWork();
-        func_001BB620();
-        func_001C2A28();
+        BtlAiMgr_Update();
+        BtlChars_SampleInput();
         draw = Battle_Update();
         done = BtlGame_Update();
         if (Battle_IsSplitScreen() && draw) {

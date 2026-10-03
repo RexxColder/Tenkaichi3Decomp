@@ -7,12 +7,12 @@
  * Battle facade: src/battle/btl_facade.c = 0x12BD58..0x12C9F0 (63 functions, no data, no rodata).
  *
  * Who uses it. Every caller but three is in the battle event script, the block 0x259070..0x25BE58 that
- * battle.h calls "menu side" (func_00257A50 / func_00259030 in the frame loop, work at 0x333BC0). That code is
- * a command interpreter: func_002585C8 fetches the next operand, func_00258728(letter) tests for an option
+ * battle.h calls "menu side" (Gsc_Update / BtlScript_Update in the frame loop, work at 0x333BC0). That code is
+ * a command interpreter: Gsc_GetInt fetches the next operand, Gsc_FindOption(letter) tests for an option
  * letter, and each command handler is called with a phase (0 or 4). The handlers never touch a fighter, the
  * camera, the sequence or the result block themselves; they go through this file:
  *
- *   func_00259070 / func_00259EC8 / func_00259FB0 / func_00259FE0 / func_0025A068 / func_0025A0A8
+ *   BtlScript_UpdateView / func_00259EC8 / func_00259FB0 / func_00259FE0 / func_0025A068 / func_0025A0A8
  *                    camera commands: ShakeCamera, Set/Get/ClearFixedCamera
  *   func_0025A2D8..func_0025A7D0   one handler per fighter command: SetCharPos, SetCharDir, StartCharMove,
  *                    IsCharMoveDone, StopCharMove and the SetCtrl / ClearCtrl flags (0xFE..0x102)
@@ -26,7 +26,7 @@
  *   func_0025B7B0    SetResult, IsNotFinished
  *   func_0025BBB0 / func_0025BE58   the "set fighter status" command for side 0 / side 1: option letters pick
  *                    SetMemberItems, AddHp / RaiseHp / LowerHp and the two gauges
- *   func_00259570, func_00259C20, func_00259D90   IsWaitOff, AreBothInterruptible, CanCharAct
+ *   BtlScript_IsTriggered, BtlScript_StartPending, BtlScript_UpdateHud   IsWaitOff, AreBothInterruptible, CanCharAct
  *
  * The three callers outside the script are in battle_load.c (BtlEvent code, 0x129450 and 0x129808):
  * ClearFixedCamera, AreBothInterruptible, SetFlag200 and ClearFlag200.
