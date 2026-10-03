@@ -1,0 +1,57 @@
+name: Dragon Ball Z - Budokai Tenkaichi 3 (USA) - BIN/DBZP.BIN overlay
+sha1: 4f910969e05d9b25c83af7642b60da9949a4348b
+options:
+  basename: DBZP
+  target_path: disc/BIN/DBZP.BIN
+  elf_path: build/DBZP.elf
+  base_path: ..
+  platform: ps2
+  compiler: EEGCC
+
+  # The overlay shares the main executable's $gp.
+  gp_value: 0x00304270
+
+  asm_path: asm/dbzp
+  src_path: src/dbzp
+  build_path: build
+  data_path: data
+  nonmatchings_path: nonmatchings
+
+  ld_script_path: build/DBZP.ld
+  ld_dependencies: True
+  ld_wildcard_sections: True
+
+  create_asm_dependencies: True
+  generate_asm_macros_files: False
+
+  find_file_boundaries: False
+
+  o_as_suffix: True
+
+  symbol_addrs_path:
+    - config/symbol_addrs.txt
+    - config/symbol_addrs_dbzp.txt
+  reloc_addrs_path:
+    - config/reloc_addrs_dbzp.txt
+
+  undefined_funcs_auto_path: build/dbzp_undefined_funcs_auto.txt
+  undefined_syms_auto_path: build/dbzp_undefined_syms_auto.txt
+
+  string_encoding: ASCII
+  data_string_encoding: ASCII
+  rodata_string_guesser_level: 2
+  data_string_guesser_level: 2
+
+  named_regs_for_c_funcs: False
+
+segments:
+  - name: dbzp
+    type: code
+    start: 0x000000
+    vram: 0x00334C00
+    subalign: null
+    align: 4
+    subsegments:
+      - [0x000000, asm, "000000"]
+      - [0x07C280, data, "07C280"]
+  - [0x89B1C]

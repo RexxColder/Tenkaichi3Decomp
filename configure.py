@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extracts the executable from the disc image, splits it with splat and writes build.ninja.
+"""Extracts the executables from the disc image, splits them with splat and writes build.ninja.
 
 Usage: .venv/bin/python configure.py && ninja
 """
@@ -13,8 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 ISO = ROOT / "Dragon Ball Z - Budokai Tenkaichi 3 (USA) (En,Ja).iso"
 DISC = ROOT / "disc"
-BASENAME = "SLUS_216.78"
-YAML = ROOT / "config" / f"{BASENAME}.yaml"
 BINUTILS = "tools/binutils/mips-ps2-decompals-"
 
 # End of .sdata rounded up to the 128-byte section alignment the original link used.
@@ -29,6 +27,31 @@ CC_FLAGS = "-O2 -Iinclude"
 G_FLAGS = {"src/cri": "-G0"}
 G_DEFAULT = "-G8"
 
+# Each target is one binary that is split, rebuilt and compared on its own.
+# `subdir` is the target's folder under asm/ and src/; the main executable owns everything else.
+TARGETS = [
+    {
+        "name": "SLUS_216.78",
+        "yaml": "config/SLUS_216.78.yaml",
+        "subdir": None,
+        "original": "disc/SLUS_216.78.rom",
+        "built": "build/SLUS_216.78.rom",
+        "ld_scripts": ["build/SLUS_216.78.ld", "build/undefined_funcs_auto.txt",
+                       "build/undefined_syms_auto.txt", "config/linker_script_extra.ld"],
+    },
+    {
+        # Menu/UI code loaded at 0x334C00, right after the main executable's .bss.
+        "name": "DBZP",
+        "yaml": "config/DBZP.yaml",
+        "subdir": "dbzp",
+        "original": "disc/BIN/DBZP.BIN",
+        "built": "build/DBZP.BIN",
+        "ld_scripts": ["build/DBZP.ld", "build/dbzp_undefined_funcs_auto.txt",
+                       "build/dbzp_undefined_syms_auto.txt"],
+    },
+]
+SUBDIRS = {t["subdir"] for t in TARGETS if t["subdir"]}
+
 
 def run(cmd, **kwargs):
     print("$", " ".join(shlex.quote(str(c)) for c in cmd))
@@ -36,36 +59,41 @@ def run(cmd, **kwargs):
 
 
 def extract():
-    if (DISC / BASENAME).exists():
+    if (DISC / "SLUS_216.78").exists() and (DISC / "BIN" / "DBZP.BIN").exists():
         return
     if not ISO.exists():
         sys.exit(f"missing disc image: {ISO.name}")
-    run(["7z", "x", "-y", f"-o{DISC}", ISO, "SYSTEM.CNF", BASENAME, "BIN", "IRX"],
+    run(["7z", "x", "-y", f"-o{DISC}", ISO, "SYSTEM.CNF", "SLUS_216.78", "BIN", "IRX"],
         stdout=subprocess.DEVNULL)
 
 
 def make_rom():
     run([BINUTILS + "objcopy", "-O", "binary", "--gap-fill=0x00",
-         f"--pad-to={ROM_PAD_TO:#x}", DISC / BASENAME, DISC / f"{BASENAME}.rom"])
+         f"--pad-to={ROM_PAD_TO:#x}", DISC / "SLUS_216.78", DISC / "SLUS_216.78.rom"])
 
 
-def split():
+def split(target):
     # splat shells out to mips-linux-gnu-* binutils; tools/bin aliases them.
     env = dict(os.environ, PATH=f"{ROOT / 'tools' / 'bin'}{os.pathsep}{os.environ['PATH']}")
-    run([sys.executable, "-m", "splat", "split", YAML], env=env, stdout=subprocess.DEVNULL)
+    run([sys.executable, "-m", "splat", "split", ROOT / target["yaml"]], env=env,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def sources(top, suffix, subdir):
+    """Files under top/ belonging to a target: its own subdir, or everything outside all subdirs."""
+    found = []
+    for path in sorted((ROOT / top).rglob(f"*{suffix}")):
+        rel = path.relative_to(ROOT)
+        # asm/**/nonmatchings holds per-function files pulled in by INCLUDE_ASM, not standalone units.
+        if "nonmatchings" in rel.parts:
+            continue
+        owner = rel.parts[1] if rel.parts[1] in SUBDIRS else None
+        if owner == subdir:
+            found.append(rel)
+    return found
 
 
 def write_ninja():
-    # asm/nonmatchings holds per-function files pulled in by INCLUDE_ASM, not standalone units.
-    asm = sorted(p.relative_to(ROOT) for p in (ROOT / "asm").rglob("*.s")
-                 if "nonmatchings" not in p.parts)
-    srcs = sorted(p.relative_to(ROOT) for p in (ROOT / "src").rglob("*.c"))
-    objs = [Path("build") / p.with_suffix(".o") for p in asm + srcs]
-    elf = f"build/{BASENAME}.elf"
-    rom = f"build/{BASENAME}.rom"
-    ld_scripts = [f"build/{BASENAME}.ld", "build/undefined_funcs_auto.txt",
-                  "build/undefined_syms_auto.txt", "config/linker_script_extra.ld"]
-
     out = [
         f"as = {BINUTILS}as",
         f"ld = {BINUTILS}ld",
@@ -85,7 +113,7 @@ def write_ninja():
         "  description = CC $in",
         "",
         "rule ld",
-        f"  command = $ld -EL {' '.join('-T ' + s for s in ld_scripts)} -Map $out.map -o $out",
+        "  command = $ld -EL $scripts -Map $out.map -o $out",
         "  description = LD $out",
         "",
         "rule rom",
@@ -97,27 +125,36 @@ def write_ninja():
         "  description = CHECK $in",
         "",
     ]
-    for src, obj in zip(asm, objs):
-        out.append(f"build {obj}: as {src} | include/macro.inc include/labels.inc")
     headers = " ".join(str(p.relative_to(ROOT)) for p in sorted((ROOT / "include").rglob("*.h")))
-    for src, obj in zip(srcs, objs[len(asm):]):
-        gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d + "/")), G_DEFAULT)
-        out.append(f"build {obj}: cc {src} | {headers} include/gcc_prelude.inc")
-        out.append(f"  gflag = {gflag}")
-    out += [
-        f"build {elf}: ld | {' '.join(map(str, objs))} {' '.join(ld_scripts)}",
-        f"build {rom}: rom {elf}",
-        f"build build/{BASENAME}.ok: check {rom} disc/{BASENAME}.rom",
-        f"default build/{BASENAME}.ok",
-        "",
-    ]
+    for target in TARGETS:
+        asm = sources("asm", ".s", target["subdir"])
+        srcs = sources("src", ".c", target["subdir"])
+        objs = [Path("build") / p.with_suffix(".o") for p in asm + srcs]
+        elf = f"build/{target['name']}.elf"
+        ok = f"build/{target['name']}.ok"
+
+        for src, obj in zip(asm, objs):
+            out.append(f"build {obj}: as {src} | include/macro.inc include/labels.inc")
+        for src, obj in zip(srcs, objs[len(asm):]):
+            gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d + "/")), G_DEFAULT)
+            out.append(f"build {obj}: cc {src} | {headers} include/gcc_prelude.inc")
+            out.append(f"  gflag = {gflag}")
+        out += [
+            f"build {elf}: ld | {' '.join(map(str, objs))} {' '.join(target['ld_scripts'])}",
+            f"  scripts = {' '.join('-T ' + s for s in target['ld_scripts'])}",
+            f"build {target['built']}: rom {elf}",
+            f"build {ok}: check {target['built']} {target['original']}",
+            f"default {ok}",
+            "",
+        ]
     (ROOT / "build.ninja").write_text("\n".join(out))
 
 
 def main():
     extract()
     make_rom()
-    split()
+    for target in TARGETS:
+        split(target)
     write_ninja()
 
 
