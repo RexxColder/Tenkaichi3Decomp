@@ -313,3 +313,43 @@ verified and the visual is not.
 - (verified) Evidence of the original file: `BtlFx_UpdateGroundFx` only matches when the effect
   request-bit helpers (in `btl_char_member.c`) are in the same translation unit, and the float
   pools are contiguous.
+
+## Controls: what the special inputs do (`btl_act_j.c`, 0x203168..0x204E78; verified)
+
+The decision helpers never request an action directly: they fill the four-slot queue with
+`BtlAct_SetQueue` and return the slot count; the caller requests the head. Input numbers are
+the conditions of `BtlInput_TestAction` (table in `btl_char_ctl.h`).
+
+| Input | Does | Cost / requirements | Action ids |
+|---|---|---|---|
+| 99..103: R3 tap, neutral or with left / up / right / down | transformation (neutral = the character's default target; directions = targets 0..3) | blast stocks (100000 each); target usable for the side; one kind needs a stage flag (inferred: the moon for Great Ape forms) | 0xEC..0xF0 |
+| 104..106: R3 held 12 frames + left / up / right | fusion 0..2 | blast stocks; a listed partner present on the team, alive | 0xF1 / 0xF2 |
+| 107: L3+R3 | member switch | fighter +0x99C gauge full (100000); two or more members alive | 0xF3 |
+| 108..110: charge + blast, neutral / up / down | technique slot 2 / 3 / 4 | ki; lock-on (flag 5); slot 4 also needs the powered-up mode (flag 6) | 0x106..0x126 in blocks of three per technique kind; 0x105 first for slot 4 |
+| 113, 114: charge + guard, neutral / up | skill slot 0 / 1 | blast stocks | 0xFD..0x102 |
+| 80 (blast pressed) in the powered-up mode | combo finisher, by the last attack and a per-character mode byte | | 0x115 / 0x116, 0x118 / 0x119, 0x127 / 0x128 |
+
+Inferred: slot 4 is the ultimate, slots 2 / 3 the two blast-2 techniques, skill slots 0 / 1 the
+blast-1 skills.
+
+Recovery from a knock-down (`BtlAct_CheckRecoveryInput`): a direction picks one of four
+recovery actions 0xE2..0xE5, mirrored by whether the model faces the same way as the fighter
+camera yaw (+0x4A0); a face button alone gives 0xE1.
+
+Hit reaction to action (`BtlAct_QueueReaction`, called each frame with the pending reaction id
+at fighter +0xFB0): the full table is in `btl_act_j.h`. Reactions 23..25 and 26..28 also set
+the stun timer (+0xFE0) to 15 / 30 / 45 frames. A light reaction taken twice in a row becomes a
+knock-back (reaction 0x10); most reactions on a dead fighter become reaction 0xF. A per-reaction
+counter at fighter +0x1004 saturates at 100.
+
+Story battles force actions through fighter flags (`BtlAct_CheckStoryForced`, mode 1 only):
+0xFA plays a scripted animation (action 4); 0x110..0x115 queue actions 5..10; 0x116..0x119
+force a transformation, 0x11A..0x11C a fusion, 0x11D a switch. Forced changes skip every cost
+and availability check.
+
+No random draw, pad read, sound status or player-0 test anywhere in this range.
+
+Character parameter block (object +0x91C; offsets read from accessor disassembly): +0x98[4]
+transformation targets, +0x9C[4] their blast cost, +0xA0[4] sequence, +0xA4[4] kind, +0xAC
+default index, +0xAE[3] fusion cost, +0xB1[3] fusion sequence, +0xB4[3] fusion result,
++0xBA[3][4] fusion partners.
