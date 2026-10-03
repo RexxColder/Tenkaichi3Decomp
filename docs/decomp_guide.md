@@ -92,6 +92,8 @@ decompiled, extend the C file backwards and pull the earlier functions in with `
 example: its code starts at 0x216AC0 but the object starts at 0x215540.
 
 ## Placeholder names across modules
-After adding names, run `python3 scripts/apply_names.py`: it rewrites `func_XXXXXXXX` /
+Integrator only (agents working in parallel must NOT run it: it edits every file under `src/`
+and `include/`, including other agents' work in progress). After adding names, run
+`python3 scripts/apply_names.py`: it rewrites `func_XXXXXXXX` /
 `D_XXXXXXXX` in `src/` and `include/` to the current names, so one module's rename does not
 leave another module calling a symbol that no longer exists.
