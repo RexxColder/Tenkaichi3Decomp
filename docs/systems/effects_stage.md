@@ -47,6 +47,14 @@ and the stage update at 0x243568).
 | 0x12F550..0x12F810 | eft_a.c | technique camera cut `EftCam_*` (drives the demo camera) | camera only | none | |
 | 0x12F810..0x131030 | eft_a.c | shared helpers: palette lighting, splines, `EftMath_WrapAngle`, **projectile aim and homing `EftAim_*`**, clip planes | aim and homing: **yes** | none | |
 | 0x1312A8..0x132290 | eft_a.c | clipped polygon and sprite drawing `EftGfx_*` | no | none | |
+| 0x14F230..0x151AD8 | eft_i.c | effect pack library `EftEmit_*` (continues eft_h): spawns, moves and kills the part objects of 11 part modules; six node slots per pack | drives parts; no hit records itself | libc `rand()`: 2 per started part with a spread (reaches the part's spawn position) | (eft_i 36/43) |
+| 0x151AD8..0x152978 | eft_i.c | **technique effect type 3 `EftSweep*`: a sweeping beam** | **yes**: one hit record per frame; traces the stage; **destroys stage objects** (`BtlStage_DestroyObj`); sets fighter flag 0xA8 at its end | none | |
+| 0x152978..0x1532A0 | eft_i.c | **technique effect type 7 `EftFollow*`: an effect on fighter node 3** | **yes**: a two-sphere hit record per frame; sets flag 0xA8 at its end. Also drives the stage blur light (visual) | none | |
+| 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
+| 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
+| 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
+| 0x244890..0x245878 | stg_b.c | screen shock waves `ScrWarp_*` (10 rings) | no | VU0 register: 20 per spawn | |
+| 0x245878..0x245F58 | stg_b.c | depth blur `StgFog_*` (continues in stg_c) | no | none | |
 | 0x245F58..0x248F28 | stg_c.c | screen effects (haze, tints, blur) | no | libc `rand()` in a draw pass (haze) | 66/68 |
 | 0x15F728..0x1609C8 | eft_m.c | speed lines `EftSpdLine_*` (30 trails, 40 streaks; task table `D_002C3A18`) | no | libc `rand()` in update / spawn | 20/20 |
 | 0x1609C8..0x1637A0 | eft_m.c | aura particles `EftAura_*`, first half (flames from 10 body parts, sparks from 12 emitters; pools shared by all fighters) | no | libc `rand()` in update / spawn, count depends on live particles | 30/30 |
@@ -138,3 +146,37 @@ The hit detection that consumes the list is at 0x1AFDB0..0x1B10F0 (not decompile
 Corrections to earlier notes: `BtlBlastRec.active` (+0xC) in btl_scene.h is the record type;
 what btl_scene.c calls a record's "definition flags" is the owning task's event flags (so in
 `BtlScene_CheckStageChange` the test means "the task hit a fighter").
+
+## Technique effects (simulation; `eft_i.c`, verified unless marked)
+
+- A technique effect type is a pair of task classes in `gEftShotClass` (0x2C3700, row = type +
+  1): a group class and an instance class. Two types are in this file.
+- Both are driven by the fighter's animation effect events, read with
+  `EftShot_TestBits(objId, bit)`: 2 aim, 4 fire, 8 stop, 0x400 end now. Nothing runs while the
+  character is stopped (`BtlScene_IsCharStopped`).
+- **Type 3, sweeping beam**: the far end moves on a circle around the origin at about the
+  opponent's distance (capped at 800), 1.08 degrees per frame, starting 11 steps before the
+  opponent. While fired it publishes one hit record per frame (two spheres or two boxes). Each
+  frame the beam segment is traced against the stage; on a hit the end is pulled back to the
+  surface, a 10-frame impact mark is queued (15 at most; a 16th is dropped) and a hit stage
+  object is destroyed.
+- **Type 7, follow effect**: keeps a two-sphere hit record on fighter node 3 from the fire
+  event until it ends.
+- A hit result in the task flags stops the record. At their end both set the fighter's held
+  flag 0xA8 ("beam over").
+- The effect pack library (`EftEmit_*`) binds six node slots to model nodes the first time each
+  event bit is seen and samples them every frame; event 0x400 freezes them.
+- Order: `BtlStage_DestroyObj` is called from effect updates, so its order relative to the
+  other fighter's effects is the task list order.
+
+## Stage (from stg_b.c, verified)
+
+- `BtlStage_Update` (0x243568): skipped while stage load jobs run; otherwise stage timers,
+  stage objects (`BtlStage_UpdateObjs`), the ambience handler, then 0x115370 and 0x2309A8.
+- Stage timers add 0.13333333 per unpaused frame and raise a one-frame flag when they pass
+  their period (readers not found yet).
+- Stage flag word: bits 1 / 2 / 4 enable three stage effect resources; bit 0x10 is what the
+  transformation check tests (inferred: the stage has a moon).
+- Stage change target comes from the stage info (1 gives stage 0xF, 2 gives stage 3).
+- The collision and ground queries the fighters, camera and AI call are in the stg_a range
+  (0x23FE70, 0x23FEB0, 0x23FEF8, 0x23FF38, 0x2427A0, 0x242668), not here.

@@ -74,6 +74,10 @@ Consequences:
   pass) draws 2 values per mesh vertex per view, about 2000 per drawn frame, on stages with
   that feature; the count depends on split screen, the demo camera and pause. A port must give
   it its own generator. (verified)
+- More draws from shared generators by non-simulation code (verified): stage ambience sound
+  draws libc `rand()` on some stages; screen shock waves draw 20 values from the VU0 register
+  per spawn; visual particle modules draw libc `rand()` in proportion to live particles; water
+  trails only outside split screen. See systems/effects_stage.md.
 - **libc `rand()` must be synchronised**: it reaches the result through the double-KO
   tie-break, and its call count depends on camera shake and effects.
 - **The VU0 register and the Mersenne Twister must be synchronised** if anything that uses
