@@ -82,3 +82,62 @@ button layout.
 ## World orientation (verified in `rigid.c`, inferred here)
 
 +Y is down: the AI holds ASCEND when the target's Y is more than 30 below the fighter's.
+
+## Additions from the fighter-core batch
+
+Sources: `src/battle/btl_ai_act.c` (virtual pad, attack actions, sense; 55 of 56 match) and
+`src/battle/btl_ai_think.c` (rules and thinking; 36 of 43 match, so the rule evaluator below
+is read from disassembly plus near-matching C).
+
+### Virtual pad (verified)
+
+Actions write the pad through `BtlAiPad_Set(side, hold, press, once, special, x, y)`:
+- hold: sent every call; press: sent on alternate frames (a mark bit flips each frame), so the
+  game sees repeated button-downs; once: sent one time until the action clears the marks.
+- The stick is `(accumulator + (x, y)) / 2` with the accumulator cleared every frame: with one
+  call per frame the CPU sends half the deflection it asks for.
+- AI bit 0x100 maps to the lock-on battle bit; the others map to themselves; holding 0x200 and
+  0x400 with press 0x2000 sends L3+R3.
+- A stuck detector ends the move action when the fighter is dashing or flying but has moved
+  less than its radius for more than 30 checks.
+
+### Attack actions (verified mechanics; names guessed)
+
+Action 0x19 ("combo"): each step is one roll over 11 level-scaled weights (blast, blast with a
+direction, held rush with a random direction, guard with a side step, dash, idle...), with the
+weight row chosen by the opponent's and own state class. Action 0x1A ("follow-up") rolls among
+five options. Charge time is rolled: 10..50% chance of a full charge by `level / 6`.
+
+### Sense (verified bit logic)
+
+`BtlAiSense_Update` builds a 64-bit situation word per CPU side per frame: sequence state,
+distance band (close / middle / far, also as rule groups), opponent behind, line of sight
+blocked, incoming projectile, opponent downed or stunned, own gauge in four bands, health
+thresholds scaled by level, and more. All 64 bits are listed in `btl_ai_act.h`. Sense draws no
+random numbers and reads no pad, clock or camera.
+
+### Thinking
+
+- (verified) Per CPU fighter per frame: evaluate rule list 7; if nothing started and the level
+  is not negative, list 4, then list 0, then list `{1,2,3,5,6,7}[plan.next]`.
+- (read from disassembly) Rules are taken in file order; a rule's group must be a set bit of
+  the situation word; the first rule whose conditions all pass ends that list.
+- (verified) Weighted choice: each condition position has a pre-drawn roll and a running sum; a
+  weighted condition adds its level-scaled rate and passes when the roll is below the sum, so
+  consecutive rules of one group form a weighted pick.
+- (verified) There are 118 condition functions; rule ids go to 127 through a mapping table.
+
+### AI data file (verified in `AiThink_BindData`)
+
+Member 4 of common file 2. A 0x148-byte header (41 sizes, then 41 pointer slots the game fills
+in memory), then the action table, eight rule lists and 32 profiles back to back. A profile is
+two 0x2C0-byte rate sets (level 0 and level 29) of nine tables. The column-code tables that say
+which condition each weight belongs to are in the executable (0x2EDC70..0x2EDF08), not in the
+file. A port must redo the load-time pointer fix-ups or convert them to offsets.
+
+### Random draws
+
+Everything is `Rand_Range` (the shared Mersenne Twister). The evaluator draws eight values each
+time it enters a new rule group, before testing anything; some conditions draw one more whether
+or not they pass; the attack actions draw one to four per decision. Draws per frame therefore
+depend on the situation, on rule order in the data, and on where each rule fails.

@@ -56,7 +56,7 @@ the original. (inferred from the verified code)
 
 | Generator | State | Seeded / reset | Used by |
 |---|---|---|---|
-| `BtlChar_Rand` | roster +0x18 | zeroed by `BtlChar_ResetAll` | fighter logic (9 sites in one function, plus two float users) |
+| `BtlChar_Rand` | roster +0x18 | zeroed by `BtlChar_ResetAll` | clash C only (9 sites): stage path, point on it, exchanges before moving. Feeds fighter placement. Plus two float users |
 | `BtlChar_FrameMod` | roster frame counter | zeroed by `BtlChar_ResetAll` | fighter picks, e.g. voice lines (39 sites) |
 | `BtlScene_Rand` | scene +randState | zeroed by `BtlScene_Reset` (battle start, restart, and some mid-battle sites) | effect scene |
 | libc `rand()` | C library | **boot only**, from a hardware timer | about 490 direct call sites, almost all effect tasks; camera shake; the battle sequence's voice choice and **double-KO tie-break**; `Rand_IntRange` (34 sites) |
@@ -77,7 +77,9 @@ Consequences:
 - The twister is shared with the menus; nothing outside the simulation may draw from it
   during a fight, or the AI needs its own stream.
 - The roster's "time stopped" word (+0x274) freezes the two fighter sources, the scene
-  generator and input. Its writer has not been found.
+  generator and input. Its writer is `BtlChange_Update` (see the load-completion row below).
+- The fighter core itself (actions, movement, hits, collision, members, stats, flags) calls no
+  generator other than `BtlChar_FrameMod` and, in clash C, `BtlChar_Rand`. (verified)
 
 ## Non-simulation state that reaches the simulation
 
@@ -85,7 +87,7 @@ Each of these is a way two peers could diverge with identical inputs.
 
 | What | How it reaches the simulation | Status |
 |---|---|---|
-| **Load completion** | Transformations, fusions and member switches finish in `BtlChars_OnModelLoaded`, called when the character load job ends; battle flags 0x800 / 0x1000 / 0x2000 suspend updates while loads run | verified |
+| **Load completion** | A transformation, fusion or member switch pushes a character-change request; **time is stopped (roster +0x274) on every frame that ends with a request active**, i.e. for as long as the model takes to load. Fighter generators, the frame counter, gauges and input are frozen meanwhile. The change itself is applied in `BtlChars_OnModelLoaded` when the load job ends; battle flags 0x800 / 0x1000 / 0x2000 also suspend updates while loads run | verified |
 | **Load completion** | The AI skips any frame on which an object load job is running | verified |
 | **Controller removal** | `PadWatch` debounces pad presence; the battle pause check sets the pause flag when a required pad is missing (not in mode 7) | watcher verified; pause path read from disassembly |
 | **Voice playback** | The battle sequence waits on `Voice_IsStopped` (with a 10 s timeout) in the intro and win talk; story scripts wait on voices too | verified |
@@ -97,12 +99,35 @@ Each of these is a way two peers could diverge with identical inputs.
 A port has to make each of these identical on both peers, or remove the dependency (for
 example by loading models ahead of time and resolving loads on a fixed frame).
 
+## Fighter order (verified unless marked)
+
+- The collision step tests and applies fighter 0 first; applying fighter 0's hit writes
+  fighter 1's reaction and health before fighter 1's own hit is applied.
+- The hit-stop loop's early exit favours roster order.
+- `BtlChar_PlaceOnPath` places by player index.
+- Movement, push-out and most cross-fighter reads are order-independent: they use per-pass
+  position snapshots and last-frame flag and action values.
+- (inferred) Effect hits resolve in the order of the effect scene's record list.
+
+Both peers must agree on who is fighter 0.
+
+## Story battles (verified)
+
+Scripts wait on non-simulation state: the voice stream (`Talk`, `PlayVoice`, line triggers),
+the music stream, and a raw pad-0 button wait. `Talk` also starts and stops lip movement (a
+fighter object sub-state) from the stream's status. Online story battles would need fixed
+durations in place of those waits. Versus modes run no scripts.
+
 ## Camera
 
 - Movement is relative to the fighter camera's `yaw` (fighter +0x4A0), not to the camera
   position. `yaw` depends only on opponent direction, fighter flags, the fighter's input record
-  and facing. (writers verified in `btl_char_cam.c`; movement-side readers read from
-  disassembly, high confidence)
+  and facing. The movement code reads no other camera field. (verified on both sides:
+  `btl_char_cam*.c` and `btl_char_move.c`)
+- The camera's `side` value (+0x4A8) chooses between two camera cuts for some attacks
+  (`BtlAct_PrepareAttack`). Cuts raise fighter flags and have their own durations, so `side`
+  must be treated as simulation state. Whether an attack's two variants actually differ is in
+  a data file and not checked. (verified code; consequence open)
 - No pad is read by the fighter camera or by the battle camera module. The two pad-reading
   camera functions found earlier are dead debug code and a viewer screen. (verified code;
   reachability from the absence of callers)
@@ -132,8 +157,9 @@ tasks in story battles; and the state of every generator in the table above.
 
 ## Open items
 
-- Find the writer of roster +0x274 ("time stopped").
-- Establish what fighter +0xD26 / +0xD34 are (the reader of `cam->side`).
+- Decide how a port fixes the duration of a character-change load (fixed frame count, or
+  preloading every model a battle can need).
+- Check in the attack and cut data whether left / right cut variants differ in flags or length.
 - Decompile the pause check `func_0022F9F8` and confirm the controller-removal path.
 - Decompile the fighter state machine, movement and hit detection (the bulk of the
   simulation), and the effect tasks that call `rand()`.

@@ -284,6 +284,7 @@ down (gravity is +9.8 on Y).
 
 ## Not decompiled yet
 
-The fighter code (0x1BB000..0x210000 roughly), the stage, effects, HUD internals, the scene
-manager and the camera. About 50 functions called from the frame loop are still unnamed, with a
+The individual action handlers and technique code (0x1E3158..0x2129C8, in progress), the effect
+tasks (0x12DD80..0x1AE200), the stage, and HUD internals. The fighter core is described in
+fighter.md and combat.md. About 50 functions called from the frame loop are still unnamed, with a
 first-read description in the header comment of `battle.c`.

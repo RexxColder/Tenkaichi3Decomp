@@ -169,3 +169,31 @@ technique. Longer lists are in the reports summarised in the headers.
 `btl_char_api.c` and `btl_char_get.c` are slices of larger original files (about 330 functions
 from 0x204E78, and the object around 0x1DBAD0..0x1DCB88). They link on their own only because
 they own no shared constants.
+
+## Corrections and additions from the fighter-core batch
+
+See combat.md for the mechanics. Corrections to the tables above (all verified by matching C):
+
+- +0x0974 / +0x0978 / +0x097C / +0x0980 are the current / requested / previous / second-layer
+  **animation id**, not a "state id"; roster `tbl[0]` is the per-animation flag word table.
+- +0x0948 is the action state `{current, request, prev, queue[4]}`; +0x094C is the requested
+  action (-1 = none), and nothing ever writes `prev` at +0x0950.
+- +0x00A4 is the **heading** yaw; the model yaw is the rotation y at +0x0024 and follows it.
+- +0x0D40 / +0x0D44 are the combo damage total and combo hit count; +0x0D48 the combo timer.
+- +0x0F40 / +0x0F44 / +0x0F48 are hit status (pending target, last hit number, contact
+  counter); +0x0F50 is the stat modifier table (4 x 0x18).
+- +0x0FB0 is the reaction block filled by the hit code (reaction id, push yaw, launch angles,
+  stun at +0xFE0, deferred damage at +0xFEC).
+- +0x1085..+0x1261 are the flag arrays and stamps; +0x1262 / +0x126B are 72 one-frame effect
+  request bits and last frame's copy.
+- +0x02E0 / +0x0350 / +0x03C0 are per-pass position and rotation snapshots and their mask.
+- +0x0918 holds two per-frame bit sets of the input conditions queried this frame.
+- +0x15A0 is the head-tracking state.
+- Roster +0x08 / +0x0C are the per-side one-shot and looping sound slot sets; +0x40 is the
+  clash state machine; +0x138..+0x278 is the character-change queue; **+0x274 is its
+  "time stopped" word, written by `BtlChange_Update`** (the writer earlier listed as not found).
+- The manager's step named `BtlChars_UpdateCollision` calls `BtlColl_Update`; the step labelled
+  "push-out" in the phase list is a hold attachment for grabs (`BtlChars_UpdateHold`), and the
+  real push-out is `BtlMove_PushOut` in the stage-7 pass. The step labelled "gauges" only
+  applies queued hits and drains (`BtlMembers_UpdateQueuedDamage`); gauges are updated by
+  `BtlAct_UpdateGauges` inside each fighter's action update.

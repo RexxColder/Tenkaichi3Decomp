@@ -52,3 +52,20 @@ purpose. Each is confirmed by C that compiles to the original bytes unless marke
 | Replay recording | At 9000 frames the recorder silently stops storing. | A fight longer than 5 minutes of input-taking frames cannot be replayed to the end. |
 | Replays and `rand()` | Nothing reseeds `rand()` for a replay. | A replayed double KO can resolve differently from the original (inferred). |
 | `Timer_GetFrames` | The multiply wraps after about 71.6 s. | Used only by the movie player. |
+
+## Added with the fighter-core batch
+
+| Where | What | Consequence |
+|---|---|---|
+| `BtlChange_Update` / time stop | The fight is frozen for as long as a transformation, fusion or switch model takes to load. | Duration depends on disc speed; a deterministic port must fix it. |
+| `BtlColl_Update`, `BtlHit_ApplyHit` | Fighter 0 is tested and applied first; its hit writes fighter 1's reaction and health before fighter 1's hit is applied. | Player 1 / player 2 asymmetry. |
+| `BtlAiPad_Set` | The stick is averaged against a per-frame accumulator that starts at zero. | The CPU sends half the stick deflection it asks for. |
+| Script commands 13 / 14, option `-B` | Calls the ki adder instead of the blast adder. | Scripts cannot add blast gauge. |
+| Script command 1602, option `-h` | The channel value is stored and then overwritten with 0. | Voice always plays on channel 0. |
+| Fighter flags | Flags written before the first stage of a fight are never promoted; `ClearFlag` does not refresh the previous plain bit. | Edge tests can misreport in those cases. |
+| `prev` action (fighter +0x950) | Never written. | Reads 0; one blend test is always false. |
+| `BtlMove_CalcApproachPoint` | Takes `sqrt(len^2 - dy^2)`, which can be negative (inferred hazard). | The PS2 returns a number where a PC returns NaN. |
+| `BtlMove_CalcVerticalSpeed`, `BtlMove_CalcJumpSpeed` | Loops end on a sign change (inferred hazard). | Would not end on a NaN. |
+| `BtlCharSnd_PlayCommonFar` | near = far = 100000, so the attenuation divides by zero. | |
+| Fighter sound requests | A fifth request in one frame is dropped silently. | |
+| `BtlColl_TryGuard` | Allows a guard kind 6 that skips the from-behind test, but the classifier never returns 6. | Dead branch. |

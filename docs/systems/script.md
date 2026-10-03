@@ -100,3 +100,43 @@ text and voice files. Stepped only on unpaused frames, at the game's 30 frames p
 
 `GSHD` contents; parts of the 0xBE0-byte `gBtlScript` work block; what most battle event ids
 mean; eight unknown bytes in each camera key.
+
+## Command handlers (verified; `src/battle/btl_script_cmd.c`, 0x259EC8..0x25C2A8)
+
+46 handlers (the table has 47 entries with its terminator). The full reference, with operands
+and lettered options, is in `include/battle/btl_script_cmd.h`. Summary:
+
+| Ids | Commands |
+|---|---|
+| 1 | wait N seconds |
+| 2 | story number |
+| 4 / 5 / 6 | event end / scene begin / scene end |
+| 7 | register triggers (`-a` event actions, `-v` voice lines) |
+| 8 | battle sub-command (30 values: start or resume the fight, stage change, force actions, change member, use a technique, power up) |
+| 9 | set the result and wait |
+| 10 / 11 / 12 | battle setup: rule, side, member (a story battle is configured by its own script) |
+| 13 / 14 | player / enemy status: health, gauges, items, CPU level |
+| 15 | speakers |
+| 701 / 702 | request the text file / the lip-sync file |
+| 801..810 | place a fighter, fighter control flags |
+| 901 / 902 | play / stop a scripted animation on a fighter |
+| 1001..1003 | fade in / out / reset |
+| 1201..1205 | camera: set, move through up to 8 keys, off, shake, shake off |
+| 1302 | text window setup (per language) |
+| 1501 / 1502 | music |
+| 1601 / 1602 / 1603 | sound effect / voice / talk (voice, subtitle, lip sync) |
+| 1701 | wait for a pad button |
+
+Conventions: a `who` operand has the side in bit 15; script angles are degrees; script seconds
+are 30 frames. Handlers take an unsigned phase.
+
+Waits on non-simulation state: 1602 and 1603 `-w` and line triggers wait on the voice stream;
+1603 starts lip movement when the stream reports playing; 1502 `-w` waits on the music stream;
+1701 reads pad 0 directly. Everything else waits on script time, fighter flags or frame-counted
+fades.
+
+Original bug: the `-B` option of commands 13 / 14 (add blast gauge) calls the ki adder, so the
+blast adder has no caller.
+
+From four dumped scripts (inferred): win scenes are event actions 1003x and lose scenes 1004x,
+triggered by the KO event on side 0 / side 1.

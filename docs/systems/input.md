@@ -179,3 +179,11 @@ and then goes through the same stick merge, command building and replay hook.
 - `OrbitCam_Update` (was `func_0023F708`): sticks of pad 0, for an orbiting viewer camera whose
   callers look like a viewer screen, not the battle (inferred).
 - `func_001D8590`: pad 0 up/down. Not examined.
+
+## Additions from the fighter-core batch (verified)
+
+- `BtlInput_TestAction(chr, id, want)` and the stick readers belong to the same original source
+  file as `btl_input.c`. It evaluates 114 numbered input conditions; the table is in
+  `include/battle/btl_char_ctl.h` and summarised in combat.md.
+- The two per-frame bit sets at fighter +0x918 record which conditions were queried this frame.
+- The decision code that maps conditions to actions is 0x2012D8..0x204E00 (being decompiled).
