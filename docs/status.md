@@ -58,6 +58,35 @@ btl_act_h.c; where the object holding btl_char_fx.c starts (0x1CF578 is the late
 files are not in the yamls yet, and its skip arguments only skip the source files it rewrites, not the
 symbol files it reads: while unlisted symbol files exist, run a copy that ignores them.
 
+## Effect and stage batch (seventh), brief in docs/briefs_effects_stage.md
+
+Nothing of this batch is linked or committed yet (untracked `eft_*` / `stg_*` files). Findings
+are recorded in docs/systems/effects_stage.md as reports arrive; each file is re-diffed with
+`python3 build/scratch_verify/v.py <stem> keep` (works on a scratch copy when the file has
+INCLUDE_ASM).
+
+First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x132290, 0x136760,
+0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550,
+0x15F728; `stg_a` 0x23FB20..0x242D28, `stg_b` ..0x245F58, `stg_c` ..0x248F28).
+Reported and documented: eft_a, eft_f, eft_g, eft_i, eft_m, stg_b, stg_c. Still running:
+eft_b, eft_c, eft_d, eft_e, eft_h, eft_j, eft_k, eft_l, stg_a.
+
+Second wave launched (11 agents; the session allows 20 at once):
+
+| Stem | Range |
+|---|---|
+| eft_det_a | 0x1AE200..0x1B16F0 (hit detection of hit records against fighters, 0x1AFDB0..0x1B10F0) |
+| eft_det_b | 0x1B16F0..0x1B4140 (stage tests; may run into AI code) |
+| stg_d | 0x22FD10..0x230AA0 (stage rigid bodies / debris) plus func_00115370 in stg_d_b.c |
+| eft_n .. eft_u | 0x1637A0..0x1853C8 in eight chunks (cuts at 0x167E68, 0x16C2E0, 0x170A50, 0x174A70, 0x178AB0, 0x17CB40, 0x180BF8); eft_r is ki blasts |
+
+NOT launched yet (concurrency limit): eft_v 0x1853C8..0x1895E8 (holds the impact effect
+0x187BE0, task class 0x2C3F20: establish whether it is visual), then nine more chunks
+0x1895E8..0x1AE200 with cuts at 0x18D618, 0x191D28, 0x195EE8, 0x199F28, 0x19E0C0, 0x1A21A8,
+0x1A62C8, 0x1AA7E8 (suggested stems eft_w, eft_x, eft_y, eft_z, eft_aa .. eft_ae).
+
+Merge evidence so far: eft_e + eft_f are one source file; eft_h + eft_i continue each other.
+
 ## Known follow-ups
 
 - When eft_g is listed: `func_0014AB90` in the linked btl_char_fx.c / btl_char_member.c becomes
