@@ -55,6 +55,10 @@ and the stage update at 0x243568).
 | 0x1542A8..0x155588 | eft_j.c | type 6 `EftPropShot*`: one shot carrying a model | **yes**: hit record per frame; sets fighter flag 0xA8 and an object flag | `BtlScene_RandF`: two at init for id 0x165 (model bob, appearance) | |
 | 0x155588..0x156450 | eft_j.c | **type 0 `EftBlast*`: the plain blast / beam** | **yes**: hit record per frame | none | |
 | 0x156450..0x157398 | eft_j.c | type 2 `EftShotTech*` helpers: up to 14 blast objects (tasks at 0x16A7D0..) | **yes** (creates, retargets and stops them) | none | |
+| 0x132290..0x1333C8 | eft_b.c | primitive helpers `EftPrim_*` (quads, triangles) | no | none | (eft_b 43/49) |
+| 0x1333C8..0x135070 | eft_b.c | underwater bubbles `EftBubble_*` (pool of 100; layer 0 sub-task 7) | no | libc `rand()`; **count depends on camera pose** (per frame while a view's camera is under water), none in split screen; ambient body bubbles only for object 0 | |
+| 0x135070..0x135610 | eft_b.c | scrolling stage sheet `EftStageScroll_*` (sub-task 0) | no | libc `rand()` once at load | |
+| 0x135610..0x136760 | eft_b.c | geyser columns `EftGeyser_*` at stage-defined positions (sub-task 6) | no (its two emitters, in other files, not classified) | libc `rand()` once per column at creation | |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -206,3 +210,7 @@ what btl_scene.c calls a record's "definition flags" is the owning task's event 
 - Every update is gated by `BtlScene_IsCharStopped(objId)`.
 - Effect code creates battle objects (`BtlObj_Create`) for shot models, consuming object ids.
 - Stage blur is driven by effects (definition flag 0x200): visual.
+- (verified, eft_b) Original bug: `EftBubble_RandDir` takes its output vector by value, so the
+  burst bubbles' direction is uninitialised stack data.
+- (verified, eft_b) The texture set effect modules load is 32 entries of 0x10 bytes
+  `{u64 tex0; image pointer; pad}` plus a count at +0x200.

@@ -43,3 +43,12 @@ collected in netplay_notes.md.
 
 The simulation is where a mistake is invisible until two machines disagree. Rendering and menus
 are more work in total, but errors there show on screen.
+
+## Added 2026-10-04: required before the headless simulation
+
+The animation player inside the battle object (functions around 0x24D498, 0x24D518, 0x24D610,
+0x250570, 0x2505A8, 0x250940, 0x250B88, 0x2500E8; only partly decompiled in btl_obj.c) is
+simulation input: fighter and effect code query animation events, hit-event counts and frames,
+and model node positions through it every frame. Schedule it with the stage collision queries,
+the projectile hit detection (0x1AE200..0x1B4140) and the stage rigid bodies, before the
+headless build.
