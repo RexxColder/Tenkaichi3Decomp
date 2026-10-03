@@ -1,0 +1,96 @@
+name: Dragon Ball Z - Budokai Tenkaichi 3 (USA) (SLUS-21678)
+sha1: caee6c2269bba89fc51eea9e7beac3adbec9dc52
+options:
+  basename: SLUS_216.78
+  target_path: disc/SLUS_216.78.rom
+  elf_path: build/SLUS_216.78.elf
+  base_path: ..
+  platform: ps2
+  compiler: EEGCC
+
+  gp_value: 0x00304270
+  ld_gp_expression: cod_LIT4_START + 0x7FF0
+
+  # asm_path: asm
+  # src_path: src
+  # build_path: build
+
+  ld_script_path: build/SLUS_216.78.ld
+  ld_dependencies: True
+  ld_wildcard_sections: True
+  ld_bss_contains_common: True
+
+  create_asm_dependencies: True
+
+  find_file_boundaries: False
+
+  o_as_suffix: True
+
+  symbol_addrs_path:
+    - config/symbol_addrs.txt
+  reloc_addrs_path:
+    - config/reloc_addrs.txt
+
+  undefined_funcs_auto_path: build/undefined_funcs_auto.txt
+  undefined_syms_auto_path: build/undefined_syms_auto.txt
+
+  extensions_path: tools/splat_ext
+
+  string_encoding: ASCII
+  data_string_encoding: ASCII
+  rodata_string_guesser_level: 2
+  data_string_guesser_level: 2
+
+  named_regs_for_c_funcs: False
+
+  section_order:
+    - .text
+    # - .vutext
+    # - .text_nop
+    # - .ctors
+    # - .dtors
+    - .data
+    # - .eh_frame
+    - .rodata
+    - .lit4
+    - .sdata
+    - .sbss
+    # - .scommon
+    - .bss
+
+  auto_link_sections:
+    # - .text_nop
+    # - .ctors
+    # - .dtors
+    - .data
+    # - .eh_frame
+    - .rodata
+    - .lit4
+    - .sdata
+    - .sbss
+    # - .scommon
+    - .bss
+
+segments:
+  - name: cod
+    type: code
+    start: 0x000000
+    vram: 0x00100000
+    bss_size: 0x359A8
+    subalign: null
+    align: 128
+    subsegments:
+      - [0x000000, asm, cod/000000] # .text
+      - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
+      - [0x1C3380, data, cod/1C3380] # .text_nop
+      - [0x1C3388, data, cod/1C3388] # .ctors
+      - [0x1C3398, data, cod/1C3398] # .dtors
+      - [0x1C3400, data, cod/1C3400] # .data
+      - [0x1EB358, data, cod/1EB358] # .eh_frame
+      - [0x1EB380, rodata, cod/1EB380] # .rodata
+      - [0x1FC280, lit4, cod/1FC280] # .lit4
+      - [0x1FE880, sdata, cod/1FE880] # .sdata
+      - { type: sbss, vram: 0x002FF180, name: cod/002FF180 } # .sbss
+      - { type: bss, vram: 0x002FF280, name: cod/002FF280 } # .scommon
+      - { type: bss, vram: 0x002FF300, name: cod/002FF300 } # .bss
+  - [0x1FF180]

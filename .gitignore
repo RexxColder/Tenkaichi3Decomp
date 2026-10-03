@@ -1,0 +1,14 @@
+*.iso
+*.rvz
+/disc/
+/wii/
+/tools/
+/.venv/
+/build/
+/asm/
+/assets/
+*.o
+.splache
+__pycache__/
+/build.ninja
+.ninja_*
