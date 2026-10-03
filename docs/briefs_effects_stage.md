@@ -82,3 +82,26 @@ Report, in addition to what agent_rules.md asks:
    outcome; anything keyed on object id 0 / player 0.
 5. Object layouts (size, fields, list links), the update / draw entry points and who calls
    them, and emitted data (jump tables, .lit4 with addresses, strings, file-scope tables).
+
+## Addendum: what the first wave established (read these before starting)
+
+- include/battle/eft_a.h and src/battle/eft_a.c (0x12DD80..0x132290): the effect core. The hit
+  record list `gEftHitList` (64 records of 0x190 bytes, rebuilt every frame), `EftHit_GetNew` /
+  `EftHit_Add` (how a projectile task publishes a record), task feedback flags and
+  `task->result`, the clash rule, `EftAim_*` (aim and homing), `EftMath_*`, `EftGfx_*` drawing
+  helpers. docs/systems/effects_stage.md summarises it and has the module table so far.
+- include/battle/eft_g.h: the task view (`EftTask`: +0 flags, bit 0 dead; +0x28 class; +0x38
+  work), class tables `{update, init, term, post-update / stub, reset or 0, draw}`, scene
+  layer 0 sub-tasks (list `D_002C3568`), and the shot layer (`gEftShot`, `EftShotChar`, slots
+  and definitions; `EftShot_SetHeldFlagA8` / `A9` end a beam's firing loop).
+- The effect code's vector type is 16-byte aligned (a union of `{x, y, z, w}` and `f32 v[4]`)
+  and is passed by value with a callee copy (`ld` / `sd` pairs at function entry). `Vec4` from
+  sys/math3d.h does not reproduce that: declare a local aligned type as eft_a.h / eft_m.h do.
+- Matching idioms seen so far: list walks as `while (*link != NULL) { p = *link; ... }`; arena
+  allocation as a post-increment of the cursor; stores of one constant written in natural
+  order; a statement duplicated in both arms of an if / else for a shared `jal`; `(f32)rand() /
+  2147483647.0f`; fixed 1 / 30 s particle steps; float parameters before byte parameters in
+  spawn prototypes.
+- Names of other agents' functions: look the address up in config/symbols/*.txt (eft_*.txt,
+  stg_*.txt are being written now) and use the current name.
+- Stems `eft_a` .. `eft_m` and `stg_a` .. `stg_c` are taken.
