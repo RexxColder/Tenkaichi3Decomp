@@ -441,3 +441,39 @@ All 18 functions match per function; not linked yet. Handler names are guesses.
 - `btl_char_action.h` has pose +0x90 / +0x94 as speed / facing; the movement header's layout
   (+0x90 pitch, +0x94 heading yaw, +0x98 speed, +0x9C fall speed) is the right one. Pose +0xD0
   is a bit word, not a float.
+
+## Dashes, steps, vanishes, approach actions and clash actions (`btl_act_e.c`, 0x1F1930..0x1F5460; verified unless marked)
+
+All 20 functions match per function; not linked yet. Names and game terms are guesses.
+
+| Actions | What (inferred terms) | Notes |
+|---|---|---|
+| 0x1A | free-direction dash ("dragon dash") | drains ki per frame; chains into the homing dash 0x19 (needs lock-on) or itself |
+| 0x1B..0x1D | step back / left / right | moves between 10% and 60% of the animation |
+| 0x1E, 0x1F | short forward dash | 0x1F queues attacks 0x8F / 0x8D / 0x8E |
+| 0x20..0x23 | vanishing step | seven frames, invulnerable (flags 0x42..0x46). Entered with flag 0x74 / 0x75 / 0x76 it is a successful dodge: flag 0x12C, event 0x41, +2 s on the stage timer |
+| 0x24 | vanish behind the opponent | costs ki |
+| 0x25..0x2A | recovery | costs ki; continues to 0xF, 0x19 or 0xB |
+| 0x2B..0x32 | approach before a queued attack: vanish and snap, warp behind, warp ahead by the attack's lead time, four-frame slide to an offset point, rush, hop back | each ends by requesting queue[0] (or 0xB) |
+| 0x33 | circle dash to the opponent's back | drains ki; requests a camera cut |
+| 0x34 | rush dash, 1800 km/h (2200 and invulnerable for some characters) | |
+| 0x35 | vanished dash, 2000 km/h, up to 13 frames | |
+| 0xFA | clash B: mash | see below |
+| 0xFB, 0xFC | clash C: start, one exchange | see below |
+
+- The pending attack block (fighter +0xD1C) holds one motion per part; +0xD34 is the attack's
+  lead time in frames (built by `BtlAct_PlayAttackPart`), +0xD38 its approach speed.
+- Clash B counts per frame: an accepted press (input condition 0x33) gives one; otherwise an
+  automatic one every 4 frames (5 / 8 / 28 with abilities 0x68 / 0x69 / 0x6A); extra counts
+  every 5 / 11 / 17 frames with abilities 0x14 / 0x13 / 0x12, and every 15 when the clash came
+  out of a technique action. The loser takes `opponent count * 60` damage (`* 600` in clash C).
+- Clash C exchange: wait and strike length by clash level are 18 frames / 0.5 s, 15 / 0.4 s,
+  12 / 0.3 s. The first physical face-button press is judged once against the prompted button
+  (the answer is stored at fighter +0xE58 with the frame it was pressed).
+- No random draws: the clash handlers use `actionFrame % n`.
+- Player dependence: clash B plays a different animation for player 0 and player 1, and only
+  player 0 triggers one effect and two sounds in clash C. Output only.
+- A second degrees macro exists in the source: `x * pi / 180` (one bit different from
+  `x / 180 * pi` for some values); the float pool comparison found it, fdiff could not.
+- Handlers have mixed return types: some only match as `void` (their leave phase ends in a
+  tail call), others as `int` with no return.

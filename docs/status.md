@@ -26,7 +26,8 @@ Still in the tree but NOT linked or committed:
 | Files (src/battle/) | Range | Notes |
 |---|---|---|
 | btl_char_fx.c, _b.c, _c.c | 0x1D00D8..0x1D3B40 | 64/67 match per function. `BtlFx_UpdateGroundFx` needs the fx-bit helpers of btl_char_member.c in the same file. The C emits .lit4 at 0x2FD1D8.. with two assembly-owned gaps (see the agent notes in combat.md) |
-| btl_act_d.c | 0x1EE058..0x1F1930 | 18/18; 2 jump tables at 0x2EFA40, .lit4 0x2FD988..0x2FDB44. `BtlAct_DashMoveHandler` (0xF) vs btl_act_e's `BtlAct_DashHandler` (0x1A): rename one |
+| btl_act_d.c | 0x1EE058..0x1F1930 | 18/18; 2 jump tables at 0x2EFA40, .lit4 0x2FD988..0x2FDB44. `BtlAct_DashMoveHandler` (0xF) vs btl_act_e's `BtlAct_DashHandler` (0x1A): no clash now |
+| btl_act_e.c | 0x1F1930..0x1F5460 | 20/20; 5 jump tables 0x2EFB20..0x2EFC80, .lit4 0x2FDB44..0x2FDD08. 0x1A is `BtlAct_DragonDashHandler`; a comment in btl_act_d.txt about the old name is stale |
 | btl_act_f.c | 0x1F5460..0x1F8C00 | 25/25; 11 jump tables 0x2EFC80..0x2F0780, .lit4 0x2FDD08..0x2FDDAC; a slice of a larger object |
 | btl_act_j.c | 0x203168..0x204E78 | 28/28; 9 jump tables 0x2F11D0..0x2F15F8, .lit4 0x2FE070..0x2FE078 |
 
@@ -54,6 +55,9 @@ findings in `docs/systems/`, then integrate (or hand the batch to an integration
 ## Known follow-ups
 
 - Find the writer of the previous action (fighter +0x950), or confirm the branches on it are dead.
+  Five handlers branch on it (0xF, 0x19, 0x1A, 0x20..0x23, 0xFC). `BtlAct_Update` (matching)
+  does not store it and no `sw ..., 0x950(reg)` exists in the remaining assembly; a store
+  through another base pointer has not been ruled out.
 - Rename `BtlAct_IsDamageId` (it is "is a technique action id") and fix the parameter order of
   `BtlAnim_AdvanceThen` in btl_char_status.h to `(chr, next, blend, flags)`.
 - One unified fighter header: every battle file has its own partial view of the 0x1600-byte
