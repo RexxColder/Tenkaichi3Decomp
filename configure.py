@@ -25,8 +25,10 @@ CC_AS_FLAGS = "-EL -march=r5900 -mabi=o64 -no-pad-sections -mno-pdr -Iinclude"
 
 # The game was built with Sony's ee-gcc 2.96 at -O2. Spike's code uses the default
 # small-data threshold (-G8); the CRI middleware was built with -G0.
+# -fno-strict-aliasing: every file matches with or without it, but with it the loading screen
+# matches as plain C (the original reloads fields after stores), so it is taken as original.
 CC = "tools/ee-gcc2.96/bin/ee-gcc"
-CC_FLAGS = "-O2 -Iinclude"
+CC_FLAGS = "-O2 -fno-strict-aliasing -Iinclude"
 G_FLAGS = {"src/cri": "-G0"}
 G_DEFAULT = "-G8"
 

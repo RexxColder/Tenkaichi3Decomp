@@ -1,7 +1,7 @@
 # Decompiling a module (working notes)
 
 The goal is C that compiles to the same bytes as the original with Sony ee-gcc 2.96 at `-O2`
-(`-G8` for game code, `-G0` for `src/cri/`). Every function gets a real name.
+(`-G8` for game code, `-G0` for `src/cri/`) with `-fno-strict-aliasing`. Every function gets a real name.
 
 ## Loop
 1. Read the functions: slice `asm/cod/*.s` (one huge file per range; never print it whole). Each
@@ -68,3 +68,9 @@ emits jump tables or strings), list any new symbol file in both yamls, then
 `.venv/bin/python configure.py && ninja`. The build only counts if ninja itself succeeds.
 The original padded each object's `.rodata` to 16 bytes and ours pads to 8: when a C file's
 rodata does not end on a 16-byte boundary, start the following assembly rodata chunk 8 bytes early.
+
+## -fno-strict-aliasing
+The build uses it. The original reloads struct fields and global pointers after any store, which
+is what this flag produces. Older files carry workarounds from before it was adopted (the
+`(*&ptr->member)` form, anonymous unions around `count` or a whole struct); new code should be
+written plainly, and the workarounds can be removed where the plain form still matches.

@@ -49,7 +49,7 @@ def compile_c(src):
     out.parent.mkdir(parents=True, exist_ok=True)
     asm = out.with_suffix(".s")
     g = gflag(src)
-    r = subprocess.run([CC, "-O2", "-Iinclude", g, "-S", str(src), "-o", str(asm)],
+    r = subprocess.run([CC, "-O2", "-fno-strict-aliasing", "-Iinclude", g, "-S", str(src), "-o", str(asm)],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(r.stderr)
