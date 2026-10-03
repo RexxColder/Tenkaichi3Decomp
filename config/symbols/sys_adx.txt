@@ -42,7 +42,7 @@ MapBgm_SetVolume = 0x00265DD0; // type:func // guess
 MapBgm_GetStat = 0x00265DF0; // type:func // guess
 MapBgm_IsStopped = 0x00265E08; // type:func // guess
 MapBgm_FadeOutStep = 0x00265E20; // type:func // guess
-// 0x265E38(voice, chara, line, vol, pan): Adx_Play(voice + 4, chara * 100 + line + (gOption+0x1608 bit0 ? 0xCC32 : 0x8D4E), vol, pan).
+// 0x265E38(voice, chara, line, vol, pan): Adx_Play(voice + 4, chara * 100 + line + (gSaveData+0x1608 bit0 ? 0xCC32 : 0x8D4E), vol, pan).
 Voice_PlayCharaEx = 0x00265E38; // type:func // guess
 // 0x265E98(voice, chara, line): the above with vol 0x80, pan 0.
 Voice_PlayChara = 0x00265E98; // type:func // guess

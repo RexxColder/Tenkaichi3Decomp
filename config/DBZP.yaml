@@ -42,7 +42,7 @@ options:
     - config/symbols/battle.txt
     - config/symbols/btl_seq.txt
     - config/symbols/game_pad.txt
-    - config/symbols/option.txt
+    - config/symbols/save.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

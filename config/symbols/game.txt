@@ -22,7 +22,7 @@ Sys_LoadIopModules = 0x001003A0; // type:func
 Gfx_Init = 0x00101F18; // type:func
 // 0x101D40: second env set-up (0x200x0x1C0) writing GS register values into gGfx; only called by Gfx_Init.
 Gfx_InitDrawEnv = 0x00101D40; // type:func // guess
-// 0x101E58: writes the GS privileged registers 0x12000000..0x120000D0 (PMODE/DISPFB/DISPLAY) using the screen offsets in gOption.
+// 0x101E58: writes the GS privileged registers 0x12000000..0x120000D0 (PMODE/DISPFB/DISPLAY) using the screen offsets in gSaveData.
 Gfx_SetDisplayRegs = 0x00101E58; // type:func // guess
 // 0x102038 / 0x102060 bracket every frame loop in the game (6 loops call both, always in this order with Pad_Update between).
 // 0x102060(n) finishes the frame: Vsync_Wait(n), toggles gGfx+0x230 (buffer index), ++gGfx+0x234 (frame counter), swaps buffers.
@@ -186,7 +186,7 @@ Bgm_Play = 0x00265CC8; // type:func
 Voice_Play = 0x00265EB8; // type:func
 Voice_Stop = 0x00265F40; // type:func
 Voice_GetStat = 0x00265F58; // type:func
-// 0x2614B0(subtitleTbl, baseId, idx): Voice_Play(0, baseId+idx (+0x55C when gOption+0x1608 bit0), 0x80) then starts the matching subtitle entry.
+// 0x2614B0(subtitleTbl, baseId, idx): Voice_Play(0, baseId+idx (+0x55C when gSaveData+0x1608 bit0), 0x80) then starts the matching subtitle entry.
 Voice_PlayWithSubtitle = 0x002614B0; // type:func // guess
 
 // --- Pad (libpad2; gPad = 2 pads x 0x1C0) ---------------------------------------------------
@@ -232,8 +232,8 @@ Common_LoadBoot = 0x002630E8; // type:func
 Common_Reload = 0x00263198; // type:func // guess
 gCommonRes = 0x002FF11C; // size:0x4
 // 0x266608: allocates a 0x4000 struct; +0x1608 bit0 selects the alternate voice set, +0x169C/+0x16A0 are screen X/Y offsets.
-Option_Init = 0x00266608; // type:func // guess
-gOption = 0x002FF28C; // size:0x4
+Save_Init = 0x00266608; // type:func // guess
+gSaveData = 0x002FF28C; // size:0x4
 // 0x125CF0: plays "zs3usop.pss" + "zs3usop.adx" (progress mode 2). 0x125D50 is its frame loop.
 Movie_PlayOpening = 0x00125CF0; // type:func
 Movie_Run = 0x00125D50; // type:func // guess

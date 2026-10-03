@@ -20,7 +20,7 @@ extern s32 func_00259E20(s32 voice, s32 kind); /* D_00334788[voice][kind] != 0: 
 
 extern AdxPlayer gAdxPlayerTbl[];
 extern s32 gAdxChannelGainTbl[];
-extern AdxOptionView *gOption;
+extern AdxSaveView *gSaveData;
 
 /* Converts a 0..0x80 volume to the ADXT output level (0.1 dB units, 0 = full, -960 = mute), applying the channel gain and the volume option. */
 s32 Adx_CalcOutVol(s32 ch, s32 vol) {
@@ -36,7 +36,7 @@ s32 Adx_CalcOutVol(s32 ch, s32 vol) {
         kind = ADX_OPT_VOL_VOICE;
         break;
     }
-    vol = vol * gAdxChannelGainTbl[ch] * gOption->volume[kind];
+    vol = vol * gAdxChannelGainTbl[ch] * gSaveData->volume[kind];
     vol = vol / ADX_VOL_DIVISOR;
     v = ADX_CLAMP(vol, 0, ADX_VOL_MAX);
     vol = v;
@@ -72,7 +72,7 @@ s32 Adx_CalcVolume(s32 ch, s32 vol) {
         kind = ADX_OPT_VOL_VOICE;
         break;
     }
-    vol = vol * gAdxChannelGainTbl[ch] * gOption->volume[kind];
+    vol = vol * gAdxChannelGainTbl[ch] * gSaveData->volume[kind];
     vol = vol / ADX_VOL_DIVISOR;
     v = ADX_CLAMP(vol, 0, ADX_VOL_MAX);
     vol = v;
@@ -303,7 +303,7 @@ void MapBgm_FadeOutStep(void) {
 void Voice_PlayCharaEx(s32 voice, s32 chara, s32 line, s32 vol, s32 pan) {
     s32 id;
 
-    if (gOption->flags & OPTION_FLAG_ALT_VOICE) {
+    if (gSaveData->flags & SAVE_FLAG_ALT_VOICE) {
         id = VOICE_CHARA_BASE_ALT + (chara * VOICE_CHARA_LINES + line);
     } else {
         id = VOICE_CHARA_BASE + (chara * VOICE_CHARA_LINES + line);

@@ -32,7 +32,7 @@ SDK/CRI function identities mentioned in passing (sceSifLoadModule, scePad2Read,
 8. 0x1259F0 -> 0x297B60 [I: MPEG/IPU init; it pokes the IPU registers at 0x1000B000].
 9. `Common_Init` 0x263240, `Common_LoadBoot` 0x2630E8, `Common_Reload` 0x263198: load the always-resident files (ids 5, 2, 3, 4) and sound bank 0x14B.
 10. `Progress_Init` 0x25DE68 (allocates `gProgress`, mode = 1, flag 0x40 set).
-11. `Option_Init` 0x266608 (0x4000-byte settings block `gOption`) [I for the role].
+11. `Save_Init` 0x266608 (0x4000-byte settings block `gSaveData`) [I for the role].
 12. `Job_Init` 0x263490.
 13. 0x121DA8: maths init; seeds the VU0 random register, loads identity rows into vf1-vf3, calls `Rand_Init`.
 14. `Dma_InitBuffers` 0x100670 (two 1 MB display-list buffers).
@@ -219,7 +219,7 @@ Debug output was stripped; no file names, function names or assert macros surviv
 | Camera, stage, objects, fades | 0x239000-0x254000 [I] | `gBtlObjTbl`, `gFade` |
 | Random, heap, lists/queues | 0x254A00-0x2562FF | `gHeapStart`, `gRandState` |
 | Progress / menu support used by the overlay | 0x257000-0x263000 | `gProgress`, `gCommonRes` |
-| Jobs, loading loop, file layer, ADX players, options | 0x263000-0x268FFF | `gJobQueue`, `gFileReq`, `gOption` |
+| Jobs, loading loop, file layer, ADX players, options | 0x263000-0x268FFF | `gJobQueue`, `gFileReq`, `gSaveData` |
 | Late game code built without gp-relative addressing | 0x2BD000-0x2BF6B0 | uses overlay data (e.g. 0x3B0EB4) |
 
 ## Open questions

@@ -41,7 +41,7 @@ options:
     - config/symbols/battle.txt
     - config/symbols/btl_seq.txt
     - config/symbols/game_pad.txt
-    - config/symbols/option.txt
+    - config/symbols/save.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -122,7 +122,7 @@ segments:
       - [0x1635C8, c, sys/loading]
       - [0x164A50, c, sys/file]
       - [0x165578, c, sys/adx]
-      - [0x166088, c, sys/option]
+      - [0x166088, c, sys/save]
       - [0x166728, asm, cod/166728]
       - [0x173CA0, c, cri/adxt]
       - [0x173CF0, asm, cod/173CF0]

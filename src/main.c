@@ -38,7 +38,7 @@ extern void Common_Init(void);
 extern void Common_LoadBoot(void);
 extern void Common_Reload(void);
 extern void Progress_Init(void);
-extern void Option_Init(void);
+extern void Save_Init(void);
 extern void Job_Init(void);
 extern void func_00121DA8(void);
 extern void Dbg_Init(void);
@@ -141,7 +141,7 @@ void Game_Main(void) {
     Common_LoadBoot();
     Common_Reload();
     Progress_Init();
-    Option_Init();
+    Save_Init();
     Job_Init();
     func_00121DA8();
     Dma_InitBuffers();

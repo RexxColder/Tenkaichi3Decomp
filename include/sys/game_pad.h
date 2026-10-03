@@ -71,7 +71,7 @@
      func_001D3BB0(rawHeld, table)  the remap: battle bit i is set when rawHeld & table[i] (bit 15 needs
                          all bits of its mask). table = 31 raw PAD_* masks at chr+0x578.
      func_001D4870(chr)  builds that table from the key config: func_001D47C8(chr, action) looks `action`
-                         up in gOption->keyConfig[player][8] (s32, gOption + 0x160C + player * 0x20; a
+                         up in gSaveData->keyConfig[player][8] (s32, gSaveData + 0x160C + player * 0x20; a
                          backup copy sits at + 0x164C) and returns the matching entry of D_002EF050 =
                          { CIRCLE, CROSS, SQUARE, TRIANGLE, L1, L2, R1, R2 }. The option menu's default
                          (overlay 0x3A296C) is keyConfig = { 2, 1, 0, 3, 4, 5, 6, 7 }.
