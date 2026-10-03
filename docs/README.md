@@ -33,6 +33,7 @@ Names marked `// guess` in `config/symbols/*.txt` are best guesses.
 | [systems/save_data.md](systems/save_data.md) | The 0x4000-byte save block |
 | [systems/math.md](systems/math.md) | Vector, quaternion and matrix conventions; random numbers |
 | [roadmap.md](roadmap.md) | The agreed order of work |
+| [status.md](status.md) | Handoff note: what is linked, what is waiting, what is running |
 | [known_bugs.md](known_bugs.md) | Bugs and quirks in the original code that a port must reproduce or consciously fix |
 | [netplay_notes.md](netplay_notes.md) | Everything relevant to deterministic netplay |
 | [open_questions.md](open_questions.md) | What is not known yet |
