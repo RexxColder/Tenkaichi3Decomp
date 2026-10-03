@@ -13,8 +13,8 @@ extern s32 gHeapDebugValue;
 extern u8 gHeapDebugFlag;
 extern s32 gHeapDebugUnused;
 extern u8 D_3BE71C[];
-extern s32 D_002FF070[HEAP_COUNT];
-extern s32 D_002FF078[HEAP_COUNT];
+extern s32 gHeapUnk70[HEAP_COUNT];
+extern s32 gHeapUnk78[HEAP_COUNT];
 
 void Heap_ReportBadFree(void);
 
@@ -344,10 +344,10 @@ s32 Heap_GetSize(s32 heap) {
     return gHeapSize[heap];
 }
 
-s32 Heap_GetParam70(s32 heap) {
-    return D_002FF070[heap];
+s32 Heap_GetUnk70(s32 heap) {
+    return gHeapUnk70[heap];
 }
 
-s32 Heap_GetParam78(s32 heap) {
-    return D_002FF078[heap];
+s32 Heap_GetUnk78(s32 heap) {
+    return gHeapUnk78[heap];
 }

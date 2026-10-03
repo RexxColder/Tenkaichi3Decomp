@@ -349,5 +349,9 @@ Heap_GetTotalSize = 0x00255710; // type:func
 Heap_GetStart = 0x00255730; // type:func
 Heap_GetEnd = 0x00255748; // type:func
 Heap_GetSize = 0x00255760; // type:func
-Heap_GetParam70 = 0x00255778; // type:func // guess
-Heap_GetParam78 = 0x00255790; // type:func // guess
+Heap_GetUnk70 = 0x00255778; // type:func // guess
+Heap_GetUnk78 = 0x00255790; // type:func // guess
+// Two per-heap int tables right before gHeapStart, initialised to {0, 0} and {2, 0}. Only the two uncalled getters
+// above read them, so their meaning is unknown.
+gHeapUnk70 = 0x002FF070; // size:0x8
+gHeapUnk78 = 0x002FF078; // size:0x8
