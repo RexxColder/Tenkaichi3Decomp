@@ -31,8 +31,30 @@ src/sys/heap.c, src/sys/file.c, src/sys/pad.c, src/battle/btl_pool.c and their h
 - Do not claim a match you did not see fdiff print `OK` for.
 - If another agent's header changes under you, do not depend on it: declare a local view and say so.
 
+## More rules (added after the third batch)
+- Background on what is already known: docs/README.md and docs/systems/*.md. Read the system doc
+  for your area before starting; treat "inferred" items as leads.
+- Scratch files go in your OWN subfolder of the scratchpad or of build/ (e.g.
+  `build/scratch_<yourmodule>/`), never the shared root. Run Python scratch files with
+  `python3 file.py`. Never use `pkill`/`killall`; if you must stop a process, kill the exact PID
+  you started.
+- Do NOT run scripts/apply_names.py (it edits other agents' files). If a function you call was
+  named by someone else while you worked, use the name that is in config/ when you finish.
+- Float constants: fdiff masks constant relocations, so it cannot see a wrong VALUE. For every
+  `.lit4` / float constant your C emits, compare the bits with the original data
+  (asm/data/cod/*.lit4.s) and say in the report that you did.
+- Shared structs that several agents touch (the fighter object above all): do not create a
+  shared header for them. Declare a partial view local to your module with a module-specific
+  name, and give a table of every field you can justify (offset, type, meaning, evidence) in
+  the report, so one unified header can be built afterwards.
+- Functions with INCLUDE_ASM: fdiff cannot assemble the file until the integrator re-splits.
+  Verify by temporarily enabling your `#if 0` attempt, then restore the INCLUDE_ASM, and say so.
+
 ## Report (final message)
 Each file's exact address range (start, end exclusive); functions OK vs INCLUDE_ASM (name those,
 say what differs); data structures identified; what the code does, separating what the matching
 C verifies from what you infer; emitted strings/floats/jump tables with original addresses;
 guessed names; existing names or comments you believe are wrong; anything the integrator must know.
+Also include a "Doc notes" section: the facts a reader of docs/systems/ should learn from your
+module, each marked verified (by your matching C) or inferred, written so it can be pasted into
+the docs.
