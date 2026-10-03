@@ -60,6 +60,9 @@ symbol files it reads: while unlisted symbol files exist, run a copy that ignore
 
 ## Known follow-ups
 
+- When eft_g is listed: `func_0014AB90` in the linked btl_char_fx.c / btl_char_member.c becomes
+  `EftShot_Request`.
+- Stage rigid bodies / destructibles at 0x22FDA0..0x230AA0 have no owner yet: add to the next wave.
 - Done at this integration: the `BtlCtrl_*` renames (PlayMotion, StopMotion, IsMotionPlaying, SetRot,
   Transform, Fuse, UseTechnique, SetMaxPower) with their one-to-one `BtlFacade_*` wrappers, the numbered
   stat curves (`BtlStat_GetRate0..3`, `GetScale4..6`, `8..12`), `BtlAct_IsTechniqueId`, and the parameter

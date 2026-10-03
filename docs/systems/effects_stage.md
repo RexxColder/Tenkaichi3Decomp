@@ -47,6 +47,11 @@ and the stage update at 0x243568).
 | 0x15F728..0x1609C8 | eft_m.c | speed lines `EftSpdLine_*` (30 trails, 40 streaks; task table `D_002C3A18`) | no | libc `rand()` in update / spawn | 20/20 |
 | 0x1609C8..0x1637A0 | eft_m.c | aura particles `EftAura_*`, first half (flames from 10 body parts, sparks from 12 emitters; pools shared by all fighters) | no | libc `rand()` in update / spawn, count depends on live particles | 30/30 |
 | 0x142CA0..0x147050 | eft_f.c | water-surface particles, second half of the water module in eft_e.c (pools: 15 trails, 60 drops, 30 rings, 30 sprays, 30 mists) | no (reads a hit record's position, fighter height, water height) | libc `rand()`: 19 per blast trail, **not spawned in split screen** | 35/40 |
+| 0x147050..0x147928 | eft_g.c | helpers (facing matrix, water clip, blast record class) | no | none | (eft_g 63/71) |
+| 0x147928..0x148DF8 | eft_g.c | storm `EftStorm_*`: 4 lightning bolts, 64 rain drops (scene layer 0, sub-task 3) | no | libc `rand()`; **rain re-rolls inside the draw pass per view**, so the count depends on camera pose and split screen | |
+| 0x148DF8..0x149818 | eft_g.c | stage smoke emitters `EftSmoke_*` (sub-task 4), 40 particles each | no | libc `rand()` and the VU0 register per particle | |
+| 0x149818..0x14A828 | eft_g.c | stage boundary wall `EftBound_*` (sub-task 8), a mesh on the stage cylinder near each fighter | no (reads fighter state) | none | |
+| 0x14A828..0x14B108 | eft_g.c | **shot slots `EftShot_*`: start of scene layer 1** | **yes** | none | |
 
 ## Notes common to effect modules
 
@@ -67,3 +72,20 @@ and the stage update at 0x243568).
   frames; updates do nothing while paused (battle flag 0x100).
 - (evidence) eft_e.c and eft_f.c were one source file: `EftWaterRing_Update` matches only with
   `EftWater_GetSurfaceY` (0x140338) defined earlier in the same file.
+
+## Shot layer (simulation; `eft_g.c` from 0x14A828, continues in eft_h)
+
+- (verified) Scene layer 0 holds stage-wide effect sub-tasks registered in `D_002C3568` as
+  `{class, index}` pairs. **Scene layer 1 is the shot layer**: `gEftShot` holds one 0x540-byte
+  `EftShotChar` per character with 5 slots of 0x50 bytes and 5 definitions of 0x8C bytes. Slot
+  kinds 0 and 1 are ki blasts, 2..4 techniques.
+- (verified) A hit record's source pointer (+0x64) is a shot slot; the slot points at its pack
+  data (+0x1C) and definition (+0x24).
+- (verified) `EftShot_Request` (0x14AB90) is what the fighter calls to start a shot.
+- (verified) **The effect code ends a beam's firing loop**: `EftShot_SetHeldFlagA8` / `A9` set
+  the fighter's held flags 0xA8 / 0xA9, the "beam over" / "second stage over" flags the
+  technique handlers wait on (combat.md). Seven callers further into the effect range.
+- (verified) Each frame a character's current slot is cleared when the fighter is in neither a
+  technique nor a skill. The code uses the character index as the fighter's object id.
+- (verified hazard) `EftShotMgr_Init` always creates tasks for characters 0 and 1 and writes
+  the second entry whatever the character count is.
