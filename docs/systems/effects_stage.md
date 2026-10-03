@@ -50,6 +50,11 @@ and the stage update at 0x243568).
 | 0x14F230..0x151AD8 | eft_i.c | effect pack library `EftEmit_*` (continues eft_h): spawns, moves and kills the part objects of 11 part modules; six node slots per pack | drives parts; no hit records itself | libc `rand()`: 2 per started part with a spread (reaches the part's spawn position) | (eft_i 36/43) |
 | 0x151AD8..0x152978 | eft_i.c | **technique effect type 3 `EftSweep*`: a sweeping beam** | **yes**: one hit record per frame; traces the stage; **destroys stage objects** (`BtlStage_DestroyObj`); sets fighter flag 0xA8 at its end | none | |
 | 0x152978..0x1532A0 | eft_i.c | **technique effect type 7 `EftFollow*`: an effect on fighter node 3** | **yes**: a two-sphere hit record per frame; sets flag 0xA8 at its end. Also drives the stage blur light (visual) | none | |
+| 0x1532A0..0x1533B0 | eft_j.c | tail of the type 7 follow effect | (see eft_i) | none | (eft_j 64/65) |
+| 0x1533B0..0x1542A8 | eft_j.c | type 5 `EftMulti*`: fires up to ten pieces (separate tasks at 0x16D858.. that carry the hits) | **yes** (creates and steers pieces) | libc `rand()`: one per piece for effect id 0x202 (an angle handed to the piece; effect on the hit not verified) | |
+| 0x1542A8..0x155588 | eft_j.c | type 6 `EftPropShot*`: one shot carrying a model | **yes**: hit record per frame; sets fighter flag 0xA8 and an object flag | `BtlScene_RandF`: two at init for id 0x165 (model bob, appearance) | |
+| 0x155588..0x156450 | eft_j.c | **type 0 `EftBlast*`: the plain blast / beam** | **yes**: hit record per frame | none | |
+| 0x156450..0x157398 | eft_j.c | type 2 `EftShotTech*` helpers: up to 14 blast objects (tasks at 0x16A7D0..) | **yes** (creates, retargets and stops them) | none | |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -180,3 +185,24 @@ what btl_scene.c calls a record's "definition flags" is the owning task's event 
 - Stage change target comes from the stage info (1 gives stage 0xF, 2 gives stage 3).
 - The collision and ground queries the fighters, camera and AI call are in the stg_a range
   (0x23FE70, 0x23FEB0, 0x23FEF8, 0x23FF38, 0x2427A0, 0x242668), not here.
+
+## Blast and beam items (simulation; `eft_j.c`, verified)
+
+`gEftShotClass` rows are {manager class, item class}; row = effect type + 1. Types so far:
+0 blast / beam, 2 multiple blast objects, 3 sweeping beam, 5 multi-piece, 6 shot with a model,
+7 follow effect.
+
+- Item life (types 0 and 6): START event aims; FIRE puts the head at the muzzle node with
+  velocity = aim direction x speed; each flying frame tail = head, optional homing
+  (`EftAim_Home`), head += velocity, or head = the position the hit pass corrected; END or
+  ABORT (0x400) starts the ending; the task dies after the emitter set's end frames.
+- One hit record per frame while fired and not ending: two spheres at head and tail, or two
+  boxes from the muzzle to head and to tail. **Radius = item radius x the emitter set's trail
+  width animation**, so that "visual" animation track is simulation input and
+  `EftEmit_UpdateTrailWidth` cannot be skipped.
+- Blast size follows the fighter's charge (fighter +0xE44, and +0xE5C / +0xE60 for two specific
+  techniques), which therefore scales the hit shapes.
+- The hit pass reports back through the owning task: head corrected, stop, hit a fighter.
+- Every update is gated by `BtlScene_IsCharStopped(objId)`.
+- Effect code creates battle objects (`BtlObj_Create`) for shot models, consuming object ids.
+- Stage blur is driven by effects (definition flag 0x200): visual.

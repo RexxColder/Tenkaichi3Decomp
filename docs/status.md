@@ -68,8 +68,8 @@ INCLUDE_ASM).
 First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x132290, 0x136760,
 0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550,
 0x15F728; `stg_a` 0x23FB20..0x242D28, `stg_b` ..0x245F58, `stg_c` ..0x248F28).
-Reported and documented: eft_a, eft_f, eft_g, eft_i, eft_m, stg_b, stg_c. Still running:
-eft_b, eft_c, eft_d, eft_e, eft_h, eft_j, eft_k, eft_l, stg_a.
+Reported and documented: eft_a, eft_f, eft_g, eft_i, eft_j, eft_m, stg_b, stg_c. Still running:
+eft_b, eft_c, eft_d, eft_e, eft_h, eft_k, eft_l, stg_a.
 
 Second wave launched (11 agents; the session allows 20 at once):
 
