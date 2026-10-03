@@ -231,3 +231,20 @@ Debug output was stripped; no file names, function names or assert macros surviv
 5. The UI object family at 0x10D4F0-0x10DD38 (`Flash_*`): struct layout and the remaining methods are unnamed.
 6. Init callees 0x116BA8, 0x239FF0, 0x23D0E0 and the struct at gp 0x2FF158.
 7. `Heap_Create` calls 0x2A8F68 with the heap size; whether that is `malloc` or a direct `sbrk`-style grab was not checked.
+
+## Corrections from the decompiled code (2026-10-03)
+
+These supersede the static-analysis notes above where they differ; each is confirmed by C that
+compiles to the original bytes.
+
+- **Random numbers** (`src/sys/rand.c`): MT19937 seeding and tempering, but the state refill only
+  runs the first loop and the final wrap-around word, so 396 of 624 state words are never
+  regenerated. The sequence is not a true MT19937 sequence.
+- **Battle pool** (`src/battle/btl_pool.c`): nine bump arenas carved from one block; the arena
+  mask is always 0x3FE, so the heap fall-through in `BtlPool_Alloc`/`BtlPool_Free` is never taken.
+  No capacity checks. The third slot field is the arena size.
+- **File layer** (`src/sys/file.c`): `File_LoadSyncEx` takes four arguments `(id, name, buf, unused)`.
+  The overlay's `File_LoadPartitionNw(2)` call at 0x35DF80 is the `pzs3us2.afs` load (was open
+  question 3). The async queue has 32 entries and no full-queue check.
+- **Lists** (`src/sys/list.c`): there are two list types; the singly linked `SList_*` is the one
+  the game actually uses.

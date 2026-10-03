@@ -76,8 +76,8 @@ gHeapEnd = 0x002FF088; // size:0x8
 gHeapSize = 0x002FF090; // size:0x8
 
 // --- Battle-side memory pools (the f1A71B8(f1A7240(), ptr) idiom) ----------------------------
-// gBtlPool points at a 0x9C struct: 9 slots of {base, cur, ?, used} (0x10 each), +0x90 arena memory,
-// +0x94 current slot id, +0x98 bitmask of slots that are bump arenas (bit slot+1).
+// gBtlPool points at a 0x9C struct: 9 slots of {base, cur, size, used} (0x10 each), +0x90 arena memory,
+// +0x94 current slot id, +0x98 bitmask of slots that are bump arenas (bit slot+1); BtlPool_Init always sets it to 0x3FE, i.e. every slot.
 // 0x1A7110(slot, size): rounds size up to 32; bump-allocates if the slot is an arena, else Heap_Alloc(size, 0x20, 0, 2).
 BtlPool_Alloc = 0x001A7110; // type:func
 // 0x1A71B8(slot, ptr): Heap_Free(ptr) only when the slot is NOT an arena and ptr != NULL.
@@ -93,7 +93,8 @@ BtlPool_AlignUp32 = 0x001A75E0; // type:func
 gBtlPool = 0x002FEAE0; // size:0x4
 
 // --- Random -------------------------------------------------------------------------------
-// 0x254C38 is MT19937 genrand (624-word state, tempering constants 0x9D2C5680 / 0xEFC60000).
+// 0x254C38 is MT19937 genrand (624-word state, tempering constants 0x9D2C5680 / 0xEFC60000), except that the refill
+// lacks the reference code's second loop (kk = 227..622), so the output is not a true MT19937 sequence. See src/sys/rand.c.
 Rand_Next = 0x00254C38; // type:func
 // 0x254DE8(n): n ? Rand_Next() % n : 0. 263 call sites.
 Rand_Range = 0x00254DE8; // type:func
@@ -111,7 +112,8 @@ List_Init = 0x002558D8; // type:func
 List_GetHead = 0x002558E8; // type:func
 List_GetNext = 0x00255C20; // type:func
 List_PushBack = 0x00255978; // type:func
-// queue = {capacity, nodes, freeList, head, used}; node = {next, value}
+// queue = {capacity, nodes, freeList, head, used}; node = {next, value}. `used` counts pool nodes handed out so far,
+// not queued items. The doubly linked list here is separate from the singly linked SList_* (config/symbols/sys_util.txt).
 Queue_Init = 0x00255F88; // type:func
 Queue_Clear = 0x00256028; // type:func
 Queue_Push = 0x00256038; // type:func
