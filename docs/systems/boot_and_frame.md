@@ -19,7 +19,7 @@ inserts the `__main` call). `Game_Main` never returns.
    `Common_Init`, `Common_LoadBoot`, `Common_Reload`, `Progress_Init`, `Save_Init`, `Job_Init`,
    maths init (`func_00121DA8`), `Dma_InitBuffers`, `Dbg_Init` (empty), `Pad_Init`, three
    unidentified inits (`func_00116BA8`, `func_00239FF0`, `func_0023D0E0`), `Fade_Init`,
-   `func_00268188`.
+   `PadWatch_Init` (the controller-removed watcher).
 5. Forever: `Overlay_Load(0)`; overlay entry `func_336A90(0)` (menus); `Battle_Main(0)`.
 
 Every disc operation in boot retries forever on failure. The overlay is reloaded from disc after
@@ -57,7 +57,7 @@ returns to `Game_Main` when a handler returns non-zero. What each mode is has no
 inferred), `Fade_UpdateAll`.
 
 `Gfx_EndFrame(vsyncs)`, in order: `Fade_DrawScreen`; `func_0023D160(vsyncs)` (frame counters);
-`func_00267DC0`; `func_00268208`; debug hooks (empty); `func_00121DE0`; `sceGsSyncPath`;
+`PadWatch_Update`; `PadWatch_Draw`; debug hooks (empty); `func_00121DE0`; `sceGsSyncPath`;
 `Vsync_Wait(vsyncs)`; `frame++`; flip the field flag; `sceGsSwapDBuff`; `Gfx_SetDisplayRegs`;
 `sceGsSyncPath`.
 

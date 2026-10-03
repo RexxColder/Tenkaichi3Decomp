@@ -37,3 +37,18 @@ purpose. Each is confirmed by C that compiles to the original bytes unless marke
 | `Fade_Init` | Clears only slot 0 of three; the others rely on zeroed memory. |
 | `Heap_SetDebug*`, `Dbg_*`, `Gfx_MarkPass`, `Heap_ReportBadFree` | Stripped debug hooks, compiled to empty functions. |
 | ~25 list/queue/alignment utilities | Never called: a general utility library was linked in. |
+
+## Added with the fighter-core batch
+
+| Where | What | Consequence |
+|---|---|---|
+| `Mathf_WrapAngle` | The intended lower bound is overwritten, so every angle below 2 pi is pushed up by 2 pi and brought back. | Angles are quantised before `sinf`; a port must keep the sequence. A huge angle loops forever. |
+| `BtlObj_UpdateVisibility` | The distance loop means to take the minimum over four box corners but passes the same corner four times. | Distance fade uses one corner. |
+| `BtlObj` fighter work buffers | The code accepts a third fighter object, whose buffer would overlap the next pool. | Latent; only two fighters exist. |
+| `BtlChars_UpdateFreeze` | At hit-stop level 2 the loop stops at the first exempt fighter. | Fighter 1's exemption is never considered when fighter 0 is at level 2: roster order matters. |
+| `SpuHeap_Alloc` / `Free` | No failure path: exhaustion, more than 17 ranges, or an unknown address dereference NULL. | |
+| `Gsc_StepTask` | An unknown command id calls a NULL handler. | |
+| `BtlScript` triggers | Command 7 fills up to 50 requests with no capacity check. | |
+| Replay recording | At 9000 frames the recorder silently stops storing. | A fight longer than 5 minutes of input-taking frames cannot be replayed to the end. |
+| Replays and `rand()` | Nothing reseeds `rand()` for a replay. | A replayed double KO can resolve differently from the original (inferred). |
+| `Timer_GetFrames` | The multiply wraps after about 71.6 s. | Used only by the movie player. |

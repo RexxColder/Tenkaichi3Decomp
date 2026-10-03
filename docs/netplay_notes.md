@@ -1,113 +1,141 @@
 # Notes for deterministic netplay
 
 The end goal is a PC port with new online play. This collects what the decompilation has shown
-that bears on keeping two machines in sync. Labels as in the README: **verified** means confirmed
-by C that compiles to the original bytes; **inferred** means read from disassembly or deduced.
+that bears on keeping two machines in sync. **Verified** means confirmed by C that compiles to
+the original bytes; **inferred** means read from disassembly or deduced.
 
 ## The simulation step
 
-- Fixed 30 Hz step: every loop ends a frame with a two-vblank wait, the sequence timers count
+- Fixed 30 Hz step: every loop ends a frame with a two-vblank wait, timers count
   `seconds * 30`, and the battle clock advances 100 ms per three ticks. (verified)
-- One battle frame is `Battle_Loop`'s body (see systems/battle.md). Input is sampled once, at
-  `Pad_Update`; the simulation is the calls from `BtlGame_PreUpdate` to `BtlGame_Update`; drawing
-  follows. (verified)
-- Pause does not stop the loop. It is a flag each subsystem checks at 126 sites; a paused frame
-  still reads the pad and runs the sequence. Both sides must agree on the pause flag. (verified)
-- `Battle_Restart` is the state reset for a rematch. (verified)
+- One battle frame is `Battle_Loop`'s body (systems/battle.md). Input is sampled once per
+  fighter in `BtlChars_SampleInput`; the simulation is the AI update, the fighter phases, the
+  effect scene, the stage (including rigid-body debris), the cameras and the sequence; drawing
+  follows. (verified order)
+- Fighters are updated pass by pass, fighter 0 first in each pass; the hit-stop loop has an
+  early exit that favours roster order. A port must keep the order. (verified)
+- A fight starts from a clean state: `BtlChar_ResetAll` zeroes both fighters and rebuilds them
+  from the setup, at init, on restart, and again on the first Ready/Fight frame. (verified)
+- Pause does not stop the loop: it is a flag each subsystem checks. Both peers must agree on
+  it. (verified)
 
-## What to synchronise
+## Input: what to synchronise
 
-- **Fights do not use the menu input word.** Each fighter builds its own 16-byte `OPRT` record
-  (player, stick X/Y, a button word, a command word) from the raw pad through a per-player
-  key-config table in the save. (verified, `btl_input.c`)
-- **What the game's own replay records is exactly `{buttons, stickX, stickY}` per fighter per
-  frame**, taken after key config and double-tap detection and before the ring and the gating.
-  The command word is recomputed from the buttons. This is the minimal input a peer needs.
-  (recorder and player read from disassembly; the record path around them is verified)
-- **The ring never delays.** The 8-entry ring per fighter is pushed and popped in the same call,
-  and its public push / pop wrappers have no callers. It is unused plumbing, and the natural
-  place to add input delay. (verified)
-- **CPU input is injected through fields on the fighter** (`chr+0x1278` on, buttons and stick at
-  `chr+0x127C..`). The same path could carry remote input. (verified)
-- **Key config is applied before recording**, so two peers with different button layouts still
-  exchange the same button word. (verified)
-- **Gating is outside the record:** neutral or masked input during the non-fight sequence states
-  depends on battle flags and fighter flags, which must therefore be in sync. (verified)
-- Menus read `gPad` fields directly from about 110 functions; menu netplay would have to
-  synchronise the pad state itself or replace those reads. (verified for the main executable,
-  counted from disassembly for the overlay)
+- Fights use a per-fighter record, not the menu input word. (verified, `btl_input.c`)
+- **The game's own replay records exactly `{buttons, stickX, stickY}` per fighter per
+  input-taking frame**, after key config and double-tap detection, before the ring and the
+  gating. The command word is recomputed. This is the minimal input a peer needs.
+  (verified, `btl_replay.c`)
+- The 8-entry ring per fighter never delays (pushed and popped in the same call; its public
+  wrappers have no callers). It is the natural place to add input delay. (verified)
+- CPU input is injected through fields on the fighter; the same path could carry remote input.
+  CPU fighters are recorded in replays as inputs. (verified)
+- Key config is applied before recording, so peers with different layouts exchange the same
+  button word. (verified)
+- A track index is not a frame number: nothing is recorded on paused frames or when the
+  fighter is not taking input. (verified)
+- Gating after the record (neutral or masked input in non-fight states) depends on battle and
+  fighter flags, which must therefore be in sync. (verified)
+- Menus read `gPad` fields directly from about 110 functions. (counted from disassembly)
 
-## The game already has a replay system
+## The replay system as evidence
 
-- The battle setup (0x5A8 bytes, tagged "btls" version 7) is copied into a 0x1ABA8-byte block
-  that the memory card code saves and loads. (verified code; the names are guesses)
-- After the setup come two per-player buffers of 9000 frames each: stick bytes and button
-  words, with a count and a position. 9000 frames is 5 minutes at 30 Hz. (read from disassembly)
-- So a replay is the setup plus per-frame inputs, re-simulated. The simulation is therefore
-  already deterministic enough for the developers' own replays on one machine, and a replay is
-  a ready-made desync test for a port: play it back and compare state.
-- Not yet known: whether the random seeds are stored with a replay or reset to fixed values at
-  battle start. Replays could not work otherwise, so one of the two must happen; finding it
-  tells netplay how to seed.
+A replay is the 0x5A8-byte setup plus two 9000-frame input tracks and nothing else: no seed,
+no frame counter, no result. (verified) It reproduces a fight because:
+
+1. the fighters' own generator and the frame counter both reset with the fighters at fight
+   start (verified);
+2. the CPU's decisions are captured as input (verified);
+3. everything else that is random was judged not to matter (inferred).
+
+A replay is therefore a ready-made desync test for a port, with one known weakness: paths
+driven by `rand()` are not reproduced, so a replayed double KO can resolve differently from
+the original. (inferred from the verified code)
 
 ## Sources of randomness
 
-All of these must produce the same values on both machines:
+| Generator | State | Seeded / reset | Used by |
+|---|---|---|---|
+| `BtlChar_Rand` | roster +0x18 | zeroed by `BtlChar_ResetAll` | fighter logic (9 sites in one function, plus two float users) |
+| `BtlChar_FrameMod` | roster frame counter | zeroed by `BtlChar_ResetAll` | fighter picks, e.g. voice lines (39 sites) |
+| `BtlScene_Rand` | scene +randState | zeroed by `BtlScene_Reset` (battle start, restart, and some mid-battle sites) | effect scene |
+| libc `rand()` | C library | **boot only**, from a hardware timer | about 490 direct call sites, almost all effect tasks; camera shake; the battle sequence's voice choice and **double-KO tie-break**; `Rand_IntRange` (34 sites) |
+| VU0 R register (`Rand_Float01`, `Rand_FloatRange`) | vector unit | **boot only**, from a constant | effect code (about 160 sites) |
+| `Rand_*` (broken-refill MT19937) | 624 words + index | **boot only**, from `rand()` | the AI (49 sites), the menus (about 198 sites), a few others |
+| second MT19937 at 0x252F68 | own state | per call | a menu codec only |
 
-1. `Rand_*`: the broken-refill Mersenne Twister, seeded at boot from a timer through `rand()`.
-   263 call sites of `Rand_Range`. (verified)
-2. C library `rand()`: used by the battle sequence for voice line choice and for the
-   double-KO tie-break, and to seed generator 1. (verified)
-3. A second MT19937 copy at 0x252F68, apparently for a scramble or password codec. (inferred)
-4. The effect scene's private generator, `(state * 714025 + 4096) % 150889`. (verified code,
-   not yet linked)
+(Generators and reset points verified; "boot only" is from a grep of every caller; the
+per-generator user lists are by address range, not traced call by call.)
 
-Seeds have to be exchanged or fixed at match start; the boot-time seed comes from a hardware
-timer.
+Consequences:
+- The first three reset themselves; both peers only need to reach the first Ready frame on
+  the same frame.
+- **libc `rand()` must be synchronised**: it reaches the result through the double-KO
+  tie-break, and its call count depends on camera shake and effects.
+- **The VU0 register and the Mersenne Twister must be synchronised** if anything that uses
+  them can affect the simulation: effects (which can hit) and any CPU-controlled fighter.
+- The twister is shared with the menus; nothing outside the simulation may draw from it
+  during a fight, or the AI needs its own stream.
+- The roster's "time stopped" word (+0x274) freezes the two fighter sources, the scene
+  generator and input. Its writer has not been found.
 
-## Things that could desynchronise
+## Non-simulation state that reaches the simulation
 
-- **Direct pad reads in battle-side code.** Two of the three are now known not to matter:
-  `DbgCam_Update` (L1 and the sticks) has no callers, and `OrbitCam_Update` belongs to a viewer
-  screen and writes only its own camera. `func_001D8590` (pad 0 up/down) is still unexamined.
-  (code verified; reachability inferred from the absence of callers)
-- **Camera-relative movement comes from the fighter's own camera** (fighter +0x430 / +0x440,
-  maintained at 0x1C69C8), not from the camera module, which only copies it out. That code is
-  not decompiled and is where to look for camera feedback into the simulation. (inferred)
-- **Camera shake advances `rand()`** five times per update while active, from the fighter camera
-  update and from the demo camera. It must run the same number of times on both peers,
-  including on re-simulated frames. (verified)
-- **The demo camera advances inside `BtlCam_UpdateOverride`,** and the battle sequence waits on
-  it, so the camera update cannot be skipped on some frames without shifting intro timing.
-  (verified)
-- **The default view depends on which side is human** (`BtlCam_GetDefaultView`), and that feeds
-  an "is this fighter's camera on screen" test used by the effect scene. If two peers set side
-  control differently, that test differs; whether it reaches the simulation is not traced.
-  (verified code, open consequence)
-- **The camera can force a single view** (`BtlCam_UpdateOverride`), which changes what is drawn
-  but, as far as the frame loop shows, not what is simulated. (verified in the loop)
-- **Loading is asynchronous.** Character and stage loads run as jobs during battle and set
-  flags (0x800, 0x1000, 0x2000) that suspend updates. Load times differ between machines, so
-  these flags must not gate the simulation differently on each side. (verified)
-- **Sound** is queued and sent once per frame and does not feed back into the simulation, with
-  two exceptions to check: the per-side voice mute (`func_00259E20`), and the battle sequence
-  waiting on `Voice_IsStopped` with a 10 s timeout during intro and win talk. A voice that
-  finishes at different times on two machines would advance the sequence at different frames.
-  (verified)
-- **Frame overruns:** `Vsync_Wait` does not accumulate debt, so a slow frame simply lasts longer;
-  there is no frame skipping in the loop. (verified)
-- **Floating point:** all game maths is single-precision on the PS2's FPU and vector unit, which
-  do not follow IEEE rounding, infinities or NaNs exactly. A port needs both peers to compute
-  identically; two PCs running the same build would, but matching the PS2's exact results is a
-  separate, harder problem (relevant only for cross-play with real hardware or for replays
-  recorded on a PS2).
+Each of these is a way two peers could diverge with identical inputs.
+
+| What | How it reaches the simulation | Status |
+|---|---|---|
+| **Load completion** | Transformations, fusions and member switches finish in `BtlChars_OnModelLoaded`, called when the character load job ends; battle flags 0x800 / 0x1000 / 0x2000 suspend updates while loads run | verified |
+| **Load completion** | The AI skips any frame on which an object load job is running | verified |
+| **Controller removal** | `PadWatch` debounces pad presence; the battle pause check sets the pause flag when a required pad is missing (not in mode 7) | watcher verified; pause path read from disassembly |
+| **Voice playback** | The battle sequence waits on `Voice_IsStopped` (with a 10 s timeout) in the intro and win talk; story scripts wait on voices too | verified |
+| **Per-player camera option** | One of the per-side options from the save gates camera shake, and shake calls `rand()` five times per frame while active | gating verified; option source inferred |
+| **Screen mode** | `Battle_IsSplitScreen()` changes the lock-on camera pose; the pose can reach fighter state through `cam->side` on certain cuts | pose dependence verified; consequence inferred, medium confidence |
+| **Which side is human** | `BtlCam_GetDefaultView` depends on side control and feeds an "is this camera on screen" test used by the effect scene | verified code; consequence not traced |
+| **Replay viewer** | Pad 0 picks the watched side during playback; it writes nothing in the simulation but feeds the same default-view test | verified |
+
+A port has to make each of these identical on both peers, or remove the dependency (for
+example by loading models ahead of time and resolving loads on a fixed frame).
+
+## Camera
+
+- Movement is relative to the fighter camera's `yaw` (fighter +0x4A0), not to the camera
+  position. `yaw` depends only on opponent direction, fighter flags, the fighter's input record
+  and facing. (writers verified in `btl_char_cam.c`; movement-side readers read from
+  disassembly, high confidence)
+- No pad is read by the fighter camera or by the battle camera module. The two pad-reading
+  camera functions found earlier are dead debug code and a viewer screen. (verified code;
+  reachability from the absence of callers)
+- Camera cuts raise fighter flags, and the demo camera advances inside
+  `BtlCam_UpdateOverride`, which the battle sequence waits on. Camera updates therefore cannot
+  be skipped on re-simulated frames. (verified)
+
+## Floating point
+
+All game maths is single-precision. Three things need exact reproduction:
+
+- `Mathf_WrapAngle` (behind `Mathf_Sin` / `Mathf_Cos`, about 180 call sites) pushes every
+  angle below 2 pi up by 2 pi and brings it back, which quantises small angles. Skip it for
+  in-range angles and results change. (verified code; quantisation inferred)
+- `Mathf_SinFast` / `Mathf_CosFast` are a polynomial evaluated on the vector unit, and return
+  different bits from the libm-based pair. (verified)
+- The PS2's FPU and vector unit do not follow IEEE exactly. Two PCs running the same build
+  agree with each other; matching PS2 results bit-for-bit (for replays recorded on a PS2, or
+  cross-play) is a separate, harder problem.
+
+## State to save for rollback (inferred from the verified structure)
+
+The 0x280 roster, the two 0x1600 fighters and the two per-side arrays; the battle objects each
+fighter drives (pose is copied both ways several times per frame); `gBattleWork`; the sequence
+block; the effect scene and its tasks; the stage's rigid bodies; the AI block; the script
+tasks in story battles; and the state of every generator in the table above.
 
 ## Open items
 
-- Decompile the replay recorder and player (`func_001D8388`, `func_001D8470`, `func_001D8330`)
-  and find how random seeds are handled across a replay.
-- Decompile the fighter camera at 0x1C69C8.
-- Match `BtlInput_Update`.
-- Find every caller of the four generators inside the simulation.
-- The Wii build has online play; its game-side netcode has not been examined yet and would show
+- Find the writer of roster +0x274 ("time stopped").
+- Establish what fighter +0xD26 / +0xD34 are (the reader of `cam->side`).
+- Decompile the pause check `func_0022F9F8` and confirm the controller-removal path.
+- Decompile the fighter state machine, movement and hit detection (the bulk of the
+  simulation), and the effect tasks that call `rand()`.
+- The Wii build has online play; its game-side netcode has not been examined and would show
   what the developers themselves synchronised.

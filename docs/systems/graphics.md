@@ -85,3 +85,37 @@ A renderer needs: 512x448 internal resolution, a greater-or-equal depth test wit
 nearer, bilinear filtering by default, four blend modes selected by ordering-table layer, and
 painter's-order drawing through the table. The flicker filter and the field handling can be
 dropped. The model, texture and microprogram formats are not understood yet.
+
+## Movies (`src/sys/movie.c`; verified unless marked)
+
+- A movie is two loose files opened by name, not archive entries: `zs3usop.pss` + `.adx`
+  (opening) and `zs3used.pss` + `.adx` (ending). Only the video stream of the `.PSS` is used.
+- Path: disc read (0x100 sectors) into one of four buffers, demux with Sony's libmpeg into a
+  ring buffer, decode one picture, and upload it straight into the frame buffer as 896
+  transfers of 16x16 blocks. The movie is never a textured quad.
+- One picture per two vertical blanks. There is no time-stamp sync with the audio: if the
+  player waits on the disc for more than four fields it pauses the audio and resumes it after.
+- START on pad 1 skips with a 0.5 s fade; pad 2 is not read.
+- Buffers (about 3.8 MB) come from the main heap and are freed on close.
+- `Movie_PlayEnding` has no direct callers in either binary.
+- For a port (inferred): decode the video with any MPEG-2 decoder at 512x448, play the ADX
+  from the first frame, and sync video to the audio clock.
+
+## 2D sprites (`src/sys/sprite.c`; verified code, format partly inferred)
+
+A sprite sheet is a BPE-packed file whose word at +0x10 points to 0x40-byte texture entries.
+`Sprite_DrawList` draws `LoadSprite` records as blended GS sprites; each quad uploads its
+texture first, so one texture is resident at a time. The pixel layout belongs to the uploader
+`func_0010A218`, not decompiled.
+
+## Colour overlay (`src/sys/color_fade.c`; verified)
+
+A fourth screen overlay besides the three fade slots: an integer alpha 0..0x80 stepped per
+update, drawn as one blended 512x448 sprite. Used only by the trailing memory-card block.
+
+## Controller-removed overlay (`src/sys/pad_watch.c`; verified)
+
+`PadWatch_Update` and `PadWatch_Draw` run every frame from `Gfx_EndFrame`: presence of both
+pads is debounced (about 7 frames) and a dimmed screen with a message from the boot file is
+drawn when a required pad is missing. Loading screens disable it. It also pauses the battle;
+see netplay_notes.md.

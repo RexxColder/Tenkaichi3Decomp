@@ -93,3 +93,19 @@ Sample upload does not go through SOUNDS.IRX: it uses Sony's libsdr remote calls
 The sound-effect layer is a thin command protocol, so it can be replaced by a mixer that
 consumes the same queued commands. Not yet known: the HD header format, the third bank section,
 and why the driver is sent the fighter ids every frame.
+
+## Sound RAM allocator (`src/sys/spu_heap.c`; verified)
+
+Sample bodies are placed in sound RAM by a game-side address allocator covering
+0x5010..0x1F5FE0: a table of 17 descriptors `{state, addr, size}`, first fit in address order,
+16-byte rounding, merge on free. There is no failure path (exhaustion dereferences NULL). It is
+bookkeeping only, so a port's mixer does not need it. I/O-processor memory for bank headers
+comes from bare wrappers of Sony's IOP heap calls (`src/sys/iop_heap.c`).
+
+Correction: `Snd_SendFighters` (command 0xF) sends each side's four live sound handles, not
+fighter ids (`BtlCharApi_GetSoundCount` / `GetSound`). The name is misleading.
+
+## Movie sound (verified)
+
+A movie's sound is a separate `.ADX` file played on ADX player 0 at volume 0x40, started paused
+and released just before the first video frame. See graphics.md for the video side.

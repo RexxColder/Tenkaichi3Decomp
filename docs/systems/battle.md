@@ -18,22 +18,22 @@ up together.
 1. If flag 0x8000: `Battle_Restart()`, clear the bit.
 2. `Job_Run()`.
 3. `Gfx_BeginFrame()`.
-4. Unless flag 0x100: `func_00257A50`, `func_00259030`.
-5. `func_001C2AA8` (fighter manager).
+4. Unless flag 0x100: `Gsc_Update` (script engine), `BtlScript_Update` (story triggers).
+5. `BtlChars_CheckStart` (resets the roster on the first Ready/Fight frame).
 6. **`Pad_Update()`**: the only pad read of the frame.
 7. `Snd_Update()`, `Snd_SendFighters()`.
 8. `BtlGame_PreUpdate()` (HUD, then `BtlSeq_PreUpdate`).
 9. `Battle_UpdateWork()`.
-10. `func_001BB620`, `func_001C2A28` (fighter passes; the second samples battle input).
+10. `BtlAiMgr_Update` (the CPU opponent), then `BtlChars_SampleInput` (battle input).
 11. `Battle_Update()`:
-    - fighter phases `func_001C2B30`, `func_001C2C80`
-    - scene manager `func_0012CB60`, then `func_001AF9C0`, then scene manager `func_0012CB98`
-    - fighter phase `func_001C2E90`, then `func_0012D450`
+    - fighter phases `BtlChars_UpdateInput`, `BtlChars_UpdateMain` (see fighter.md)
+    - effect scene `BtlScene_Update`, then `func_001AF9C0`, then `BtlScene_PostUpdate`
+    - fighter phase `BtlChars_PostScene`, then `BtlScene_CheckStageChange`
     - loader polls `BtlLoad_PollCharaRequest`, `BtlLoad_PollObjectRequest`
     - stage update `func_00243568`
     - cameras: select + update for views 0 and 1, always both
     - `singleView = BtlCam_UpdateOverride()`
-    - final fighter phase `func_001C2F10`, object-list update `func_0024AB70`
+    - final fighter phase `BtlChars_EndFrame`, then `BtlObj_UpdateAll`
     - visibility lists per view
     - returns `singleView == 0`
 12. `done = BtlGame_Update()` (tail call of `BtlSeq_Update`).
@@ -94,7 +94,7 @@ uses all seven. All poll callbacks test pad bit 0x1000 (skip / pause).
 6. character flag 7 on both sides: reason 4, judge; on one side: the other side wins;
 7. all characters of a side at health <= 0, on both sides: reason 1, judge; one side: the other
    wins;
-8. a further condition gives winner 0x10, reason 0x40000.
+8. a replay that has run out of recorded input: winner 0x10, reason 0x40000.
 
 `BtlSeq_JudgeByHealth` (verified): the higher health wins. On equal health, in order: rule flag
 0x3C of side 0 gives P1; of side 1 gives P2; a draw only when the reason is time-up and the mode
@@ -251,6 +251,36 @@ Sources: `src/battle/btl_cam.c`, `btl_demo_cam.c`, `orbit_cam.c`.
 The start of `btl_seq.c` (0x215420..0x216AC0) draws the pause menu's skill list from a UTF-16
 script: tags for page titles, entries with three icon digits, detail lines and notes. A line
 can be gated on a character-unlock bit in the save and is drawn at half alpha when locked.
+
+## Battle objects (verified; field meanings partly inferred)
+
+Source: `src/battle/btl_obj.c`. Layout: `include/battle/btl_obj.h`.
+
+- A battle object is one animated model. Up to 12 exist, 0x1670 bytes each, in one heap block
+  of 0x6B740 bytes. An object id is its index, 0..11. `gBtlObjTbl[id]` is rebuilt every frame
+  from the used list.
+- A fighter object gets a 0x1A0C0-byte work buffer; there is room for two (the code allows a
+  third, which would overlap the next pool).
+- A model resource slot is three files: the model and two more (animations, inferred). A
+  battle preallocates two fixed slots (model 0xCE000, 0x160800 and 0xCE800 bytes) and one
+  spare model buffer.
+- A character change (`BtlRes_Reload`) reads the new model into the spare buffer, then swaps
+  it with the live one. Only one reload can be pending.
+- `BattleSide + 0x26C` is the resource slot number; `+ 0x268` is the object id.
+- Per frame `BtlObj_UpdateAll` (not while paused) runs animation and pose passes per object
+  and rebuilds its world bounding box.
+- Per view: an object is culled when all 8 box corners are past the same scissor edge or
+  behind the camera; models can fade with distance (near 40, far 120 by default); a fighter
+  whose body box contains the camera is moved to the later draw pass. The draw list is built
+  in three passes, with the view's own fighter last.
+- One light: direction, a derived half vector, colour; copied from the stage when ready.
+
+## Stage rigid bodies (verified code; purpose inferred)
+
+Source: `src/sys/rigid.c`. A sphere rigid-body integrator (explicit Euler, penalty contact,
+friction, a rest test) stepped only by the battle stage update, 10 sub-steps per frame, not
+while paused. The bodies look like stage objects or debris; no fighter code calls it. +Y is
+down (gravity is +9.8 on Y).
 
 ## Not decompiled yet
 

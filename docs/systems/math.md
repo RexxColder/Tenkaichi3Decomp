@@ -27,26 +27,44 @@ component is in bits 60..63. `Quat_Unpack` has 10 call sites (0x24BF58, 0x24C1A8
 
 ## VU0 vector routines (not decompiled)
 
-About 223 small functions at 0x11F830..0x123F48 use VU0 (the PS2's vector coprocessor) and are
+About 200 small functions at 0x11FA10..0x123130 are the vector library; many use VU0 (the PS2's vector coprocessor) and are
 hand-written or inline assembly in the original. The disassembler emits several of them as raw
 words. Names so far (`Vec4_Copy`, `Vec3_Normalize`, `Vec3_Cross`, `Vec3_Dot`, `Vec3_Length`,
 `Mtx_StoreIdentity`, ...) are from call patterns and are partly guesses. `func_0011F780` and
 `func_0011F740` are acos and asin with the argument clamped to [-1, 1].
 
+## Scalar helpers (`src/sys/mathf.c`; verified)
+
+- `Mathf_Sin(a) = sinf(wrap(a))`, `Mathf_Cos(a) = Mathf_Sin(a + pi/2)`: 101 and 78 call sites.
+- The wrap (`Mathf_WrapAngle`, hand-written): `r = 2*pi; while (a < r) a += r; while (pi < a)
+  a -= r;`. An intended lower bound is overwritten, so every angle below 2 pi is pushed up and
+  brought back. (inferred) In-range angles are quantised to the float spacing near 2 pi, and a
+  huge angle never terminates.
+- `Mathf_SinFast` / `Mathf_CosFast` (18 / 20 sites): the polynomial
+  `x + c3 x^3 + c5 x^5 + c7 x^7 + c9 x^9` on the vector unit. Different bits from the pair
+  above.
+- `Mathf_Tan` wraps correctly by 2 pi steps, then `tanf`. `Mathf_Asin` / `Mathf_Acos` clamp to
+  [-1, 1] first. `Mathf_Sqrt` is the vector unit's square root.
+- `BtlUtil_WrapAngle` (battle side) adds or subtracts 2 pi once.
+
 ## Random numbers
 
-There are three generators:
+Seven sources; the table with reset points and users is in netplay_notes.md.
 
-1. **`Rand_*` (verified):** MT19937 seeding and tempering, but the state refill only runs the
-   first loop (kk = 0..226) and the final wrap-around word. The reference code's second loop
-   (kk = 227..622) is absent, so 396 of the 624 state words are never regenerated. The output is
-   not a true MT19937 sequence. `Rand_Init` seeds from `rand()` values after
-   `srand(clock-like timer)`. `Rand_Range(n)` is `Rand_Next() % n` (0 when n is 0), unsigned;
-   263 call sites.
-2. **C library `rand()`:** used by the battle sequence (intro and win line choice, the
-   tie-break in `BtlSeq_JudgeByHealth`) and to seed generator 1.
-3. **A second MT19937 copy at 0x252F68** with its own state, followed by a 32-byte bit buffer
-   (not decompiled). It looks like a scramble or password codec (inferred).
+1. `BtlChar_Rand` and `BtlScene_Rand`: `(state * 714025 + 4096) % 150889`, separate states,
+   reset with the fighters and with the effect scene. (verified)
+2. `BtlChar_FrameMod(n)`: the fight's frame counter modulo n. (verified)
+3. libc `rand()`: about 490 direct call sites, the main generator for effects; seeded at boot
+   from a timer. `Rand_IntRange(a, b) = lo + rand() % (hi - lo + 1)`. (verified)
+4. `Rand_Float01` / `Rand_FloatRange`: the vector unit's R register (7 steps, re-init from its
+   own output, 7 more steps, minus 1.0, giving [0, 1) in 23 bits). Seeded once at boot from a
+   constant, so the stream is the same every boot. (verified) The usual model of the register
+   is a 23-bit shift register with feedback from bits 4 and 22. (inferred, not from this
+   binary)
+5. `Rand_*`: MT19937 seeding and tempering, but the refill only runs the first loop and the
+   final word; 396 of 624 state words are never regenerated. Used by the AI and the menus.
+   (verified)
+6. A second MT19937 copy at 0x252F68, a menu codec seeded per call. (inferred)
 
 ## Float constants and matching
 

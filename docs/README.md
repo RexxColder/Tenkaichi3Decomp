@@ -25,7 +25,10 @@ Names marked `// guess` in `config/symbols/*.txt` are best guesses.
 | [systems/input.md](systems/input.md) | Pad state, menu input word, battle input path |
 | [systems/audio.md](systems/audio.md) | Streamed audio (ADX) and sound effects (SOUNDS.IRX protocol) |
 | [systems/graphics.md](systems/graphics.md) | Display lists, frame buffers, render state, ordering table, fades |
-| [systems/battle.md](systems/battle.md) | Battle frame, sequence states, setup block, modes, loading, results, events |
+| [systems/battle.md](systems/battle.md) | Battle frame, sequence states, setup block, modes, loading, results, events, objects |
+| [systems/fighter.md](systems/fighter.md) | Roster, fighter object, per-frame phases, hit-stop, character changes, fighter camera |
+| [systems/ai.md](systems/ai.md) | The CPU opponent |
+| [systems/script.md](systems/script.md) | The GSC script engine and battle (story) scripts |
 | [systems/save_data.md](systems/save_data.md) | The 0x4000-byte save block |
 | [systems/math.md](systems/math.md) | Vector, quaternion and matrix conventions; random numbers |
 | [known_bugs.md](known_bugs.md) | Bugs and quirks in the original code that a port must reproduce or consciously fix |
