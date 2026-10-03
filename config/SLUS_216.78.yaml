@@ -20,7 +20,7 @@ options:
   ld_wildcard_sections: True
   ld_bss_contains_common: True
 
-  create_asm_dependencies: True
+  create_asm_dependencies: False
   generate_asm_macros_files: False
 
   find_file_boundaries: False
@@ -34,6 +34,10 @@ options:
     - config/symbols/sys_util.txt
     - config/symbols/sys_file.txt
     - config/symbols/rand_pool.txt
+    - config/symbols/boot.txt
+    - config/symbols/sys_pad.txt
+    - config/symbols/sys_adx.txt
+    - config/symbols/sys_common.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -87,6 +91,11 @@ segments:
     align: 128
     subsegments:
       - [0x000000, asm, cod/000000] # .text
+      - [0x000258, c, main]
+      - [0x000670, c, sys/dma]
+      - [0x001D40, asm, cod/001D40]
+      - [0x022940, c, sys/pad]
+      - [0x023130, asm, cod/023130]
       - [0x0A7018, c, battle/btl_pool]
       - [0x0A7608, asm, cod/0A7608]
       - [0x154A20, c, sys/rand]
@@ -96,8 +105,14 @@ segments:
       - [0x155EE8, c, sys/queue]
       - [0x156128, c, sys/align]
       - [0x1562A8, asm, cod/1562A8]
+      - [0x163098, c, sys/debug]
+      - [0x1630E8, c, sys/common]
+      - [0x163278, c, sys/bpe]
+      - [0x163478, c, sys/job]
+      - [0x1635C8, c, sys/loading]
       - [0x164A50, c, sys/file]
-      - [0x165578, asm, cod/165578]
+      - [0x165578, c, sys/adx]
+      - [0x166088, asm, cod/166088]
       - [0x173CA0, c, cri/adxt]
       - [0x173CF0, asm, cod/173CF0]
       - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
@@ -107,6 +122,9 @@ segments:
       - [0x1C3400, data, cod/1C3400] # .data
       - [0x1EB358, data, cod/1EB358] # .eh_frame
       - [0x1EB380, rodata, cod/1EB380] # .rodata
+      - [0x1EB3A8, .rodata, main]
+      - [0x1EB550, .rodata, sys/dma]
+      - [0x1EB5B0, rodata, cod/1EB5B0]
       - [0x1F3500, .rodata, sys/file]
       # The original padded each object's .rodata to 16 bytes; ours pads to 8, so the last 8
       # bytes of file.c's padding are carried by the next assembly chunk.
@@ -114,6 +132,9 @@ segments:
       - [0x1F4490, .rodata, cri/adxt]
       - [0x1F44C0, rodata, cod/1F44C0]
       - [0x1FC280, lit4, cod/1FC280] # .lit4
+      - [0x1FE7B4, .lit4, sys/loading]
+      - [0x1FE7C0, .lit4, sys/adx]
+      - [0x1FE7C4, lit4, cod/1FE7C4]
       - [0x1FE880, sdata, cod/1FE880] # .sdata
       - { type: sbss, vram: 0x002FF180, name: cod/002FF180 } # .sbss
       - { type: bss, vram: 0x002FF280, name: cod/002FF280 } # .scommon

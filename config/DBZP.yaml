@@ -21,7 +21,7 @@ options:
   ld_dependencies: True
   ld_wildcard_sections: True
 
-  create_asm_dependencies: True
+  create_asm_dependencies: False
   generate_asm_macros_files: False
 
   find_file_boundaries: False
@@ -35,6 +35,10 @@ options:
     - config/symbols/sys_util.txt
     - config/symbols/sys_file.txt
     - config/symbols/rand_pool.txt
+    - config/symbols/boot.txt
+    - config/symbols/sys_pad.txt
+    - config/symbols/sys_adx.txt
+    - config/symbols/sys_common.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt
