@@ -105,3 +105,23 @@ Report, in addition to what agent_rules.md asks:
 - Names of other agents' functions: look the address up in config/symbols/*.txt (eft_*.txt,
   stg_*.txt are being written now) and use the current name.
 - Stems `eft_a` .. `eft_m` and `stg_a` .. `stg_c` are taken.
+
+## Addendum 2 (after the first wave): read docs/systems/effects_stage.md in full
+
+It has the module table for 0x12DD80..0x1637A0 and the stage, the scene layers (0 stage effects,
+1 shot layer, 4 stage-change transition), hit records, technique events and timers
+(`EftTechEvt`, `EftShot_TestBits`: events 2 start, 4 fire, 8 end, 0x400 abort), the technique
+effect types found so far (class table `gEftShotClass` 0x2C3700, row = type + 1: 0 blast,
+1 volley, 2 shots, 3 sweep, 4 ring shot, 5 multi, 6 prop shot, 7 follow, 8 object, 9 rush
+shot), the effect pack library (`EftEmit_*`, part kinds 0..18 with spawner / kill / is-alive
+entries listed in include/battle/eft_i.h), and the stage core.
+
+Headers worth reading for layouts and prototypes: eft_a.h (hit records, aim, math, gfx), eft_g.h
+(task view, shot slots), eft_h.h / eft_i.h (effect packs, emitter sets, part spawner argument
+blocks), eft_j.h / eft_k.h (blast items, technique events), stg_a.h / stg_b.h (stage).
+
+An integrator is linking eft_a..eft_m and stg_a..stg_c right now and will rename placeholders
+in those files: never edit them; if a name you saw changes under you, look the address up
+again in config/symbols/.
+
+Stems taken: eft_a .. eft_m, stg_a .. stg_c. New stems are given in each task.
