@@ -38,6 +38,10 @@ options:
     - config/symbols/sys_pad.txt
     - config/symbols/sys_adx.txt
     - config/symbols/sys_common.txt
+    - config/symbols/battle.txt
+    - config/symbols/btl_seq.txt
+    - config/symbols/game_pad.txt
+    - config/symbols/option.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -96,8 +100,12 @@ segments:
       - [0x001D40, asm, cod/001D40]
       - [0x022940, c, sys/pad]
       - [0x023130, asm, cod/023130]
+      - [0x02B570, c, battle/battle]
+      - [0x02BD58, asm, cod/02BD58]
       - [0x0A7018, c, battle/btl_pool]
       - [0x0A7608, asm, cod/0A7608]
+      - [0x115540, c, battle/btl_seq]
+      - [0x1187E0, asm, cod/1187E0]
       - [0x154A20, c, sys/rand]
       - [0x154E28, c, sys/heap]
       - [0x1557A8, c, sys/heap_info]
@@ -105,6 +113,8 @@ segments:
       - [0x155EE8, c, sys/queue]
       - [0x156128, c, sys/align]
       - [0x1562A8, asm, cod/1562A8]
+      - [0x1574F0, c, sys/game_pad]
+      - [0x157870, asm, cod/157870]
       - [0x163098, c, sys/debug]
       - [0x1630E8, c, sys/common]
       - [0x163278, c, sys/bpe]
@@ -112,7 +122,8 @@ segments:
       - [0x1635C8, c, sys/loading]
       - [0x164A50, c, sys/file]
       - [0x165578, c, sys/adx]
-      - [0x166088, asm, cod/166088]
+      - [0x166088, c, sys/option]
+      - [0x166728, asm, cod/166728]
       - [0x173CA0, c, cri/adxt]
       - [0x173CF0, asm, cod/173CF0]
       - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
@@ -125,6 +136,8 @@ segments:
       - [0x1EB3A8, .rodata, main]
       - [0x1EB550, .rodata, sys/dma]
       - [0x1EB5B0, rodata, cod/1EB5B0]
+      - [0x1F1A80, .rodata, battle/btl_seq]
+      - [0x1F1B30, rodata, cod/1F1B30]
       - [0x1F3500, .rodata, sys/file]
       # The original padded each object's .rodata to 16 bytes; ours pads to 8, so the last 8
       # bytes of file.c's padding are carried by the next assembly chunk.
@@ -132,6 +145,8 @@ segments:
       - [0x1F4490, .rodata, cri/adxt]
       - [0x1F44C0, rodata, cod/1F44C0]
       - [0x1FC280, lit4, cod/1FC280] # .lit4
+      - [0x1FE1C8, .lit4, battle/btl_seq]
+      - [0x1FE1D8, lit4, cod/1FE1D8]
       - [0x1FE7B4, .lit4, sys/loading]
       - [0x1FE7C0, .lit4, sys/adx]
       - [0x1FE7C4, lit4, cod/1FE7C4]

@@ -18,7 +18,7 @@ extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void File_Stub264D90(void);
 
 extern void func_00267BB8(s32 enable);                 /* stores (enable == 0) at +0x20 of the object at D_002FF158 */
-extern void func_00252C18(void);                       /* resets the three gFade entries */
+extern void Fade_ResetAll(void);                       /* resets the three gFade entries */
 extern void *func_00126608(void *src, void *dst, s32 *rawSize); /* wrapper of Bpe_Decode */
 extern void func_00126880(void *res, s32 x, s32 y, LoadSprite *list); /* draws a sprite run at an offset */
 extern s32 func_0011F8F8(s32 a, s32 b);                /* random integer in [a, b] */
@@ -65,7 +65,7 @@ void Load_RunBlocking(void) {
     func_00267BB8(0);
     Dma_ResetBuffers();
     Load_InitScreen();
-    func_00252C18();
+    Fade_ResetAll();
     Fade_Start(0, 1, 1.0f);
     gProgress->flags |= PROGRESS_FLAG_LOADING;
     for (;;) {

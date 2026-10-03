@@ -83,3 +83,15 @@ Known gaps, to check first if a float function is off by a swapped or extra inst
 return: an FPU instruction directly before an unfilled `jr $ra` is never moved into the delay
 slot; a kept instruction whose preceding filled slot holds a different instruction is still
 swapped; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN` operands.
+
+## Object boundaries and rodata alignment
+Jump tables are 16-byte aligned inside an object's `.rodata`, so where the object *starts*
+matters. If a file's rodata only lines up when the object begins earlier than the code you
+decompiled, extend the C file backwards and pull the earlier functions in with `INCLUDE_ASM`
+(splat moves each one's jump table into its generated .s file). `src/battle/btl_seq.c` is the
+example: its code starts at 0x216AC0 but the object starts at 0x215540.
+
+## Placeholder names across modules
+After adding names, run `python3 scripts/apply_names.py`: it rewrites `func_XXXXXXXX` /
+`D_XXXXXXXX` in `src/` and `include/` to the current names, so one module's rename does not
+leave another module calling a symbol that no longer exists.
