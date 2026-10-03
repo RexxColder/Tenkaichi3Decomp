@@ -29,6 +29,7 @@ Still in the tree but NOT linked or committed:
 | btl_act_d.c | 0x1EE058..0x1F1930 | 18/18; 2 jump tables at 0x2EFA40, .lit4 0x2FD988..0x2FDB44. `BtlAct_DashMoveHandler` (0xF) vs btl_act_e's `BtlAct_DashHandler` (0x1A): no clash now |
 | btl_act_e.c | 0x1F1930..0x1F5460 | 20/20; 5 jump tables 0x2EFB20..0x2EFC80, .lit4 0x2FDB44..0x2FDD08. 0x1A is `BtlAct_DragonDashHandler`; a comment in btl_act_d.txt about the old name is stale |
 | btl_act_f.c | 0x1F5460..0x1F8C00 | 25/25; 11 jump tables 0x2EFC80..0x2F0780, .lit4 0x2FDD08..0x2FDDAC; a slice of a larger object |
+| btl_tech_b.c | 0x20F0E8..0x2129C8 | 182/182; 3 jump tables 0x2F18F0..0x2F19CC, .lit4 0x2FE114..0x2FE1C0. Names ~80 functions other files call as `func_`: run apply_names after listing its symbol file |
 | btl_act_j.c | 0x203168..0x204E78 | 28/28; 9 jump tables 0x2F11D0..0x2F15F8, .lit4 0x2FE070..0x2FE078 |
 
 `scripts/apply_names.py` reads every file in config/symbols/, including those of agents whose
@@ -54,6 +55,8 @@ findings in `docs/systems/`, then integrate (or hand the batch to an integration
 
 ## Known follow-ups
 
+- Rename the numbered stat curves (`BtlStat_GetScale4..10`) to the meanings in combat.md.
+- Check whether `BtlFx_SpawnDamageSparks` is really the ki blast launcher (it draws `BtlChar_RandF`).
 - Find the writer of the previous action (fighter +0x950), or confirm the branches on it are dead.
   Five handlers branch on it (0xF, 0x19, 0x1A, 0x20..0x23, 0xFC). `BtlAct_Update` (matching)
   does not store it and no `sw ..., 0x950(reg)` exists in the remaining assembly; a store

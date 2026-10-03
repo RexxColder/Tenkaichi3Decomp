@@ -477,3 +477,60 @@ All 20 functions match per function; not linked yet. Names and game terms are gu
   `x / 180 * pi` for some values); the float pool comparison found it, fdiff could not.
 - Handlers have mixed return types: some only match as `void` (their leave phase ends in a
   tail call), others as `int` with no return.
+
+## Character parameters: ki blasts, movement, techniques, skills (`btl_tech_b.c`, 0x20F0E8..0x2129C8)
+
+All 182 functions match per function; not linked yet. Arithmetic and layouts verified; game
+terms inferred. Full field tables are in `include/battle/btl_tech_b.h`.
+
+The file is pure readers of the character's parameter file through the battle object, with
+abilities and stat curves applied:
+
+| Object field | Table | Prefix |
+|---|---|---|
+| +0x91C | general parameters | `BtlParam_*` |
+| +0x924 | 13 ki blast records of 0x34 bytes | `BtlKiBlast_*` |
+| +0x928 | movement table | `BtlMoveParam_*` |
+| +0x92C | techniques, slots 2..4 (structure of arrays indexed by slot - 2) | `BtlSuper_*` |
+| +0x930 | skills, slots 0..1 (structure of arrays) | `BtlSkill_*` |
+
+File units: speeds in 10 km/h; turn rates in degrees per second; times in seconds; damage in
+health points; damage and knock-back stored as totals and divided by the hit count.
+
+| Slot | Term (inferred) | Cost | Damage scaling |
+|---|---|---|---|
+| 0, 1 | Blast 1 skills | blast stocks (one less with ability 0x15, at least 1) | none |
+| 2, 3 | Blast 2 | ki (halved by ability 0x2B) | curve row 9; +20% in the powered-up mode |
+| 4 | Ultimate | ki | curve row 10; +20% with ability 0x6F |
+
+Technique damage (`BtlSuper_GetDamage`), each step rounded up to 10: base x curve (/ hit count
+for per-hit); quick form x0.3; powered-up +20% (not slot 4); flag 0x9C +10%; full-charge
+scaling by fighter +0xE44; some per-technique-id special cases; ability 0x77 replaces it with
+999999.
+
+Skills carry: four stat levels, a lifetime kind, a duration in seconds, a health change as a
+percent of maximum, a ki change.
+
+Ki blasts: 13 kinds. 0, 4, 8 are the uncharged shots; 1..3, 5..7, 9..11 their charged forms by
+the charge at fighter +0xDEC (under 0.3, under 0.9, above); 12 is the volley (action 0x95).
+Damage = record x curve row 6, +50% with ability 0xA, halved with 0xB. Ki cost doubled by
+ability 0x2A, halved by 0x29; an absorber gains three times the cost.
+
+Movement: speed = table[kind] x 10 km/h x curve row 8, capped at 4000 km/h; the dash kinds are
+also multiplied by the dash-turn bonus (pose +0xAC). Ki drain per frame = table value / 30.
+
+Stat curve names now established (old -> meaning): `GetScale4` melee damage, `GetScale5` ki
+cost of guarding, `GetScale6` ki blast damage, `GetScale8` movement speed, `GetScale9` Blast 2
+damage, `GetScale10` Ultimate damage. So stat 0 is attack, stat 2 is speed and stat 3 is blast
+(4 and 5 read from btl_tech_a.c, not verified here).
+
+Fighter +0x15E8: three pointers (per technique slot) to cutscene placement tables,
+`{x, y, z, yaw}` five per stage.
+
+No random draws; nothing depends on player 0. `BtlGame_Init` reads the split-screen setting
+(HUD only).
+
+Suspected misname (inferred): `BtlFx_SpawnDamageSparks` in btl_char_fx_b.c reads the current
+ki blast's kind, type, lifetime, speed, turn rate and hit count: it looks like the ki blast
+launcher, not hit sparks. If so its three `BtlChar_RandF` draws are the blast's spread, and
+simulation-relevant.
