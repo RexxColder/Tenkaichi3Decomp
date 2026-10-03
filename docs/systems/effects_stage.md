@@ -62,6 +62,10 @@ and the stage update at 0x243568).
 | 0x13EA00..0x13F3D8 | eft_e.c | **stage-change transition `EftBurst_*` (scene layer 4)**: demo-camera animation, a model, 350 particles on a fixed schedule | no state writes, but **the stage swap waits on it** (150 unpaused frames) | libc `rand()` every unpaused frame | (eft_e 47/49) |
 | 0x13F430..0x140338 | eft_e.c | stage particle emitters `EftSteam_*` (layer 0 sub-task 5; also used by the geysers) | no | VU0 register: 7 per new particle; emission is not gated by pause | |
 | 0x140338..0x142CA0 | eft_e.c | water surface `EftWater_*`, first half (splashes, wakes; continues in eft_f) | one bit: sets flag 0x400 on a hit record's task (inferred private) | libc `rand()`: **one per eligible hit record per frame**, 61 / 44 per splash, 19 / 6 per frame per wake; **all creation is off in split screen** | |
+| 0x157398..0x158438 | eft_k.c | type 2 `EftShotTech*` item and manager callbacks, target point by aim kind | **yes**: fires shots (eft_j), sets flag 0xA8 at its end, camera cut | none | (eft_k 63/63) |
+| 0x158438..0x159130 | eft_k.c | **technique events `EftTechEvt*`** | **yes**: event bits for every technique module; **sets fighter flag 0xA7 ("fire")** | none | |
+| 0x159130..0x15AB38 | eft_k.c | type 8 `EftObjTech*`: one thrown or held projectile with optional model and rings | **yes**: hit record per frame, homing, flag 0xA8, stops the technique timers on a hit | none | |
+| 0x15AB38..0x15B550 | eft_k.c | first helpers of type 9 `EftRushShot*` (continues in eft_l) | hit record yes; models visual | libc `rand()`: 13 or 15 per model at placement, 4 at release (appearance) | |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -227,3 +231,29 @@ what btl_scene.c calls a record's "definition flags" is the owning task's event 
 - (prelude, to verify) `EftBurst_Update` also needs the HI/LO hazard handled: the agent got a
   match with `.set mips64` instead of `.set mips4` in `__gp_forget` on a private prelude copy;
   it did not test other files with that change.
+
+## Technique events and timers (simulation; `eft_k.c`, verified)
+
+- `gEftTechEvt` holds one 16-byte entry per fighter, indexed by object id: an `events` word
+  cleared every frame and a `requests` word. `EftShot_TestBits(objId, mask)` reads `events`;
+  every technique module branches on it.
+- A timeline task per technique in progress fills the events from the fighter's animation
+  event attributes (0x200..0x4000 and 0x200000..0x800000 become events 2 start, 4 fire, 8 end,
+  0x10 / 0x20 / 0x40 / 0x80 / 0x100 / 0x200 module-specific; 0x400 = aborted), or, for some
+  definitions, from six frame numbers stored in the definition.
+- A rush technique's timeline reads every fighter's animation attributes and writes each
+  fighter's own events, so the victim's animation drives effects too.
+- **Fighter flag 0xA7 ("fire", which ends a technique's charge loop) is set here**: a fire timer
+  starts at event START and, when it runs out, the effect scene sets the flag. An end timer
+  (definition life - 1) starts at event FIRE; while it is at 0 the END event is raised every
+  frame. Other modules can STOP (freeze both timers, e.g. on a hit or a beam clash), RESTART or
+  EXPIRE them.
+- **Hazard for a headless or re-simulated frame: both timers are stepped, and flag 0xA7 is
+  set, in the task's DRAW callback** (`EftTechEvtTask_Draw`; a guard bit makes it run once per
+  frame however many views are drawn). A frame that skips `BtlScene_Draw` does not advance
+  them. A port must call that step from the update.
+- Order: the events task is first in the layer-1 list; each frame it clears all words, the
+  timelines fill them, then character 0's technique tasks read them, then character 1's.
+  `EftHit_ClashTech` stops the timers of objects 0 and 1 by literal id.
+- The class table at 0x2C3700 is `{manager class, item class, 0}` by effect type + 1. Types
+  known: 0 blast, 2 shots, 3 sweep, 5 multi, 6 prop shot, 7 follow, 8 object, 9 rush shot.

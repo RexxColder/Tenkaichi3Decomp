@@ -130,6 +130,13 @@ the music stream, and a raw pad-0 button wait. `Talk` also starts and stops lip 
 fighter object sub-state) from the stream's status. Online story battles would need fixed
 durations in place of those waits. Versus modes run no scripts.
 
+## Simulation inside draw callbacks (verified)
+
+`EftTechEvtTask_Draw`, a draw callback of the effect scene, steps the technique fire and end
+timers and sets fighter flag 0xA7 (the flag that ends a technique's charge loop). It is guarded
+to run once per frame, but a frame that does not call `BtlScene_Draw` does not advance it. A
+headless or rollback build must run that step from the update. See systems/effects_stage.md.
+
 ## Camera
 
 - Movement is relative to the fighter camera's `yaw` (fighter +0x4A0), not to the camera
