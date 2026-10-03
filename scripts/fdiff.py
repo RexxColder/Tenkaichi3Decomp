@@ -5,9 +5,11 @@ Usage: scripts/fdiff.py src/sys/heap.c [function ...]
 
 Relocated fields (jump targets, %hi/%lo/%gp_rel immediates) are masked out, so a function can be
 checked before the file is linked in. The linked build's byte comparison is the final word.
-Run after `ninja`: target addresses come from the symbols in build/*.elf.
+Target addresses come from the symbol files in config/, so a newly added name works without
+re-running configure. The original bytes are read from build/*.elf, so run `ninja` once first.
 """
 
+import re
 import struct
 import subprocess
 import sys
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BINUTILS = "tools/binutils/mips-ps2-decompals-"
 CC = "tools/ee-gcc2.96/bin/ee-gcc"
 ELFS = ["build/SLUS_216.78.elf", "build/DBZP.elf"]
+OVERLAY_BASE = 0x334C00  # DBZP.BIN load address
 
 # Bits of an instruction word that a relocation fills in.
 RELOC_MASK = {
@@ -36,8 +39,13 @@ def gflag(src):
     return "-G0" if str(src).startswith("src/cri/") else "-G8"
 
 
+def scratch(src):
+    """Per-source scratch folder, so several runs can go in parallel."""
+    return ROOT / "build" / "fdiff" / "_".join(Path(src).with_suffix("").parts)
+
+
 def compile_c(src):
-    out = ROOT / "build" / "fdiff" / Path(src).with_suffix(".o").name
+    out = scratch(src) / Path(src).with_suffix(".o").name
     out.parent.mkdir(parents=True, exist_ok=True)
     asm = out.with_suffix(".s")
     g = gflag(src)
@@ -77,14 +85,22 @@ def reloc_masks(obj):
 
 
 def text_bytes(obj):
-    raw = (ROOT / "build" / "fdiff" / "text.bin")
+    raw = obj.parent / "text.bin"
     sh(BINUTILS + "objcopy", "-O", "binary", "-j", ".text", str(obj), str(raw))
     return raw.read_bytes()
 
 
 def targets():
-    """name -> (address, elf) for every function in the linked originals."""
+    """name -> (address, elf) from the symbol files, falling back to the linked ELFs' symbols."""
     found = {}
+    files = sorted((ROOT / "config").glob("symbol_addrs*.txt")) + \
+        sorted((ROOT / "config" / "symbols").glob("*.txt"))
+    for path in files:
+        for line in path.read_text().splitlines():
+            m = re.match(r"(\w+) = 0x([0-9A-Fa-f]+);", line)
+            if m:
+                addr = int(m.group(2), 16)
+                found[m.group(1)] = (addr, ELFS[1] if addr >= OVERLAY_BASE else ELFS[0])
     for elf in ELFS:
         if not (ROOT / elf).exists():
             continue
@@ -105,8 +121,8 @@ def disasm(elf_or_obj, start, size, extra=()):
     return lines
 
 
-def original_words(elf, addr, size):
-    raw = ROOT / "build" / "fdiff" / "orig.bin"
+def original_words(tmp, elf, addr, size):
+    raw = tmp / "orig.bin"
     sh(BINUTILS + "objcopy", "-O", "binary", str(elf), str(raw))
     base = int(sh(BINUTILS + "readelf", "-lW", elf).split("LOAD")[1].split()[1], 16)
     data = raw.read_bytes()[addr - base: addr - base + size]
@@ -134,7 +150,7 @@ def main():
             continue
         addr, elf = known[name]
         mine = struct.unpack(f"<{size // 4}I", text[off:off + size])
-        orig = original_words(elf, addr, size)
+        orig = original_words(obj.parent, elf, addr, size)
         bad = [i for i, (m, o) in enumerate(zip(mine, orig))
                if (m ^ o) & ~masks.get(off + i * 4, 0) & 0xFFFFFFFF]
         if not bad:
@@ -143,7 +159,7 @@ def main():
         ok = False
         print(f"{name}: {len(bad)} of {size // 4} instructions differ")
         a = disasm(elf, addr, size)
-        b = disasm(obj, off, size, ("-r",) if False else ())
+        b = disasm(obj, off, size)
         for i in range(max(len(a), len(b))):
             left = a[i] if i < len(a) else ""
             right = b[i] if i < len(b) else ""

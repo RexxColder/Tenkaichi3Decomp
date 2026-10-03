@@ -13,6 +13,8 @@ extern s32 gHeapDebugValue;
 extern u8 gHeapDebugFlag;
 extern s32 gHeapDebugUnused;
 extern u8 D_3BE71C[];
+extern s32 D_002FF070[HEAP_COUNT];
+extern s32 D_002FF078[HEAP_COUNT];
 
 void Heap_ReportBadFree(void);
 
@@ -328,4 +330,24 @@ s32 Heap_GetTotalSize(void) {
 
 /* Called by Heap_Free for a pointer that is not a live block. The report itself was compiled out. */
 void Heap_ReportBadFree(void) {
+}
+
+HeapBlock *Heap_GetStart(s32 heap) {
+    return gHeapStart[heap];
+}
+
+HeapBlock *Heap_GetEnd(s32 heap) {
+    return gHeapEnd[heap];
+}
+
+s32 Heap_GetSize(s32 heap) {
+    return gHeapSize[heap];
+}
+
+s32 Heap_GetParam70(s32 heap) {
+    return D_002FF070[heap];
+}
+
+s32 Heap_GetParam78(s32 heap) {
+    return D_002FF078[heap];
 }

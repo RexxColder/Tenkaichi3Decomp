@@ -345,3 +345,9 @@ Heap_GetFreeSize = 0x00255580; // type:func
 Heap_GetUsedSize = 0x00255600; // type:func
 Heap_GetLargestFree = 0x00255690; // type:func
 Heap_GetTotalSize = 0x00255710; // type:func
+// 0x255730..0x2557A8: one-line getters returning gHeapStart[i], gHeapEnd[i], gHeapSize[i] and two unnamed per-heap tables.
+Heap_GetStart = 0x00255730; // type:func
+Heap_GetEnd = 0x00255748; // type:func
+Heap_GetSize = 0x00255760; // type:func
+Heap_GetParam70 = 0x00255778; // type:func // guess
+Heap_GetParam78 = 0x00255790; // type:func // guess

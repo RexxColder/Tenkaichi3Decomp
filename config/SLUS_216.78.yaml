@@ -85,7 +85,7 @@ segments:
     subsegments:
       - [0x000000, asm, cod/000000] # .text
       - [0x154E28, c, sys/heap]
-      - [0x155730, asm, cod/155730]
+      - [0x1557A8, asm, cod/1557A8]
       - [0x173CA0, c, cri/adxt]
       - [0x173CF0, asm, cod/173CF0]
       - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
