@@ -88,6 +88,7 @@ Each of these is a way two peers could diverge with identical inputs.
 | What | How it reaches the simulation | Status |
 |---|---|---|
 | **Load completion** | A transformation, fusion or member switch pushes a character-change request; **time is stopped (roster +0x274) on every frame that ends with a request active**, i.e. for as long as the model takes to load. Fighter generators, the frame counter, gauges and input are frozen meanwhile. The change itself is applied in `BtlChars_OnModelLoaded` when the load job ends; battle flags 0x800 / 0x1000 / 0x2000 also suspend updates while loads run | verified |
+| **Load completion** | The self-destruct technique pushes a character-change request and waits on `BtlChange_IsLoadedFor` before firing; the partner object (second model for fusion / team techniques) exists only once its load job ends and handlers branch on it | verified |
 | **Load completion** | The AI skips any frame on which an object load job is running | verified |
 | **Controller removal** | `PadWatch` debounces pad presence; the battle pause check sets the pause flag when a required pad is missing (not in mode 7) | watcher verified; pause path read from disassembly |
 | **Voice playback** | The battle sequence waits on `Voice_IsStopped` (with a 10 s timeout) in the intro and win talk; story scripts wait on voices too | verified |

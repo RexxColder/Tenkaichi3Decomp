@@ -353,3 +353,48 @@ Character parameter block (object +0x91C; offsets read from accessor disassembly
 transformation targets, +0x9C[4] their blast cost, +0xA0[4] sequence, +0xA4[4] kind, +0xAC
 default index, +0xAE[3] fusion cost, +0xB1[3] fusion sequence, +0xB4[3] fusion result,
 +0xBA[3][4] fusion partners.
+
+## Technique actions, attacker side (`btl_act_f.c`, 0x1F5460..0x1F8C00; verified unless marked)
+
+Correction: actions 0x106..0x11A are **not hit reactions**. They are the attacker's actions for
+the class 2..4 techniques (the two Blast 2 moves and the Ultimate), three ids per handler, the
+class being the position in the triple. `BtlAct_IsDamageId` (0x105..0x132) is therefore
+misnamed: it means "is a technique action id". The hit-reaction actions are the ones in the
+reaction table above (0xB8..0xE0 and 0x131..0x139). Handler names and the game terms below are
+guesses from the animation and flag sequences; not linked yet.
+
+| Actions | Handler | Technique type |
+|---|---|---|
+| 0x106..0x108 | beam | 0, 7 |
+| 0x109..0x10B | warp beam (teleports in front of the opponent before firing) | 9 |
+| 0x10C..0x10E | long beam (two firing stages) | 1 |
+| 0x10F..0x111 | charge (fires on button release or when the charge time runs out) | 2 |
+| 0x112..0x114 | repeat fire (each shot costs health, cannot kill the user) | 3 |
+| 0x115..0x117, 0x118..0x11A | quick forms: the powered-up combo finishers, 30% damage, no ki cost (inferred) | |
+
+- Animations: 0x22 per class from id 0x105: +0 start, +1 charge loop, +2 fire, +3 firing loop,
+  +4 / +5 second stage, +6 end, +7 / +14 aimed up / down variants, +0x17.. rush chain steps.
+- Loops end on held flags 0xA7 (fire), 0xA8 (beam over), 0xA9 (second stage over). The normal
+  setter is outside the fighter code (inferred: the effect modules); the handler raises them
+  itself after 150 frames, so no loop lasts more than 5 s.
+- **Hit-stop**: flags 0x125 / 0x126 are one-frame requests; the other fighter is frozen one
+  frame per request. Level 2 (0x125) on every frame of the start animation and charge loop;
+  level 1 (0x126) during the fire animation up to its 0x400 event. The charge and quick forms
+  never request it. Flag 0x127 (exempt at level 1) is raised every frame by the user; flag
+  0x128 accompanies every request.
+- A beam that catches moves to other actions: attacker flag 0x73 (set by
+  `BtlColl_ApplyRushHit`) requests `class + 0x128`; 0x72 (`BtlColl_StartThrow`) requests
+  `class + 0x12B`.
+- Rush damage (`BtlSuper_SetupRushDamage`): per hit = total / (hits + 5), capped at 15000,
+  rounded up to 10; +50% with flag 0xA0.
+- Control returns when the end animation finishes (request action 0xB, or 0xD9 by a flag).
+- On leaving, fighter +0xE40 is set to a per-technique cooldown in frames (blocks technique
+  input while positive).
+- **Load dependency**: the self-destruct variant pushes a character-change request and its
+  charge loop waits on `BtlChange_IsLoadedFor` before firing.
+- No random draws; no player-0 dependence.
+- `BtlAnim_AdvanceThen` takes `(chr, next, f32 blend, s32 flags)`; `btl_char_status.h` declares
+  the last two the other way round (same registers, so harmless until fixed).
+- "Strike" / "rush" in `btl_char_coll.h` for slots 0..1 / 2..4 is loose: slots 2..4 include
+  plain beams. Fighter +0x1594 is the class whose technique button is watched this frame, not
+  a switch prompt.
