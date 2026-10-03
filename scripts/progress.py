@@ -16,7 +16,6 @@ GAME_RANGES = {
     "SLUS_216.78": [(0x100258, 0x269228), (0x2BD230, 0x2BF6B0)],
     "DBZP": [(0x334C00, 0x3B0E04)],
 }
-SYMBOL_FILES = ["config/symbol_addrs.txt", "config/symbol_addrs_dbzp.txt"]
 
 
 def in_ranges(addr, ranges):
