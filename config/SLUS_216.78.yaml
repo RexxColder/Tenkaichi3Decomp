@@ -21,6 +21,7 @@ options:
   ld_bss_contains_common: True
 
   create_asm_dependencies: True
+  generate_asm_macros_files: False
 
   find_file_boundaries: False
 
@@ -81,6 +82,8 @@ segments:
     align: 128
     subsegments:
       - [0x000000, asm, cod/000000] # .text
+      - [0x173CA0, c, cri/adxt]
+      - [0x173CF0, asm, cod/173CF0]
       - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
       - [0x1C3380, data, cod/1C3380] # .text_nop
       - [0x1C3388, data, cod/1C3388] # .ctors
@@ -88,6 +91,8 @@ segments:
       - [0x1C3400, data, cod/1C3400] # .data
       - [0x1EB358, data, cod/1EB358] # .eh_frame
       - [0x1EB380, rodata, cod/1EB380] # .rodata
+      - [0x1F4490, .rodata, cri/adxt]
+      - [0x1F44C0, rodata, cod/1F44C0]
       - [0x1FC280, lit4, cod/1FC280] # .lit4
       - [0x1FE880, sdata, cod/1FE880] # .sdata
       - { type: sbss, vram: 0x002FF180, name: cod/002FF180 } # .sbss

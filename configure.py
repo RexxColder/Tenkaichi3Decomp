@@ -22,6 +22,13 @@ ROM_PAD_TO = 0x2FF180
 
 AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G0 -no-pad-sections -Iinclude"
 
+# The game was built with Sony's ee-gcc 2.96 at -O2. Spike's code uses the default
+# small-data threshold (-G8); the CRI middleware was built with -G0.
+CC = "tools/ee-gcc2.96/bin/ee-gcc"
+CC_FLAGS = "-O2 -Iinclude"
+G_FLAGS = {"src/cri": "-G0"}
+G_DEFAULT = "-G8"
+
 
 def run(cmd, **kwargs):
     print("$", " ".join(shlex.quote(str(c)) for c in cmd))
@@ -49,8 +56,11 @@ def split():
 
 
 def write_ninja():
-    asm = sorted(p.relative_to(ROOT) for p in (ROOT / "asm").rglob("*.s"))
-    objs = [Path("build") / p.with_suffix(".o") for p in asm]
+    # asm/nonmatchings holds per-function files pulled in by INCLUDE_ASM, not standalone units.
+    asm = sorted(p.relative_to(ROOT) for p in (ROOT / "asm").rglob("*.s")
+                 if "nonmatchings" not in p.parts)
+    srcs = sorted(p.relative_to(ROOT) for p in (ROOT / "src").rglob("*.c"))
+    objs = [Path("build") / p.with_suffix(".o") for p in asm + srcs]
     elf = f"build/{BASENAME}.elf"
     rom = f"build/{BASENAME}.rom"
     ld_scripts = [f"build/{BASENAME}.ld", "build/undefined_funcs_auto.txt",
@@ -65,6 +75,14 @@ def write_ninja():
         "rule as",
         "  command = $as $as_flags $in -o $out",
         "  description = AS $in",
+        "",
+        # ee-gcc's driver crashes when it runs its own assembler on a modern host, so compile
+        # to assembly and assemble with the modern gas. gcc_prelude.inc makes `move` encode
+        # as daddu, the way Sony's assembler did.
+        "rule cc",
+        f"  command = {CC} {CC_FLAGS} $gflag -S $in -o $out.s && "
+        "$as $as_flags $gflag -mno-pdr include/gcc_prelude.inc $out.s -o $out",
+        "  description = CC $in",
         "",
         "rule ld",
         f"  command = $ld -EL {' '.join('-T ' + s for s in ld_scripts)} -Map $out.map -o $out",
@@ -81,6 +99,11 @@ def write_ninja():
     ]
     for src, obj in zip(asm, objs):
         out.append(f"build {obj}: as {src} | include/macro.inc include/labels.inc")
+    headers = " ".join(str(p.relative_to(ROOT)) for p in sorted((ROOT / "include").rglob("*.h")))
+    for src, obj in zip(srcs, objs[len(asm):]):
+        gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d + "/")), G_DEFAULT)
+        out.append(f"build {obj}: cc {src} | {headers} include/gcc_prelude.inc")
+        out.append(f"  gflag = {gflag}")
     out += [
         f"build {elf}: ld | {' '.join(map(str, objs))} {' '.join(ld_scripts)}",
         f"build {rom}: rom {elf}",

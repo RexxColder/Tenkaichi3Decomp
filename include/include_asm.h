@@ -24,9 +24,9 @@
 #endif
 
 #if INCLUDE_ASM_USE_MACRO_INC
-__asm__(".include \"/home/z3/Desktop/decomp/bt3/include/macro.inc\"\n");
+__asm__(".include \"macro.inc\"\n");
 #else
-__asm__(".include \"/home/z3/Desktop/decomp/bt3/include/labels.inc\"\n");
+__asm__(".include \"labels.inc\"\n");
 #endif
 
 #else

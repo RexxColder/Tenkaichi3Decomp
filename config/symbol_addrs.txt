@@ -110,3 +110,7 @@ htCiReqRd = 0x0028BE98; // type:func
 
 // newlib, identified by its "bug in vfprintf: bad base" string
 _vfprintf_r = 0x002AB2B0; // type:func
+
+// CRI, named from how adxt_GetSfreq uses them (inferred from the public ADX API, not from a string)
+ADXERR_CallErrFunc1 = 0x00289F50; // type:func
+ADXSJD_GetSfreq = 0x002703C8; // type:func
