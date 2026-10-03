@@ -110,6 +110,9 @@ What Sony's assembler did with an unfilled `jal` / `j $31` / branch, and the pre
   `btl_ai_cond.c`), against `BtlObj_Get` and `Pad_GetStatus` (`lw` / `jr ra` / `nop`: bss).
   If a function is off by exactly such a swapped pair, define the table in the file (or move the
   function into the file that has it) instead of touching the prelude.
+`__gp_forget` uses `.set mips64` (it was `.set mips4`): under mips4 the assembler still kept the HI/LO hazard
+nop after `mfhi` / `mflo` when an `mtc1` follows (`x % 360` converted to float, `EftBurst_Update`); under mips64
+it does not. Changing it altered no other linked object (all compiler output was reassembled with both).
 Known gaps, to check first if a function is off by a swapped or extra instruction next to a
 branch: a single-instruction load, store or `la` (`lw $2,8($sp)`) right after a compiler-filled
 delay slot and in front of an unfilled branch is still moved (their size is not measured by the
@@ -199,6 +202,31 @@ follow), check first that the new name is not used anywhere, then reconfigure an
   `1.41421356f`, `1.1666667f`.
 - An object's `.lit4` and `.rodata` are each contiguous. If a function left in assembly owns
   constants in the middle of a file's pool, the file has to be split around it.
+- More merge mechanics (effect batch). When the second part's HEADER (not a local `extern`) declares a name the
+  first part already declared with another type, hide the header's declaration and cast afterwards:
+  `#define gEftBurst gEftBurst_eDecl` / `#include "battle/eft_e.h"` / `#undef gEftBurst` /
+  `#define gEftBurst ((EftTransWork *)gEftBurst)`. A plain cast also works on the left of an assignment (this
+  compiler accepts a cast as an lvalue); a global that is a structure takes `(*(T *)&name)`; a structure tag
+  both parts define takes `#define EftView EftViewE` at the top of the second part. A function that the second
+  part DEFINES and the first part declared with other types cannot be a cast macro (it would rewrite the
+  definition): give the first part an aliased declaration,
+  `extern void f_e(A *) __asm__("f");` / `#define f f_e`, and `#undef f` at the top of the second part
+  (`src/battle/eft_e.c`, `src/battle/eft_d_b.c`). A file can also be cut in two and its head appended to the
+  previous file; both pieces then carry a copy of the preamble.
+- Placing a new file's data without trusting notes: link the `c` subsegment first, build with `ninja -k 0`, and
+  search each object's `.rodata` / `.lit4` / `.sdata` bytes in the original image (relocated words masked) in
+  address order. Every file of the effect batch was placed that way; the gaps between the hits are the constants
+  and tables of INCLUDE_ASM functions and stay assembly chunks. Do it again after the `.rodata` subsegments are
+  listed: only then does splat write the jump tables into the INCLUDE_ASM .s files and the `INCLUDE_RODATA` .s
+  files at all (before that the file does not assemble, or its `.rodata` is too small).
+- VU0 macro code cannot be INCLUDE_ASM: in per-function files splat writes the accumulator operand as `ACC`
+  (in the big chunks as `$ACC`), which the assembler rejects. Cut the C file around such functions and leave
+  them an `asm` chunk (`stg_a.c` / `cod/140C68` / `stg_a_b.c`).
+- A C file may call a function by a name that exists only in a symbol file that is not listed yet (another
+  agent's): it links only by the placeholder. Check each undefined reference against the `jal` target in the
+  original, never by the name's look.
+- The private copy of `apply_names.py` should select the symbol files by "listed in the yaml", and skip the
+  SOURCE files of agents that are still working by stem, not by prefix (stems of different waves share prefixes).
 
 ## Scratch files
 Each agent uses its own subfolder for scratch scripts. Run Python scratch files with

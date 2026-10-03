@@ -33,6 +33,13 @@
   (`BtlAct_SuperRushDashHandler` only matches in a file with the functions before it; which one it needs
   is not known); 0x1FC598..0x203168 is one object (`BtlAct_SwitchArriveLand`, `BtlAct_KoSwitchFlyIn` need
   `BtlActChange_SetFlags` / `BtlActChange_Finish`), and `BtlAct_Request` (0x1E0290) is not in it.
+- Effect and stage batch: 0x13C300..0x13F430 is one object (`EftBurst_Update` needs the particle initialisers
+  above it; the two caller-less tests at its end are its non-static inlines); 0x140338..0x147050 is one object
+  (`EftWaterRing_Update` needs `EftWater_GetSurfaceY`), and nothing says where it starts (the steam emitters at
+  0x13F430 are linked in the same file); 0x15AB38..0x15C728 is in one object with what precedes it
+  (`EftRushShot_UpdateAttached` needs `EftRushShot_UpdateModels`). Against a merge: `EftBlast_PostUpdate`
+  (eft_j.c) stops matching when eft_i.c is in front of it in one file, so there is a boundary in
+  0x1532A0..0x155588 or before. Not tested: eft_c + eft_d, eft_g + eft_h + eft_i, eft_l_d + eft_m, the stage files.
 - `BtlAct_SuperRushFollowHandler` (btl_act_f.c): whether its jump-table dispatch comes out in the
   original form depends on unrelated declarations earlier in the translation unit; it matches with a
   redundant prototype in front of it. What state of the compiler decides it is not understood.
@@ -79,6 +86,29 @@ Still pulled from assembly inside linked files:
 | `BtlAct_GuardHandler` | `btl_act_c.c` | 2 of 298: the order of two argument loads in front of one call |
 | `BtlAct_GrabDash` | `btl_act_h.c` | 18 of 146: the original keeps a branch where this compiler makes a conditional move |
 | `BtlCharApi_HasKiBlastType2`, `BtlCharApi_HasKiBlastType3` | `btl_capi_a.c` | same instructions, different block layout of the search loop |
+| `EftHit_SetTaskFlag`, `EftHit_IsStoppedByHit`, `EftHit_ClashTech`, `EftHit_InitMultiHit` | `eft_a.c` | 13 of 29 (order of the by-value vector copy and of the list load); 14 of 24 (two branch-likely kind tests that every C form merges); one instruction (`a` copied to a2 on entry); 3 of 20 (which of v0 / v1 holds the definition) |
+| `EftGfx_LightClutSpecular`, `EftGfx_DrawPolyAvgZ`, `EftGfx_DrawPolyFixedZ`, `EftGfx_DrawPolyAvgZFront`, `EftGfx_DrawPolyScaledZ`, `EftGfx_DrawSprite` | `eft_a.c` | 22 of 198, registers only; the polygon functions walk a pointer to `scr[i - 1][2]` in the original and to `scr[i][2]` here (7 of 115, 20 of 122), plus register allocation and the order of the clamps |
+| `EftPrim_DrawBillboard`, `EftPrim_DrawQuadDepthScaled`, `EftPrim_DrawTriangle` | `eft_b.c` | about 50 of 370 (registers and scheduling of the corners); 8 of 200 (f29 / f30 swapped); 12 of 326 (scheduling of two constant loads) |
+| `EftBubble_EmitBody`, `EftBubble_Add`, `EftGeyser_DrawColumn` | `eft_b.c` | the original does not strength-reduce the bone table index (owns the table at 0x2EC620); 5 of 151 (one store before instead of after the count increment); register allocation throughout (owns the table at 0x2EC6E0) |
+| `EftGeyser_StartSmoke`, `EftGeyser_StartSteam` | `eft_c.c` | 17 of 162 and 19 of 126: the order of the stores that fill the emitter description |
+| `EftSurf_DrawPolyOtClipped`, `EftSurf_DrawTriOt`, `EftSurf_DrawTriDirect` | `eft_d.c` | 458 instructions against 447; two too long; two short (the original keeps a value on the stack) |
+| `EftBurst_DrawQuadRot`, `EftBurst_DrawModel` | `eft_d_b.c` | 22 of 274, all in the prologue (how the two 0x40-byte tables are copied); 561 instructions against 600 |
+| `EftWater_AddSplashFor` | `eft_e.c` | 4 of 110: the square root's argument lives in f12 in the original and f1 here |
+| `EftWater_IsOnScreen`, `EftWater_DrawBillboard`, `EftWater_DrawSprayQuad`, `EftWater_DrawClippedFan` | `eft_e.c` (second part) | inverse branch layout at the end of each case; 23 of 377 (registers of three constants); 126 of 456 (the roll loop counts up in the original); registers almost everywhere |
+| `EftUtil_DrawTri`, `EftStorm_DrawBolts`, `EftStorm_SpawnBolt`, `EftStorm_DrawRainLines` | `eft_g.c` | two instructions swapped; 506 instructions against 636 (the original writes the second sprite twice); three instructions (a branch around `kind = 1`); slt / movn against slt / movz |
+| `EftSmoke_Update`, `EftSmoke_Draw`, `EftBound_BuildWall`, `EftBound_Init` | `eft_g.c` | where the flag word is reloaded; two more float copies and a larger frame in the original; numbering of the saved registers; one store's position |
+| `EftShot_BuildParam`, `EftShot_GetLeadTime`, `EftVolley_Init` | `eft_h.c` | 499 instructions against 502 (address arithmetic shared differently); the original loads each constant into f1 and copies it to f0; 6 of 72 (a repeated load of `slot->param`) |
+| `EftEmit_SpawnType0`, `EftEmit_SpawnType16`, `EftEmit_SpawnType14`, `EftEmit_SpawnType5` | `eft_h.c` | saved-register numbering and a shared tail; 4 of 195 and 4 of 213 (s1 / s2 swapped); 16 of 191 (registers of the resource address) |
+| `EftEmit_SpawnType9`, `EftEmit_SpawnType10`, `EftEmit_SpawnType15`, `EftEmit_SpawnType12`, `EftEmit_Spawn` | `eft_i.c` | 17 of 195, 25 of 207, 52 of 229, 56 of 205: where memset's arguments are set up in the block that fills the argument, and swapped saved registers; `EftEmit_Spawn` 66 of 753 (owns the two jump tables at 0x2EC990 / 0x2EC9B0) |
+| `EftSweep_AddMark`, `EftSweep_UpdateMarks` | `eft_i.c` | a constant the original keeps inside the loop is hoisted here (1, and 1.0f) |
+| `EftBlast_Init` | `eft_j.c` | 9 of 104: registers of three loads that gcse makes one pseudo; matches with `-fno-gcse` |
+| `StgFrustum_Build`, `Stg_FadeByCamDist` | `stg_a.c` | 8 of 164 (one float register swap); 4 of 54 (f0 / f2 swapped) |
+| `StgPart_Animate`, `BtlStage_BreakObj`, `BtlStage_UpdateObjs` | `stg_a_b.c` | 29 of 288 (registers in the interpolation block); the shake section (the original keeps 1500 in a saved register); the original runs out of saved registers and spills |
+| `ScrXfade_StoreHalf`, `ScrXfade_Draw`, `ScrWarp_Draw`, `StgFog_Draw` | `stg_b.c` | 4 of 121 (scheduling before the first call); 25 of 145 (0x700 hoisted into a register in the original); 148 instructions against 150; 156 of 229 (schedule of six constants) |
+| `StgHaze_Draw`, `StgBlur_Draw` | `stg_c.c` | GS packet loops: a second copy of `rows - 1` and reloads from the stack in the original |
+
+`StgVu_RotateZ`, `StgVu_RotateX`, `StgVu_RotateY` (0x240C68..0x240DB8) are hand-written VU0 macro code and stay an
+assembly chunk between `stg_a.c` and `stg_a_b.c` (they cannot be INCLUDE_ASM, see decomp_guide.md).
 
 ## Game structure
 

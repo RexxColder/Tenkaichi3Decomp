@@ -79,6 +79,8 @@ and the stage update at 0x243568).
 | 0x15C728..0x15E5D0 | eft_l_b.c | type 4 `EftRingShot*`: up to 20 blast objects placed on rings around a fighter, or fired as a volley | **yes**: creates, places, aims and delays blast objects; hit records; flags 0xA8 / 0xA9; restarts the technique timer | **`BtlScene_RandF`: one per shot, reaching the shot's launch position (rings) or direction (volley)** | 20/20 |
 | 0x15E5D0..0x15EF18 | eft_l_c.c | `EftAbsorb*`: glow for drain and absorb (fighter requests 0x38 / 0x37) | no | none | 13/13 |
 | 0x15EF18..0x15F728 | eft_l_d.c | speed-line spawners (head of eft_m's module) | no | libc `rand()`: 33+ per call on every frame a fighter has request 0xB; 90 per part burst | 2/2 |
+| 0x22FD10..0x230B38 | stg_d.c | stage debris rigid bodies `StgRigid_*` (pool of 128) | **no**: bodies touch nothing, not even the stage | libc `rand()` x6 and VU0 x4..7 per body launched (the VU0 count depends on the libc bits) | 20/20 |
+| 0x115170..0x115478 | stg_d_b.c | stage object animations `StgModel_*` | no | VU0: one per animated object at every stage reset | 5/5 |
 | 0x23FB20..0x242D28 | stg_a.c | **stage core `BtlStage_*`**: file binding, bounds, zones, start placements, paths, water level, destructible objects; plus frustum and fade helpers (visual) and an unreachable stage viewer | **yes** | libc `rand()`: one in `BtlStage_DestroyObj`, hidden-item case only | 70/78 |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
@@ -342,3 +344,16 @@ blasts, simulation); layer 4 is the stage-change transition.
   techniques; per-id values for the ultimate), read from disassembly.
 
 First wave complete: all sixteen agents reported; every file was re-diffed.
+
+## Stage debris and stage update order (verified, stg_d)
+
+- `BtlStage_Update` order: stage timers, `BtlStage_UpdateObjs`, ambience, `StgModel_UpdateAnims`,
+  `StgRigid_Update`. Not while paused.
+- Debris bodies are visual only. The stage creates them without a hit buffer, which disables
+  their triangle collection, contact forces, under-water drag and rest test: a body is a sphere
+  in free fall with a small drag, kept inside the stage cylinder horizontally.
+- They are stepped 10 fixed sub-steps of (1/60 + 0.00001) s per frame, i.e. 0.167 s of physics
+  per 1/30 s frame, independent of real frame time.
+- Each launched body draws 6 libc `rand()` and 4 to 7 VU0 values, so breaking a stage object
+  advances both shared streams by an amount that depends on the libc bits.
+- The object really starts at 0x22FC40 (two list helpers, still unnamed).

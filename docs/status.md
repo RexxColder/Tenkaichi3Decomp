@@ -5,8 +5,9 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last build verified byte-identical: the commit "Link the action handlers" (34.54% of the main
-  executable's game code in C; 91 C files linked; 2887 functions diff clean; DBZP 0%).
+- Last build verified byte-identical: the first wave of the effect and stage batch linked (47.79% of the
+  main executable's game code in C; 110 C files linked; 3855 functions diff clean; DBZP 0%). Left
+  uncommitted by the integrator: commit after checking.
 - Check at any time: `.venv/bin/python configure.py && ninja`, then
   `cmp build/SLUS_216.78.rom disc/SLUS_216.78.rom` and `cmp build/DBZP.BIN disc/BIN/DBZP.BIN`,
   then `python3 scripts/progress.py`.
@@ -60,19 +61,48 @@ symbol files it reads: while unlisted symbol files exist, run a copy that ignore
 
 ## Effect and stage batch (seventh), brief in docs/briefs_effects_stage.md
 
-Nothing of this batch is linked or committed yet (untracked `eft_*` / `stg_*` files). Findings
-are recorded in docs/systems/effects_stage.md as reports arrive; each file is re-diffed with
-`python3 build/scratch_verify/v.py <stem> keep` (works on a scratch copy when the file has
-INCLUDE_ASM).
+First wave: LINKED, build byte-identical (0x12DD80..0x1637A0 and 0x23FB20..0x248F28, all of it).
+Findings are recorded in docs/systems/effects_stage.md. Files as linked (src/battle/), with what
+changed at integration:
 
-First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x132290, 0x136760,
-0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550,
-0x15F728; `stg_a` 0x23FB20..0x242D28, `stg_b` ..0x245F58, `stg_c` ..0x248F28).
-ALL SIXTEEN REPORTED and are documented in docs/systems/effects_stage.md; every file was
-re-diffed. Nothing of this batch is linked yet. Merge evidence for the integration: eft_c +
-eft_d.c (surfaces, 0x138178..0x13C300); eft_d_b + first part of eft_e (transition,
-0x13C300..0x13F430); rest of eft_e + eft_f (water); eft_g tail + eft_h + eft_i (shot manager
-and effect pack library); eft_j + eft_k + eft_l.c; eft_l_d + eft_m (speed lines).
+| File | Range | Notes |
+|---|---|---|
+| eft_a.c | 0x12DD80..0x132290 | as written; 10 INCLUDE_ASM. `.rodata` 0x2EC4E0, `.lit4` 0x2FC340..0x2FC364; the constants at 0x2FC364..0x2FC398 (its last one and eft_b's first twelve, all owned by INCLUDE_ASM functions) are the assembly chunk `cod/1FC364` |
+| eft_b.c | 0x132290..0x136760 | as written; 6 INCLUDE_ASM. `.rodata` 0x2EC620, `.lit4` 0x2FC398..0x2FC3FC |
+| eft_c.c | 0x136760..0x13A9D0 | as written; 2 INCLUDE_ASM (their constants are in the chunk `cod/1FC3FC`). It called `EftSurf_DrawPolyOtClipped` by a name that did not exist (fixed) |
+| eft_d.c | 0x13A9D0..0x13C300 | as written; 3 INCLUDE_ASM (LIT4_WORD each). Not merged into eft_c.c |
+| eft_d_b.c | 0x13C300..0x13F430 | eft_d_b.c + the head of eft_e.c (the transition task): `EftBurst_Update` now matches in C (needs `EftBurst_InitFlash/InitRing/InitDebris` in its file AND the prelude change below). 2 INCLUDE_ASM. Emits `.sdata` 0x2FE9D0..0x2FE9DC |
+| eft_e.c | 0x13F430..0x147050 | rest of eft_e.c (steam, water) + eft_f.c: `EftWaterRing_Update` now matches in C (needs `EftWater_GetSurfaceY`). 5 INCLUDE_ASM; the last one's constants are in the chunk `cod/1FC708` |
+| eft_g.c | 0x147050..0x14B108 | as written; 8 INCLUDE_ASM; emits one constant (0x2FC714), the rest of its pool is assembly (`cod/1FC708`, `cod/1FC718`) |
+| eft_h.c | 0x14B108..0x14F230 | as written; 7 INCLUDE_ASM |
+| eft_i.c | 0x14F230..0x1532A0 | as written; 7 INCLUDE_ASM |
+| eft_j.c | 0x1532A0..0x157398 | as written; `EftBlast_Init` INCLUDE_ASM |
+| eft_k.c | 0x157398..0x15C728 | eft_k.c + eft_l.c: `EftRushShot_UpdateAttached` matches only in this unit. The two tables at 0x2ECB60..0x2ECBA0 are referenced as externs and stay the assembly chunk `cod/1ECB60` |
+| eft_l_b.c, eft_l_c.c, eft_l_d.c, eft_m.c | 0x15C728.., 0x15E5D0.., 0x15EF18.., 0x15F728..0x1637A0 | as written, no INCLUDE_ASM. eft_l_d.c and eft_m.c not merged (nothing needs it) |
+| stg_a.c | 0x23FB20..0x240C68 | first part of the agent's stg_a.c; 2 INCLUDE_ASM (constants in the chunk `cod/1FE588`) |
+| (assembly `cod/140C68`) | 0x240C68..0x240DB8 | `StgVu_RotateZ/X/Y`: VU0 macro code that cannot be INCLUDE_ASM (splat writes the accumulator operand as `ACC` in per-function files, which the assembler rejects) |
+| stg_a_b.c | 0x240DB8..0x242D28 | rest of stg_a.c with a copy of its preamble; 3 INCLUDE_ASM |
+| stg_b.c, stg_c.c | 0x242D28.., 0x245F58..0x248F28 | as written; 4 and 2 INCLUDE_ASM |
+
+62 functions of this wave stay INCLUDE_ASM (docs/open_questions.md).
+
+Prelude: `__gp_forget` in include/gcc_prelude.inc now uses `.set mips64` instead of `.set mips4`
+(removes the hazard nop the assembler left after `mfhi` in front of `mtc1`). Tested before adoption by
+assembling the compiler output of all 117 linked objects with both preludes: only the object holding
+`EftBurst_Update` differs.
+
+Names: every symbol file of the wave (`eft_a.txt` .. `eft_m.txt`, `stg_a.txt` .. `stg_c.txt`) is listed
+in both yamls; there were no duplicate names or addresses among them. The placeholders in linked files
+(`func_0014AB90`, the `EftBurst_*`, `EftWater_*`, `EftHit_*`, `EftCam_*`, `EftShot_*` callees of
+battle_load.c, btl_scene.c, btl_char_fx.c, btl_char_member.c) were replaced by the name pass.
+stg_a.c used `StgRigid_*` names that exist only in the unlisted `stg_d.txt`; they are back to
+`func_002302F0 / 328 / 398 / 3C8 / 4C0 / 908` until stg_d is linked.
+
+Merges tried and not made: eft_i + eft_j (makes `EftBlast_PostUpdate` differ by one instruction, so
+eft_j is NOT in eft_i's file), eft_j + eft_k and eft_a + eft_b (no function gains). eft_c + eft_d,
+eft_g + eft_h + eft_i, eft_b + eft_c, eft_l_d + eft_m and the stage files were not tried: their
+INCLUDE_ASM functions differ by register allocation or store order, not by the branch-likely /
+delay-slot symptom a merge fixes, and each of these merges needs hand-written cast macros.
 
 Relaunched 2026-10-04 (20 agents, the session limit): one integrator linking eft_a..eft_m and
 stg_a..stg_c, and nineteen decomp agents:
@@ -109,13 +139,10 @@ unassigned first half of the AI sequence file (0x1B4140..0x1B6008).
 
 ## Known follow-ups
 
-- Prelude: test `.set mips64` in `__gp_forget` (HI/LO hazard after mfhi before mtc1) against
-  ALL linked files; needed by `EftBurst_Update` (eft_e).
-- Stale extern names once eft_e is listed: battle_load.c `func_0013F310/3A0/3C8` =
-  `EftBurst_Start/IsBusy/End`; btl_scene.c `func_00140ED0` = `EftWater_UpdateBlast`;
-  btl_char_fx.c `func_00140358/478` = `EftWater_SetWake/AddSplashFor`.
-- When eft_g is listed: `func_0014AB90` in the linked btl_char_fx.c / btl_char_member.c becomes
-  `EftShot_Request`.
+- stg_a.c / stg_a_b.c call the stage rigid bodies by placeholder (`func_002302F0` ..); the name pass
+  restores `StgRigid_*` once stg_d.txt is listed.
+- `EftBlast_Init` (eft_j.c) matches when compiled with `-fno-gcse` (agent's note): look for a source
+  form that defeats gcse there.
 - Stage rigid bodies / destructibles at 0x22FDA0..0x230AA0 have no owner yet: add to the next wave.
 - Done at this integration: the `BtlCtrl_*` renames (PlayMotion, StopMotion, IsMotionPlaying, SetRot,
   Transform, Fuse, UseTechnique, SetMaxPower) with their one-to-one `BtlFacade_*` wrappers, the numbered
@@ -140,7 +167,7 @@ unassigned first half of the AI sequence file (0x1B4140..0x1B6008).
 - `Snd_SendFighters` sends sound handles, not fighter ids; `ADXF_Tell` in
   config/symbol_addrs.txt may be the inner unlocked function. Neither is fixed yet.
 - Functions in linked files that are still INCLUDE_ASM are listed in docs/open_questions.md (seven added
-  by this batch).
+  by the action-handler batch, 62 by the first effect / stage wave).
 - `BtlAi_GetPairRate` / `BtlAi_GetQuadRate` (btl_ai_cond.c): the switch shape that matched
   `AiThink_GetSubRate` may fix them.
 
