@@ -66,6 +66,10 @@ and the stage update at 0x243568).
 | 0x158438..0x159130 | eft_k.c | **technique events `EftTechEvt*`** | **yes**: event bits for every technique module; **sets fighter flag 0xA7 ("fire")** | none | |
 | 0x159130..0x15AB38 | eft_k.c | type 8 `EftObjTech*`: one thrown or held projectile with optional model and rings | **yes**: hit record per frame, homing, flag 0xA8, stops the technique timers on a hit | none | |
 | 0x15AB38..0x15B550 | eft_k.c | first helpers of type 9 `EftRushShot*` (continues in eft_l) | hit record yes; models visual | libc `rand()`: 13 or 15 per model at placement, 4 at release (appearance) | |
+| 0x136760..0x136CC0 | eft_c.c | geyser tail (starts its smoke and steam emitters) | no | libc `rand()`: 2 per geyser creation | (eft_c 68/70) |
+| 0x136CC0..0x137BD0 | eft_c.c | weather particles `EftWeather_*` (30, camera-relative; 15 per view in split screen) | no | libc `rand()`: **3 per particle per drawn view, inside the draw callback** | |
+| 0x137BD0..0x138178 | eft_c.c | **stage effect manager `EftStage_*` = scene layer 0**: creates a child task per kind the stage has | no | none | |
+| 0x138178..0x13A9D0 | eft_c.c | animated stage surfaces `EftSurf_*` (water / lava meshes, palette-lit reflections; continues in eft_d) | no | none | |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -257,3 +261,23 @@ what btl_scene.c calls a record's "definition flags" is the owning task's event 
   `EftHit_ClashTech` stops the timers of objects 0 and 1 by literal id.
 - The class table at 0x2C3700 is `{manager class, item class, 0}` by effect type + 1. Types
   known: 0 blast, 2 shots, 3 sweep, 5 multi, 6 prop shot, 7 follow, 8 object, 9 rush shot.
+
+## Scene layer 0: stage effects (verified, eft_c)
+
+Layer 0 is the stage effect manager. Its init creates one child task per entry of the table at
+0x2C3568 whose stage test passes:
+
+| Kind | Module | Exists when |
+|---|---|---|
+| 0 | scrolling stage sheet | stage pack entry 7 |
+| 1 | animated surfaces | entry 0xD |
+| 2 | weather | entry 0xB (and a stage flag) |
+| 3 | storm (lightning, rain) | entry 0xE |
+| 4 | smoke emitters | a stage effect list |
+| 5 | steam emitters | a stage effect list |
+| 6 | geysers | a stage effect list |
+| 7 | water surface and bubbles | a stage flag and entry 0x12 |
+| 8 | boundary wall | entries 0x15, 0x16, 0x17 |
+
+Everything in layer 0 found so far is visual. Scene layer 1 is the shot layer (techniques and
+blasts, simulation); layer 4 is the stage-change transition.
