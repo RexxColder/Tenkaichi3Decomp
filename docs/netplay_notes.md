@@ -78,6 +78,9 @@ Consequences:
   during a fight, or the AI needs its own stream.
 - The roster's "time stopped" word (+0x274) freezes the two fighter sources, the scene
   generator and input. Its writer is `BtlChange_Update` (see the load-completion row below).
+- Effect modules draw from the fighter generator too: `BtlCharApi_GetDeflectDir` (two
+  `BtlChar_RandF` per call, callers 0x1764E8 and 0x178630). So its sequence depends on effect
+  update order. (verified)
 - The fighter core itself (actions, movement, hits, collision, members, stats, flags) calls no
   generator other than `BtlChar_FrameMod` and, in clash C, `BtlChar_Rand`. (verified)
 
@@ -148,6 +151,12 @@ All game maths is single-precision. Three things need exact reproduction:
 - The PS2's FPU and vector unit do not follow IEEE exactly. Two PCs running the same build
   agree with each other; matching PS2 results bit-for-bit (for replays recorded on a PS2, or
   cross-play) is a separate, harder problem.
+
+## Display offset in positions (verified)
+
+`BtlCharApi_GetPos`, used by the AI and by effects, returns the fighter position plus the
+display offset (hover bob and camera-independent shake at pose +0x20). That offset is therefore
+simulation input wherever those callers act on it.
 
 ## State to save for rollback (inferred from the verified structure)
 

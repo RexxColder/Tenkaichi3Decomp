@@ -31,6 +31,7 @@ Still in the tree but NOT linked or committed:
 | btl_act_d.c | 0x1EE058..0x1F1930 | 18/18; 2 jump tables at 0x2EFA40, .lit4 0x2FD988..0x2FDB44. `BtlAct_DashMoveHandler` (0xF) vs btl_act_e's `BtlAct_DashHandler` (0x1A): no clash now |
 | btl_act_e.c | 0x1F1930..0x1F5460 | 20/20; 5 jump tables 0x2EFB20..0x2EFC80, .lit4 0x2FDB44..0x2FDD08. 0x1A is `BtlAct_DragonDashHandler`; a comment in btl_act_d.txt about the old name is stale |
 | btl_act_f.c | 0x1F5460..0x1F8C00 | 25/25; 11 jump tables 0x2EFC80..0x2F0780, .lit4 0x2FDD08..0x2FDDAC; a slice of a larger object |
+| btl_capi_a.c | 0x204E78..0x207020 | 79/81 (`BtlCharApi_HasKiBlastType2/3` INCLUDE_ASM); .lit4 0x2FE07C..0x2FE0C8; no rodata |
 | btl_capi_b.c | 0x208430..0x20BA80 | 136/136; jump table 0x2F1600, .lit4 0x2FE0CC..0x2FE0E4 (btl_char_api.c's comment naming 0x2FE0D4 as the pool end is wrong) |
 | btl_tech_a.c | 0x20BA80..0x20F0E8 | 124/124; rodata 0x2F1620..0x2F18F0 (3 jump tables + three f32[10] tables), .lit4 0x2FE0E4..0x2FE114. 19 names changed mid-run: check other files for stale ones at link time (list in the agent notes of combat.md / symbol file) |
 | btl_tech_b.c | 0x20F0E8..0x2129C8 | 182/182; 3 jump tables 0x2F18F0..0x2F19CC, .lit4 0x2FE114..0x2FE1C0. Names ~80 functions other files call as `func_`: run apply_names after listing its symbol file |

@@ -62,7 +62,9 @@ related; 0x47..0x6F more moves; **0x70..0xAD table-driven attacks** (one generic
 attack record is roster +0x2C + (id - 0x70) * 0x18, prepared into fighter +0xD1C and latched
 to +0xCF8 at action start); 0xCB..0xEB the airborne family; 0xEC..0xF0 transformation;
 0xF1 / 0xF2 fusion; 0xF3..0xF8 member switch; 0xF9 round reset; 0xFA..0xFC clashes;
-0xFD..0x102 and 0x105..0x13B hit reactions (triples whose position gives class 2 / 3 / 4).
+0xFD..0x102 skill (Blast 1) actions; 0x105..0x132 technique (Blast 2 / Ultimate) actions in
+triples whose position gives class 2 / 3 / 4; 0x12D..0x12F and 0x139..0x13B rush sequences;
+0x130..0x132 clash A. Hit reactions are 0xB8..0xE0 (see the reaction table below).
 
 ### Input conditions (verified)
 

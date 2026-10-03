@@ -229,3 +229,32 @@ The code assumes a fighter's object id equals its side / player index.
 
 Random draws: two `Rand_Range` users (`PickFusionSlot`, `PickTransformSlot`), both without a
 caller in either binary. No pad, camera or sound reads; nothing depends on player 0.
+
+## Fighter API, first part (`btl_capi_a.c`, 0x204E78..0x207020)
+
+79 of 81 functions match per function (two small ki-blast-type loops differ in block layout
+and stay in assembly); not linked yet. Tables are in `include/battle/btl_capi_a.h`.
+
+- (verified) **Object +0xFF4 is the character's height** in world units, copied from the model
+  header with three more floats (+0xFF8..+0x1000). Body centre = `pos.y - height * 0.5`; look
+  height = `height * 0.7`; the scene's "body scale" is `height / 19.35`.
+- (verified) Body radius = parameter float +0xC when positive, else object +0xFF0 x 1.8.
+- (verified) `BtlCharApi_GetPos`, the position the AI and effects use, is the pose position
+  **plus the display offset** (pose +0x20: hover bob and shake); `GetBasePos` is without it.
+- (verified) A model node's world position is the translation of its matrix; `GetNodePos` has
+  232 callers, all effect modules.
+- (verified) Action groups tested by the interface: 0xFD..0x102 skill; 0x105..0x132 technique;
+  0x12D..0x12F and 0x139..0x13B rush sequence; 0x130..0x132 clash A; 0xFA / 0xFC clash B / C;
+  0xEC..0xF8, 0x103, 0x104 changing form or member; 0x33 circle dash.
+- (verified) `BtlCharApi_CalcAimDir` builds the ki blast aim: toward the opponent's node, pitch
+  clamped by the caller, mirrored if it would point away.
+- (verified) **`BtlCharApi_GetDeflectDir` draws twice from the fighter generator
+  (`BtlChar_RandF`) and is called from effect modules**: effect code advances the fighter
+  generator, in effect update order. (inferred) It is the direction of a deflected ki blast.
+- (inferred) Fighter +0xFFC / 90 is a 0..1 level shown as a full-screen overlay (a blinding
+  effect) for object 0, and for object 1 only in split screen.
+- Flag meanings (inferred from setters): 8 action switched this frame; 9 fast vertical flight;
+  0xA dash; 0xC charging ki; 0x8E charging a ki blast; 0x9A skill applied; 0xA1 rush technique
+  connected; 0x12B bound to a new model. 0x11 = in water is verified by its setter.
+- Corrections: the field at fighter +0 is the roster index (player), not the side;
+  `BtlCharApi_TestFlag0F` / `TestFlag05` duplicate `IsOnGround` / `IsLockedOn`.
