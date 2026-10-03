@@ -38,3 +38,25 @@ records, battle objects, rigid bodies or collision. (verified)
 
 Still without an owner: the stage's rigid bodies, debris and destructibles (0x22FDA0..0x230AA0
 and the stage update at 0x243568).
+
+## Module table (filled as agents report)
+
+| Range | File | Module | Simulation? | Random draws | Match |
+|---|---|---|---|---|---|
+| 0x245F58..0x248F28 | stg_c.c | screen effects (haze, tints, blur) | no | libc `rand()` in a draw pass (haze) | 66/68 |
+| 0x15F728..0x1609C8 | eft_m.c | speed lines `EftSpdLine_*` (30 trails, 40 streaks; task table `D_002C3A18`) | no | libc `rand()` in update / spawn | 20/20 |
+| 0x1609C8..0x1637A0 | eft_m.c | aura particles `EftAura_*`, first half (flames from 10 body parts, sparks from 12 emitters; pools shared by all fighters) | no | libc `rand()` in update / spawn, count depends on live particles | 30/30 |
+
+## Notes common to effect modules
+
+- (verified, eft_m) Effect task tables have the shape `{update, init, term, stub, 0, draw}` and
+  are listed in `D_002C3FB0` as pairs `{table, 1}`.
+- (verified, eft_m) The effect code's vector type is 16-byte aligned and passed by value with a
+  callee copy (`ld` / `sd` pairs at function entry); `Vec4` from sys/math3d.h does not
+  reproduce that, so effect files use a local aligned type.
+- (verified) Visual modules read fighters only through the read-only `BtlCharApi_*` getters.
+- (verified) Visual modules consume libc `rand()` at a rate that depends on how many particles
+  are alive and on the pause flag. Since libc `rand()` also reaches simulation (double-KO
+  tie-break, camera shake), a port must give visual effects their own generator.
+- (inferred hazard, eft_m) `EftAura_StepFlames` revisits the same flame forever if the flame
+  pool is exhausted when an expired flame tries to spawn its successor.
