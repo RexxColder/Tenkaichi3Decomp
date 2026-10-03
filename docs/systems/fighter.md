@@ -197,3 +197,35 @@ See combat.md for the mechanics. Corrections to the tables above (all verified b
   real push-out is `BtlMove_PushOut` in the stage-7 pass. The step labelled "gauges" only
   applies queued hits and drains (`BtlMembers_UpdateQueuedDamage`); gauges are updated by
   `BtlAct_UpdateGauges` inside each fighter's action update.
+
+## Fighter API, second part (`btl_capi_b.c`, 0x208430..0x20BA80)
+
+All 136 functions match per function; not linked yet. Full tables are in
+`include/battle/btl_capi_b.h`. Four groups (verified code; names partly guessed):
+
+- **By object id** (66 functions, used by the AI): gauges, current action, whether the fighter
+  can transform / fuse / switch, the opponent's current technique kind and class, clash
+  counters, stun timer, an armour level, and the incoming-blast test. A blast counts as
+  incoming when it is not moving away and `distance - body radius - 10 <= last step * 5`
+  (1.9 for technique records); each is reported once (blast record +0x180).
+- **By player index, `BtlCtrl_*`** (43 functions, used by the battle sequence and the story
+  script): entrance / win / lose poses (one-frame flags 0xEF..0xF2), scripted motions, warps,
+  aura and charge effects, hide / show, gauge edits, forced transformation / fusion / switch /
+  technique, `BtlCtrl_CanAct`, `BtlCtrl_IsInterruptible`.
+- **Loader side**: wrappers the model loader uses to drive the character-change queue.
+- **By side, `BtlSide_*`** (used by the HUD, inferred): gauges, switch target, combo read-out
+  (taken from the opponent's combo counters at +0xD40).
+
+Script units (verified): health in percent of the member's maximum; ki in units of 20000;
+blast in stocks of 100000. "Raise" means at least, "Lower" at most. Every forced action clears
+flag 0xBE and zeroes the stun countdown.
+
+`BtlCtrl_IsMoveDone` is confirmed inverted: it returns 1 while a one-shot motion is still
+playing. A list of proposed renames for the `BtlCtrl_*` and `BtlFacade_*` placeholders
+(PlayMotion, Transform, Fuse, UseTechnique, SetMaxPower, aura and charge effects, Ki / Blast
+gauge names) is in the agent's symbol file comments and docs/status.md follow-ups.
+
+The code assumes a fighter's object id equals its side / player index.
+
+Random draws: two `Rand_Range` users (`PickFusionSlot`, `PickTransformSlot`), both without a
+caller in either binary. No pad, camera or sound reads; nothing depends on player 0.
