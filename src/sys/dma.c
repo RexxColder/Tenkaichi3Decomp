@@ -2,22 +2,6 @@
 #include "sys/dma.h"
 #include "sys/heap.h"
 
-/* Assembler fix-ups for the two float instructions ee-gcc emits in Dma_PutTexStrips. They belong in
- * include/gcc_prelude.inc (remove them here once they are there):
- * - `cvt.w.s` is only accepted under the name `trunc.w.s` for this CPU by the modern assembler (same encoding);
- * - the modern assembler adds a nop after every `mtc1`, which Sony's did not, so `mtc1` is emitted as a raw word. */
-__asm__(
-    ".macro cvt.w.s dst, src\n"
-    "    trunc.w.s \\dst, \\src\n"
-    ".endm\n"
-    ".irp n, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31\n"
-    "    .set GPR_$\\n, \\n\n"
-    "    .set FPR_$f\\n, \\n\n"
-    ".endr\n"
-    ".macro mtc1 src, dst\n"
-    "    .word 0x44800000 | (GPR_\\src << 16) | (FPR_\\dst << 11)\n"
-    ".endm\n");
-
 /* libc */
 extern void *memcpy(void *dst, const void *src, u32 size);
 

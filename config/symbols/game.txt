@@ -124,7 +124,7 @@ Queue_Count = 0x002560F0; // type:func
 // --- Load jobs (queue of objects whose +4 callback is polled once per frame) -----------------
 Job_Init = 0x00263490; // type:func
 Job_Clear = 0x00263478; // type:func
-// 0x263508: peeks the queue head, calls head->func(head); pops when it returns 1; returns 1 when nothing is pending.
+// 0x263508: peeks the queue head, calls head->func(head); pops when it returns 1; returns 0 when the queue is empty and 1 when a job was stepped.
 Job_Run = 0x00263508; // type:func
 // 0x263558(job): pushes; if it is the only entry calls job->func once immediately.
 Job_Push = 0x00263558; // type:func

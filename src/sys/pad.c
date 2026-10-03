@@ -1,69 +1,6 @@
 #include "common.h"
 #include "sys/pad.h"
 
-/* Sony's assembler put no hazard nop after an FPU compare, `mtc1` or `mfc1`, accepted `cvt.w.s`, and encoded
-   `sqrt.s` the R5900 way (source in the ft field). The modern assembler inserts the nops for the R5900
-   (MIPS III), only knows the conversion as `trunc.w.s` and uses the standard `sqrt.s` encoding. The affected
-   instructions are therefore emitted as raw words (R5900 encodings: c.eq.s 0x32, c.lt.s 0x34).
-   __pad_regs turns the operands "$fN" / "$N" into the numbers __pad_a / __pad_b.
-   These macros belong in include/gcc_prelude.inc as soon as a second file needs them. */
-__asm__(
-    ".macro __pad_regs a, b\n"
-    "    .set __pad_a, 99\n"
-    "    .set __pad_b, 99\n"
-    "    .irp n,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31\n"
-    "        .ifc \\a,$f\\n\n"
-    "            .set __pad_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\a,$\\n\n"
-    "            .set __pad_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\b,$f\\n\n"
-    "            .set __pad_b, \\n\n"
-    "        .endif\n"
-    "    .endr\n"
-    "    .if (__pad_a > 31) || (__pad_b > 31)\n"
-    "        .error \"pad.c: unhandled register operand\"\n"
-    "    .endif\n"
-    ".endm\n"
-    ".macro c.eq.s fs, ft\n"
-    "    __pad_regs \\fs, \\ft\n"
-    "    .word 0x46000032 | (__pad_b << 16) | (__pad_a << 11)\n"
-    ".endm\n"
-    ".macro c.lt.s fs, ft\n"
-    "    __pad_regs \\fs, \\ft\n"
-    "    .word 0x46000034 | (__pad_b << 16) | (__pad_a << 11)\n"
-    ".endm\n"
-    ".macro sqrt.s fd, ft\n"
-    "    __pad_regs \\fd, \\ft\n"
-    "    .word 0x46000004 | (__pad_b << 16) | (__pad_a << 6)\n"
-    ".endm\n"
-    ".macro mtc1 rt, fs\n"
-    "    __pad_regs \\rt, \\fs\n"
-    "    .word 0x44800000 | (__pad_a << 16) | (__pad_b << 11)\n"
-    ".endm\n"
-    ".macro mfc1 rt, fs\n"
-    "    __pad_regs \\rt, \\fs\n"
-    "    .word 0x44000000 | (__pad_a << 16) | (__pad_b << 11)\n"
-    ".endm\n"
-    ".macro cvt.w.s dst, src\n"
-    "    trunc.w.s \\dst, \\src\n"
-    ".endm\n"
-    /* li.s to an FPU register = the assembler's own li.s to $at + a raw mtc1 (the macro steps aside to reach
-       the built-in). Only right for constants whose low 16 bits are 0; the others would come from .lit4. */
-    ".macro __pad_def_li_s\n"
-    "    .macro li.s fd, val\n"
-    "        .purgem li.s\n"
-    "        .set noat\n"
-    "        li.s $1, \\val\n"
-    "        .set at\n"
-    "        __pad_regs $1, \\fd\n"
-    "        .word 0x44800000 | (__pad_a << 16) | (__pad_b << 11)\n"
-    "        __pad_def_li_s\n"
-    "    .endm\n"
-    ".endm\n"
-    "__pad_def_li_s\n");
-
 extern void *memset(void *dst, s32 value, u32 size);
 extern f32 sqrtf(f32 x);
 

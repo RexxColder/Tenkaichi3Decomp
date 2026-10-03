@@ -1,51 +1,6 @@
 #include "common.h"
 #include "sys/adx.h"
 
-/* Same assembler workaround as src/sys/pad.c and src/sys/loading.c: Sony's assembler put no hazard nop after
-   `mtc1` / `mfc1` and accepted `cvt.w.s`; the modern one inserts the nops for the R5900 and only knows the
-   conversion as `trunc.w.s`. The moves are therefore emitted as raw words.
-   These macros belong in include/gcc_prelude.inc. */
-__asm__(
-    ".macro __adx_regs a, b\n"
-    "    .irp n,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31\n"
-    "        .ifc \\a,$f\\n\n"
-    "            .set __adx_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\a,$\\n\n"
-    "            .set __adx_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\b,$f\\n\n"
-    "            .set __adx_b, \\n\n"
-    "        .endif\n"
-    "    .endr\n"
-    ".endm\n"
-    ".macro mtc1 rt, fs\n"
-    "    __adx_regs \\rt, \\fs\n"
-    "    .word 0x44800000 | (__adx_a << 16) | (__adx_b << 11)\n"
-    ".endm\n"
-    ".macro mfc1 rt, fs\n"
-    "    __adx_regs \\rt, \\fs\n"
-    "    .word 0x44000000 | (__adx_a << 16) | (__adx_b << 11)\n"
-    ".endm\n"
-    ".macro cvt.w.s dst, src\n"
-    "    trunc.w.s \\dst, \\src\n"
-    ".endm\n"
-    /* A return whose delay slot the compiler left empty: Sony's assembler did not move the preceding
-       instruction into the slot when the code before that was a compiler-filled (.set noreorder) branch, even
-       across an alignment directive; the modern one forgets that at the alignment and swaps. A label on the
-       `j $31` stops the swap (the macro steps aside to reach the built-in `j`). Needed by Adx_CalcVolume. */
-    ".macro __adx_def_j\n"
-    "    .macro j target\n"
-    "        .purgem j\n"
-    "        .ifc \\target,$31\n"
-    "7:\n"
-    "        .endif\n"
-    "        j \\target\n"
-    "        __adx_def_j\n"
-    "    .endm\n"
-    ".endm\n"
-    "__adx_def_j\n");
-
 /* CRI ADX */
 extern void ADXM_ExecMain(void);
 extern void ADXT_Stop(ADXT_HN adxt);

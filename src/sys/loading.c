@@ -4,39 +4,6 @@
 #include "sys/job.h"
 #include "sys/rand.h"
 
-/* Same assembler workaround as src/sys/pad.c: Sony's assembler put no hazard nop after an FPU compare, `mtc1`
-   or `mfc1` and accepted `cvt.w.s`, so those instructions are emitted as raw words (c.le.s is 0x36 on the R5900).
-   These macros belong in include/gcc_prelude.inc. */
-__asm__(
-    ".macro __load_regs a, b\n"
-    "    .irp n,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31\n"
-    "        .ifc \\a,$f\\n\n"
-    "            .set __load_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\a,$\\n\n"
-    "            .set __load_a, \\n\n"
-    "        .endif\n"
-    "        .ifc \\b,$f\\n\n"
-    "            .set __load_b, \\n\n"
-    "        .endif\n"
-    "    .endr\n"
-    ".endm\n"
-    ".macro c.le.s fs, ft\n"
-    "    __load_regs \\fs, \\ft\n"
-    "    .word 0x46000036 | (__load_b << 16) | (__load_a << 11)\n"
-    ".endm\n"
-    ".macro mtc1 rt, fs\n"
-    "    __load_regs \\rt, \\fs\n"
-    "    .word 0x44800000 | (__load_a << 16) | (__load_b << 11)\n"
-    ".endm\n"
-    ".macro mfc1 rt, fs\n"
-    "    __load_regs \\rt, \\fs\n"
-    "    .word 0x44000000 | (__load_a << 16) | (__load_b << 11)\n"
-    ".endm\n"
-    ".macro cvt.w.s dst, src\n"
-    "    trunc.w.s \\dst, \\src\n"
-    ".endm\n");
-
 /* libc */
 extern void *memset(void *dst, s32 value, u32 size);
 

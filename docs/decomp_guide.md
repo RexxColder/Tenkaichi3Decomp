@@ -74,3 +74,12 @@ The build uses it. The original reloads struct fields and global pointers after 
 is what this flag produces. Older files carry workarounds from before it was adopted (the
 `(*&ptr->member)` form, anonymous unions around `count` or a whole struct); new code should be
 written plainly, and the workarounds can be removed where the plain form still matches.
+
+## Assembler prelude (include/gcc_prelude.inc)
+Prepended to all compiler output so the modern gas encodes it as Sony's assembler did: `move`,
+`break`, FPU hazard nops (compares, `mtc1`/`mfc1`, `li.s`), `cvt.w.s`, `sqrt.s`, and one
+duplicated-return shape. Do not add per-file `__asm__` macro blocks; extend the prelude.
+Known gaps, to check first if a float function is off by a swapped or extra instruction near a
+return: an FPU instruction directly before an unfilled `jr $ra` is never moved into the delay
+slot; a kept instruction whose preceding filled slot holds a different instruction is still
+swapped; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN` operands.
