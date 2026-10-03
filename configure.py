@@ -5,6 +5,7 @@ Usage: .venv/bin/python configure.py && ninja
 """
 
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -84,6 +85,12 @@ def split(target):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def linked_c_files(yaml_path):
+    """C files named by `c` subsegments in a splat yaml: the ones the linker script uses."""
+    text = (ROOT / yaml_path).read_text()
+    return {Path("src") / f"{name}.c" for name in re.findall(r"\[0x[0-9A-Fa-f]+, c, ([\w/]+)\]", text)}
+
+
 def sources(top, suffix, subdir):
     """Files under top/ belonging to a target: its own subdir, or everything outside all subdirs."""
     found = []
@@ -134,7 +141,10 @@ def write_ninja():
     headers = " ".join(str(p.relative_to(ROOT)) for p in sorted((ROOT / "include").rglob("*.h")))
     for target in TARGETS:
         asm = sources("asm", ".s", target["subdir"])
-        srcs = sources("src", ".c", target["subdir"])
+        # Only compile C files that have a segment: work-in-progress files under src/ that are
+        # not linked yet must not be able to break the build.
+        linked = linked_c_files(target["yaml"])
+        srcs = [p for p in sources("src", ".c", target["subdir"]) if p in linked]
         objs = [Path("build") / p.with_suffix(".o") for p in asm + srcs]
         elf = f"build/{target['name']}.elf"
         ok = f"build/{target['name']}.ok"
