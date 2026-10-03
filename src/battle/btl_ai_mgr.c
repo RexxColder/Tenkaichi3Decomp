@@ -15,14 +15,14 @@
  * input). It does nothing while the battle is paused (flag 0x100), an object load job runs (0x1000), the
  * stage is not ready, or the sequence is not in state 2 (Ready) or 3 (Fight). Otherwise it refreshes the
  * shared values, counts the frame, and for each of the first two fighters that takes AI input
- * (fighter +0x1278) and has parameters, runs four passes that live outside this file: func_001BFF70,
- * func_001BAC30, BtlAi_RunSeq, BtlAi_SendInput.
+ * (fighter +0x1278) and has parameters, runs four passes that live outside this file: BtlAiSense_Update,
+ * AiThink_Think, BtlAi_RunSeq, BtlAi_SendInput.
  *
  * The second half of the file (0x1BB730..) is one "action": a table of four phase functions
  * (gBtlAiMovePhases = {Init, Start, Run, End}) indexed by act.phase and called by the dispatcher
- * func_001BC8A8. It moves the fighter to a target computed from the opponent's position: straight when the
+ * BtlAiMove_Dispatch. It moves the fighter to a target computed from the opponent's position: straight when the
  * stage does not block the way, otherwise along a path from func_001B3A50. Its only output is the side's
- * virtual pad, through func_001BC918 / func_001BCB78 (AI button bits: BTLAI_BTN_* in the header).
+ * virtual pad, through BtlAiPad_Clear / BtlAiPad_Set (AI button bits: BTLAI_BTN_* in the header).
  *
  * Randomness: Rand_Range (the shared MT19937) once in BtlAiMove_PickDir (once per start of the action) and
  * twice in BtlAiMove_CalcTarget when the move type is 4. Outside the simulation state this file reads only
@@ -71,17 +71,17 @@ extern s32 func_001B2DF0(BtlAiSegment *seg);           /* stage line test; fills
 extern BtlAiHit *func_001B2F40(void);
 extern void func_001B3A50(BtlAiVec *from, BtlAiVec *to, BtlAiMovePath *path);
 extern void func_001B3F78(BtlAiSeq *act);           /* clears the action state */
-extern s32 func_001B82C0(s32 button, s32 arg);
-extern void func_001BA308(BtlAiWork *s);
-extern void func_001BAC30(BtlAiWork *s);
-extern void func_001BAD50(s32 arg);                    /* binds the AI data section of gCommonRes */
-extern void func_001BAF68(s32 side, s32 arg);          /* resets one side's controller from its fighter */
-extern void func_001BC918(BtlAiOutput *out, s32 keep); /* clears the virtual pad */
+extern s32 AiThink_FindBasicColumn(s32 button, s32 arg);
+extern void AiThink_BuildTotals(BtlAiWork *s);
+extern void AiThink_Think(BtlAiWork *s);
+extern void AiThink_BindData(s32 arg);                    /* binds the AI data section of gCommonRes */
+extern void AiThink_ResetSide(s32 side, s32 arg);          /* resets one side's controller from its fighter */
+extern void BtlAiPad_Clear(BtlAiOutput *out, s32 keep); /* clears the virtual pad */
 /* Writes the virtual pad. hold / press / once are AI button bits (BTLAI_BTN_*): hold is passed on every
    frame, press only for a button not marked 1 in the output's per-button word, once only for a button not
    yet marked 2 (and marks it). x, y are averaged with the previous stick. The parameter order is the one
    that makes every call here match. */
-extern void func_001BCB78(BtlAiWork *s, s32 hold, s32 press, s32 once, s16 special, f32 x, f32 y);
+extern void BtlAiPad_Set(BtlAiWork *s, s32 hold, s32 press, s32 once, s16 special, f32 x, f32 y);
 
 /* The divisions by 10 in BtlAiMove_Start are real divide instructions with 10 in a register, reloaded for
    each one: that is what a constant passed to an inlined helper gives (a literal gives a multiply). */
@@ -92,7 +92,7 @@ static inline s32 BtlAiMove_Div(s32 a, s32 b) {
 static inline s32 BtlAiMove_Mod(s32 a, s32 b) {
     return a % b;
 }
-extern void func_001BFF70(BtlAiWork *s);
+extern void BtlAiSense_Update(BtlAiWork *s);
 
 extern BtlAi *gBtlAi;
 
@@ -115,15 +115,15 @@ void BtlAiMgr_Reset(void) {
             }
         }
     }
-    func_001BAD50(0);
+    AiThink_BindData(0);
     for (i = 0; i < 2; i++) {
-        func_001BAF68(i, 0);
+        AiThink_ResetSide(i, 0);
     }
 }
 
 /* Resets one side's controller from its fighter. */
 void BtlAiMgr_ResetSide(s32 side) {
-    func_001BAF68(side, 0);
+    AiThink_ResetSide(side, 0);
 }
 
 /* Allocates the manager block if needed and resets it. */
@@ -167,7 +167,7 @@ void BtlAiMgr_BuildRates(BtlAiWork *s) {
         s32 r;
 
         s->plan.rate[i] = 0;
-        r = func_001B82C0(i, 3);
+        r = AiThink_FindBasicColumn(i, 3);
         if (r != -1) {
             s->plan.rate[i] = BtlAi_GetPairRate(s, i, r, (s8 *)tbl + 4, (s8 *)tbl + 0x2C4, 0);
         }
@@ -185,7 +185,7 @@ void BtlAiMgr_SetType(s32 side, s32 aiType) {
 
     s->type = aiType;
     BtlAiMgr_BuildRates(s);
-    func_001BA308(s);
+    AiThink_BuildTotals(s);
     memset(s->plan.scratch, 0, 0x188);
     func_001B3F78(&s->seq);
 }
@@ -201,7 +201,7 @@ void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel) {
 
     s->level = cpuLevel;
     BtlAiMgr_BuildRates(s);
-    func_001BA308(s);
+    AiThink_BuildTotals(s);
     memset(s->plan.scratch, 0, 0x188);
     func_001B3F78(&s->seq);
 }
@@ -270,8 +270,8 @@ void BtlAiMgr_Update(void) {
         BtlAiWork *s = &gBtlAi->work[i];
 
         if (BtlCharApi_IsInputInjected(i) && s->param != NULL) {
-            func_001BFF70(s);
-            func_001BAC30(s);
+            BtlAiSense_Update(s);
+            AiThink_Think(s);
             BtlAi_RunSeq(s);
             BtlAi_SendInput(s);
         }
@@ -608,7 +608,7 @@ void BtlAiMove_Steer(BtlAiWork *s, BtlAiVec *to, s32 kind) {
             }
         }
     }
-    func_001BCB78(s, hold, press, 0, 0, x, y);
+    BtlAiPad_Set(s, hold, press, 0, 0, x, y);
 }
 
 /* Virtual pad for move type 0 on a clear line: no stick, DASH held (plus CHARGE in mode 2, ASCEND when
@@ -635,7 +635,7 @@ void BtlAiMove_Hold(BtlAiWork *s) {
     if (cls == 10) {
         y = -1.0f;
     }
-    func_001BCB78(s, hold, 0, 0, 0, x, y);
+    BtlAiPad_Set(s, hold, 0, 0, 0, x, y);
 }
 
 /* Phase 0 of the move action: goes to phase 1 at once. */
@@ -652,7 +652,7 @@ void BtlAiMove_Start(BtlAiWork *s) {
     s32 v;
 
     v = BtlAiMove_Div(e->arg, 10);
-    func_001BC918(&s->out, 0);
+    BtlAiPad_Clear(&s->out, 0);
     if (v == 1) {
         goto set;
     }
@@ -688,7 +688,7 @@ void BtlAiMove_Run(BtlAiWork *s) {
         break;
     case 2:
         act->flags &= ~BTLAI_ACT_PATH;
-        func_001BC918(&s->out, 1);
+        BtlAiPad_Clear(&s->out, 1);
         if (m->type == 0) {
             BtlAiMove_Hold(s);
         } else {
@@ -700,7 +700,7 @@ void BtlAiMove_Run(BtlAiWork *s) {
         BtlAiMove_Steer(s, (BtlAiVec *)&path->pts[path->count - 1], 0);
         break;
     case 4:
-        func_001BCB78(s, 0, 0, BTLAI_BTN_ASCEND, 0, 0.0f, 0.0f);
+        BtlAiPad_Set(s, 0, 0, BTLAI_BTN_ASCEND, 0, 0.0f, 0.0f);
         break;
     }
     if (m->flags & 1) {
@@ -725,12 +725,12 @@ void BtlAiMove_End(BtlAiWork *s) {
     s32 state = BtlCharApi_GetUnk974(s->objId);
     s32 cls = tbl->actClass[state];
 
-    func_001BC918(&s->out, 1);
+    BtlAiPad_Clear(&s->out, 1);
     if (cls == 10) {
-        func_001BCB78(s, 0, BTLAI_BTN_DASH, 0, 0, 0.0f, 0.0f);
+        BtlAiPad_Set(s, 0, BTLAI_BTN_DASH, 0, 0, 0.0f, 0.0f);
     }
     if ((u32)(state - 0x1F) < 4) {
-        func_001BCB78(s, BTLAI_BTN_ASCEND, 0, 0, 0, 0.0f, 0.0f);
+        BtlAiPad_Set(s, BTLAI_BTN_ASCEND, 0, 0, 0, 0.0f, 0.0f);
     }
     if (cls == 0) {
         act->depth--;

@@ -5,44 +5,36 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last commit that was built and verified byte-identical: `efe4147` (12.49% of the main
-  executable's game code in C; 61 C files linked; 1509 functions diff clean).
-- Later commits only touch docs and tooling.
+- Last build verified byte-identical: the commit "Link the fighter core" (21.07% of the main
+  executable's game code in C; 77 C files linked; 2079 functions diff clean; DBZP 0%).
 - Check at any time: `.venv/bin/python configure.py && ninja`, then
   `cmp build/SLUS_216.78.rom disc/SLUS_216.78.rom` and `cmp build/DBZP.BIN disc/BIN/DBZP.BIN`,
   then `python3 scripts/progress.py`.
 
-## In the tree but not linked or committed (fighter-core batch)
+## Fighter-core batch: linked
 
-All match per function according to their agents; files without INCLUDE_ASM were re-diffed and
-confirmed. An integration agent is linking them (brief: link each, merge the pairs below,
-extend the prelude, rename the guard functions).
+Script commands, stats and animation, hits and collision, members, input conditions and
+control, flags and clashes, movement, the action core, and the AI's virtual pad, sense and
+rule evaluator are all linked. Merges made at integration: `btl_char_coll.c` into
+`btl_char_hit.c`; `btl_char_ctl.c` into `btl_input.c`; `btl_ai_think.c` into `btl_ai_cond.c`
+(`BtlAi_ScaleByLevel` moved to the end of `btl_ai_seq.c`); `BtlColl_NextPoolMember` moved to
+the top of `btl_char_member.c`. Seven functions of that batch stay INCLUDE_ASM
+(`BtlAiSense_IsBusy` and six `AiThink_*`).
+
+Still in the tree but NOT linked or committed:
 
 | Files (src/battle/) | Range | Notes |
 |---|---|---|
-| btl_script_cmd.c | 0x259EC8..0x25C2A8 | 46/46 |
-| btl_char_status.c, btl_char_status_anim.c | 0x1C2FF0..0x1C4BF8 | 79/79 |
-| btl_char_hit.c + btl_char_coll.c | 0x1C7B30..0x1CA6D0 | merge: coll.c's four functions belong to hit.c's object |
-| btl_char_coll_b.c + btl_char_member.c | 0x1CA6D0..0x1D00D8 | `BtlMember_Damage` needs `BtlColl_NextPoolMember` in the same file |
-| btl_char_fx.c, _b.c, _c.c | 0x1D00D8..0x1D3B40 | 64/67; reported after the integrator started, so NOT in its brief: integrate separately. `BtlFx_UpdateGroundFx` needs the fx-bit helpers of btl_char_member.c in the same file |
-| btl_input.c (linked) + btl_char_ctl.c | 0x1D3B40..0x1D60A0 | merge: `BtlInput_TestAction` needs btl_input.c's readers |
-| btl_char_ctl_b.c, _c.c, _d.c | 0x1D60A0..0x1D8330 | all match |
-| btl_char_flag_clash.c, _snd.c, btl_char_flag.c, _opp.c | 0x1D8750..0x1DBF20 | one function blocked by a prelude gap |
-| btl_char_move.c | 0x1DC9A0..0x1E0290 | 47/47 |
-| btl_char_action.c | 0x1E0290..0x1E3158 | 49/49 |
-| btl_ai_act.c | 0x1BC8A8..0x1C0058 | 55/56 |
-| btl_ai_think.c | 0x1B80F8..0x1BB128 | 36/43; one blocked by the prelude gap |
+| btl_char_fx.c, _b.c, _c.c | 0x1D00D8..0x1D3B40 | 64/67 match per function. `BtlFx_UpdateGroundFx` needs the fx-bit helpers of btl_char_member.c in the same file. The C emits .lit4 at 0x2FD1D8.. with two assembly-owned gaps (see the agent notes in combat.md) |
+| btl_act_j.c | 0x203168..0x204E78 | 28/28; 9 jump tables 0x2F11D0..0x2F15F8, .lit4 0x2FE070..0x2FE078 |
 
-Prelude gap still open: a `symbol(reg)` load directly before an unfilled `jr $ra` or `b` is not
-moved into the delay slot (affects `BtlCharSnd_GetBankMask`, `AiThink_FindWeightColumn`).
-
-Rename pending: `BtlColl_GetChangeKind` / `BtlColl_IsChanging` are guard-kind tests
-(`BtlColl_GetGuardKind` / `BtlColl_IsGuarding`).
+`scripts/apply_names.py` reads every file in config/symbols/, including those of agents whose
+files are not in the yamls yet: run it only after listing them, or with their stems as skip
+arguments.
 
 ## Running when this was written
 
-- One integration agent (above).
-- Fourteen decomp agents on the rest of the fighter code, brief in
+- Fourteen decomp agents (btl_act_j has reported) on the rest of the fighter code, brief in
   `docs/briefs_action_handlers.md`; each writes `src/battle/<stem>.c`, a header and
   `config/symbols/<stem>.txt`:
 

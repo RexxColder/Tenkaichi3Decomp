@@ -28,7 +28,7 @@ typedef struct BtlAiHit {
     /* 0x40 */ s32 id;           /* -1: what blocks the segment has no id (inferred: not a breakable object) */
 } BtlAiHit;
 
-/* AI button bits as func_001BCB78 takes them; func_001BC968 turns them into battle button bits (BTLB_* of
+/* AI button bits as BtlAiPad_Set takes them; BtlAiPad_AddButtons turns them into battle button bits (BTLB_* of
    btl_input.h): 1 GUARD, 2 DASH, 4 BLAST, 8 RUSH, 0x10..0x80 UP DOWN LEFT RIGHT, 0x100 LOCKON, 0x200 CHARGE,
    0x800 ASCEND, 0x1000 DESCEND, 0x2000 R3. Only the ones this file uses are named. */
 #define BTLAI_BTN_DASH 0x0002

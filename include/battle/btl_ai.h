@@ -75,7 +75,7 @@ typedef struct BtlAiMovePath {
 
 /* Move action state: work + 0xC0. Step handlers 16 and 22 compare 2x / 3x dist[1] with BtlAi.dist. */
 typedef struct BtlAiMoveWork {
-    /* 0x000 */ f32 dist[5];     /* distance to keep from the opponent, by move type. Set by func_001BAF68 (n/m):
+    /* 0x000 */ f32 dist[5];     /* distance to keep from the opponent, by move type. Set by AiThink_ResetSide (n/m):
                                     [0] = both fighters' radius (func_002062F0) summed, [1] = d, [2] = d * 5,
                                     [3] = [4] = d * 10 with d = func_00205C58(side) - radius(side) */
     /* 0x014 */ u8 unk014[0x0C];
@@ -94,8 +94,8 @@ typedef struct BtlAiMoveWork {
     /* 0x178 */ u8 unk178[0x30];
 } BtlAiMoveWork; /* size 0x1A8 */
 
-/* The virtual pad, what the CPU "presses" this frame: work + 0x268. Cleared by func_001BC918, filled by
-   func_001BCB78. */
+/* The virtual pad, what the CPU "presses" this frame: work + 0x268. Cleared by BtlAiPad_Clear, filled by
+   BtlAiPad_Set. */
 typedef struct BtlAiOutput {
     /* 0x00 */ u32 buttons;    /* (m) battle button word (BTLB_* in btl_input.h), cleared every frame */
     /* 0x04 */ f32 stickX;     /* (m) */

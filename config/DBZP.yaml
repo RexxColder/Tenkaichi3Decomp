@@ -64,6 +64,17 @@ options:
     - config/symbols/movie.txt
     - config/symbols/sys_helpers.txt
     - config/symbols/sys_rigid.txt
+    - config/symbols/btl_script_cmd.txt
+    - config/symbols/btl_char_status.txt
+    - config/symbols/btl_char_hit.txt
+    - config/symbols/btl_char_coll.txt
+    - config/symbols/btl_char_member.txt
+    - config/symbols/btl_char_ctl.txt
+    - config/symbols/btl_char_flag.txt
+    - config/symbols/btl_char_move.txt
+    - config/symbols/btl_char_action.txt
+    - config/symbols/btl_ai_act.txt
+    - config/symbols/btl_ai_think.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

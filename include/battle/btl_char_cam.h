@@ -147,7 +147,7 @@ typedef struct ChrCamMgr {
     /* 0x000 */ u8 unk0[0x24];
     /* 0x024 */ ChrCamCutDef *cutDefs; /* common cut table */
     /* 0x028 */ u8 unk28[0x274 - 0x28];
-    /* 0x274 */ s32 unk274;            /* func_001D63A8: non-zero forces rate 1 and no swing */
+    /* 0x274 */ s32 unk274;            /* BtlChars_IsTimeStopped: non-zero forces rate 1 and no swing */
 } ChrCamMgr;
 
 /* The fighter's body block, fighter + 0x10 (BtlChar_GetPos returns it): only what this file reads. */
@@ -168,7 +168,7 @@ typedef struct ChrCamChr {
     /* 0x420 */ ChrCam cam;
     /* 0x4C0 */ ChrCamCut cut;
     /* 0x570 */ u8 unk570[0x974 - 0x570];
-    /* 0x974 */ s32 unk974;    /* func_001C4638 */
+    /* 0x974 */ s32 unk974;    /* BtlAnim_GetId */
     /* 0x978 */ u8 unk978[0x1600 - 0x978];
 } ChrCamChr; /* size 0x1600 */
 

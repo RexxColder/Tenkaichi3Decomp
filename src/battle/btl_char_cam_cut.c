@@ -51,7 +51,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
         other = 0;
         if (node & CHRCUT_NODE_OPP) {
             usedOpp = 1;
-            id = func_001DB7B0(chr);
+            id = BtlOpp_GetObjId(chr);
             other = 1;
         } else if (node & CHRCUT_NODE_MID) {
             id = -1;
@@ -78,7 +78,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             other = 0;
             if (node & CHRCUT_NODE_OPP) {
                 usedOpp = 1;
-                id = func_001DB7B0(chr);
+                id = BtlOpp_GetObjId(chr);
                 other = 1;
             } else if (node & CHRCUT_NODE_MID) {
                 id = -1;
@@ -103,7 +103,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     if (node >= 0) {
         other = 0;
         if (node & CHRCUT_NODE_OPP) {
-            id = func_001DB7B0(chr);
+            id = BtlOpp_GetObjId(chr);
             other = 1;
         } else if (node & CHRCUT_NODE_MID) {
             id = -1;
@@ -127,7 +127,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
         } else {
             other = 0;
             if (node & CHRCUT_NODE_OPP) {
-                id = func_001DB7B0(chr);
+                id = BtlOpp_GetObjId(chr);
                 other = 1;
             } else if (node & CHRCUT_NODE_MID) {
                 id = -1;
@@ -147,9 +147,9 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     }
     if (refreshed) {
         if (usedOpp) {
-            Vec4_Copy(&cut->vecB, *(Vec4 **)((u8 *)func_001DB7F0(chr) + 0xFA0));
+            Vec4_Copy(&cut->vecB, *(Vec4 **)((u8 *)BtlOpp_GetObj(chr) + 0xFA0));
         } else if (usedMid) {
-            Vec4_Copy(&tmp0, *(Vec4 **)((u8 *)func_001DB7F0(chr) + 0xFA0));
+            Vec4_Copy(&tmp0, *(Vec4 **)((u8 *)BtlOpp_GetObj(chr) + 0xFA0));
             Vec4_Copy(&tmp1, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
             func_00122168(&cut->vecB, &tmp0, &tmp1, 0.5f);
         } else {

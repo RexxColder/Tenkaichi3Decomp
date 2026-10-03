@@ -15,7 +15,7 @@
 
 #define BTL_CHR_MEMBER_MAX 5
 
-/* Sequence stage passed to func_001DA970 (stored in the byte at fighter + 0x1084): which phase the fighter is in. */
+/* Sequence stage passed to BtlChar_SetStage (stored in the byte at fighter + 0x1084): which phase the fighter is in. */
 #define BTL_CHR_STAGE_RESET    1
 #define BTL_CHR_STAGE_SAMPLE   2
 #define BTL_CHR_STAGE_INPUT    3
@@ -30,7 +30,7 @@
 /* BtlCharMgr.flags */
 #define BTL_CHARS_STARTED 1 /* set the first frame the sequence is in Ready (2) or Fight (3) */
 
-/* Gauges of one team member: member entry + 0x40 (func_001CE1B8 returns this for the current member). */
+/* Gauges of one team member: member entry + 0x40 (BtlMember_GetActiveGauge returns this for the current member). */
 typedef struct BtlMgrGauge {
     /* 0x00 */ s32 health;     /* 10000 = one bar (BtlChar_PostScene compares with 10000) */
     /* 0x04 */ s32 healthMax;
@@ -48,7 +48,7 @@ typedef struct BtlMgrGauge {
     /* 0x34 */ s32 unk34;      /* 1 after a fusion */
 } BtlMgrGauge;
 
-/* One team member inside the fighter: fighter + 0x9A4 + n * 0xA4 (func_001CE030). */
+/* One team member inside the fighter: fighter + 0x9A4 + n * 0xA4 (BtlMember_Get). */
 typedef struct BtlMgrMember {
     /* 0x00 */ s32 chara;      /* BattleMember.chara */
     /* 0x04 */ s32 costume;    /* BattleMember.costume */
@@ -64,8 +64,8 @@ typedef struct BtlMgrMember {
 /* The pose block at fighter + 0x10 (BtlChar_GetPos); copied whole to fighter + 0x100 at the start of a frame. */
 typedef struct BtlMgrPose {
     /* 0x00 */ u64 unk0[6];
-    /* 0x30 */ u64 unk30[2];   /* Vec4, zeroed or filled by func_001D8270 at the end of the frame */
-    /* 0x40 */ u64 unk40[2];   /* Vec4, zeroed or filled by func_001D82E0 */
+    /* 0x30 */ u64 unk30[2];   /* Vec4, zeroed or filled by BtlChar_GetSnapDelta at the end of the frame */
+    /* 0x40 */ u64 unk40[2];   /* Vec4, zeroed or filled by BtlChar_GetMoveSince */
     /* 0x50 */ u64 unk50[10];
     /* 0xA0 */ s32 unkA0;      /* cleared each frame */
     /* 0xA4 */ s32 unkA4;      /* cleared each frame */
@@ -102,19 +102,19 @@ typedef struct BtlMgrChr {
     /* 0x04A0 */ u8 unk4A0[0x4B8 - 0x4A0];
     /* 0x04B8 */ s32 optBOff;    /* BattleOption.optB[side] == 0 */
     /* 0x04BC */ u8 unk4BC[0x948 - 0x4BC]; /* 0x570: BtlCharInput (battle/btl_input.h) */
-    /* 0x0948 */ s32 action;     /* current action id (func_001E0358) */
+    /* 0x0948 */ s32 action;     /* current action id (BtlAct_GetCurrent) */
     /* 0x094C */ s32 unk94C;
     /* 0x0950 */ s32 prevAction; /* action of the frame before */
     /* 0x0954 */ u8 unk954[0x964 - 0x954];
     /* 0x0964 */ s32 unk964;
     /* 0x0968 */ s32 prev964;
     /* 0x096C */ u8 unk96C[0x974 - 0x96C];
-    /* 0x0974 */ s32 unk974;     /* index into the table gBtlChars->tbl[0] (func_001C4638 / func_001C4650) */
+    /* 0x0974 */ s32 unk974;     /* index into the table gBtlChars->tbl[0] (BtlAnim_GetId / BtlAnim_GetFlags) */
     /* 0x0978 */ s32 unk978;
     /* 0x097C */ s32 prev974;
     /* 0x0980 */ s32 unk980;     /* -1 when the object is bound */
     /* 0x0984 */ u8 unk984[0x994 - 0x984];
-    /* 0x0994 */ s32 curMember;  /* index of the member that is fighting (func_001CE468) */
+    /* 0x0994 */ s32 curMember;  /* index of the member that is fighting (BtlMember_GetActiveIndex) */
     /* 0x0998 */ s32 memberCount; /* BattleSide.memberCount */
     /* 0x099C */ s32 unk99C;     /* 0, or 100000 when the current member has ability 0x1B */
     /* 0x09A0 */ s32 unk9A0;
@@ -166,7 +166,7 @@ typedef struct BtlMgrChr {
     /* 0x132C */ s32 unk132C;
     /* 0x1330 */ s32 unk1330;    /* non-zero: func_001D3568 releases a loaded resource */
     /* 0x1334 */ u8 unk1334[0x1538 - 0x1334];
-    /* 0x1538 */ u64 frameBits;  /* cleared each frame; func_001DAFB0 ORs bits in */
+    /* 0x1538 */ u64 frameBits;  /* cleared each frame; BtlChar_SetFrameBits ORs bits in */
     /* 0x1540 */ u8 unk1540[0x1590 - 0x1540];
     /* 0x1590 */ s32 unk1590;    /* -1 each frame */
     /* 0x1594 */ s32 unk1594;    /* -1 each frame (BtlInputChr.unk1594) */
@@ -181,8 +181,8 @@ typedef struct BtlMgrChr {
 typedef struct BtlCharMgr {
     /* 0x000 */ s32 count;       /* number of fighters (Battle_Init passes 2) */
     /* 0x004 */ BtlMgrChr *chars; /* count * 0x1600 */
-    /* 0x008 */ void *unk8;      /* count * 0x34 bytes: per side, four 0xC-byte slots (func_001D9A20) */
-    /* 0x00C */ void *unkC;      /* count * 0x34 bytes: per side, four sound handle slots (func_001D9A58) */
+    /* 0x008 */ void *unk8;      /* count * 0x34 bytes: per side, four 0xC-byte slots (BtlCharSnd_GetSet) */
+    /* 0x00C */ void *unkC;      /* count * 0x34 bytes: per side, four sound handle slots (BtlCharSnd_GetLoopSet) */
     /* 0x010 */ s32 flags;       /* BTL_CHARS_* */
     /* 0x014 */ s32 frame;       /* frames simulated since the start, 30 bits */
     /* 0x018 */ s32 unk18;
@@ -192,7 +192,7 @@ typedef struct BtlCharMgr {
     /* 0x040 */ u8 unk40[0x60];  /* cleared by a reset */
     /* 0x0A0 */ u8 unkA0[0x90];  /* cleared by a reset; four 0x20-byte records at +0xB0, count at +0x120 */
     /* 0x130 */ u64 unk130;      /* cleared by a reset */
-    /* 0x138 */ u8 unk138[0x140]; /* cleared by a reset; +0x274 is func_001D63A8() */
+    /* 0x138 */ u8 unk138[0x140]; /* cleared by a reset; +0x274 is BtlChars_IsTimeStopped() */
     /* 0x278 */ u8 unk278[8];
 } BtlCharMgr; /* 0x280 */
 

@@ -14,7 +14,7 @@
  *
  * Lifecycle
  *   BtlChar_AllocAll(n)   Battle_Init, n = 2: the manager, n fighters of 0x1600 bytes and two side arrays, all
- *                         zeroed; caches six table pointers of common file 2; BtlChar_ResetAll(); func_001D9F90().
+ *                         zeroed; caches six table pointers of common file 2; BtlChar_ResetAll(); BtlCharSnd_Init().
  *   BtlChar_ResetAll()    Battle_Restart, and BtlChars_CheckStart when the fight starts: releases what the
  *                         fighters hold, zeroes the manager's counters and every fighter, then per fighter
  *                         side / pad / index, BtlChar_BindObject, BtlChar_Reset.
@@ -28,67 +28,67 @@
  *                               Fight: BtlChar_ResetAll() (except in mode 1) and set BTL_CHARS_STARTED.
  *   2. BtlChars_SampleInput     skipped under PAUSE / LOADING. per fighter: stage 2, BtlInput_Sample.
  *   3. BtlChars_UpdateInput     skipped under PAUSE; under LOADING only BtlChars_ClearObjFlag2.
- *        frame counter          if started and func_001D63A8() == 0: frame++, unk1C counts down
+ *        frame counter          if started and BtlChars_IsTimeStopped() == 0: frame++, unk1C counts down
  *        BtlChars_CheckRoundReset
  *        BtlChars_UpdateFreeze  decides who is frozen this frame
- *        func_001DA058          empties the manager's sound request list at +0xA0
+ *        BtlCharSnd_ClearRequests          empties the manager's sound request list at +0xA0
  *        per fighter            BtlChar_BeginFrame: stage 3, previous-frame copies, per-frame clears,
  *                               BtlInput_Update, re-reads of member bonus / ability
- *        func_001D8128(0)       snapshot 0 of every fighter's position
- *        func_001DAE98          two-fighter test that sets held flag 0xBA on both
+ *        BtlChars_Snapshot(0)       snapshot 0 of every fighter's position
+ *        BtlChars_UpdateSightFlag          two-fighter test that sets held flag 0xBA on both
  *        per fighter            BtlChar_UpdateSeqFlags: held flags 1..4 from the sequence state, 0x135
  *   4. BtlChars_UpdateMain      skipped under PAUSE / LOADING.
- *        per fighter            BtlChar_UpdateMotion: func_001DCB58 (the action state machine: func_001E23D0
- *                               sets stages 4 and 5 itself), seven placement requests (func_001D75C8..), then
+ *        per fighter            BtlChar_UpdateMotion: BtlMove_UpdateAction (the action state machine: BtlAct_Update
+ *                               sets stages 4 and 5 itself), seven placement requests (BtlChar_PlaceRestart..), then
  *                               pose -> object, animation (func_0024C958, func_0024CC88), matrices
  *                               (func_0024E3F8), object -> pose
- *        per fighter            BtlChar_UpdateStage6: stage 6, func_001DBCE0, func_001D35B0
- *        func_001D7C30          fighter against fighter push-out
- *        func_001D8128(1)
- *        per fighter            BtlChar_UpdateStage7: stage 7, func_001DF4A8, func_001DF210, matrices
- *        func_001D8128(2)
- *        per fighter            BtlChar_UpdateStage8: stage 8, func_001DEF70 (stage queries), matrices,
+ *        per fighter            BtlChar_UpdateStage6: stage 6, BtlOpp_MirrorFlags, func_001D35B0
+ *        BtlChars_UpdateHold          fighter against fighter push-out
+ *        BtlChars_Snapshot(1)
+ *        per fighter            BtlChar_UpdateStage7: stage 7, BtlMove_PushOut, BtlMove_ApplyOrbit, matrices
+ *        BtlChars_Snapshot(2)
+ *        per fighter            BtlChar_UpdateStage8: stage 8, BtlMove_ClampToStage (stage queries), matrices,
  *                               func_001B21A8 / func_001B15B8 on the object
- *        func_001D8128(3)
- *        per fighter            BtlChar_UpdateStage9: stage 9, func_001CD558, matrices
- *        func_001D8128(4)
+ *        BtlChars_Snapshot(3)
+ *        per fighter            BtlChar_UpdateStage9: stage 9, BtlColl_UpdateGround, matrices
+ *        BtlChars_Snapshot(4)
  *        per fighter            BtlChar_UpdateCamera: ChrCam_StartCut, ChrCam_UpdateDemo, ChrCam_UpdateInput,
- *                               then the object's final placement, func_001D7088, matrices, func_001D2D30
- *        BtlReplay_UpdateViewer, func_001D3110, func_001CF220 (gauges), BtlChars_UpdateCollision (hits)
+ *                               then the object's final placement, BtlChar_UpdateHead, matrices, func_001D2D30
+ *        BtlReplay_UpdateViewer, func_001D3110, BtlMembers_UpdateQueuedDamage (gauges), BtlChars_UpdateCollision (hits)
  *        per fighter            BtlChar_UpdateStage10: stage 10, func_001D3668, func_001D2E88
- *        func_001D9900
+ *        BtlClash_Update
  *      (Battle_Update then runs the effect scene: BtlScene_Update, func_001AF9C0, BtlScene_PostUpdate)
  *   5. BtlChars_PostScene       skipped under PAUSE / LOADING. per fighter: BtlChar_PostScene (ChrCam_Update,
  *                               low-health state, the vector pushed onto the opponent).
  *      (Battle_Update: BtlScene_CheckStageChange, loader polls, stage, both cameras, BtlCam_UpdateOverride)
- *   6. BtlChars_EndFrame        skipped under LOADING. func_001D6178() runs even when paused; the rest is
+ *   6. BtlChars_EndFrame        skipped under LOADING. BtlChange_Update() runs even when paused; the rest is
  *                               skipped under PAUSE:
  *        per fighter            BtlChar_UpdateLate
  *        BtlChars_UpdateObjFlag2
- *        func_001DA098          plays the sound request list at +0xA0
+ *        BtlCharSnd_PlayRequests          plays the sound request list at +0xA0
  *        per fighter            BtlChar_EndFrame: stage 11, BtlChar_RaiseEvents, BtlChar_UpdateVibration,
  *                               stage 12
- *        func_001D8128(5)
+ *        BtlChars_Snapshot(5)
  *
  * What the callees named func_XXXXXXXX do is from a first read of their code, not from matching C:
- *   func_001DA970(chr, n) sets the stage byte chr+0x1084 = n and moves the flag bits queued "for stage n"
- *                        from the pending arrays into the live ones (func_001DA8B8)
- *   func_001DACE8(chr, f) flag f went 0 -> 1 this frame;   func_001DAD40(chr, f) went 1 -> 0
- *   func_001DAFB0(chr, m) chr->frameBits |= m
- *   func_001E0358(chr)   chr->action;  func_001E0430(chr) a class number of the action
- *   func_001CE030(chr, n) &chr->members[n]; func_001CE050(chr) the current member; func_001CE1B8(chr) its gauge
- *   func_001CE468(chr)   chr->curMember; func_001CE3D0(chr, n) sets it; func_001CE3D8(chr) members with health
- *   func_001CEE90(chr)   health / healthMax of the current member; func_001CEED8(chr) the same over the team
- *   func_001CF0C8(chr, n) the current member has ability bit n
- *   func_001CDD40(chr, member, init, variant, health)  loads a member's parameters
- *   func_001CEB40(chr, n) adds n health, clamped to the maximum
- *   func_001DB770(chr)   the opponent's roster index (1 for side 0, else 0)
- *   func_001D63A8()      gBtlChars + 0x274: non-zero while time is stopped
- *   func_001D7198(chr, f) writes the pose (position, rotation matrix) into the BtlObj
- *   func_001D70E8(chr)   reads position / rotation back from the BtlObj into the pose
+ *   BtlChar_SetStage(chr, n) sets the stage byte chr+0x1084 = n and moves the flag bits queued "for stage n"
+ *                        from the pending arrays into the live ones (BtlChar_PromoteFlags)
+ *   BtlChar_IsFlagRaised(chr, f) flag f went 0 -> 1 this frame;   BtlChar_IsFlagDropped(chr, f) went 1 -> 0
+ *   BtlChar_SetFrameBits(chr, m) chr->frameBits |= m
+ *   BtlAct_GetCurrent(chr)   chr->action;  BtlAct_GetCurrentClass(chr) a class number of the action
+ *   BtlMember_Get(chr, n) &chr->members[n]; BtlMember_GetActive(chr) the current member; BtlMember_GetActiveGauge(chr) its gauge
+ *   BtlMember_GetActiveIndex(chr)   chr->curMember; BtlMember_SetActiveIndex(chr, n) sets it; BtlMember_CountAlive(chr) members with health
+ *   BtlMember_GetHealthRatio(chr)   health / healthMax of the current member; BtlMember_GetTeamHealthRatio(chr) the same over the team
+ *   BtlMember_HasAbility(chr, n) the current member has ability bit n
+ *   BtlMember_LoadParams(chr, member, init, variant, health)  loads a member's parameters
+ *   BtlMember_AddHealth(chr, n) adds n health, clamped to the maximum
+ *   BtlOpp_GetPlayer(chr)   the opponent's roster index (1 for side 0, else 0)
+ *   BtlChars_IsTimeStopped()      gBtlChars + 0x274: non-zero while time is stopped
+ *   BtlChar_PoseToObj(chr, f) writes the pose (position, rotation matrix) into the BtlObj
+ *   BtlChar_ObjToPose(chr)   reads position / rotation back from the BtlObj into the pose
  *   func_0024C958, func_0024CC88, func_0024E3F8, func_0024DD80, func_0024DDF0, func_0024FE78, func_0024FFE8,
  *   func_00250888, func_00250CB8, func_00250CD0, func_00250D38   BtlObj (model / skeleton) updates
- *   func_001D8128(n)     per fighter func_001D8088(chr, &pose, &pose + 0x10, n): position snapshot n
+ *   BtlChars_Snapshot(n)     per fighter BtlChar_Snapshot(chr, &pose, &pose + 0x10, n): position snapshot n
  *   func_0020E280(chr)   byte 0xAD of the object's parameter block (BtlObj + 0x91C)
  *   func_0020C9F0(chr)   id of the technique in use
  *   func_00121E20(v)     zeroes a Vec4
@@ -116,36 +116,36 @@ extern void func_00121E20(void *vec);
 extern void func_001AF740(void);
 extern void func_001B15B8(BtlMgrObj *obj);
 extern void func_001B21A8(BtlMgrObj *obj, s32 arg1, s32 arg2);
-extern void func_001C31A0(BtlMgrChr *chr);
-extern void func_001C31D0(BtlMgrChr *chr);
-extern void func_001C33D8(BtlMgrChr *chr, s32 idx, s32 val, s32 add);
-extern void func_001C3E60(BtlMgrChr *chr, s32 arg1, f32 arg2);
-extern void func_001C42A8(BtlMgrChr *chr);
-extern void func_001C4580(BtlMgrChr *chr, f32 rate);
-extern void func_001C45A8(BtlMgrChr *chr, f32 rate);
-extern s32 func_001C4638(BtlMgrChr *chr);
-extern s32 func_001C4650(s32 idx);
+extern void BtlStat_ClearFrameMods(BtlMgrChr *chr);
+extern void BtlStat_Reset(BtlMgrChr *chr);
+extern void BtlStat_SetFrameMod(BtlMgrChr *chr, s32 idx, s32 val, s32 add);
+extern void BtlAnim_Play(BtlMgrChr *chr, s32 arg1, f32 arg2);
+extern void BtlAnim_FlushRequest(BtlMgrChr *chr);
+extern void BtlAnim_SetObjRate(BtlMgrChr *chr, f32 rate);
+extern void BtlAnim_SetRate(BtlMgrChr *chr, f32 rate);
+extern s32 BtlAnim_GetId(BtlMgrChr *chr);
+extern s32 BtlAnim_GetFlags(s32 idx);
 extern void ChrCam_UpdateInput(BtlMgrChr *chr);
 extern void ChrCam_Update(BtlMgrChr *chr);
 extern void ChrCam_UpdateDemo(BtlMgrChr *chr);
 extern void ChrCam_StartCut(BtlMgrChr *chr);
-extern void func_001CA520(void);
-extern void func_001CA618(BtlMgrChr *chr);
-extern void func_001CD558(BtlMgrChr *chr);
-extern void func_001CD9C8(BtlMgrChr *chr);
-extern void func_001CDD40(BtlMgrChr *chr, s32 member, s32 init, s32 variant, f32 health);
-extern BtlMgrMember *func_001CE030(BtlMgrChr *chr, s32 idx);
-extern BtlMgrMember *func_001CE050(BtlMgrChr *chr);
-extern BtlMgrGauge *func_001CE1B8(BtlMgrChr *chr);
-extern void func_001CE3D0(BtlMgrChr *chr, s32 member);
-extern s32 func_001CE3D8(BtlMgrChr *chr);
-extern s32 func_001CE468(BtlMgrChr *chr);
-extern s32 func_001CE470(BtlMgrChr *chr);
-extern void func_001CEB40(BtlMgrChr *chr, s32 amount);
-extern f32 func_001CEE90(BtlMgrChr *chr);
-extern f32 func_001CEED8(BtlMgrChr *chr);
-extern s32 func_001CF0C8(BtlMgrChr *chr, s32 ability);
-extern void func_001CF220(void);
+extern void BtlColl_Update(void);
+extern void BtlColl_UpdateFrozen(BtlMgrChr *chr);
+extern void BtlColl_UpdateGround(BtlMgrChr *chr);
+extern void BtlColl_ClearActionBits(BtlMgrChr *chr);
+extern void BtlMember_LoadParams(BtlMgrChr *chr, s32 member, s32 init, s32 variant, f32 health);
+extern BtlMgrMember *BtlMember_Get(BtlMgrChr *chr, s32 idx);
+extern BtlMgrMember *BtlMember_GetActive(BtlMgrChr *chr);
+extern BtlMgrGauge *BtlMember_GetActiveGauge(BtlMgrChr *chr);
+extern void BtlMember_SetActiveIndex(BtlMgrChr *chr, s32 member);
+extern s32 BtlMember_CountAlive(BtlMgrChr *chr);
+extern s32 BtlMember_GetActiveIndex(BtlMgrChr *chr);
+extern s32 BtlMember_GetSwitchTarget(BtlMgrChr *chr);
+extern void BtlMember_AddHealth(BtlMgrChr *chr, s32 amount);
+extern f32 BtlMember_GetHealthRatio(BtlMgrChr *chr);
+extern f32 BtlMember_GetTeamHealthRatio(BtlMgrChr *chr);
+extern s32 BtlMember_HasAbility(BtlMgrChr *chr, s32 ability);
+extern void BtlMembers_UpdateQueuedDamage(void);
 extern void func_001D2D10(BtlMgrChr *chr);
 extern void func_001D2D30(BtlMgrChr *chr);
 extern void func_001D2E88(BtlMgrChr *chr);
@@ -155,46 +155,46 @@ extern void func_001D3110(void);
 extern void func_001D3568(BtlMgrChr *chr);
 extern void func_001D35B0(BtlMgrChr *chr);
 extern void func_001D3668(BtlMgrChr *chr);
-extern void func_001D6150(void);
-extern void func_001D6178(void);
-extern s32 func_001D63A8(void);
-extern void func_001D6438(BtlMgrChr *chr);
-extern void func_001D64A0(BtlMgrChr *chr);
-extern void func_001D6578(BtlMgrChr *chr, s32 arg1);
-extern void func_001D7088(BtlMgrChr *chr);
-extern void func_001D70E8(BtlMgrChr *chr);
-extern void func_001D7198(BtlMgrChr *chr, s32 arg1);
-extern void func_001D73B0(BtlMgrChr *chr);
-extern void func_001D7570(BtlMgrChr *chr);
-extern void func_001D75C8(BtlMgrChr *chr);
-extern void func_001D7628(BtlMgrChr *chr);
-extern void func_001D7688(BtlMgrChr *chr);
-extern void func_001D7720(BtlMgrChr *chr);
-extern void func_001D7908(BtlMgrChr *chr);
-extern void func_001D79A0(BtlMgrChr *chr);
-extern void func_001D7A48(BtlMgrChr *chr);
-extern void func_001D7C30(void);
-extern void func_001D8080(BtlMgrChr *chr);
-extern void func_001D8128(s32 pass);
-extern void func_001D8270(BtlMgrChr *chr, void *vec, s32 arg2, s32 arg3);
-extern void func_001D82E0(BtlMgrChr *chr, void *vec, s32 arg2);
+extern void BtlChange_Reset(void);
+extern void BtlChange_Update(void);
+extern s32 BtlChars_IsTimeStopped(void);
+extern void BtlChar_ResetLook(BtlMgrChr *chr);
+extern void BtlChar_UpdateLookOffset(BtlMgrChr *chr);
+extern void BtlChar_SetLookEnabled(BtlMgrChr *chr, s32 arg1);
+extern void BtlChar_UpdateHead(BtlMgrChr *chr);
+extern void BtlChar_ObjToPose(BtlMgrChr *chr);
+extern void BtlChar_PoseToObj(BtlMgrChr *chr, s32 arg1);
+extern void BtlChar_UpdateLean(BtlMgrChr *chr);
+extern void BtlChar_PlaceAtStart(BtlMgrChr *chr);
+extern void BtlChar_PlaceRestart(BtlMgrChr *chr);
+extern void BtlChar_PlaceCenter(BtlMgrChr *chr);
+extern void BtlChar_PlaceRelative(BtlMgrChr *chr);
+extern void BtlChar_PlaceOnPath(BtlMgrChr *chr);
+extern void BtlChar_PlaceCenterHigh(BtlMgrChr *chr);
+extern void BtlChar_PlaceSaved(BtlMgrChr *chr);
+extern void BtlChar_PlaceWarp(BtlMgrChr *chr);
+extern void BtlChars_UpdateHold(void);
+extern void BtlChar_ClearSnapshots(BtlMgrChr *chr);
+extern void BtlChars_Snapshot(s32 pass);
+extern void BtlChar_GetSnapDelta(BtlMgrChr *chr, void *vec, s32 arg2, s32 arg3);
+extern void BtlChar_GetMoveSince(BtlMgrChr *chr, void *vec, s32 arg2);
 extern void BtlReplay_Rewind(BtlMgrChr *chr);
 extern void BtlReplay_ResetViewer(void);
 extern void BtlReplay_UpdateViewer(void);
-extern void func_001D9900(void);
-extern void func_001D9F90(void);
-extern void func_001DA058(void);
-extern void func_001DA098(void);
-extern void func_001DA5A8(BtlMgrChr *chr);
-extern void func_001DA970(BtlMgrChr *chr, s32 stage);
-extern void func_001DAAF0(BtlMgrChr *chr, s32 first, s32 last);
-extern s32 func_001DACE8(BtlMgrChr *chr, s32 flag);
-extern s32 func_001DAD40(BtlMgrChr *chr, s32 flag);
-extern void func_001DAD98(BtlMgrChr *chr);
-extern void func_001DAE98(void);
-extern void func_001DAFB0(BtlMgrChr *chr, s32 bits);
-extern s32 func_001DB770(BtlMgrChr *chr);
-extern void func_001DBCE0(BtlMgrChr *chr);
+extern void BtlClash_Update(void);
+extern void BtlCharSnd_Init(void);
+extern void BtlCharSnd_ClearRequests(void);
+extern void BtlCharSnd_PlayRequests(void);
+extern void BtlCharSnd_PlayTechSounds(BtlMgrChr *chr);
+extern void BtlChar_SetStage(BtlMgrChr *chr, s32 stage);
+extern void BtlChar_ClearFlagRange(BtlMgrChr *chr, s32 first, s32 last);
+extern s32 BtlChar_IsFlagRaised(BtlMgrChr *chr, s32 flag);
+extern s32 BtlChar_IsFlagDropped(BtlMgrChr *chr, s32 flag);
+extern void BtlChar_UpdateLockOn(BtlMgrChr *chr);
+extern void BtlChars_UpdateSightFlag(void);
+extern void BtlChar_SetFrameBits(BtlMgrChr *chr, s32 bits);
+extern s32 BtlOpp_GetPlayer(BtlMgrChr *chr);
+extern void BtlOpp_MirrorFlags(BtlMgrChr *chr);
 extern s32 BtlUtil_Clamp(s32 val, s32 lo, s32 hi);
 extern s32 BtlUtil_Max(s32 a, s32 b);
 extern BtlMgrObj *BtlChar_GetObj(BtlMgrChr *chr);
@@ -204,14 +204,14 @@ extern s32 BtlChar_TestMemberUnk70(BtlMgrChr *chr);
 extern void BtlChar_UpdateVibration(BtlMgrChr *chr);
 extern void BtlChar_StopVoiceOnFlag(BtlMgrChr *chr);
 extern void BtlChar_TickVoiceTimers(BtlMgrChr *chr);
-extern void func_001DC9A0(BtlMgrChr *chr);
-extern void func_001DCB58(BtlMgrChr *chr);
-extern void func_001DEF70(BtlMgrChr *chr);
-extern void func_001DF210(BtlMgrChr *chr);
-extern void func_001DF4A8(BtlMgrChr *chr);
-extern void func_001E0310(BtlMgrChr *chr);
-extern s32 func_001E0358(BtlMgrChr *chr);
-extern s32 func_001E0430(BtlMgrChr *chr);
+extern void BtlMove_UpdateAnimVoice(BtlMgrChr *chr);
+extern void BtlMove_UpdateAction(BtlMgrChr *chr);
+extern void BtlMove_ClampToStage(BtlMgrChr *chr);
+extern void BtlMove_ApplyOrbit(BtlMgrChr *chr);
+extern void BtlMove_PushOut(BtlMgrChr *chr);
+extern void BtlAct_ClearQueue(BtlMgrChr *chr);
+extern s32 BtlAct_GetCurrent(BtlMgrChr *chr);
+extern s32 BtlAct_GetCurrentClass(BtlMgrChr *chr);
 extern s32 func_00206B70(s32 objId);
 extern s32 func_00206CC0(s32 objId);
 extern s32 func_00206E88(s32 objId);
@@ -253,10 +253,10 @@ void BtlChar_BindObject(BtlMgrChr *chr) {
         }
     }
     BtlChar_ClearFlag(chr, 0xBE);
-    func_001DAAF0(chr, 0x98, 0x99);
+    BtlChar_ClearFlagRange(chr, 0x98, 0x99);
     func_00250CD0(obj);
     memset(chr->unkE00, 0, 0x40);
-    func_001C31D0(chr);
+    BtlStat_Reset(chr);
     OBJ_WORD_18028(obj) = 0;
 }
 
@@ -312,22 +312,22 @@ void BtlChar_Reset(BtlMgrChr *chr) {
     BtlMgrMember *mem;
     BattleResult *res;
 
-    func_001DA970(chr, BTL_CHR_STAGE_RESET);
+    BtlChar_SetStage(chr, BTL_CHR_STAGE_RESET);
     chr->optA = BattleSide_GetOptionA(side);
     chr->optBOff = BattleSide_GetOptionB(side) == 0;
     chr->padFlagA = (gSaveData->flags & (2 << chr->pad)) != 0;
     chr->unk1590 = -1;
     chr->unk1594 = -1;
     BtlInput_Init(chr);
-    func_001E0310(chr);
+    BtlAct_ClearQueue(chr);
     chr->injectOn = BattleSide_IsCpu(side);
-    func_001D7570(chr);
+    BtlChar_PlaceAtStart(chr);
     BtlReplay_Rewind(chr);
-    func_001D6438(chr);
+    BtlChar_ResetLook(chr);
     BtlChar_SetHeldFlag(chr, 5);
     obj = BtlChar_GetObj(chr);
-    func_001D7198(chr, 1);
-    func_001C3E60(chr, 0, 0.0f);
+    BtlChar_PoseToObj(chr, 1);
+    BtlAnim_Play(chr, 0, 0.0f);
     func_0024C958(obj);
     func_0024E3F8(obj);
     chr->memberCount = BattleSide_GetMemberCount(side);
@@ -343,16 +343,16 @@ void BtlChar_Reset(BtlMgrChr *chr) {
         mem->cpuLevel = BattleSide_GetMember(side, i)->cpuLevel;
         mem->aiType = BattleSide_GetMember(side, i)->aiType;
         m = BattleSide_GetMember(side, i);
-        func_001CDD40(chr, i, 1, BattleSide_GetMemberVariant(side, i), m->health);
+        BtlMember_LoadParams(chr, i, 1, BattleSide_GetMemberVariant(side, i), m->health);
     }
     chr->unk99C = 0;
-    if (func_001CF0C8(chr, 0x1B)) {
+    if (BtlMember_HasAbility(chr, 0x1B)) {
         chr->unk99C = 100000;
     }
     res = BattleResult_GetPtr();
     res->unk1C[chr->side] = 0;
     res->unk24[chr->side] = 0;
-    if (func_001CE1B8(chr)->unk20 != 0) {
+    if (BtlMember_GetActiveGauge(chr)->unk20 != 0) {
         BtlChar_GetObj(chr)->flags |= 0x40000000;
     }
 }
@@ -370,24 +370,24 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     BtlChar_BindObject(chr);
     obj = BtlChar_GetObj(chr);
     BtlChar_SetFlag(chr, 0x12B);
-    func_001C42A8(chr);
+    BtlAnim_FlushRequest(chr);
     func_0024C958(obj);
-    func_001D7198(chr, 1);
+    BtlChar_PoseToObj(chr, 1);
     func_0024E3F8(obj);
-    switch (func_001E0358(chr)) {
+    switch (BtlAct_GetCurrent(chr)) {
     case 0xEC:
     case 0xED:
     case 0xEE:
     case 0xEF:
     case 0xF0:
         /* transformation: keep the health ratio */
-        m = func_001CE050(chr);
+        m = BtlMember_GetActive(chr);
         m->chara = chr->newChara;
         g = &m->gauge;
         m->costume = chr->newCostume;
         g->unk20 = chr->new20;
-        ratio = func_001CEE90(chr);
-        func_001CDD40(chr, func_001CE468(chr), 0, 0, 0.0f);
+        ratio = BtlMember_GetHealthRatio(chr);
+        BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0, 0.0f);
         g->health = (f32)g->healthMax * ratio + 0.5f;
         if (func_0020E280(chr) & 1) {
             g->health += 5000;
@@ -408,11 +408,11 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     case 0xF7:
     case 0xF8:
         /* switch to another team member */
-        func_001CE3D0(chr, chr->nextMember);
-        func_001CE470(chr);
+        BtlMember_SetActiveIndex(chr, chr->nextMember);
+        BtlMember_GetSwitchTarget(chr);
         chr->unk99C = 0;
-        g = &func_001CE050(chr)->gauge;
-        if (func_001CF0C8(chr, 0x43)) {
+        g = &BtlMember_GetActive(chr)->gauge;
+        if (BtlMember_HasAbility(chr, 0x43)) {
             BtlChar_SetHeldFlag(chr, 6);
             g->unk1C = 30000;
             g->ki = g->kiMax;
@@ -420,7 +420,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
             BtlChar_ClearFlag(chr, 6);
             g->unk1C = 0;
         }
-        if (func_001CF0C8(chr, 0x61)) {
+        if (BtlMember_HasAbility(chr, 0x61)) {
             g->blast = g->blastMax;
         }
         if (BtlChar_TestMemberUnk70(chr)) {
@@ -430,9 +430,9 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     case 0xF1:
     case 0xF2:
         /* fusion: merge the partner member into the current one */
-        m = func_001CE050(chr);
+        m = BtlMember_GetActive(chr);
         g = &m->gauge;
-        other = func_001CE030(chr, chr->fusionMember);
+        other = BtlMember_Get(chr, chr->fusionMember);
         if (other != NULL) {
             og = &other->gauge;
             m->bonus[0] = BtlUtil_Clamp(m->bonus[0] + other->bonus[0], -20, 40);
@@ -482,7 +482,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     case 0x139:
     case 0x13A:
     case 0x13B:
-        m = func_001CE050(chr);
+        m = BtlMember_GetActive(chr);
         m->chara = chr->newChara;
         g = &m->gauge;
         m->costume = chr->newCostume;
@@ -490,13 +490,13 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
         if (BtlChar_TestFlag(chr, 0xA6)) {
             g->unk30 = 1;
             func_0024FFE8(obj);
-            func_001CDD40(chr, func_001CE468(chr), 0, 0, 0.0f);
+            BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0, 0.0f);
             g->health = g->healthMax;
         }
         break;
     }
     func_0024FE78(obj, func_0020E480(chr), -1);
-    if (func_001CE1B8(chr)->unk20 != 0) {
+    if (BtlMember_GetActiveGauge(chr)->unk20 != 0) {
         obj->flags |= 0x40000000;
     } else {
         obj->flags &= ~0x40000000;
@@ -508,7 +508,7 @@ void BtlChar_OnStageLoaded(BtlMgrChr *chr) {
     BtlMgrObj *obj = BtlChar_GetObj(chr);
 
     memset(&chr->pose, 0, 0x2D0);
-    func_001D7570(chr);
+    BtlChar_PlaceAtStart(chr);
     BtlChar_ClearFlag(chr, 0xE);
     BtlChar_SetHeldFlag(chr, 0xF);
     chr->unk15D4[0] = 0;
@@ -516,15 +516,15 @@ void BtlChar_OnStageLoaded(BtlMgrChr *chr) {
     chr->unk15D4[2] = 0;
     chr->unk15D4[3] = 0;
     chr->unk15D4[4] = 0;
-    func_001D6438(chr);
-    func_001D7198(chr, 1);
-    if ((func_001C4650(func_001C4638(chr)) & 0x10) || chr->unkFB0 >= 3) {
+    BtlChar_ResetLook(chr);
+    BtlChar_PoseToObj(chr, 1);
+    if ((BtlAnim_GetFlags(BtlAnim_GetId(chr)) & 0x10) || chr->unkFB0 >= 3) {
         BtlChar_SetHeldFlag(chr, 0x13A);
     } else {
         BtlChar_SetHeldFlag(chr, 0x139);
     }
     chr->unkFB0 = 1;
-    func_001C3E60(chr, 0, 0.0f);
+    BtlAnim_Play(chr, 0, 0.0f);
     func_0024C958(obj);
     func_0024E3F8(obj);
 }
@@ -540,20 +540,20 @@ void BtlChar_ResetRound(BtlMgrChr *chr) {
     BtlChar_SetHeldFlag(chr, 0xF);
     BtlChar_SetHeldFlag(chr, 5);
     BtlChar_ClearFlag(chr, 0x125);
-    func_001D7570(chr);
+    BtlChar_PlaceAtStart(chr);
     chr->prevAction = chr->action;
     chr->action = 0xF9;
     chr->unk94C = -1;
-    func_001E0310(chr);
+    BtlAct_ClearQueue(chr);
     chr->unkFB0 = 1;
     chr->unkD58 = 0.5f;
     chr->unkD5C = 500.0f;
     chr->freezeNext = 0;
     chr->freezeDelay = 0;
     chr->freeze = 0;
-    func_001D6438(chr);
+    BtlChar_ResetLook(chr);
     if (Battle_GetMode() == 3 && chr->side == 0) {
-        func_001CEB40(chr, 10000);
+        BtlMember_AddHealth(chr, 10000);
     }
 }
 
@@ -687,17 +687,17 @@ void BtlChars_UpdateCollision(void) {
     }
     if (nobodyFrozen) {
         func_001AF740();
-        func_001CA520();
+        BtlColl_Update();
     } else {
         for (i = 0; i < BtlChar_GetCount(); i++) {
-            func_001CA618(BtlChar_Get(i));
+            BtlColl_UpdateFrozen(BtlChar_Get(i));
         }
     }
 }
 
 /* Raises this frame's battle events for one fighter. */
 void BtlChar_RaiseEvents(BtlMgrChr *chr) {
-    BtlMgrGauge *g = func_001CE1B8(chr);
+    BtlMgrGauge *g = BtlMember_GetActiveGauge(chr);
     s32 lost = g->healthMax - g->health;
     s32 tech;
 
@@ -722,11 +722,11 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
     if (g->blast == g->blastMax) {
         BtlEvent_Raise(chr->side, 0x1E);
     }
-    if (func_001DACE8(chr, 6)) {
+    if (BtlChar_IsFlagRaised(chr, 6)) {
         BtlEvent_Raise(chr->side, 0x1F);
     }
     if (func_00206B70(chr->objId)) {
-        switch (func_001E0430(chr)) {
+        switch (BtlAct_GetCurrentClass(chr)) {
         case 2:
             BtlEvent_Raise(chr->side, 0x26);
             break;
@@ -739,7 +739,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         }
     }
     if (func_00206CC0(chr->objId)) {
-        switch (func_001E0430(chr)) {
+        switch (BtlAct_GetCurrentClass(chr)) {
         case 0:
             BtlEvent_Raise(chr->side, 0x24);
             break;
@@ -749,7 +749,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         }
     }
     if (BtlChar_TestFlag(chr, 8)) {
-        switch (func_001E0358(chr)) {
+        switch (BtlAct_GetCurrent(chr)) {
         case 0x130:
         case 0x131:
         case 0x132:
@@ -781,7 +781,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
             break;
         }
     }
-    if (func_001DACE8(chr, 0x5B)) {
+    if (BtlChar_IsFlagRaised(chr, 0x5B)) {
         tech = func_0020C9F0(chr);
         switch (tech) {
         case 0x00:
@@ -810,9 +810,9 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         case 0x41:
         case 0x42:
             BtlEvent_Raise(chr->side, 0x3E);
-            func_001DAFB0(chr, 0x20);
+            BtlChar_SetFrameBits(chr, 0x20);
             if (chr->unkD70 > 0) {
-                func_001DAFB0(chr, 0x100000);
+                BtlChar_SetFrameBits(chr, 0x100000);
             }
             break;
         case 0x43:
@@ -820,9 +820,9 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         case 0x45:
         case 0x46:
             BtlEvent_Raise(chr->side, 0x32);
-            func_001DAFB0(chr, 0x20);
+            BtlChar_SetFrameBits(chr, 0x20);
             if (chr->unkD68 > 0) {
-                func_001DAFB0(chr, 0x100000);
+                BtlChar_SetFrameBits(chr, 0x100000);
             }
             break;
         case 0x55:
@@ -843,7 +843,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
             break;
         case 0x53:
             BtlEvent_Raise(chr->side, 0x4B);
-            func_001DAFB0(chr, 0x80000);
+            BtlChar_SetFrameBits(chr, 0x80000);
             break;
         case 0x10:
         case 0x52:
@@ -863,7 +863,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         case 0x76:
         case 0x77:
         case 0x78:
-            func_001DAFB0(chr, 0x2000000);
+            BtlChar_SetFrameBits(chr, 0x2000000);
             break;
         }
         switch (tech) {
@@ -897,7 +897,7 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
     if (BtlChar_TestFlag(chr, 0x70)) {
         BtlEvent_Raise(chr->side, 0x43);
     }
-    if (func_001DACE8(chr, 0xBE)) {
+    if (BtlChar_IsFlagRaised(chr, 0xBE)) {
         BtlEvent_Raise(chr->side, 0x23);
     }
     if (BtlChar_TestFlag(chr, 0xBF)) {
@@ -905,14 +905,14 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
     }
     if (BtlChar_TestFlag(chr, 0xC1)) {
         BtlEvent_Raise(chr->side, 0x46);
-        func_001DAFB0(chr, 0x800000);
+        BtlChar_SetFrameBits(chr, 0x800000);
     }
     if (BtlChar_TestFlag(chr, 0x6C)) {
         BtlEvent_Raise(chr->side, 0x57);
     }
     if (BtlChar_TestFlag(chr, 3)) {
         BattleResult *res = BattleResult_GetPtr();
-        s32 opp = func_001DB770(chr);
+        s32 opp = BtlOpp_GetPlayer(chr);
 
         if (res->unk1C[opp] < chr->unkD40) {
             res->unk1C[opp] = chr->unkD40;
@@ -920,9 +920,9 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
         if (res->unk24[opp] < chr->unkD44) {
             res->unk24[opp] = chr->unkD44;
         }
-        res->health[chr->side] = func_001CEED8(chr) * 100.0f;
-        if (func_001CE1B8(chr)->health == 1) {
-            if (func_001CE3D8(BtlChar_Get(func_001DB770(chr))) <= 0) {
+        res->health[chr->side] = BtlMember_GetTeamHealthRatio(chr) * 100.0f;
+        if (BtlMember_GetActiveGauge(chr)->health == 1) {
+            if (BtlMember_CountAlive(BtlChar_Get(BtlOpp_GetPlayer(chr))) <= 0) {
                 BtlEvent_Raise(chr->side, 0x54);
             }
         }
@@ -933,11 +933,11 @@ void BtlChar_RaiseEvents(BtlMgrChr *chr) {
     if (BtlChar_TestFlag(chr, 7)) {
         BtlEvent_Raise(chr->side, 0x49);
     }
-    if (func_001DACE8(chr, 0x84)) {
-        func_001DAFB0(chr, 0x4000000);
+    if (BtlChar_IsFlagRaised(chr, 0x84)) {
+        BtlChar_SetFrameBits(chr, 0x4000000);
     }
-    if (func_001DACE8(chr, 0xA4)) {
-        func_001DAFB0(chr, 0x1000000);
+    if (BtlChar_IsFlagRaised(chr, 0xA4)) {
+        BtlChar_SetFrameBits(chr, 0x1000000);
     }
 }
 
@@ -987,7 +987,7 @@ void BtlChar_ApplyAbilityRequests(BtlMgrChr *chr) {
 /* Phase 2 body: builds this frame's input record from the pad. */
 void BtlChar_SampleInput(BtlMgrChr *chr) {
     if (!BtlChar_IsFrozen(chr)) {
-        func_001DA970(chr, BTL_CHR_STAGE_SAMPLE);
+        BtlChar_SetStage(chr, BTL_CHR_STAGE_SAMPLE);
         BtlInput_Sample(chr);
     }
 }
@@ -998,22 +998,22 @@ void BtlChar_BeginFrame(BtlMgrChr *chr) {
         BtlInput_Stub(chr);
         return;
     }
-    func_001DA970(chr, BTL_CHR_STAGE_INPUT);
+    BtlChar_SetStage(chr, BTL_CHR_STAGE_INPUT);
     chr->prevPose = chr->pose;
-    func_001D70E8(chr);
+    BtlChar_ObjToPose(chr);
     BtlChar_GetPos(chr)->unkA0 = 0;
     BtlChar_GetPos(chr)->unkA4 = 0;
-    func_001D8080(chr);
+    BtlChar_ClearSnapshots(chr);
     chr->prevAction = chr->action;
     chr->prev964 = chr->unk964;
     chr->prev974 = chr->unk974;
-    func_001C4580(chr, 1.0f);
-    func_001C45A8(chr, 1.0f);
+    BtlAnim_SetObjRate(chr, 1.0f);
+    BtlAnim_SetRate(chr, 1.0f);
     chr->unkD4C = 0;
     chr->unkD50 = 0;
-    func_001D6578(chr, 0);
+    BtlChar_SetLookEnabled(chr, 0);
     BtlChar_TickVoiceTimers(chr);
-    func_001CD9C8(chr);
+    BtlColl_ClearActionBits(chr);
     chr->prev1262 = chr->unk1262;
     memset(&chr->unk1262, 0, sizeof(chr->unk1262));
     if (BtlChar_TestFlag(chr, 6)) {
@@ -1023,14 +1023,14 @@ void BtlChar_BeginFrame(BtlMgrChr *chr) {
         chr->unkD6C = 1;
         chr->unkD74 = 1;
     }
-    if (func_001CF0C8(chr, 1)) {
+    if (BtlMember_HasAbility(chr, 1)) {
         chr->unkD6C += 2;
-    } else if (func_001CF0C8(chr, 0)) {
+    } else if (BtlMember_HasAbility(chr, 0)) {
         chr->unkD6C += 1;
     }
-    if (func_001CF0C8(chr, 3)) {
+    if (BtlMember_HasAbility(chr, 3)) {
         chr->unkD74 += 2;
-    } else if (func_001CF0C8(chr, 2)) {
+    } else if (BtlMember_HasAbility(chr, 2)) {
         chr->unkD74 += 1;
     }
     chr->frameBits = 0;
@@ -1067,13 +1067,13 @@ void BtlChar_UpdateSeqFlags(BtlMgrChr *chr) {
         BtlChar_SetHeldFlag(chr, 4);
         break;
     }
-    func_001DAD98(chr);
-    if (func_001D63A8()) {
+    BtlChar_UpdateLockOn(chr);
+    if (BtlChars_IsTimeStopped()) {
         BtlChar_SetHeldFlag(chr, 0x135);
     } else {
         BtlChar_ClearFlag(chr, 0x135);
     }
-    if (func_001DAD40(chr, 0x135)) {
+    if (BtlChar_IsFlagDropped(chr, 0x135)) {
         BtlChar_ResetObjWork(chr);
     }
     if (!BtlChar_TestFlag(chr, 0xAF)) {
@@ -1081,41 +1081,41 @@ void BtlChar_UpdateSeqFlags(BtlMgrChr *chr) {
     }
 }
 
-/* Phase 4 body 1: seven func_001D75C8.. passes, then pose -> object, object update, object -> pose. */
+/* Phase 4 body 1: seven BtlChar_PlaceRestart.. passes, then pose -> object, object update, object -> pose. */
 void BtlChar_UpdateMotion(BtlMgrChr *chr) {
     BtlMgrObj *obj = BtlChar_GetObj(chr);
 
     if (BtlChar_IsFrozen(chr)) {
         return;
     }
-    func_001DCB58(chr);
+    BtlMove_UpdateAction(chr);
     if (BtlChar_TestFlag(chr, 0x2B)) {
         func_00250888(obj, 1);
     } else {
         func_00250888(obj, 0);
     }
-    func_001D75C8(chr);
-    func_001D7628(chr);
-    func_001D7688(chr);
-    func_001D7720(chr);
-    func_001D7908(chr);
-    func_001D79A0(chr);
-    func_001D7A48(chr);
-    func_001D7198(chr, 1);
+    BtlChar_PlaceRestart(chr);
+    BtlChar_PlaceCenter(chr);
+    BtlChar_PlaceRelative(chr);
+    BtlChar_PlaceOnPath(chr);
+    BtlChar_PlaceCenterHigh(chr);
+    BtlChar_PlaceSaved(chr);
+    BtlChar_PlaceWarp(chr);
+    BtlChar_PoseToObj(chr, 1);
     func_0024C958(obj);
     func_0024CC88(obj);
-    func_001D73B0(chr);
+    BtlChar_UpdateLean(chr);
     func_001D2D10(chr);
     func_0024E3F8(obj);
-    func_001D70E8(chr);
-    func_001D64A0(chr);
+    BtlChar_ObjToPose(chr);
+    BtlChar_UpdateLookOffset(chr);
 }
 
 /* Phase 4 body 2 (stage 6). */
 void BtlChar_UpdateStage6(BtlMgrChr *chr) {
     if (!BtlChar_IsFrozen(chr)) {
-        func_001DA970(chr, BTL_CHR_STAGE_6);
-        func_001DBCE0(chr);
+        BtlChar_SetStage(chr, BTL_CHR_STAGE_6);
+        BtlOpp_MirrorFlags(chr);
         func_001D35B0(chr);
     }
 }
@@ -1125,12 +1125,12 @@ void BtlChar_UpdateStage7(BtlMgrChr *chr) {
     BtlMgrObj *obj = BtlChar_GetObj(chr);
 
     if (!BtlChar_IsFrozen(chr)) {
-        func_001DA970(chr, BTL_CHR_STAGE_7);
-        func_001DF4A8(chr);
-        func_001DF210(chr);
-        func_001D7198(chr, 0);
+        BtlChar_SetStage(chr, BTL_CHR_STAGE_7);
+        BtlMove_PushOut(chr);
+        BtlMove_ApplyOrbit(chr);
+        BtlChar_PoseToObj(chr, 0);
         func_0024E3F8(obj);
-        func_001D70E8(chr);
+        BtlChar_ObjToPose(chr);
     }
 }
 
@@ -1144,9 +1144,9 @@ void BtlChar_UpdateStage8(BtlMgrChr *chr) {
     if (BtlChar_IsFrozen(chr)) {
         return;
     }
-    func_001DA970(chr, BTL_CHR_STAGE_8);
-    func_001DEF70(chr);
-    func_001D7198(chr, 0);
+    BtlChar_SetStage(chr, BTL_CHR_STAGE_8);
+    BtlMove_ClampToStage(chr);
+    BtlChar_PoseToObj(chr, 0);
     func_0024E3F8(obj);
     if (BtlChar_TestFlag(chr, 0x55)) {
         func_0024DD80(obj, chr->unk1310);
@@ -1156,12 +1156,12 @@ void BtlChar_UpdateStage8(BtlMgrChr *chr) {
     if (gBtlChars->flags & BTL_CHARS_STARTED) {
         started = 1;
     }
-    if (func_001D63A8()) {
+    if (BtlChars_IsTimeStopped()) {
         started = 0;
     }
     func_001B21A8(obj, flag, func_00206E88(chr->objId) ? 0 : started);
     func_001B15B8(obj);
-    func_001D70E8(chr);
+    BtlChar_ObjToPose(chr);
 }
 
 /* Phase 4 body 5 (stage 9). */
@@ -1169,9 +1169,9 @@ void BtlChar_UpdateStage9(BtlMgrChr *chr) {
     BtlMgrObj *obj = BtlChar_GetObj(chr);
 
     if (!BtlChar_IsFrozen(chr)) {
-        func_001DA970(chr, BTL_CHR_STAGE_9);
-        func_001CD558(chr);
-        func_001D7198(chr, 0);
+        BtlChar_SetStage(chr, BTL_CHR_STAGE_9);
+        BtlColl_UpdateGround(chr);
+        BtlChar_PoseToObj(chr, 0);
         func_0024E3F8(obj);
     }
 }
@@ -1186,7 +1186,7 @@ void BtlChar_UpdateCamera(BtlMgrChr *chr) {
         ChrCam_UpdateInput(chr);
         func_00250CB8(obj, BtlChar_GetPos(chr)->unk30);
         func_00250D38(obj);
-        func_001D7088(chr);
+        BtlChar_UpdateHead(chr);
         func_0024E3F8(obj);
         func_001D2D30(chr);
         func_0024DDF0(obj);
@@ -1196,7 +1196,7 @@ void BtlChar_UpdateCamera(BtlMgrChr *chr) {
 /* Phase 4 body 7 (stage 10). */
 void BtlChar_UpdateStage10(BtlMgrChr *chr) {
     if (!BtlChar_IsFrozen(chr)) {
-        func_001DA970(chr, BTL_CHR_STAGE_10);
+        BtlChar_SetStage(chr, BTL_CHR_STAGE_10);
         func_001D3668(chr);
         func_001D2E88(chr);
     }
@@ -1209,24 +1209,24 @@ void BtlChar_PostScene(BtlMgrChr *chr) {
     if (BtlChar_IsFrozen(chr)) {
         return;
     }
-    func_001D70E8(chr);
+    BtlChar_ObjToPose(chr);
     ChrCam_Update(chr);
     func_001D2EC8(chr);
-    if (func_001CE1B8(chr)->health < 10000) {
-        func_001CE1B8(chr)->lowHealth = 1;
+    if (BtlMember_GetActiveGauge(chr)->health < 10000) {
+        BtlMember_GetActiveGauge(chr)->lowHealth = 1;
         if (!(func_0020E108(chr) & 0x80) && chr->unkE14 <= 0 && chr->unkE18 <= 0 && !BtlChar_TestFlag(chr, 6)) {
-            func_001CE1B8(chr)->lowHealthIdle = 1;
+            BtlMember_GetActiveGauge(chr)->lowHealthIdle = 1;
         } else {
-            func_001CE1B8(chr)->lowHealthIdle = 0;
+            BtlMember_GetActiveGauge(chr)->lowHealthIdle = 0;
         }
     } else {
-        func_001CE1B8(chr)->lowHealthIdle = 0;
-        func_001CE1B8(chr)->lowHealth = 0;
+        BtlMember_GetActiveGauge(chr)->lowHealthIdle = 0;
+        BtlMember_GetActiveGauge(chr)->lowHealth = 0;
     }
-    opp = BtlChar_Get(func_001DB770(chr));
+    opp = BtlChar_Get(BtlOpp_GetPlayer(chr));
     if (BtlChar_TestFlag(chr, 0x97)) {
         if (!BtlChar_TestFlag(chr, 0x30)) {
-            func_001D8270(chr, opp->unkF30, 1, 4);
+            BtlChar_GetSnapDelta(chr, opp->unkF30, 1, 4);
         } else {
             func_00121E20(opp->unkF30);
         }
@@ -1244,15 +1244,15 @@ void BtlChar_UpdateLate(BtlMgrChr *chr) {
     }
     func_001D2EF0(chr);
     BtlChar_StopVoiceOnFlag(chr);
-    func_001DA5A8(chr);
-    func_001DC9A0(chr);
-    func_001C31A0(chr);
+    BtlCharSnd_PlayTechSounds(chr);
+    BtlMove_UpdateAnimVoice(chr);
+    BtlStat_ClearFrameMods(chr);
     if (BtlChar_TestMemberUnk70(chr)) {
         OBJ_WORD_18028(obj) = 1;
-        func_001C33D8(chr, 0, -10, 1);
-        func_001C33D8(chr, 1, -10, 1);
-        func_001C33D8(chr, 2, -10, 1);
-        func_001C33D8(chr, 3, -10, 1);
+        BtlStat_SetFrameMod(chr, 0, -10, 1);
+        BtlStat_SetFrameMod(chr, 1, -10, 1);
+        BtlStat_SetFrameMod(chr, 2, -10, 1);
+        BtlStat_SetFrameMod(chr, 3, -10, 1);
     } else {
         OBJ_WORD_18028(obj) = 0;
     }
@@ -1265,17 +1265,17 @@ void BtlChar_EndFrame(BtlMgrChr *chr) {
     if (BtlChar_IsFrozen(chr)) {
         return;
     }
-    func_001DA970(chr, BTL_CHR_STAGE_EVENTS);
+    BtlChar_SetStage(chr, BTL_CHR_STAGE_EVENTS);
     if (!BtlChar_TestFlag(chr, 0x24)) {
-        func_001D8270(chr, pose->unk30, 0, 1);
-        func_001D82E0(chr, pose->unk40, 0);
+        BtlChar_GetSnapDelta(chr, pose->unk30, 0, 1);
+        BtlChar_GetMoveSince(chr, pose->unk40, 0);
     } else {
         func_00121E20(pose->unk30);
         func_00121E20(pose->unk40);
     }
     BtlChar_RaiseEvents(chr);
     BtlChar_UpdateVibration(chr);
-    func_001DA970(chr, BTL_CHR_STAGE_END);
+    BtlChar_SetStage(chr, BTL_CHR_STAGE_END);
 }
 
 /* Allocates the roster for `count` fighters and resets it. */
@@ -1296,7 +1296,7 @@ void BtlChar_AllocAll(s32 count) {
     gBtlChars->tbl[4] = FILE_TABLE(gCommonRes->data[0], 8);
     gBtlChars->tbl[5] = FILE_TABLE(gCommonRes->data[0], 9);
     BtlChar_ResetAll();
-    func_001D9F90();
+    BtlCharSnd_Init();
 }
 
 /* Frees the roster. */
@@ -1326,7 +1326,7 @@ void BtlChar_ResetAll(void) {
     memset(gBtlChars->unk40, 0, 0x60);
     gBtlChars->unk130 = 0;
     memset(gBtlChars->chars, 0, BtlChar_GetCount() * 0x1600);
-    func_001D6150();
+    BtlChange_Reset();
     BtlReplay_ResetViewer();
     for (i = 0; i < BtlChar_GetCount(); i++) {
         chr = BtlChar_Get(i);
@@ -1399,19 +1399,19 @@ void BtlChars_UpdateInput(void) {
         BtlChars_ClearObjFlag2();
         return;
     }
-    if ((gBtlChars->flags & BTL_CHARS_STARTED) && !func_001D63A8()) {
+    if ((gBtlChars->flags & BTL_CHARS_STARTED) && !BtlChars_IsTimeStopped()) {
         gBtlChars->frame++;
         gBtlChars->frame &= 0x3FFFFFFF;
         gBtlChars->unk1C = BtlUtil_Max(gBtlChars->unk1C - 1, 0);
     }
     BtlChars_CheckRoundReset();
     BtlChars_UpdateFreeze();
-    func_001DA058();
+    BtlCharSnd_ClearRequests();
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_BeginFrame(BtlChar_Get(i));
     }
-    func_001D8128(0);
-    func_001DAE98();
+    BtlChars_Snapshot(0);
+    BtlChars_UpdateSightFlag();
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateSeqFlags(BtlChar_Get(i));
     }
@@ -1433,31 +1433,31 @@ void BtlChars_UpdateMain(void) {
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateStage6(BtlChar_Get(i));
     }
-    func_001D7C30();
-    func_001D8128(1);
+    BtlChars_UpdateHold();
+    BtlChars_Snapshot(1);
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateStage7(BtlChar_Get(i));
     }
-    func_001D8128(2);
+    BtlChars_Snapshot(2);
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateStage8(BtlChar_Get(i));
     }
-    func_001D8128(3);
+    BtlChars_Snapshot(3);
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateStage9(BtlChar_Get(i));
     }
-    func_001D8128(4);
+    BtlChars_Snapshot(4);
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateCamera(BtlChar_Get(i));
     }
     BtlReplay_UpdateViewer();
     func_001D3110();
-    func_001CF220();
+    BtlMembers_UpdateQueuedDamage();
     BtlChars_UpdateCollision();
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_UpdateStage10(BtlChar_Get(i));
     }
-    func_001D9900();
+    BtlClash_Update();
 }
 
 /* Phase 5: per-fighter pass after the effect scene. */
@@ -1482,7 +1482,7 @@ void BtlChars_EndFrame(void) {
     if (Battle_GetWork()->flags & BATTLE_FLAG_LOADING) {
         return;
     }
-    func_001D6178();
+    BtlChange_Update();
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         return;
     }
@@ -1490,9 +1490,9 @@ void BtlChars_EndFrame(void) {
         BtlChar_UpdateLate(BtlChar_Get(i));
     }
     BtlChars_UpdateObjFlag2();
-    func_001DA098();
+    BtlCharSnd_PlayRequests();
     for (i = 0; i < BtlChar_GetCount(); i++) {
         BtlChar_EndFrame(BtlChar_Get(i));
     }
-    func_001D8128(5);
+    BtlChars_Snapshot(5);
 }

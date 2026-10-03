@@ -38,12 +38,12 @@ extern void BtlCharApi_SetInjectedInput(s32 objId, u32 buttons, f32 stickX, f32 
 extern s32 BtlCharApi_GetUnk974(s32 objId); /* the fighter's current action id */
 extern s32 func_001B5838(BtlAiWork *ai);
 extern s32 func_001B5B78(BtlAiWork *ai);
-extern void func_001BC918(BtlAiOutput *out, s32 keep);
-extern void func_001BCD70(BtlAiOutput *out);
-extern void func_001BC8A8(BtlAiWork *ai);
-extern void func_001BDAB0(BtlAiWork *ai);
-extern void func_001BDE68(BtlAiWork *ai);
-extern void func_001BE140(BtlAiWork *ai);
+extern void BtlAiPad_Clear(BtlAiOutput *out, s32 keep);
+extern void BtlAiPad_EndFrame(BtlAiOutput *out);
+extern void BtlAiMove_Dispatch(BtlAiWork *ai);
+extern void BtlAiCombo_Dispatch(BtlAiWork *ai);
+extern void BtlAiFollow_Dispatch(BtlAiWork *ai);
+extern void BtlAiAct36_Dispatch(BtlAiWork *ai);
 extern s32 func_00206D68(s32 objId);
 extern s32 func_002086C0(s32 objId, s32 arg);
 extern void func_00208A28(s32 objId);

@@ -14,7 +14,7 @@
  * touches, or that its direct callees show, are named.
  */
 
-/* Active member's vitals, the block func_001CE1B8(chr) returns: chr + 0x9A4 + chr->member * 0xA4 + 0x40. */
+/* Active member's vitals, the block BtlMember_GetActiveGauge(chr) returns: chr + 0x9A4 + chr->member * 0xA4 + 0x40. */
 typedef struct BtlCharApiVitals {
     /* 0x00 */ s32 hp;     /* < 1 = down (BtlChar_IsDead) */
     /* 0x04 */ s32 hpMax;
@@ -44,12 +44,12 @@ typedef struct BtlCharApiChr {
     /* 0x04A4 */ u8 unk4A4[0x4B8 - 0x4A4];
     /* 0x04B8 */ s32 camShakeOn;    /* ChrCam_AddShake only shakes when non-zero */
     /* 0x04BC */ u8 unk4BC[0x948 - 0x4BC];
-    /* 0x0948 */ s32 action;        /* action id (func_001E0358) */
+    /* 0x0948 */ s32 action;        /* action id (BtlAct_GetCurrent) */
     /* 0x094C */ u8 unk94C[0x974 - 0x94C];
-    /* 0x0974 */ s32 unk974;        /* index into the manager's table at +0x20 (func_001C4638) */
+    /* 0x0974 */ s32 unk974;        /* index into the manager's table at +0x20 (BtlAnim_GetId) */
     /* 0x0978 */ u8 unk978[0x990 - 0x978];
-    /* 0x0990 */ s32 unk990;        /* > 0 makes BtlCharApi_ObjTestAttr answer 0 (func_001C4740) */
-    /* 0x0994 */ s32 member;        /* active member index (func_001CE050) */
+    /* 0x0990 */ s32 unk990;        /* > 0 makes BtlCharApi_ObjTestAttr answer 0 (BtlAnim_TestAttr) */
+    /* 0x0994 */ s32 member;        /* active member index (BtlMember_GetActive) */
     /* 0x0998 */ u8 unk998[0xE44 - 0x998]; /* member blocks of 0xA4 bytes start at 0x9A4 */
     /* 0x0E44 */ f32 unkE44;
     /* 0x0E48 */ u8 unkE48[0xE5C - 0xE48];
@@ -90,16 +90,16 @@ typedef struct BtlCharApiObj {
     /* 0xCAE */ s8 attrCount;       /* number of attribute words below (func_0024D498) */
 } BtlCharApiObj;
 
-/* One playing sound of a side (0xC bytes). func_001D9C28 fills a slot, func_001D9D28 stops it with Snd_StopHandle. */
+/* One playing sound of a side (0xC bytes). BtlCharSnd_StoreHandle fills a slot, BtlCharSnd_StopUnrequestedLoops stops it with Snd_StopHandle. */
 typedef struct BtlCharApiSound {
     /* 0x0 */ s32 handle;           /* sound handle, < 0 = free slot */
     /* 0x4 */ s32 unk4;
-    /* 0x8 */ u8 unk8;              /* index into the table at 0x2EF290 (func_001DA8A0) */
+    /* 0x8 */ u8 unk8;              /* index into the table at 0x2EF290 (BtlCharSnd_GetBankMask) */
 } BtlCharApiSound;
 
 typedef struct BtlCharApiSoundSet {
     /* 0x00 */ BtlCharApiSound slot[4];
-    /* 0x30 */ s32 next;            /* ring index of the next slot to try (func_001D9C28) */
+    /* 0x30 */ s32 next;            /* ring index of the next slot to try (BtlCharSnd_StoreHandle) */
 } BtlCharApiSoundSet; /* size 0x34 */
 
 /* Fighter manager (gBtlChars, 0x280 bytes). */
@@ -112,7 +112,7 @@ typedef struct BtlCharApiMgr {
     /* 0x1C */ s32 unk1C;               /* counter, full at 90 */
     /* 0x20 */ void **unk20;            /* 0x19E pointers, indexed by fighter +0x974 */
     /* 0x24 .. 0x280: not touched here. Seen in callees: +0xA0 four 0x20-byte sound requests {Vec4 pos, f32 near,
-       f32 far, s32 id, s8 owner, s8 kind} with their count at +0x120 (func_001D9B78); +0x130 / +0x134 (BtlReplay_GetViewSide). */
+       f32 far, s32 id, s8 owner, s8 kind} with their count at +0x120 (BtlCharSnd_Request); +0x130 / +0x134 (BtlReplay_GetViewSide). */
 } BtlCharApiMgr;
 
 s32 BtlCharApi_ObjHasFlags22(s32 objId);

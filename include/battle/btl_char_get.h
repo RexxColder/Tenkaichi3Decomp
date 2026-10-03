@@ -35,7 +35,7 @@ typedef struct BtlVoiceEntry {
     /* 0x4 */ f32 interval; /* cooldown in seconds */
 } BtlVoiceEntry; /* size 0x8 */
 
-/* What func_001CE1B8 returns: the active member's block + 0x40. */
+/* What BtlMember_GetActiveGauge returns: the active member's block + 0x40. */
 typedef struct BtlCharGetVitals {
     /* 0x00 */ s32 hp;
     /* 0x04 */ u8 unk4[0x30 - 0x4];

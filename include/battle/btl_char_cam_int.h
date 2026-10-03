@@ -43,27 +43,27 @@ extern ChrCamMgr *gBtlChars;
 extern ChrCamChr *BtlChar_Get(s32 side);
 extern s32 BtlChar_TestFlag(ChrCamChr *chr, s32 flag);          /* the flag, raised this frame or held */
 extern void BtlChar_SetFlag(ChrCamChr *chr, s32 flag);          /* raise a one-frame flag */
-extern s32 func_001DACB0(ChrCamChr *chr, s32 flag);             /* the flag in the second pair of flag arrays (+0x10D5 / +0x10FD): the previous frame, inferred */
-extern s32 func_001DACE8(ChrCamChr *chr, s32 flag);             /* flag set in the first pair and not in the second: newly raised, inferred */
+extern s32 BtlChar_TestPrevFlag(ChrCamChr *chr, s32 flag);             /* the flag in the second pair of flag arrays (+0x10D5 / +0x10FD): the previous frame, inferred */
+extern s32 BtlChar_IsFlagRaised(ChrCamChr *chr, s32 flag);             /* flag set in the first pair and not in the second: newly raised, inferred */
 extern ChrCamBody *BtlChar_GetPos(ChrCamChr *chr);              /* &chr->body */
 extern void *BtlChar_GetObj(ChrCamChr *chr);                    /* BtlObj_Get(chr->objId) */
-extern s32 func_001C4638(ChrCamChr *chr);                       /* chr->unk974 */
-extern s32 func_001D63A8(void);                                 /* gBtlChars->unk274 */
-extern void func_001DB048(ChrCamChr *chr, Vec4 *out);           /* the opponent's override position 6 (+0x340 when bit 6 of +0x3C0 is set), else its position */
-extern void func_001DB100(ChrCamChr *chr, Vec4 *out);           /* the same for the opponent's rotation (func_001D8208) */
-extern f32 func_001DB308(ChrCamChr *chr);                       /* distance to the opponent */
-extern f32 func_001DB3A8(ChrCamChr *chr);                       /* yaw of the direction to the opponent (0 when on top of it) */
-extern f32 func_001DB5A8(ChrCamChr *chr);                       /* (own body scale - the opponent's) / 2 */
-extern f32 func_001DB6B0(ChrCamChr *chr);                       /* the opponent's body scale */
-extern s32 func_001DB7B0(ChrCamChr *chr);                       /* the opponent's objId */
-extern void *func_001DB7F0(ChrCamChr *chr);                     /* the opponent's model object */
-extern void func_001DB9D8(ChrCamChr *chr, s32 node, Vec4 *out); /* world position of a node of the opponent's model */
+extern s32 BtlAnim_GetId(ChrCamChr *chr);                       /* chr->unk974 */
+extern s32 BtlChars_IsTimeStopped(void);                                 /* gBtlChars->unk274 */
+extern void BtlOpp_GetTargetPos(ChrCamChr *chr, Vec4 *out);           /* the opponent's override position 6 (+0x340 when bit 6 of +0x3C0 is set), else its position */
+extern void BtlOpp_GetTargetRot(ChrCamChr *chr, Vec4 *out);           /* the same for the opponent's rotation (BtlChar_GetSnapRot) */
+extern f32 BtlOpp_GetDistance(ChrCamChr *chr);                       /* distance to the opponent */
+extern f32 BtlOpp_GetYaw(ChrCamChr *chr);                       /* yaw of the direction to the opponent (0 when on top of it) */
+extern f32 BtlOpp_GetHalfHeightDiff(ChrCamChr *chr);                       /* (own body scale - the opponent's) / 2 */
+extern f32 BtlOpp_GetHeight(ChrCamChr *chr);                       /* the opponent's body scale */
+extern s32 BtlOpp_GetObjId(ChrCamChr *chr);                       /* the opponent's objId */
+extern void *BtlOpp_GetObj(ChrCamChr *chr);                     /* the opponent's model object */
+extern void BtlOpp_GetNodePos(ChrCamChr *chr, s32 node, Vec4 *out); /* world position of a node of the opponent's model */
 
 /* Fighter input (battle/btl_input.h; declared here for this file's view of the fighter). */
 extern s32 BtlInput_IsPressed(ChrCamChr *chr, u32 mask);
 extern s32 BtlInput_IsHeld(ChrCamChr *chr, u32 mask);
-extern f32 func_001D5FB8(ChrCamChr *chr);                       /* smoothed stick x (BtlCharInput.stick[0]) */
-extern s32 func_001D4F30(ChrCamChr *chr, s32 action, s32 arg);  /* action input test, built on BtlInput_* */
+extern f32 BtlInput_GetStickX(ChrCamChr *chr);                       /* smoothed stick x (BtlCharInput.stick[0]) */
+extern s32 BtlInput_TestAction(ChrCamChr *chr, s32 action, s32 arg);  /* action input test, built on BtlInput_* */
 
 /* Model objects and stage. */
 extern f32 func_00204EA0(s32 objId);                            /* body scale, obj + 0xFF4 (10 when no object) */

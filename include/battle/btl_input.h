@@ -18,7 +18,7 @@
  *   9000 x u32 buttons, s32 count, s32 position = 0xD2F8 bytes, then a flag word whose bit 0 means "ran out")
  *   and rebuilds the commands, so that triple is sufficient as far as this file is concerned.
  * - The record is only recorded / replaced by the replay when the fighter takes input this frame (fighter flag
- *   2 or 3 set, flag 0x136 clear, func_001D63A8() == 0); otherwise it is forced neutral and the replay cursor
+ *   2 or 3 set, flag 0x136 clear, BtlChars_IsTimeStopped() == 0); otherwise it is forced neutral and the replay cursor
  *   does not move.
  * - Key config (SaveData.key) and the pad status are applied BEFORE the record is made; the double-tap bits
  *   (BTLB_ASCEND_TAP2 / BTLB_DESCEND_TAP2) are part of the recorded button word and are not re-derived.
@@ -181,7 +181,7 @@ typedef struct BtlCharInput {
     /* 0x3A0 [0x910] */ s32 ringWrite;     /* next slot to write; the ring is full when (write + 1) % 8 == read */
     /* 0x3A4 [0x914] */ s32 ringRead;      /* next slot to read */
     /* 0x3A8 [0x918] */ u8 frameBits[30];  /* two interleaved 120-bit sets (byte = (bit / 8) * 2 + set), cleared at the end of
-                                              every BtlInput_Update; func_001D4F30(chr, id, arg) sets bit id of set (arg != 0) */
+                                              every BtlInput_Update; BtlInput_TestAction(chr, id, arg) sets bit id of set (arg != 0) */
     /* 0x3C6 [0x936] */ u8 unk3C6[2];
     /* 0x3C8 [0x938] */ BtlInputRecord rec; /* this frame's record */
 } BtlCharInput; /* 0x3D8 */

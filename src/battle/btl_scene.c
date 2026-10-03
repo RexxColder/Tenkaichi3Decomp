@@ -46,7 +46,7 @@
  *   func_00241E38     BtlLoad_RequestStageChange(func_00243470()): asks for the changed stage
  *   func_00247D60     returns the block at 0x31C4A0
  *   func_002129F0     tail call of BtlSeq_IsFighting
- *   func_001D63A8     returns gBtlChars + 0x274
+ *   BtlChars_IsTimeStopped     returns gBtlChars + 0x274
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -102,7 +102,7 @@ extern void func_001ADBA8(void);
 extern void func_001ADC00(void);
 extern void func_001AE0A0(void);
 extern void func_001AE118(void);
-extern s32 func_001D63A8(void);
+extern s32 BtlChars_IsTimeStopped(void);
 extern f32 func_00204EA0(s32 objId);
 extern s32 func_002051D8(s32 objId);
 extern s32 func_00205260(s32 objId);
@@ -775,7 +775,7 @@ s32 BtlScene_Rand(void) {
     u64 state = gBtlScene->randState;
     s32 next = (state * 714025 + 0x1000) % 150889;
 
-    if (!func_001D63A8()) {
+    if (!BtlChars_IsTimeStopped()) {
         gBtlScene->randState = next;
     }
     return next;

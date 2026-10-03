@@ -68,6 +68,14 @@ emits jump tables or strings), list any new symbol file in both yamls, then
 `.venv/bin/python configure.py && ninja`. The build only counts if ninja itself succeeds.
 The original padded each object's `.rodata` to 16 bytes and ours pads to 8: when a C file's
 rodata does not end on a 16-byte boundary, start the following assembly rodata chunk 8 bytes early.
+An assembly rodata chunk is only as aligned as its contents: one that holds no jump table (a
+plain table such as `gBtlStatCurve`) is placed right behind the previous object's data, so if
+that ends 4 bytes short (a C file ending in a string) start the chunk 4 bytes early
+(`[0x1EE7BC, rodata, cod/1EE7BC]` for data at 0x2EE7C0).
+A link error `undefined reference to D_XXXXXXXX` / `Name` after linking a file means a name used
+in C has no entry in a symbol file LISTED IN THE YAMLS (fdiff reads every file under
+`config/symbols/`, the linker only the listed ones, and fdiff masks call targets, so an invented
+or stale name still prints OK). Check the call target in the original and use the listed name.
 
 ## -fno-strict-aliasing
 The build uses it. The original reloads struct fields and global pointers after any store, which
@@ -90,10 +98,22 @@ What Sony's assembler did with an unfilled `jal` / `j $31` / branch, and the pre
   itself (`jal f / li $4,1 / li.s $f12,0.9 / jal g / nop`), provided the candidate is a single
   machine instruction; a macro that expands to several (`la $4,69132($17)`) still gives up its
   last one.
+- A load or store whose address is `symbol(reg)` or `symbol` (`lw $2,gTable($4)`, which expands
+  to lui / addu / lw) gives up its last instruction to the branch ONLY when the assembler already
+  knows the symbol is not small data, which in practice means the table is DEFINED earlier in the
+  same file (a `const` table above the function, or an `INCLUDE_RODATA` at the top of the file).
+  For an `extern` (the compiler writes its `.extern name, size` at the END of the output) the
+  load stays in front of the branch, which gets a nop. Both assemblers agree on this, so it
+  needs no prelude rule, but it is a test for where data was defined:
+  `BtlCharSnd_GetBankMask` (`jr ra` / `lw` in the slot: `gBtlSndBankMask` is defined in
+  `btl_char_flag_snd.c`), `AiThink_FindWeightColumn` (the column tables at the top of
+  `btl_ai_cond.c`), against `BtlObj_Get` and `Pad_GetStatus` (`lw` / `jr ra` / `nop`: bss).
+  If a function is off by exactly such a swapped pair, define the table in the file (or move the
+  function into the file that has it) instead of touching the prelude.
 Known gaps, to check first if a function is off by a swapped or extra instruction next to a
-branch: a load, store or `la` right after a compiler-filled delay slot and in front of an
-unfilled branch is still moved (their size is not known to the macros); `break` and `sqrt.s`
-are emitted as data and never move; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN`
+branch: a single-instruction load, store or `la` (`lw $2,8($sp)`) right after a compiler-filled
+delay slot and in front of an unfilled branch is still moved (their size is not measured by the
+macros); `break` and `sqrt.s` are emitted as data and never move; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN`
 operands. The probes the prelude uses leave an unloaded `.gcc_prelude_scratch` section in every
 object; the linker script discards it.
 
@@ -111,6 +131,11 @@ see them):
   file-scope tables at the top of an object (`src/battle/btl_ai_cond.c`).
 - The jump table in an `INCLUDE_ASM` .s file is only 8-byte aligned. If the object's rodata is
   not on a 16-byte boundary there, put `RODATA_ALIGN16();` in front of the `INCLUDE_ASM`.
+- A float constant of an `INCLUDE_ASM` function that lies in the MIDDLE of the file's `.lit4`
+  (C functions before and after it have constants) is emitted in place with
+  `LIT4_WORD(D_XXXXXXXX, 0x........);` in front of the `INCLUDE_ASM` (`BtlInput_Update` in
+  `src/battle/btl_input.c`); the file need not be split. A constant at the start or end of the
+  pool can simply stay in the neighbouring assembly `lit4` chunk.
 - A non-static `inline` function is emitted at the END of the object by this compiler, whatever
   its place in the source. If a function is both called normally and inlined into a neighbour,
   write the body as a `static inline` helper and call it from both.
@@ -120,7 +145,10 @@ Integrator only (agents working in parallel must NOT run it: it edits every file
 and `include/`, including other agents' work in progress). After adding names, run
 `python3 scripts/apply_names.py`: it rewrites `func_XXXXXXXX` /
 `D_XXXXXXXX` in `src/` and `include/` to the current names, so one module's rename does not
-leave another module calling a symbol that no longer exists.
+leave another module calling a symbol that no longer exists. It takes path substrings to skip
+(files other agents are writing). Caution: it reads EVERY file under `config/symbols/`, also the
+ones not yet listed in the yamls; applying those names to linked files breaks the link. While
+unlisted symbol files exist, apply only the listed ones (list the file in both yamls first).
 
 ## More matching lessons
 - A function whose early exits are all `return 0` and whose last statement is `return 1` keeps
@@ -129,6 +157,15 @@ leave another module calling a symbol that no longer exists.
   branch-likely choices in its callers. A mismatch of that kind is evidence of an original file
   boundary; as a stopgap, call through an aliased declaration
   (`extern T f2(void) __asm__("f");`).
+  It works in both directions, and decides merges: `BtlColl_Update` needed
+  `BtlHit_CheckProximityAll` above it (appended to `btl_char_hit.c`), `BtlInput_TestAction` the
+  readers of `btl_input.c` (appended there), `BtlMember_Damage` needed `BtlColl_NextPoolMember`
+  (moved to the top of `btl_char_member.c`); while two callers of `BtlAi_ScaleByLevel` in
+  `btl_ai_cond.c` match only with it OUTSIDE the file, so it became the last function of
+  `btl_ai_seq.c`. When two files with different local views of the same structures are merged,
+  keep each half's types and put cast macros between the halves
+  (`#define gBtlAi ((AiThMgr *)gBtlAi)`, see the middle of `btl_ai_cond.c`); a cast through
+  `*(T **)&global` changes register allocation, a plain cast does not.
 - A helper the compiler can see is `const` (static, no side effects) lets callers keep values
   in registers across the call; try `static` on a small helper.
 - Float literals: fdiff masks constant relocations, so compare each `.lit4` value with the

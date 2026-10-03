@@ -34,6 +34,19 @@
     )
 #endif
 
+/* Put in front of the INCLUDE_ASM of a function that owns a float constant in the MIDDLE of the file's .lit4 pool
+ * (constants of C functions before and after it): emits the constant in place, so the pool stays contiguous and
+ * the file need not be split around the function. NAME is the D_XXXXXXXX label the function's .s uses. */
+#ifndef LIT4_WORD
+#define LIT4_WORD(NAME, HEX) \
+    __asm__( \
+        ".section .lit4\n" \
+        #NAME ":\n" \
+        "    .word " #HEX "\n" \
+        ".section .text" \
+    )
+#endif
+
 #if INCLUDE_ASM_USE_MACRO_INC
 __asm__(".include \"macro.inc\"\n");
 #else
@@ -50,6 +63,9 @@ __asm__(".include \"labels.inc\"\n");
 #endif
 #ifndef RODATA_ALIGN16
 #define RODATA_ALIGN16()
+#endif
+#ifndef LIT4_WORD
+#define LIT4_WORD(NAME, HEX)
 #endif
 
 #endif /* !defined(M2CTX) && !defined(PERMUTER) */

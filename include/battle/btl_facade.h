@@ -12,19 +12,19 @@
  * letter, and each command handler is called with a phase (0 or 4). The handlers never touch a fighter, the
  * camera, the sequence or the result block themselves; they go through this file:
  *
- *   BtlScript_UpdateView / func_00259EC8 / func_00259FB0 / func_00259FE0 / func_0025A068 / func_0025A0A8
+ *   BtlScript_UpdateView / BtlScriptCmd_SetCamera / BtlScriptCmd_ClearCamera / BtlScriptCmd_ShakeCamera / BtlScriptCmd_StopShake / BtlScriptCmd_MoveCamera
  *                    camera commands: ShakeCamera, Set/Get/ClearFixedCamera
- *   func_0025A2D8..func_0025A7D0   one handler per fighter command: SetCharPos, SetCharDir, StartCharMove,
+ *   BtlScriptCmd_PlaceChar..BtlScriptCmd_StopCharMoves   one handler per fighter command: SetCharPos, SetCharDir, StartCharMove,
  *                    IsCharMoveDone, StopCharMove and the SetCtrl / ClearCtrl flags (0xFE..0x102)
- *   func_0025AF78    SetObjSubState14, EndObjSubState3, GetActiveMember
- *   func_0025B2C8 / func_0025B340 / func_0025B4F8   script start / reset / end: put everything back
+ *   BtlScriptCmd_Talk    SetObjSubState14, EndObjSubState3, GetActiveMember
+ *   BtlScriptCmd_EndEvent / BtlScriptCmd_BeginScene / BtlScriptCmd_EndScene   script start / reset / end: put everything back
  *                    (ClearFixedCamera, StopCharMove, SetCtrlFF, ClearCtrl101, BeginInterrupt, EndInterrupt,
  *                    and BtlScene_Reset(0) of the next module)
- *   func_0025B5B8    30-way command switch (jump table 0x2F3040): BeginWait, then one of CallSeqExtra,
+ *   BtlScriptCmd_Battle    30-way command switch (jump table 0x2F3040): BeginWait, then one of CallSeqExtra,
  *                    RequestStageChange, ForceBoth110/111, ForceAction01/23/4, ForceActions, UseSkillA/B,
  *                    ChangeMember, SetPowerUp, ResetSubClock
- *   func_0025B7B0    SetResult, IsNotFinished
- *   func_0025BBB0 / func_0025BE58   the "set fighter status" command for side 0 / side 1: option letters pick
+ *   BtlScriptCmd_SetResult    SetResult, IsNotFinished
+ *   BtlScriptCmd_SetStatus0 / BtlScriptCmd_SetStatus1   the "set fighter status" command for side 0 / side 1: option letters pick
  *                    SetMemberItems, AddHp / RaiseHp / LowerHp and the two gauges
  *   BtlScript_IsTriggered, BtlScript_StartPending, BtlScript_UpdateHud   IsWaitOff, AreBothInterruptible, CanCharAct
  *

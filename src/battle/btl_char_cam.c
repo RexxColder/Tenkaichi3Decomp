@@ -76,7 +76,7 @@ f32 ChrCam_GetRate(ChrCamChr *chr, Vec4 *eye, Vec4 *target) {
         cam->rate = 0.25f;
     } else if (BtlChar_TestFlag(chr, 0xD1)) {
         cam->rate = 0.2f;
-    } else if (func_001D63A8()) {
+    } else if (BtlChars_IsTimeStopped()) {
         cam->rate = 1.0f;
     }
     return cam->rate;
@@ -88,7 +88,7 @@ f32 ChrCam_GetRate(ChrCamChr *chr, Vec4 *eye, Vec4 *target) {
 f32 ChrCam_GetBob(ChrCamChr *chr) {
     ChrCam *cam = &chr->cam;
 
-    if (func_001D63A8() || cam->unk98 == 0) {
+    if (BtlChars_IsTimeStopped() || cam->unk98 == 0) {
         cam->bob = 0.0f;
         return cam->bob;
     }

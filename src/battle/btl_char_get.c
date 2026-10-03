@@ -18,11 +18,11 @@ extern s32 Battle_GetStage(void);
 extern s32 Battle_GetMode(void);
 extern s32 Voice_IsStopped(s32 voice);
 extern void Voice_Stop(s32 voice);
-extern BtlCharGetVitals *func_001CE1B8(BtlCharGetChr *chr); /* active member's block + 0x40 */
-extern s32 func_001D63A8(void);                             /* gBtlChars + 0x274 */
-extern void func_001DA488(BtlCharGetChr *chr, s32 line);    /* sound request, channel chr->player + 2 */
-extern void func_001DA548(BtlCharGetChr *chr, s32 line);    /* sound request, channel chr->player + 5 */
-extern void func_001DA880(BtlCharGetChr *chr, s32 line);
+extern BtlCharGetVitals *BtlMember_GetActiveGauge(BtlCharGetChr *chr); /* active member's block + 0x40 */
+extern s32 BtlChars_IsTimeStopped(void);                             /* gBtlChars + 0x274 */
+extern void BtlCharSnd_PlayOwn(BtlCharGetChr *chr, s32 line);    /* sound request, channel chr->player + 2 */
+extern void BtlCharSnd_PlayVoice(BtlCharGetChr *chr, s32 line);    /* sound request, channel chr->player + 5 */
+extern void BtlCharSnd_StopOwn(BtlCharGetChr *chr, s32 line);
 extern s32 BtlScript_IsTextShown(void);
 
 extern BtlCharGetRoster *gBtlChars;
@@ -227,12 +227,12 @@ s32 BtlChar_IsFree(BtlCharGetChr *chr) {
 
 /* 1 when the active member has no health left. */
 s32 BtlChar_IsDead(BtlCharGetChr *chr) {
-    return func_001CE1B8(chr)->hp <= 0;
+    return BtlMember_GetActiveGauge(chr)->hp <= 0;
 }
 
 /* 1 when the active member's word 0x70 is set. */
 s32 BtlChar_TestMemberUnk70(BtlCharGetChr *chr) {
-    return func_001CE1B8(chr)->unk30 != 0;
+    return BtlMember_GetActiveGauge(chr)->unk30 != 0;
 }
 
 /* Frames simulated since the fighters were reset. No caller. */
@@ -253,7 +253,7 @@ s32 BtlChar_Rand(void) {
     u64 state = gBtlChars->randState;
     s32 next = (state * 714025 + 4096) % 150889;
 
-    if (!func_001D63A8()) {
+    if (!BtlChars_IsTimeStopped()) {
         gBtlChars->randState = next;
     }
     return next;
@@ -389,10 +389,10 @@ void BtlChar_PlayVoice(BtlCharGetChr *chr, s32 kind) {
         line = ent->first;
     }
     if (kind < 15) {
-        func_001DA488(chr, line);
+        BtlCharSnd_PlayOwn(chr, line);
         BtlObj_SetSubState(obj, 4, 0);
     } else {
-        func_001DA548(chr, line);
+        BtlCharSnd_PlayVoice(chr, line);
         BtlObj_SetSubState(obj, 2, line);
     }
     chr->voice.last[kind] = line;
@@ -422,11 +422,11 @@ void BtlChar_TickVoiceTimers(BtlCharGetChr *chr) {
     }
 }
 
-/* Plays the line of a voice kind that has only one, through func_001DA880. */
+/* Plays the line of a voice kind that has only one, through BtlCharSnd_StopOwn. */
 void BtlChar_PlayVoiceSingle(BtlCharGetChr *chr, s32 kind) {
     BtlVoiceEntry *ent = BtlChar_GetVoiceEntry(kind);
 
     if (ent->count < 2) {
-        func_001DA880(chr, ent->first);
+        BtlCharSnd_StopOwn(chr, ent->first);
     }
 }

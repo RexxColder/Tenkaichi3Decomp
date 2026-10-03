@@ -1,11 +1,12 @@
 #include "common.h"
 #include "battle/btl_input.h"
+#include "battle/btl_char_ctl.h"
 #include "battle/battle.h"
 #include "sys/pad.h"
 #include "sys/save.h"
 
 /*
- * Per-fighter battle input: 0x1D3B40..0x1D4F30.
+ * Per-fighter battle input: 0x1D3B40..0x1D60A0.
  *
  * Once per unpaused frame, for every fighter whose chr+0x1320 is not positive (BtlChars_SampleInput -> BtlChar_SampleInput):
  *   BtlInput_Sample      copies gPad[chr->pad] (raw button word, left stick as two bytes, pad status) into
@@ -13,7 +14,7 @@
  *   BtlInput_BuildRecord which builds the frame's BtlInputRecord (chr->input.rec):
  *       - chr->injectOn == 0: RemapButtons (key config) -> MergeStick -> AddDoubleTaps -> BuildCommands;
  *       - chr->injectOn != 0 (CPU side): the buttons and stick the AI wrote -> MergeStick -> BuildCommands;
- *       - the fighter takes no input (flag 2 or 3 clear, flag 0x136 set, or func_001D63A8() != 0): all neutral;
+ *       - the fighter takes no input (flag 2 or 3 clear, flag 0x136 set, or BtlChars_IsTimeStopped() != 0): all neutral;
  *       - otherwise the replay hook: when a replay is playing, buttons and stick are REPLACED by the recorded
  *         frame and the commands rebuilt; when not, {buttons, stick} are appended to the replay buffer.
  * Later in the same frame, in the fighter update (BtlChars_UpdateInput -> BtlChar_BeginFrame):
@@ -29,12 +30,15 @@
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 sqrtf(f32 x);
 extern f32 atan2f(f32 y, f32 x);
+extern f32 fabsf(f32 x);
 
 /* Declared here and not taken from other modules' headers. */
 extern s32 BtlChar_TestFlag(BtlInputChr *chr, s32 bit);
+extern void BtlChar_ClearFlag(BtlInputChr *chr, s32 bit);
+extern f32 BtlAct_GetFacingRelCam(BtlInputChr *chr); /* wrap(pose heading - fighter camera yaw) */
 extern s32 BattleReplay_IsActive(void); /* 0x12A9E8: a replay is being played back */
 extern BtlInputSwitchEntry *func_002119A0(BtlInputChr *chr, s32 arg);
-extern s32 func_001D63A8(void);          /* gBtlChars->unk274 */
+extern s32 BtlChars_IsTimeStopped(void);          /* gBtlChars->unk274 */
 extern void BtlReplay_Play(BtlInputChr *chr, u32 *buttons, u8 *stick);              /* replay: read this frame */
 extern void BtlReplay_Record(BtlInputChr *chr, u32 buttons, u32 commands, u8 *stick); /* replay: record this frame */
 extern s32 BtlChar_IsStage4Or27(void);          /* Battle_GetStage() is 4 or 27 */
@@ -412,7 +416,7 @@ void BtlInput_BuildRecord(BtlInputChr *chr) {
     active = 0;
     if (BtlChar_TestFlag(chr, 2) || BtlChar_TestFlag(chr, 3)) {
         if (!BtlChar_TestFlag(chr, 0x136)) {
-            active = func_001D63A8() == 0;
+            active = BtlChars_IsTimeStopped() == 0;
         }
     }
     if (active) {
@@ -437,7 +441,7 @@ void BtlInput_BuildRecord(BtlInputChr *chr) {
     chr->input.rec.stickY = stick[1];
     chr->input.rec.commands = commands;
     chr->input.rec.unk5 = 0;
-    if (!func_001D63A8()) {
+    if (!BtlChars_IsTimeStopped()) {
         BtlInput_TickCounters(&chr->input.recCount, buttons, buttons & ~prevButtons, prevButtons & ~buttons);
         BtlInput_TickCounters(&chr->input.recCmdCount, commands, commands & ~prevCommands, prevCommands & ~commands);
     }
@@ -581,7 +585,7 @@ void BtlInput_Update(BtlInputChr *chr) {
     in->cmdHeld = commands;
     in->stickRaw[0] = BtlInput_ByteToStick(stick[0]);
     in->stickRaw[1] = BtlInput_ByteToStick(stick[1]);
-    if (func_001D63A8()) {
+    if (BtlChars_IsTimeStopped()) {
         in->stick[0] = in->stickRaw[0];
         in->stick[1] = in->stickRaw[1];
     } else {
@@ -601,13 +605,14 @@ void BtlInput_Update(BtlInputChr *chr) {
     } else {
         in->stickTurn = 0.0f;
     }
-    if (!func_001D63A8()) {
+    if (!BtlChars_IsTimeStopped()) {
         BtlInput_TickCounters(&in->count, in->held, in->pressed, in->released);
         BtlInput_TickCounters(&in->cmdCount, in->cmdHeld, in->cmdPressed, in->cmdReleased);
     }
     BtlInput_ClearFrameBits(chr);
 }
 #else
+LIT4_WORD(D_002FD294, 0x3C23D70A); /* the function's 0.01f */
 INCLUDE_ASM("asm/nonmatchings/battle/btl_input", BtlInput_Update);
 #endif
 
@@ -747,4 +752,576 @@ s32 BtlInput_TestFrameBit(BtlInputChr *chr, s32 bit, s32 set) {
 /* Clears both per-frame bit sets. */
 void BtlInput_ClearFrameBits(BtlInputChr *chr) {
     memset(chr->input.frameBits, 0, sizeof(chr->input.frameBits));
+}
+
+/*
+ * Action input queries and stick readers: 0x1D4F30..0x1D60A0. Part of this translation unit in the original:
+ * BtlInput_TestAction only compiles to the original bytes with BtlInput_IsHeld, BtlInput_IsReleased and
+ * BtlInput_GetNotHeldFrames defined above it (8 branches are plain `bnez` instead of `bnezl`).
+ *
+ * BtlInput_TestAction(chr, id, want) is what the fighter state machine calls (166 direct call sites) to ask
+ * "is action input `id` happening this frame". It first records the query in the per-frame bit sets
+ * (BtlInput_SetFrameBit(chr, id, want): set 1 when want != 0, set 0 otherwise), then evaluates the condition and
+ * returns it when want != 0 and its negation when want == 0. Ids outside 1..114 evaluate to false. The table
+ * of ids is in include/battle/btl_char_ctl.h.
+ * Side effects: ids 108..110, 113 and 114 consume a "forced command" fighter flag (0x122, 0x123, 0x124, 0x120,
+ * 0x121): when the flag is set it is cleared together with flag 0x11E and the query is true whatever the pad says.
+ * Ids 111 and 112 are true while flag 0x11F is set (not cleared here).
+ */
+
+/* Marks action input `id` as queried this frame, then tests it; returns the test when want != 0, its negation otherwise. */
+s32 BtlInput_TestAction(BtlInputChr *chr, s32 id, s32 want) {
+    s32 invert = want == 0;
+    s32 result;
+
+    BtlInput_SetFrameBit(chr, id, want);
+    result = 0;
+    switch (id) {
+    case 1:
+        if (!BtlInput_IsHeld(chr, BTLB_R3)) {
+            result = BtlInput_IsHeld(chr, BTLB_DIR_MASK);
+        }
+        break;
+    case 2:
+        if (BtlInput_GetNotHeldFrames(chr, 4) < 3) {
+            break;
+        }
+        if (BtlInput_GetNotHeldFrames(chr, 5) < 3) {
+            break;
+        }
+        if (BtlInput_GetNotHeldFrames(chr, 6) >= 3 && BtlInput_GetNotHeldFrames(chr, 7) >= 3) {
+            result = 1;
+        }
+        break;
+    case 3:
+        if (!BtlInput_IsHeld(chr, BTLB_R3)) {
+            result = BtlInput_IsCmdHeld(chr, BTLC_DASH_HELD);
+        }
+        break;
+    case 4:
+        if (BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            if (fabsf(BtlInput_GetStickTurnFromFacing(chr)) > 0.78539816f) {
+                result = BtlInput_IsHeldNotPrev(chr, BTLB_DIR_MASK);
+            }
+            if (fabsf(chr->input.stickTurn) > 1.4707963f) {
+                result = 1;
+            }
+        }
+        break;
+    case 5:
+        if (BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            if (fabsf(BtlInput_GetStickTurnFromFacing(chr)) > 0.78539816f) {
+                result = BtlInput_IsCmdHeld(chr, BTLC_DASH_HELD);
+            }
+        }
+        break;
+    case 6:
+        if (BtlInput_GetCmdNotHeldFrames(chr, 0) >= 6) {
+            result = !BtlInput_IsHeld(chr, BTLB_DIR_MASK);
+        }
+        if (BtlInput_IsHeld(chr, BTLB_R3)) {
+            result = 1;
+        }
+        break;
+    case 7:
+        if (!BtlInput_IsHeld(chr, BTLB_CHARGE)) {
+            result = BtlInput_IsPressed(chr, BTLB_DASH);
+        }
+        break;
+    case 8:
+        result = BtlInput_IsPressed(chr, BTLB_ASCEND);
+        break;
+    case 9:
+        result = BtlInput_IsPressed(chr, BTLB_ASCEND);
+        break;
+    case 10:
+        if (!BtlInput_IsHeld(chr, BTLB_DESCEND)) {
+            result = BtlInput_IsHeld(chr, BTLB_ASCEND);
+        }
+        break;
+    case 12:
+        if (!BtlInput_IsHeld(chr, BTLB_ASCEND)) {
+            result = BtlInput_IsHeld(chr, BTLB_DESCEND);
+        }
+        break;
+    case 14:
+        if (!BtlInput_IsHeld(chr, BTLB_ASCEND)) {
+            result = BtlInput_IsPressed(chr, BTLB_DESCEND);
+        }
+        break;
+    case 11:
+        result = !BtlInput_IsHeld(chr, BTLB_ASCEND) || BtlInput_IsHeld(chr, BTLB_DESCEND);
+        break;
+    case 13:
+        result = !BtlInput_IsHeld(chr, BTLB_DESCEND) || BtlInput_IsHeld(chr, BTLB_ASCEND);
+        break;
+    case 15:
+        result = BtlInput_IsPressed(chr, BTLB_ASCEND_TAP2);
+        break;
+    case 16:
+        result = !BtlInput_IsHeld(chr, BTLB_ASCEND);
+        break;
+    case 17:
+        result = BtlInput_IsPressed(chr, BTLB_DESCEND_TAP2);
+        break;
+    case 18:
+        result = !BtlInput_IsHeld(chr, BTLB_DESCEND);
+        break;
+    case 20:
+        if (!BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            result = BtlInput_IsCmdPressed(chr, BTLC_DASH_CHARGE_P);
+        }
+        break;
+    case 21:
+        if (BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            result = BtlInput_IsCmdPressed(chr, BTLC_DASH_CHARGE_P);
+        }
+        break;
+    case 22:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P);
+        break;
+    case 23:
+        if (!BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            result = BtlInput_IsCmdHeld(chr, BTLC_DASH_CHARGE_H);
+        }
+        break;
+    case 24:
+        if (BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            result = BtlInput_IsCmdHeld(chr, BTLC_DASH_CHARGE_H);
+        }
+        break;
+    case 25:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P2) && BtlInput_IsCmdPressed(chr, BTLC_DIR_DOWN);
+        break;
+    case 26:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P2) && BtlInput_IsCmdPressed(chr, BTLC_DIR_LEFT);
+        break;
+    case 27:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P2) && BtlInput_IsCmdPressed(chr, BTLC_DIR_RIGHT);
+        break;
+    case 28:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P2) && BtlInput_IsCmdPressed(chr, BTLC_DIR_UP);
+        break;
+    case 30:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_LEFT);
+        break;
+    case 31:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_RIGHT);
+        break;
+    case 32:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_UP);
+        break;
+    case 29:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_DOWN);
+        break;
+    case 49:
+        if (BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            if (!BtlInput_IsHeld(chr, BTLB_CHARGE)) {
+                result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H);
+            }
+        }
+        break;
+    case 50:
+        result = !BtlInput_IsCmdHeld(chr, BTLC_GUARD_H);
+        break;
+    case 51:
+        result = BtlInput_IsCmdHeld(chr, BTLC_DIR_P);
+        break;
+    case 97:
+        result = BtlInput_IsHeld(chr, BTLB_RS_LEFT);
+        break;
+    case 98:
+        result = BtlInput_IsHeld(chr, BTLB_RS_RIGHT);
+        break;
+    case 19:
+        result = BtlInput_IsHeld(chr, BTLB_CHARGE);
+        break;
+    case 34:
+        result = BtlInput_IsCmdHeld(chr, BTLC_GUARD_H);
+        break;
+    case 35:
+        result = BtlInput_IsCmdHeld(chr, BTLC_GUARD_H) && !BtlInput_IsHeld(chr, BTLB_UP) && !BtlInput_IsHeld(chr, BTLB_DOWN);
+        break;
+    case 36:
+        result = BtlInput_IsCmdHeld(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_UP);
+        break;
+    case 37:
+        result = BtlInput_IsCmdHeld(chr, BTLC_GUARD_H) && BtlInput_IsHeld(chr, BTLB_DOWN);
+        break;
+    case 38:
+        result = BtlInput_IsPressed(chr, BTLB_UP) && BtlInput_IsPressed(chr, BTLB_RUSH);
+        break;
+    case 40:
+        result = BtlInput_IsHeld(chr, BTLB_DOWN);
+        break;
+    case 41:
+        result = BtlInput_IsHeld(chr, BTLB_UP);
+        break;
+    case 42:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P3);
+        break;
+    case 43:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_SIDE);
+        break;
+    case 44:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H2);
+        break;
+    case 45:
+        if (BtlInput_IsHeld(chr, BTLB_DOWN)) {
+            if (BtlInput_GetHeldFrames(chr, 11) >= 6 && BtlInput_GetHeldFrames(chr, 12) >= 6) {
+                result = 1;
+            }
+        }
+        break;
+    case 46:
+        if (BtlInput_IsCmdPressed(chr, BTLC_LOCKON_P)) {
+            if (BtlInput_GetCmdPrevFramesSincePress(chr, 22) < BTL_TAP_FRAMES) {
+                result = 1;
+            }
+        }
+        break;
+    case 47:
+        if (BtlInput_IsHeld(chr, BTLB_DOWN)) {
+            result = BtlInput_IsPressed(chr, BTLB_ANY_FACE);
+        }
+        break;
+    case 48:
+        if (BtlInput_IsHeld(chr, BTLB_UP)) {
+            result = BtlInput_IsPressed(chr, BTLB_ANY_FACE);
+        }
+        break;
+    case 52:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_TAP);
+        break;
+    case 53:
+        result = BtlInput_IsCmdPressed(chr, BTLC_RUSH_HOLD6) && BtlInput_IsCmdHeld(chr, BTLC_DIR_UP);
+        break;
+    case 54:
+        result = BtlInput_IsCmdPressed(chr, BTLC_RUSH_HOLD6) && BtlInput_IsCmdHeld(chr, BTLC_DIR_DOWN);
+        break;
+    case 55:
+        result = BtlInput_IsCmdPressed(chr, BTLC_RUSH_HOLD6) && BtlInput_IsCmdHeld(chr, BTLC_DIR_LEFT);
+        break;
+    case 56:
+        result = BtlInput_IsCmdPressed(chr, BTLC_RUSH_HOLD6) && BtlInput_IsCmdHeld(chr, BTLC_DIR_RIGHT);
+        break;
+    case 57:
+        result = BtlInput_IsCmdPressed(chr, BTLC_RUSH_HOLD6) && !BtlInput_IsCmdHeld(chr, BTLC_DIR_ANY);
+        break;
+    case 58:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_H) && BtlInput_IsCmdHeld(chr, BTLC_DIR_UP);
+        break;
+    case 59:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_H) && BtlInput_IsCmdHeld(chr, BTLC_DIR_DOWN);
+        break;
+    case 60:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_H) && BtlInput_IsCmdHeld(chr, BTLC_DIR_LEFT);
+        break;
+    case 61:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_H) && BtlInput_IsCmdHeld(chr, BTLC_DIR_RIGHT);
+        break;
+    case 62:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_H) && !BtlInput_IsCmdHeld(chr, BTLC_DIR_ANY);
+        break;
+    case 63:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_NOT_H);
+        break;
+    case 64:
+        if (!BtlInput_IsHeld(chr, BTLB_BLAST)) {
+            result = BtlInput_IsPressed(chr, BTLB_RUSH);
+        }
+        break;
+    case 65:
+        result = !BtlInput_IsHeld(chr, BTLB_RUSH);
+        break;
+    case 66:
+        if (!BtlInput_IsHeld(chr, BTLB_DIR_MASK | BTLB_RUSH)) {
+            result = BtlInput_IsPressed(chr, BTLB_BLAST);
+        }
+        break;
+    case 77:
+        if (BtlInput_IsHeld(chr, BTLB_RUSH)) {
+            break;
+        }
+        result = BtlInput_IsHeld(chr, BTLB_UP) && BtlInput_IsPressed(chr, BTLB_BLAST);
+        break;
+    case 78:
+        if (BtlInput_IsHeld(chr, BTLB_RUSH)) {
+            break;
+        }
+        result = BtlInput_IsHeld(chr, BTLB_DOWN) && BtlInput_IsPressed(chr, BTLB_BLAST);
+        break;
+    case 79:
+        result = BtlInput_IsPressed(chr, BTLB_RUSH);
+        break;
+    case 80:
+        result = BtlInput_IsPressed(chr, BTLB_BLAST);
+        break;
+    case 82:
+        result = BtlInput_IsHeld(chr, BTLB_UP) && BtlInput_IsPressed(chr, BTLB_RUSH);
+        break;
+    case 83:
+        result = BtlInput_IsHeld(chr, BTLB_UP) && BtlInput_IsPressed(chr, BTLB_BLAST);
+        break;
+    case 84:
+        result = BtlInput_IsHeld(chr, BTLB_UP) && BtlInput_IsCmdPressed(chr, BTLC_GUARD_H);
+        break;
+    case 85:
+        result = BtlInput_IsHeld(chr, BTLB_DOWN) && BtlInput_IsPressed(chr, BTLB_RUSH);
+        break;
+    case 86:
+        result = BtlInput_IsHeld(chr, BTLB_DOWN) && BtlInput_IsPressed(chr, BTLB_BLAST);
+        break;
+    case 87:
+        result = BtlInput_IsHeld(chr, BTLB_DOWN) && BtlInput_IsCmdPressed(chr, BTLC_GUARD_H);
+        break;
+    case 68:
+        result = BtlInput_IsCmdHeld(chr, BTLC_BLAST_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_UP);
+        break;
+    case 69:
+        result = BtlInput_IsCmdHeld(chr, BTLC_BLAST_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_DOWN);
+        break;
+    case 70:
+        result = BtlInput_IsCmdHeld(chr, BTLC_BLAST_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_LEFT);
+        break;
+    case 71:
+        result = BtlInput_IsCmdHeld(chr, BTLC_BLAST_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_RIGHT);
+        break;
+    case 74:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_UP);
+        break;
+    case 75:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_DOWN);
+        break;
+    case 72:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_LEFT);
+        break;
+    case 73:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_P) && BtlInput_IsCmdHeld(chr, BTLC_DIR_RIGHT);
+        break;
+    case 76:
+        result = BtlInput_IsCmdHeld(chr, BTLC_RUSH_P) && !BtlInput_IsCmdHeld(chr, BTLC_DIR_ANY);
+        break;
+    case 92:
+        if (!BtlInput_IsHeld(chr, BTLB_CHARGE)) {
+            result = BtlInput_IsCmdPressed(chr, BTLC_DASH_TAP2);
+        }
+        break;
+    case 93:
+        result = BtlInput_IsCmdPressed(chr, BTLC_DASH_P4);
+        break;
+    case 94:
+        if (BtlInput_IsHeld(chr, BTLB_CHARGE)) {
+            break;
+        }
+        if (BtlInput_IsHeld(chr, BTLB_UP)) {
+            result = BtlInput_IsPressed(chr, BTLB_BLAST);
+        }
+        break;
+    case 95:
+        if (BtlInput_IsCmdHeld(chr, BTLC_GUARD_H)) {
+            result = BtlInput_IsPressed(chr, BTLB_BLAST2);
+        }
+        break;
+    case 96:
+        if (!BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H);
+        }
+        break;
+    case 33:
+    case 39:
+    case 81:
+        result = BtlInput_IsCmdPressed(chr, BTLC_GUARD_H);
+        break;
+    case 88:
+        if (BtlInput_IsHeld(chr, BTLB_CHARGE | BTLB_RUSH)) {
+            break;
+        }
+        if (BtlInput_IsReleased(chr, BTLB_BLAST)) {
+            result = BtlInput_GetFramesSincePress(chr, 2) < 7;
+        }
+        if (BtlInput_IsHeld(chr, BTLB_BLAST)) {
+            result = BtlInput_GetFramesSincePress(chr, 2) == 6;
+        }
+        break;
+    case 89:
+        if (BtlInput_IsHeld(chr, BTLB_CHARGE | BTLB_RUSH)) {
+            break;
+        }
+        if (BtlInput_IsReleased(chr, BTLB_BLAST)) {
+            result = BtlInput_GetFramesSincePress(chr, 2) < 7;
+        }
+        break;
+    case 90:
+        if (!BtlInput_IsHeld(chr, BTLB_CHARGE | BTLB_RUSH)) {
+            if (BtlInput_IsHeld(chr, BTLB_BLAST)) {
+                result = BtlInput_GetFramesSincePress(chr, 2) == 6;
+            }
+        }
+        break;
+    case 67:
+    case 91:
+        result = !BtlInput_IsHeld(chr, BTLB_BLAST);
+        break;
+    case 99:
+        if (BtlInput_GetNotHeldFrames(chr, 15) < 30) {
+            break;
+        }
+        if (!BtlInput_IsHeld(chr, BTLB_DIR_MASK)) {
+            if (BtlInput_IsReleased(chr, BTLB_R3)) {
+                result = BtlInput_GetFramesSincePress(chr, 13) < 13;
+            }
+        }
+        break;
+    case 100:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_LEFT)) {
+                if (BtlInput_IsReleased(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) < 13;
+                }
+            }
+        }
+        break;
+    case 101:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_UP)) {
+                if (BtlInput_IsReleased(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) < 13;
+                }
+            }
+        }
+        break;
+    case 102:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_RIGHT)) {
+                if (BtlInput_IsReleased(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) < 13;
+                }
+            }
+        }
+        break;
+    case 103:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_DOWN)) {
+                if (BtlInput_IsReleased(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) < 13;
+                }
+            }
+        }
+        break;
+    case 104:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_LEFT)) {
+                if (BtlInput_IsHeld(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) == 12;
+                }
+            }
+        }
+        break;
+    case 105:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_UP)) {
+                if (BtlInput_IsHeld(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) == 12;
+                }
+            }
+        }
+        break;
+    case 106:
+        if (BtlInput_GetNotHeldFrames(chr, 15) >= 30) {
+            if (BtlInput_IsHeld(chr, BTLB_RIGHT)) {
+                if (BtlInput_IsHeld(chr, BTLB_R3)) {
+                    result = BtlInput_GetFramesSincePress(chr, 13) == 12;
+                }
+            }
+        }
+        break;
+    case 107:
+        result = BtlInput_IsPressed(chr, BTLB_L3R3);
+        break;
+    case 108:
+        result = BtlInput_IsCmdHeld(chr, BTLC_CHARGE_BLAST);
+        if (BtlChar_TestFlag(chr, 0x122)) {
+            BtlChar_ClearFlag(chr, 0x122);
+            BtlChar_ClearFlag(chr, 0x11E);
+            result = 1;
+        }
+        break;
+    case 109:
+        result = BtlInput_IsCmdHeld(chr, BTLC_CHARGE_BLAST_U);
+        if (BtlChar_TestFlag(chr, 0x123)) {
+            BtlChar_ClearFlag(chr, 0x123);
+            BtlChar_ClearFlag(chr, 0x11E);
+            result = 1;
+        }
+        break;
+    case 110:
+        result = BtlInput_IsCmdHeld(chr, BTLC_CHARGE_BLAST_D);
+        if (BtlChar_TestFlag(chr, 0x124)) {
+            BtlChar_ClearFlag(chr, 0x124);
+            BtlChar_ClearFlag(chr, 0x11E);
+            result = 1;
+        }
+        break;
+    case 111:
+        result = BtlInput_IsCmdHeld(chr, BTLC_SWITCH);
+        if (BtlChar_TestFlag(chr, 0x11F)) {
+            result = 1;
+        }
+        break;
+    case 112:
+        result = BtlInput_IsCmdHeld(chr, BTLC_UNUSED2000);
+        if (BtlChar_TestFlag(chr, 0x11F)) {
+            result = 1;
+        }
+        break;
+    case 113:
+        result = BtlInput_IsCmdHeld(chr, BTLC_CHARGE_GUARD);
+        if (BtlChar_TestFlag(chr, 0x120)) {
+            BtlChar_ClearFlag(chr, 0x120);
+            BtlChar_ClearFlag(chr, 0x11E);
+            result = 1;
+        }
+        break;
+    case 114:
+        result = BtlInput_IsCmdHeld(chr, BTLC_CHARGE_GUARD_U);
+        if (BtlChar_TestFlag(chr, 0x121)) {
+            BtlChar_ClearFlag(chr, 0x121);
+            BtlChar_ClearFlag(chr, 0x11E);
+            result = 1;
+        }
+        break;
+    }
+    return result ^ invert;
+}
+
+/* Returns the smoothed stick x. */
+f32 BtlInput_GetStickX(BtlInputChr *chr) {
+    return chr->input.stick[0];
+}
+
+/* Returns the smoothed stick y. */
+f32 BtlInput_GetStickY(BtlInputChr *chr) {
+    return chr->input.stick[1];
+}
+
+/* Returns the length of the smoothed stick vector. */
+f32 BtlInput_GetStickLength(BtlInputChr *chr) {
+    return sqrtf(chr->input.stick[0] * chr->input.stick[0] + chr->input.stick[1] * chr->input.stick[1]);
+}
+
+/* Returns the direction of the raw stick as an angle, atan2(x, -y): 0 = up, positive = right; 0 when both axes are under 0.01. */
+f32 BtlInput_GetStickAngle(BtlInputChr *chr) {
+    f32 x = chr->input.stickRaw[0];
+    f32 y = chr->input.stickRaw[1];
+
+    if (fabsf(x) < 0.01f && fabsf(y) < 0.01f) {
+        return 0.0f;
+    }
+    return atan2f(x, -y);
+}
+
+/* Returns how far the stick direction is from the fighter's facing: stick angle - (heading - camera yaw), wrapped. */
+f32 BtlInput_GetStickTurnFromFacing(BtlInputChr *chr) {
+    return BtlUtil_WrapAngle(BtlInput_GetStickAngle(chr) - BtlAct_GetFacingRelCam(chr));
 }

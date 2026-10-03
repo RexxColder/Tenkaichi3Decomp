@@ -132,7 +132,7 @@ typedef struct BattleItemSet {
 typedef struct BattleMember {
     /* 0x00 */ s32 chara;       /* character id (file 8 + chara * 2 + side, model 0x590 + chara * 10 + costume) */
     /* 0x04 */ s32 costume;
-    /* 0x08 */ s32 variant;     /* non-zero: model file + 4; passed to func_001CDD40 at fighter init */
+    /* 0x08 */ s32 variant;     /* non-zero: model file + 4; passed to BtlMember_LoadParams at fighter init */
     /* 0x0C */ s32 cpuLevel;    /* 0..29, -1 for the training opponent; copied to the fighter's member entry + 0x38 */
     /* 0x10 */ f32 health;      /* 100.0f from every menu caller, an integer script argument: percent (inferred) */
     /* 0x14 */ BattleItemSet items; /* all zero on every member of side 0 -> result summary bit 45 */

@@ -2,7 +2,7 @@
 #include "battle/btl_ai_int.h"
 
 /*
- * CPU player, first object: 0x1B4140..0x1B6D00. Decompiled so far: step handlers 14..23, the per-frame sequence
+ * CPU player, first object: 0x1B4140..0x1B6D50. Decompiled so far: step handlers 14..23, the per-frame sequence
  * runner and the input hand-over (0x1B6008..0x1B6D00). The rule conditions that follow are btl_ai_cond.c.
  *
  * Per frame (BtlAiMgr_Update, 0x1BB620, for each CPU-controlled fighter): sense (0x1BFF70), think (0x1BAC30: the
@@ -408,7 +408,7 @@ void BtlAi_RunSeq(BtlAiWork *ai) {
     BtlAiOutput *out = &ai->out;
     BtlAiSeq *seq = &ai->seq;
 
-    func_001BC918(out, 1);
+    BtlAiPad_Clear(out, 1);
     if (seq->depth > 0) {
         switch (SEQ_TOP(seq).id) {
         case 3:
@@ -416,22 +416,22 @@ void BtlAi_RunSeq(BtlAiWork *ai) {
             seq->depth--;
             break;
         case 7:
-            func_001BC8A8(ai);
+            BtlAiMove_Dispatch(ai);
             break;
         case 0x19:
-            func_001BDAB0(ai);
+            BtlAiCombo_Dispatch(ai);
             break;
         case 0x1A:
-            func_001BDE68(ai);
+            BtlAiFollow_Dispatch(ai);
             break;
         case 0x36:
-            func_001BE140(ai);
+            BtlAiAct36_Dispatch(ai);
             break;
         default:
             gBtlAiStateFuncs[seq->phase](ai);
             break;
         }
-        func_001BCD70(out);
+        BtlAiPad_EndFrame(out);
     }
 }
 
@@ -440,3 +440,11 @@ void BtlAi_SendInput(BtlAiWork *ai) {
     BtlCharApi_SetInjectedInput(ai->objId, ai->out.buttons, ai->out.stickX, ai->out.stickY);
 }
 
+/* Interpolates between lo (level 0) and hi (level 29). Last function of this object: its callers in the next one
+ * (btl_ai_cond.c) only compile to the original bytes when it is NOT defined in their translation unit. */
+s32 BtlAi_ScaleByLevel(s32 level, s32 lo, s32 hi) {
+    if (level < 0) {
+        level = 0;
+    }
+    return lo + (s32)((f32)(hi - lo) / 29.0f * (f32)level + 0.01f);
+}

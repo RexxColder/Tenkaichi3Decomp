@@ -35,18 +35,18 @@ extern void func_00121E18(Vec4 *dst);                    /* dst = 0 */
 extern void func_00121E20(Vec4 *dst);                    /* dst = 0 */
 extern f32 func_00122200(Vec4 *a, Vec4 *b);              /* distance between two points */
 
-extern f32 func_001C4688(BtlCharApiChr *chr);            /* BtlObj_Get(chr->objId)->unkC78 */
-extern s32 func_001C4638(BtlCharApiChr *chr);            /* chr->unk974 */
-extern void *func_001C4650(s32 idx);                     /* gBtlChars->unk20[idx], idx < 0x19E */
-extern s32 func_001C4740(BtlCharApiChr *chr, u64 mask);  /* 0 while chr->unk990 > 0, else func_0024D498 on its object */
+extern f32 BtlAnim_GetFrame(BtlCharApiChr *chr);            /* BtlObj_Get(chr->objId)->unkC78 */
+extern s32 BtlAnim_GetId(BtlCharApiChr *chr);            /* chr->unk974 */
+extern void *BtlAnim_GetFlags(s32 idx);                     /* gBtlChars->unk20[idx], idx < 0x19E */
+extern s32 BtlAnim_TestAttr(BtlCharApiChr *chr, u64 mask);  /* 0 while chr->unk990 > 0, else func_0024D498 on its object */
 extern void ChrCam_AddShake(BtlCharApiChr *chr, f32 a, f32 b); /* CamShake_Add(&chr->camShake, a, b) if chr->camShakeOn */
 extern s32 ChrCam_IsCutActive(BtlCharApiChr *chr);
-extern BtlCharApiVitals *func_001CE1B8(BtlCharApiChr *chr); /* the active member's vitals */
+extern BtlCharApiVitals *BtlMember_GetActiveGauge(BtlCharApiChr *chr); /* the active member's vitals */
 extern s32 BtlReplay_GetViewSide(void);
-extern void func_001DA348(Vec4 *pos, s32 kind, s32 id, f32 near, f32 far); /* sound request, owner -1 */
-extern void func_001DA488(BtlCharApiChr *chr, s32 id);  /* sound request at the fighter: kind side + 2, 200 / 1500 */
-extern s32 func_001DA8A0(s32 idx);                       /* table of words at 0x2EF290 */
-extern s32 func_001DB7B0(BtlCharApiChr *chr);            /* object id of the other side's fighter */
+extern void BtlCharSnd_RequestAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 far); /* sound request, owner -1 */
+extern void BtlCharSnd_PlayOwn(BtlCharApiChr *chr, s32 id);  /* sound request at the fighter: kind side + 2, 200 / 1500 */
+extern s32 BtlCharSnd_GetBankMask(s32 idx);                       /* table of words at 0x2EF290 */
+extern s32 BtlOpp_GetObjId(BtlCharApiChr *chr);            /* object id of the other side's fighter */
 extern f32 BtlUtil_ClampF(f32 v, f32 lo, f32 hi);         /* clamp */
 extern BtlCharApiObj *BtlChar_GetObj(BtlCharApiChr *chr); /* BtlObj_Get(chr->objId) */
 extern Vec4 *BtlChar_GetPos(BtlCharApiChr *chr);          /* &chr->pos */
@@ -55,10 +55,10 @@ extern s32 BtlChar_IsDead(BtlCharApiChr *chr);            /* vitals->hp < 1 */
 extern s32 BtlChar_TestMemberUnk70(BtlCharApiChr *chr);            /* vitals->unk30 != 0 */
 extern void BtlChar_SetVibration(BtlCharApiChr *chr, f32 power, f32 time);
 extern void BtlChar_SetSmallVibration(BtlCharApiChr *chr, f32 time);
-extern s32 func_001E0358(BtlCharApiChr *chr);            /* chr->action */
-extern s32 func_001E03A8(s32 action);                    /* action == 0x105 or in 0x106..0x132 */
-extern s32 func_001E0430(BtlCharApiChr *chr);            /* technique slot of the current action, or -1 */
-extern s32 func_001E0490(BtlCharApiChr *chr, s32 action);
+extern s32 BtlAct_GetCurrent(BtlCharApiChr *chr);            /* chr->action */
+extern s32 BtlAct_IsDamageId(s32 action);                    /* action == 0x105 or in 0x106..0x132 */
+extern s32 BtlAct_GetCurrentClass(BtlCharApiChr *chr);            /* technique slot of the current action, or -1 */
+extern s32 BtlAct_GetMotionLevel(BtlCharApiChr *chr, s32 action);
 extern s32 func_00206C20(s32 objId);                     /* action id in 0x12D..0x12F or 0x139..0x13B */
 extern s32 func_00206D68(s32 objId);                     /* action id in 0x130..0x132 */
 extern s32 func_00206DB8(s32 objId);                     /* action id 0xFA or 0xFC */
@@ -137,7 +137,7 @@ s32 BtlCharApi_GetMemberUnk60(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_001CE1B8(chr)->unk20;
+        return BtlMember_GetActiveGauge(chr)->unk20;
     }
     return 0;
 }
@@ -147,7 +147,7 @@ s32 BtlCharApi_IsFlag8Action104(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        if (BtlChar_TestFlag(chr, 8) && func_001E0358(chr) == 0x104) {
+        if (BtlChar_TestFlag(chr, 8) && BtlAct_GetCurrent(chr) == 0x104) {
             return 1;
         }
         return 0;
@@ -160,7 +160,7 @@ s32 BtlCharApi_IsAction103OrFlagA6(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        if (func_001E0358(chr) == 0x103) {
+        if (BtlAct_GetCurrent(chr) == 0x103) {
             return 1;
         }
         return BtlChar_TestFlag(chr, 0xA6) != 0;
@@ -223,20 +223,20 @@ void BtlCharApi_SetHeldFlagAB(s32 objId) {
     }
 }
 
-/* Queues a positioned sound with no owner in the fighter manager's 4-entry request list (played by func_001DA098). */
+/* Queues a positioned sound with no owner in the fighter manager's 4-entry request list (played by BtlCharSnd_PlayRequests). */
 void BtlCharApi_PlaySoundAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 far) {
-    func_001DA348(pos, kind, id, near, far);
+    BtlCharSnd_RequestAt(pos, kind, id, near, far);
 }
 
 /* Queues sound 0x25 + n or 0x29 + n at the fighter, by the class (0 / 1) of the technique it is performing.
-   Declared int with no return statement: the original calls func_001DA488 with jal and falls into the epilogue
+   Declared int with no return statement: the original calls BtlCharSnd_PlayOwn with jal and falls into the epilogue
    instead of tail-calling it, which a void function would not do. No caller uses a result. */
 s32 BtlCharApi_PlayTechniqueSound(s32 objId, u32 n) {
     s32 base = -1;
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL && n < 4) {
-        switch (func_001E0430(chr)) {
+        switch (BtlAct_GetCurrentClass(chr)) {
         case 0:
             base = 0x25;
             break;
@@ -245,7 +245,7 @@ s32 BtlCharApi_PlayTechniqueSound(s32 objId, u32 n) {
             break;
         }
         if (base >= 0) {
-            func_001DA488(chr, base + n);
+            BtlCharSnd_PlayOwn(chr, base + n);
         }
     }
 }
@@ -286,7 +286,7 @@ void BtlCharApi_GetSound(s32 side, s32 n, s32 *handle, s32 *out3, s32 *out4) {
                     *handle = e->handle;
                 }
                 if (out3 != NULL) {
-                    *out3 = func_001DA8A0(e->unk8);
+                    *out3 = BtlCharSnd_GetBankMask(e->unk8);
                 }
                 if (out4 != NULL) {
                     *out4 = e->unk4;
@@ -394,7 +394,7 @@ s32 BtlCharApi_IsTargetBelowHalfHp(s32 objId, s32 targetId) {
         if (BtlChar_IsDead(target)) {
             return 0;
         }
-        return func_001CE1B8(target)->hp < func_001CE1B8(target)->hpMax / 2;
+        return BtlMember_GetActiveGauge(target)->hp < BtlMember_GetActiveGauge(target)->hpMax / 2;
     }
     return result;
 }
@@ -407,17 +407,17 @@ s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId) {
     s32 result = 0;
 
     if (chr != NULL && target != NULL) {
-        if (!func_001E03A8(func_001E0358(chr))) {
+        if (!BtlAct_IsDamageId(BtlAct_GetCurrent(chr))) {
             return 0;
         }
-        slot = func_001E0430(chr);
+        slot = BtlAct_GetCurrentClass(chr);
         if (!(func_00210D80(chr, slot) & 0x80000)) {
             return 0;
         }
         if (func_00211F60(chr, slot)) {
             return 0;
         }
-        return func_001CE1B8(target)->unk20 == 0;
+        return BtlMember_GetActiveGauge(target)->unk20 == 0;
     }
     return result;
 }
@@ -465,7 +465,7 @@ s32 BtlCharApi_ObjTestAttr(s32 objId, u64 mask) {
     BtlCharApiObj *obj;
 
     if (chr != NULL) {
-        return func_001C4740(chr, mask);
+        return BtlAnim_TestAttr(chr, mask);
     }
     obj = BtlObj_Get(objId);
     if (obj != NULL) {
@@ -511,9 +511,9 @@ f32 BtlCharApi_GetChargedUnkC78(s32 objId) {
     if (chr == NULL) {
         return 0.0f;
     }
-    value = func_001C4688(chr);
+    value = BtlAnim_GetFrame(chr);
     if (func_00206C20(objId)) {
-        n = func_001E0490(chr, func_001C4638(chr));
+        n = BtlAct_GetMotionLevel(chr, BtlAnim_GetId(chr));
         for (i = 0; i < n; i++) {
             value += chr->unkEFC[i] + 1.0f;
         }
@@ -556,7 +556,7 @@ s32 BtlCharApi_GetUnk974(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_001C4638(chr);
+        return BtlAnim_GetId(chr);
     }
     return 0;
 }
@@ -566,7 +566,7 @@ void *BtlCharApi_GetUnk974Data(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_001C4650(func_001C4638(chr));
+        return BtlAnim_GetFlags(BtlAnim_GetId(chr));
     }
     return NULL;
 }
@@ -657,7 +657,7 @@ s32 BtlCharApi_IsCamShown(s32 objId) {
         return 1;
     }
     mine = BtlCharApi_HasCamPriority(objId);
-    other = BtlCharApi_HasCamPriority(func_001DB7B0(chr));
+    other = BtlCharApi_HasCamPriority(BtlOpp_GetObjId(chr));
     if (other < mine) {
         return 1;
     }
