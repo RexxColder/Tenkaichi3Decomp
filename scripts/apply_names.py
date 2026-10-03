@@ -6,6 +6,7 @@ no longer exists at link time. Run this after adding names to the symbol files.
 """
 
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,7 +26,11 @@ def main():
         new = names.get(int(m.group(2), 16))
         return new if new and not re.fullmatch(r"(func|D)_[0-9A-F]+", new) else m.group(0)
 
+    # Optional arguments: path substrings to leave alone (files another process is still writing).
+    skip = sys.argv[1:]
     for path in sorted((ROOT / "src").rglob("*.c")) + sorted((ROOT / "include").rglob("*.h")):
+        if any(s in str(path) for s in skip):
+            continue
         old = path.read_text()
         new = re.sub(r"\b(func|D)_([0-9A-F]{6,8})\b", swap, old)
         if new != old:
