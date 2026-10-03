@@ -398,3 +398,46 @@ guesses from the animation and flag sequences; not linked yet.
 - "Strike" / "rush" in `btl_char_coll.h` for slots 0..1 / 2..4 is loose: slots 2..4 include
   plain beams. Fighter +0x1594 is the class whose technique button is watched this frame, not
   a switch prompt.
+
+## Neutral state and movement actions (`btl_act_d.c`, 0x1EE058..0x1F1930; verified unless marked)
+
+All 18 functions match per function; not linked yet. Handler names are guesses.
+
+**Action 0xB, neutral.** Every fighter returns here.
+- Enter: leave flight mode (flag 0xE) if within a small height of the ground; play the idle
+  motion (ground 0 / 1, flight 0x26 / 0x27, 0x18B for a non-flyer in the air).
+- Run: flight-mode upkeep, loop the animation, brake to a stop, gravity, flags 0xC9 / 0x1C /
+  0x25, look at the opponent.
+- Decide, in this order: idle timeout (more than 90 counted frames with flag 3 set requests
+  action 0x43; not in mode 1); `BtlDecide_Main(chr, 0x22FCBFEB)`; the attack decision
+  `func_00201E18(chr, 0x0800054F)`; `BtlDecide_Common(chr, 0xF)`; then request queue[0]. Each
+  writes queue slot 0, so later ones override: forced transitions > attacks > the main table.
+  The mask argument selects which groups of inputs are live in the calling action.
+
+| Action | What (names inferred) | Notes |
+|---|---|---|
+| 0xC | idle once | 1 s, no decisions |
+| 0xD | free move | yaw from the stick; side-lean layers weighted by the model yaw relative to the camera yaw |
+| 0xE | close move | used when near the opponent (flag 0x13); faces the opponent |
+| 0xF | dash | DASH held; each turn-around adds 0.1 to a speed multiplier, up to 1.5 |
+| 0x10 / 0x12 | jump take-off (0x12 from a dash) | launch at 30% of the motion |
+| 0x11 / 0x13 | airborne | lands when fewer than 3 frames from the ground |
+| 0x14 / 0x15 | ascend / descend | |
+| 0x16 | hop | the ascend of a character that cannot fly (inferred) |
+| 0x17 / 0x18 | fast ascend / descend | drains ki per frame; ends when ki runs out |
+| 0x19 | homing dash | steers at the opponent; drains ki; stops when blocked, slow for 16 frames, or lock-on is lost |
+| 0xB2 / 0xB3 | ki blast / charged ki blast (inferred) | aim vector at fighter +0xDD0 |
+| 0x95 | ki volley (inferred) | ten short motions, ki per motion |
+
+- Speeds come from a per-character table by kind (`func_00210940(chr, kind)`): 0/1 move, 2/3
+  close move, 4/5 dash, 6 homing dash, 9 fast vertical, 0xD jump, 0x10/0x11 ascend / descend;
+  the odd kind of each pair applies in water (flag 0x11, inferred).
+- Flags (inferred meanings): 0xE flight mode, 0xF on the ground, 0x11 in water, 0x13 close to
+  the opponent, 5 locked on, 0x16 / 0x17 forced flight.
+- No random draws, no pad reads, no player-0 dependence. The camera yaw only picks animation
+  layers here. A heavy landing requests camera shake (which draws `rand()`).
+- Open: two handlers branch on the previous action (fighter +0x950), for which no writer has
+  been found. Either a writer exists (a block copy) or those branches are dead.
+- `btl_char_action.h` has pose +0x90 / +0x94 as speed / facing; the movement header's layout
+  (+0x90 pitch, +0x94 heading yaw, +0x98 speed, +0x9C fall speed) is the right one. Pose +0xD0
+  is a bit word, not a float.
