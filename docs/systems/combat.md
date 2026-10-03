@@ -698,3 +698,47 @@ to the stage timer.
 Random draws: one `BtlChar_FrameMod(2)` choosing the side of a vanishing-step lead-in.
 `BtlInput_TestAction` records each query in per-frame bit sets, so the order and
 short-circuiting of the tables is observable state.
+
+## The generic attack and the hit reactions (`btl_act_b.c`, 0x1E6CC0..0x1EA5F8; verified unless marked)
+
+21 of 23 functions match per function; one more matches once `btl_act_a.c` is in the same
+translation unit (same original source file), and one small helper (`BtlActB_TickMemberChange`)
+is 14 instructions off. Not linked yet. All names are guesses.
+
+**`BtlAct_AttackHandler`**: actions 0x70..0xAD except 0x92 / 0x9B / 0xAB (dash then strike),
+0x99 (pulsed dash then strike) and 0x95.
+- Enter: latch the pending attack block (fighter +0xD1C to +0xCF8), play its first motion,
+  take the attacker's speed from the attack record, play the attack voice. **The camera cut is
+  requested only when the opponent is not attacking or began its attack later**; of two
+  attackers the earlier gets the cut, and on a tie neither does. The request raises fighter
+  flag 0x27, so cuts are part of the simulation.
+- Run: the motion chains through the block's parts. With a record speed the attacker homes on
+  the opponent at that speed; contact flags stop it (0x5B at once; 0x5C / 0x5D brake at 100
+  km/h per frame). Inferred: 0x5B = the hit landed, 0x5C = guarded, 0x5D = clashed.
+- Decide: `BtlAct_DecideAttackFollow` (follow-ups, see the melee section).
+- Latched attack block: +0 flags (0x40 end the cut on hit, 0x80, 0x400), +4 `s16 motion[2]`,
+  +8 parts, +9 level, +0xA cut, +0x10 rate, +0x1C speed.
+
+**Hit reactions** (the actions the reaction table selects):
+
+| Actions | What (inferred terms) | Verified mechanics |
+|---|---|---|
+| 0xBD, 0xC0..0xCA | staggers | one animation each; variants cycle with a per-fighter counter (fighter +0xFB8), not randomly; leaving sets +0xFF0 = 15 |
+| 0xCB, 0xCC, 0xCD | heavy stagger, ground bounce | animation speed follows the mash rate |
+| 0xCE | launched | upward at (0.7 + 0.3 x strength) x 1200 km/h; recovery inputs from frame 9 |
+| 0xCF..0xD1, 0xD4 | pushed back | 500 km/h; 700 km/h for strength x 15 frames |
+| 0xD5 / 0xD6 / 0xDF | blown away | 50 / 15 / 32 frames at 1000 / 2000 / 2000 km/h. Hitting the floor costs 500 health and shakes nearby cameras; walls and the opponent give their own reactions |
+| 0xD7 | recovery out of a blow-away | |
+| 0xD8 | lying down | a dead fighter with a member left requests 0xF6 after 31 frames; otherwise gets up after 90 |
+| 0xD9 | falling | |
+
+- Strength: fighter +0xFC8 (0..1), inferred to be the strength of the hit that caused the
+  reaction.
+- Mash-outs count presses of the face buttons: stagger animations run at step 1..4, +1 per
+  press, decaying by 4/30 per frame; a blow-away is escaped after
+  `4 + (int)(12 x health lost)` presses (needs a character skill bit); lying down needs the
+  count at fighter +0x1000.
+- On stages 4 and 27 several timers and speeds scale with health lost.
+- No random draws. The floor crash calls `BtlCharApi_ShakeCamsNear` (camera shake draws
+  `rand()`, gated by a per-side option).
+- Three handlers branch on the previous action, which is never written (see above).

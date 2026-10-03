@@ -27,6 +27,7 @@ Still in the tree but NOT linked or committed:
 |---|---|---|
 | btl_char_fx.c, _b.c, _c.c | 0x1D00D8..0x1D3B40 | 64/67 match per function. `BtlFx_UpdateGroundFx` needs the fx-bit helpers of btl_char_member.c in the same file. The C emits .lit4 at 0x2FD1D8.. with two assembly-owned gaps (see the agent notes in combat.md) |
 | btl_act_a.c | 0x1E3158..0x1E6CC0 | 21/21; continues btl_char_action.c's object; 16 jump tables 0x2EF370..0x2EF880, .lit4 0x2FD4DC..0x2FD668, **.sdata 8 bytes at 0x2FEB20** |
+| btl_act_b.c | 0x1E6CC0..0x1EA5F8 | 21/23; `BtlAct_AttackDashHandler` matches with `BtlAct_RequestAttackEnd` (btl_act_a.c) in the same TU: **merge btl_act_a + btl_act_b** (and they continue btl_char_action.c's object); `BtlActB_TickMemberChange` 14 instructions off. Jump tables 0x2EF880..0x2EF91C, .lit4 0x2FD668..0x2FD7C8 |
 | btl_act_c.c | 0x1EA5F8..0x1EE058 | 29/30 (`BtlAct_GuardHandler` INCLUDE_ASM, 2 instructions); jump tables 0x2EF920..0x2EFA34, .lit4 0x2FD7C8..0x2FD988 with five LIT4_WORD entries |
 | btl_act_d.c | 0x1EE058..0x1F1930 | 18/18; 2 jump tables at 0x2EFA40, .lit4 0x2FD988..0x2FDB44. `BtlAct_DashMoveHandler` (0xF) vs btl_act_e's `BtlAct_DashHandler` (0x1A): no clash now |
 | btl_act_e.c | 0x1F1930..0x1F5460 | 20/20; 5 jump tables 0x2EFB20..0x2EFC80, .lit4 0x2FDB44..0x2FDD08. 0x1A is `BtlAct_DragonDashHandler`; a comment in btl_act_d.txt about the old name is stale |
