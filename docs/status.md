@@ -68,8 +68,8 @@ INCLUDE_ASM).
 First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x132290, 0x136760,
 0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550,
 0x15F728; `stg_a` 0x23FB20..0x242D28, `stg_b` ..0x245F58, `stg_c` ..0x248F28).
-Reported and documented: eft_a, eft_b, eft_f, eft_g, eft_i, eft_j, eft_m, stg_b, stg_c. Still running:
-eft_c, eft_d, eft_e, eft_h, eft_k, eft_l, stg_a.
+Reported and documented: eft_a, eft_b, eft_e, eft_f, eft_g, eft_i, eft_j, eft_m, stg_b, stg_c. Still running:
+eft_c, eft_d, eft_h, eft_k, eft_l, stg_a.
 
 Second wave: launched, then STOPPED after a few minutes (2026-10-04) to stay inside the usage
 limit. Relaunch these from scratch after the reset; any partial `eft_n`..`eft_u`, `eft_det_*`
@@ -99,6 +99,11 @@ Merge evidence so far: eft_e + eft_f are one source file; eft_h + eft_i continue
 
 ## Known follow-ups
 
+- Prelude: test `.set mips64` in `__gp_forget` (HI/LO hazard after mfhi before mtc1) against
+  ALL linked files; needed by `EftBurst_Update` (eft_e).
+- Stale extern names once eft_e is listed: battle_load.c `func_0013F310/3A0/3C8` =
+  `EftBurst_Start/IsBusy/End`; btl_scene.c `func_00140ED0` = `EftWater_UpdateBlast`;
+  btl_char_fx.c `func_00140358/478` = `EftWater_SetWake/AddSplashFor`.
 - When eft_g is listed: `func_0014AB90` in the linked btl_char_fx.c / btl_char_member.c becomes
   `EftShot_Request`.
 - Stage rigid bodies / destructibles at 0x22FDA0..0x230AA0 have no owner yet: add to the next wave.

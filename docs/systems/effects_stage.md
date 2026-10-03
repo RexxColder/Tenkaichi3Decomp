@@ -59,6 +59,9 @@ and the stage update at 0x243568).
 | 0x1333C8..0x135070 | eft_b.c | underwater bubbles `EftBubble_*` (pool of 100; layer 0 sub-task 7) | no | libc `rand()`; **count depends on camera pose** (per frame while a view's camera is under water), none in split screen; ambient body bubbles only for object 0 | |
 | 0x135070..0x135610 | eft_b.c | scrolling stage sheet `EftStageScroll_*` (sub-task 0) | no | libc `rand()` once at load | |
 | 0x135610..0x136760 | eft_b.c | geyser columns `EftGeyser_*` at stage-defined positions (sub-task 6) | no (its two emitters, in other files, not classified) | libc `rand()` once per column at creation | |
+| 0x13EA00..0x13F3D8 | eft_e.c | **stage-change transition `EftBurst_*` (scene layer 4)**: demo-camera animation, a model, 350 particles on a fixed schedule | no state writes, but **the stage swap waits on it** (150 unpaused frames) | libc `rand()` every unpaused frame | (eft_e 47/49) |
+| 0x13F430..0x140338 | eft_e.c | stage particle emitters `EftSteam_*` (layer 0 sub-task 5; also used by the geysers) | no | VU0 register: 7 per new particle; emission is not gated by pause | |
+| 0x140338..0x142CA0 | eft_e.c | water surface `EftWater_*`, first half (splashes, wakes; continues in eft_f) | one bit: sets flag 0x400 on a hit record's task (inferred private) | libc `rand()`: **one per eligible hit record per frame**, 61 / 44 per splash, 19 / 6 per frame per wake; **all creation is off in split screen** | |
 | 0x242D28..0x2435C0 | stg_b.c | stage data readers `BtlStage_*`, stage timers, `BtlStage_Update` | timers and flags only (readers elsewhere) | none | (stg_b 84/88) |
 | 0x2435C0..0x244170 | stg_b.c | stage ambience sound `StgAmb_*` (23 per-stage volume handlers) | no | libc `rand()` on stages 3, 4, 10, 15, 27 (random one-shot sounds) | |
 | 0x244170..0x244890 | stg_b.c | screen cross-fade `ScrXfade_*` | no | none | |
@@ -214,3 +217,13 @@ what btl_scene.c calls a record's "definition flags" is the owning task's event 
   burst bubbles' direction is uninitialised stack data.
 - (verified, eft_b) The texture set effect modules load is 32 entries of 0x10 bytes
   `{u64 tex0; image pointer; pad}` plus a count at +0x200.
+- (verified, eft_e) The stage-change transition counts 150 unpaused frames; the stage swap in
+  battle_load.c waits on `EftBurst_IsBusy`. Its particles and sounds use libc `rand()`.
+- (verified, eft_e) On water stages `EftWater_UpdateBlast` is called for every hit record each
+  frame and draws `rand()` once per eligible record before testing anything, so the libc call
+  count follows the number of live projectiles.
+- (evidence) Source file boundaries: 0x13C300..0x13F3D8 (transition; `EftBurst_Update` needs
+  three functions of eft_d.c in the same file) and 0x140338.. through eft_f (water).
+- (prelude, to verify) `EftBurst_Update` also needs the HI/LO hazard handled: the agent got a
+  match with `.set mips64` instead of `.set mips4` in `__gp_forget` on a private prelude copy;
+  it did not test other files with that change.
