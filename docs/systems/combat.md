@@ -644,3 +644,57 @@ All 21 functions match per function; not linked yet. This file continues the obj
 - Function-local data: `BtlAct_FlyingKickHandler` owns 8 bytes of `.sdata` at 0x2FEB20.
 - No random draws; no pad or camera reads other than the camera `side` for cut ids (0x45,
   0x46); nothing depends on player 0.
+
+## The control scheme, skills, member switch (`btl_act_i.c`, 0x1FFAC0..0x203168; verified unless marked)
+
+16 of 18 functions match per function as they stand; the other two differ only in "likely"
+branch bits and match when two functions of `btl_act_h.c` are in the same translation unit
+(so the original source file spans both). Not linked yet.
+
+**Three decision functions are the control scheme**: `BtlDecide_Main` (movement, guard,
+charge, vanishes, specials), `BtlDecide_Attack` (rush, smash, ki blasts, grabs, finishers) and
+`BtlDecide_Common` (forced transitions: stun, ki-exhausted, fall, death). Each takes a mask
+selecting which rows are live in the calling action, tests rows in a fixed order (first
+satisfied row wins) and fills the queue. The complete tables, "mask + state + input id ->
+action(s)", are in the header comment of `include/battle/btl_act_i.h`. Highlights:
+
+| Input (condition id) | Requirement | Action |
+|---|---|---|
+| dash held (3) | | 0xF dash |
+| dash + charge press, without / with direction (20 / 21) | ki >= 1000; lock-on for the homing one | 0x19 homing dash / 0x1A free dash |
+| ascend / descend double tap (15 / 17) | | 0x17 / 0x18 fast vertical |
+| ascend press on the ground (8) | | 0x10 / 0x12 jump |
+| step inputs (25..28) | close to the opponent | 0x1B..0x1E |
+| guard press + direction (29..32) | ki >= the vanishing step cost | 0x20..0x23 vanishing step |
+| charge held (19) | not powered up | 0x37 ki charge |
+| guard held (34) | | 0x38 guard |
+| blast incoming within 90 frames (43) / 5 frames (39) | | 0x3B / 0x3D deflect, 0x3C |
+| direction (1) | | 0xE close move if near, else 0xD |
+| no input, lock-on lost | | 0x36 search |
+| rush tap (52) | | 0x44 rush chain |
+| rush held 6 frames + direction (53..57) | | 0x47..0x4C charged smash |
+| blast tap (89) / held 6 frames (90) | ki cost; shots in a row below the character's limit | 0xAE / 0xB0 / 0xB2, 0xAF / 0xB1 / 0xB3 |
+| grab (92) | | 0xB4 |
+
+A locked-on fighter facing more than 1.7 rad away from the opponent turns first (action 0x3A)
+before guarding or attacking.
+
+`BtlDecide_QueueAttack(chr, id)` is the one place that turns an attack table record into queue
+entries: the record carries the opponent state it requires (which hit reaction the opponent
+must be in), the input it needs (conditions 79..87) and its lead-in (vanish, warp behind, warp
+ahead, slide, rush, hop back: actions 0x2B..0x32).
+
+**Skills** (`BtlSkill_Apply`): apply the four stat levels with the slot's lifetime kind, health
+and ki changes, and per-skill special cases (stacking automatic evasions up to 3, a timed
+state, a 3000-health cost, the powered-up mode by attribute 0x200), then spend the blast
+stock. Three action shapes: with an animation (0xFD / 0xFE), teleporting behind the opponent
+afterwards (0xFF / 0x100), instant (0x101 / 0x102). Skill timers stop while time is stopped.
+
+**Member switch**: by input 0xF3 -> 0xF4 -> 0xF5 -> 0xB; after a defeat ... 0xEB -> 0xF6 ->
+0xF7 -> 0xF8. **0xF6 waits on `BtlChange_IsLoadedFor`** (disc load time). The arriving member
+flies in at 2500 km/h, lands, stands 30 frames, then raises fighter flag 0xF9. Arrivals add 2 s
+to the stage timer.
+
+Random draws: one `BtlChar_FrameMod(2)` choosing the side of a vanishing-step lead-in.
+`BtlInput_TestAction` records each query in per-frame bit sets, so the order and
+short-circuiting of the tables is observable state.

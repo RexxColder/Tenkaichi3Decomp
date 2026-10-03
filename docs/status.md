@@ -35,6 +35,7 @@ Still in the tree but NOT linked or committed:
 | btl_capi_b.c | 0x208430..0x20BA80 | 136/136; jump table 0x2F1600, .lit4 0x2FE0CC..0x2FE0E4 (btl_char_api.c's comment naming 0x2FE0D4 as the pool end is wrong) |
 | btl_tech_a.c | 0x20BA80..0x20F0E8 | 124/124; rodata 0x2F1620..0x2F18F0 (3 jump tables + three f32[10] tables), .lit4 0x2FE0E4..0x2FE114. 19 names changed mid-run: check other files for stale ones at link time (list in the agent notes of combat.md / symbol file) |
 | btl_tech_b.c | 0x20F0E8..0x2129C8 | 182/182; 3 jump tables 0x2F18F0..0x2F19CC, .lit4 0x2FE114..0x2FE1C0. Names ~80 functions other files call as `func_`: run apply_names after listing its symbol file |
+| btl_act_i.c | 0x1FFAC0..0x203168 | 16/18; `BtlAct_SwitchArriveLand` and `BtlAct_KoSwitchFlyIn` match only with `BtlActChange_SetFlags` (0x1FD958) and `BtlActChange_Finish` (0x1FDF50) in the same TU: **merge with btl_act_h.c**. Jump tables 0x2F0FD0..0x2F11C8, .lit4 0x2FE008..0x2FE070 |
 | btl_act_j.c | 0x203168..0x204E78 | 28/28; 9 jump tables 0x2F11D0..0x2F15F8, .lit4 0x2FE070..0x2FE078 |
 
 `scripts/apply_names.py` reads every file in config/symbols/, including those of agents whose
