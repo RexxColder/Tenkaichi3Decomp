@@ -9,7 +9,7 @@ purpose. Each is confirmed by C that compiles to the original bytes unless marke
 |---|---|---|
 | `Rand_Next` (`src/sys/rand.c`) | The MT19937 refill has only its first loop and the final word; the second loop is missing. | 396 of 624 state words never change after seeding. The game's random sequence is not MT19937. A port must copy the broken refill to reproduce behaviour. |
 | `BtlSeq_JudgeByHealth` | On equal health with no rule flag, outside the mode-0 time-up draw, the winner is `rand() & 1`. | A double KO can be decided by a coin flip from the C library generator. |
-| `BtlMember_Init` (`battle_setup.c`) | Applies items (and so looks up the default AI type) before storing the character id. | The default AI type is always looked up for character 0. |
+| `BtlMember_Init` (`battle_load.c`) | Applies items (and so looks up the default AI type) before storing the character id. | The default AI type is always looked up for character 0. |
 | `Dma_PutTexStrips` | The float path adds the X offset without the `<< 4` the integer path applies. | Textured strips whose width does not divide evenly are positioned differently. |
 | `Fade_IsDone` | Returns 1 when the done flag is set, which is one frame before the final colour is computed, and also for a slot that is off. | Callers proceed one frame early. |
 | `Pad_Update` | A digital-only pad is reset after being read. | Controllers without analog sticks give no input at all. |
