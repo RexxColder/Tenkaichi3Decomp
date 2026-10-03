@@ -742,3 +742,48 @@ is 14 instructions off. Not linked yet. All names are guesses.
 - No random draws. The floor crash calls `BtlCharApi_ShakeCamsNear` (camera shake draws
   `rand()`, gated by a per-side option).
 - Three handlers branch on the previous action, which is never written (see above).
+
+## Throws, transformation, fusion, switching out (`btl_act_h.c`, `btl_act_h_b.c`, 0x1FC2B0..0x1FFAC0; verified unless marked)
+
+20 of 21 functions match per function; `BtlAct_GrabDash` is 18 instructions off (a branch the
+compiler turns into a conditional move) and stays in assembly. Not linked yet. Handler names
+are guesses.
+
+**Throws** (0xB4..0xBF are throws, not character changes):
+
+| Actions | What (inferred terms) | Verified mechanics |
+|---|---|---|
+| 0xB4..0xB6 | grab dash | flag 0x7A = missed (back to 0xB); flag 0x5B = caught: to 0xB7, 0xB9, or 0xBB by a character parameter flag |
+| 0xB7 / 0xB9 | thrower | camera cut 7 or 8 by `BtlChar_FrameMod(2)`; the pair is turned round when near the stage edge |
+| 0xB8 / 0xBA | thrown | on release takes the launch yaw and pitch from the reaction block, mirrored when grabbed from behind; then the reaction's action |
+| 0xBB / 0xBC | slam throw: both dive at 1500 km/h | ends on the ground, a stage limit, or the 91st loop frame; the victim goes to 0xDE |
+| 0xBE / 0xBF | drag down: head first at 2000 km/h | the victim takes 500 damage on landing. **0xBE picks camera cut 0x18 / 0x19 from the camera `side`** |
+
+**Character changes** (0xEC..0xF0 transformation, 0xF1 / 0xF2 fusion, 0xF3 switch out):
+
+1. Enter: animation, camera cut, save the placement, event 0x20.
+2. The change request is pushed on the action's second frame (0xED: its first). Time stops at
+   the end of that frame; the action frame counter then stays at 2.
+3. Every run frame raises hit-stop level 2 (flag 0x125) and twelve more flags: the opponent is
+   frozen for the whole action, not just the load.
+4. The fighter loops in one specific animation per action and tests only
+   `BtlChange_IsLoadedFor(player)`, once per frame. No timeout, no input.
+5. On the first frame it is true: request the next animation, `BtlChange_SetReady`, and **pay
+   the blast cost** (so the cost is paid when the model is in memory, not at the input).
+6. The model swap happens at the next job run (not while paused).
+7. `BtlChange_SetDone` on the first frame of the closing animation (0xEC, 0xED, 0xEE, 0xF0), at
+   its end (0xEF and fusion, so time stays stopped through their closing animation), or in the
+   arriving member's first action (switch).
+8. End: event 0x5A; leave adds 2 s to the stage timer (4 s for fusion, none for 0xED), event
+   0x4D.
+
+0xEF and fusion queue two requests: an extra object (the partner model) and then the character.
+Where each action waits, and its fixed lead-in, is tabulated in `include/battle/btl_act_h.h`
+(for example the switch-out hides the fighter from the 16th loop frame and waits from the 46th;
+0xEF loops at least 61 frames first).
+
+(inferred) With an instant disc the sequence would be: push on frame P, loaded seen at P+3,
+swap at P+4, time running from P+5. **A port can make `IsLoadedFor` become true a fixed number
+of frames after the push and leave everything else untouched.**
+
+Random draws: one `BtlChar_FrameMod(2)` (throw camera cut).

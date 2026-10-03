@@ -167,9 +167,13 @@ tasks in story battles; and the state of every generator in the table above.
 
 ## Open items
 
-- Decide how a port fixes the duration of a character-change load (fixed frame count, or
-  preloading every model a battle can need).
+- Character-change loads: the fighter side waits only on `BtlChange_IsLoadedFor(player)` (see
+  combat.md, "Character changes"). Making that true a fixed number of frames after the push
+  (with the models preloaded) removes the dependency without touching the handlers. The same
+  call gates the KO member switch (0xF6) and the self-destruct technique.
 - Check in the attack and cut data whether left / right cut variants differ in flags or length.
+  Readers of the camera `side` are now all known: `BtlAct_PrepareAttack` and actions 0x41, 0x45,
+  0x46 and 0xBE; each only chooses between two cut ids.
 - Decompile the pause check `func_0022F9F8` and confirm the controller-removal path.
 - Decompile the fighter state machine, movement and hit detection (the bulk of the
   simulation), and the effect tasks that call `rand()`.
