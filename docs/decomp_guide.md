@@ -48,3 +48,23 @@ If a name is a best guess, end the line with `// guess`. Names must be unique ac
 - A `return x;` in the middle vs a result variable assigned and returned at the end changes
   branch-likely (`beql`/`bnel`) usage; try both shapes.
 - Tail calls (`j func` after restoring `$ra`) come from `return f(...)` / a call as the last statement.
+- `long` is 64-bit on this compiler: a `UL` constant in a multiply gives the
+  `multu`/`mfhi`/`dsll32` widening sequence, and a `long` return value gives `dsll32`/`dsra32`.
+- A bit mask tested with `1 << n` must be unsigned to get `sllv`/`and` (signed gives `srav`/`andi`).
+- If the original reloads a global pointer after a store through it, access the member through
+  `(*&ptr->member)` so the compiler cannot assume the pointer is unchanged.
+- A list `count` that the compiler reorders around pointer stores matched only when declared in
+  an anonymous union with a pointer (`union { s32 count; ListNode *countAlias; }`).
+- A `jal` + branch where a tail call was expected means the function is non-void.
+- Duplicated statements in both arms of an `if/else` are sometimes required; simplifying them
+  collapses the branch.
+- `buf = dst; return buf;` (copy the parameter, return the copy) can change which register a
+  final test uses.
+- `ei`/`di` and `sync.l` go in `__asm__ volatile("...")`.
+
+## Linking a finished file
+Add a `c` subsegment for its range in `config/SLUS_216.78.yaml` (and a `.rodata` subsegment if it
+emits jump tables or strings), list any new symbol file in both yamls, then
+`.venv/bin/python configure.py && ninja`. The build only counts if ninja itself succeeds.
+The original padded each object's `.rodata` to 16 bytes and ours pads to 8: when a C file's
+rodata does not end on a 16-byte boundary, start the following assembly rodata chunk 8 bytes early.

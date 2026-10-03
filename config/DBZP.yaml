@@ -32,6 +32,9 @@ options:
     - config/symbol_addrs.txt
     - config/symbols/lib.txt
     - config/symbols/game.txt
+    - config/symbols/sys_util.txt
+    - config/symbols/sys_file.txt
+    - config/symbols/rand_pool.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

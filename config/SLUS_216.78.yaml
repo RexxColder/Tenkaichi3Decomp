@@ -31,6 +31,9 @@ options:
     - config/symbol_addrs.txt
     - config/symbols/lib.txt
     - config/symbols/game.txt
+    - config/symbols/sys_util.txt
+    - config/symbols/sys_file.txt
+    - config/symbols/rand_pool.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -84,8 +87,17 @@ segments:
     align: 128
     subsegments:
       - [0x000000, asm, cod/000000] # .text
+      - [0x0A7018, c, battle/btl_pool]
+      - [0x0A7608, asm, cod/0A7608]
+      - [0x154A20, c, sys/rand]
       - [0x154E28, c, sys/heap]
-      - [0x1557A8, asm, cod/1557A8]
+      - [0x1557A8, c, sys/heap_info]
+      - [0x155898, c, sys/list]
+      - [0x155EE8, c, sys/queue]
+      - [0x156128, c, sys/align]
+      - [0x1562A8, asm, cod/1562A8]
+      - [0x164A50, c, sys/file]
+      - [0x165578, asm, cod/165578]
       - [0x173CA0, c, cri/adxt]
       - [0x173CF0, asm, cod/173CF0]
       - [0x1BF6B0, textbin, cod/1BF6B0] # .vutext
@@ -95,6 +107,10 @@ segments:
       - [0x1C3400, data, cod/1C3400] # .data
       - [0x1EB358, data, cod/1EB358] # .eh_frame
       - [0x1EB380, rodata, cod/1EB380] # .rodata
+      - [0x1F3500, .rodata, sys/file]
+      # The original padded each object's .rodata to 16 bytes; ours pads to 8, so the last 8
+      # bytes of file.c's padding are carried by the next assembly chunk.
+      - [0x1F35A8, rodata, cod/1F35A8]
       - [0x1F4490, .rodata, cri/adxt]
       - [0x1F44C0, rodata, cod/1F44C0]
       - [0x1FC280, lit4, cod/1FC280] # .lit4
