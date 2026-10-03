@@ -63,7 +63,7 @@
 
 .macro __gp_forget
     .set push
-    .set mips4
+    .set mips64
     .fill 0
     .set pop
 .endm

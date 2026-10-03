@@ -176,7 +176,7 @@ typedef struct FxArg3 {
     /* 0xC */ s32 unkC;
 } FxArg3;
 
-/* Argument of func_0015EDF0 / func_0015EEC0 / func_001749F0. */
+/* Argument of EftAbsorb_Start / EftAbsorb_StartHands / func_001749F0. */
 typedef struct FxArg2 {
     /* 0x0 */ s32 objId;
     /* 0x4 */ f32 scale;

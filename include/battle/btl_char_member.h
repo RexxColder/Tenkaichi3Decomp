@@ -164,7 +164,7 @@ typedef struct BtlMemberPose {
     /* 0x94 */ f32 yaw;        /* facing (fighter + 0xA4) */
 } BtlMemberPose;
 
-/* Request built by BtlChar_SpawnFxBits3C for func_0014AB90. */
+/* Request built by BtlChar_SpawnFxBits3C for EftShot_Request. */
 typedef struct BtlMemberAuraReq {
     /* 0x00 */ s32 objId;
     /* 0x04 */ s32 kind;       /* 0..4 */

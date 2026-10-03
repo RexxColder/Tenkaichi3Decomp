@@ -40,7 +40,7 @@
 /* BtlObjState.flags / BtlObjView.flags (the view copy is taken each frame, then edited) */
 #define BTL_OBJ_FLAG_VISIBLE 0x2        /* drawn; cleared in a view when the bounds are off screen */
 #define BTL_OBJ_FLAG_FADE 0x8           /* view only: distance fade alpha is non-zero */
-#define BTL_OBJ_FLAG_COLOR_STAGE 0x10000  /* colour = stage ambient (integer triple from func_00243190) */
+#define BTL_OBJ_FLAG_COLOR_STAGE 0x10000  /* colour = stage ambient (integer triple from BtlStage_GetAmbient) */
 #define BTL_OBJ_FLAG_COLOR_A 0x20000    /* these four all give colour 128,128,128,128 */
 #define BTL_OBJ_FLAG_COLOR_B 0x40000    /* also: alpha row = func_0024E810() * 128 */
 #define BTL_OBJ_FLAG_COLOR_BLACK 0x80000 /* colour 0,0,0,128; alpha row = 0xFF */

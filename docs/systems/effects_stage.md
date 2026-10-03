@@ -1,7 +1,11 @@
 # Effects and stage (seventh batch, in progress)
 
 Sources: `src/battle/eft_*.c`, `src/battle/stg_*.c` with headers under `include/battle/`.
-None of it is linked yet; "match" below means per function. **Verified** = matching C;
+The first wave (0x12DD80..0x1637A0 and the stage, 0x23FB20..0x248F28) is linked and
+byte-identical; later files are not. File names in the table are as the agents wrote them:
+at integration eft_e.c's transition half moved into eft_d_b.c, eft_f.c into eft_e.c, eft_l.c
+into eft_k.c, and stg_a.c was split into stg_a.c + stg_a_b.c around three assembly-only VU0
+functions. "Match" means per function. **Verified** = matching C;
 **inferred** = read from disassembly or a judgement about meaning.
 
 The question this batch answers for the port: which of this code affects the fight
@@ -62,7 +66,7 @@ and the stage update at 0x243568).
 | 0x1333C8..0x135070 | eft_b.c | underwater bubbles `EftBubble_*` (pool of 100; layer 0 sub-task 7) | no | libc `rand()`; **count depends on camera pose** (per frame while a view's camera is under water), none in split screen; ambient body bubbles only for object 0 | |
 | 0x135070..0x135610 | eft_b.c | scrolling stage sheet `EftStageScroll_*` (sub-task 0) | no | libc `rand()` once at load | |
 | 0x135610..0x136760 | eft_b.c | geyser columns `EftGeyser_*` at stage-defined positions (sub-task 6) | no (its two emitters, in other files, not classified) | libc `rand()` once per column at creation | |
-| 0x13A9D0..0x13C300 | eft_d.c | end of the stage surface module (triangle queueing) | no | none | 7/11 |
+| 0x13A9D0..0x13C300 | eft_d.c | end of the stage surface module (triangle queueing) | no | none | 7/10 |
 | 0x13C300..0x13EA00 | eft_d_b.c | stage-change transition, first half: 350 particles of six kinds, model draw | no | libc `rand()` at particle creation (14 per streak, re-created when it expires) | 21/22 |
 | 0x13EA00..0x13F3D8 | eft_e.c | **stage-change transition `EftBurst_*` (scene layer 4)**: demo-camera animation, a model, 350 particles on a fixed schedule | no state writes, but **the stage swap waits on it** (150 unpaused frames) | libc `rand()` every unpaused frame | (eft_e 47/49) |
 | 0x13F430..0x140338 | eft_e.c | stage particle emitters `EftSteam_*` (layer 0 sub-task 5; also used by the geysers) | no | VU0 register: 7 per new particle; emission is not gated by pause | |

@@ -29,7 +29,7 @@ typedef struct BtlActBPose {
     /* 0xA8 */ u8 unkA8[0xB0 - 0xA8];
     /* 0xB0 */ Vec4 ground;    /* ground point below the fighter */
     /* 0xC0 */ Vec4 groundNormal;
-    /* 0xD0 */ s32 groundFlags; /* bit 0x40 with pos.y below func_0023FF38(): landed out of the arena (action 0xD9) */
+    /* 0xD0 */ s32 groundFlags; /* bit 0x40 with pos.y below BtlStage_GetBottom(): landed out of the arena (action 0xD9) */
 } BtlActBPose;
 
 /* Active member's gauge block (BtlMember_GetActiveGauge). */

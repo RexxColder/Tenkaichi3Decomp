@@ -61,10 +61,10 @@ extern s32 BtlCharApi_GetUnk974(s32 objId);                   /* fighter +0x974:
 extern s32 BtlCharApi_IsInputInjected(s32 objId);                   /* fighter +0x1278: input comes from the AI */
 
 /* Stage (0x23Fxxx / 0x242xxx, not decompiled). */
-extern f32 func_0023FE70(void);                        /* stage limit: first float of the stage's +0x40 block */
-extern f32 func_0023FEB0(void);                        /* the same - 100 */
-extern f32 func_0023FEF8(void);                        /* second float of that block */
-extern void func_002427A0(s32 objId, BtlAiVec *out, BtlAiVec *out2, s32 arg);
+extern f32 BtlStage_GetRadius(void);                        /* stage limit: first float of the stage's +0x40 block */
+extern f32 BtlStage_GetInnerRadius(void);                        /* the same - 100 */
+extern f32 BtlStage_GetTop(void);                        /* second float of that block */
+extern void BtlStage_GetStartPlace(s32 objId, BtlAiVec *out, BtlAiVec *out2, s32 arg);
 
 /* Other AI code. */
 extern s32 func_001B2DF0(BtlAiSegment *seg);           /* stage line test; fills the BtlAiHit block */
@@ -292,8 +292,8 @@ s32 BtlAiMove_PickDir(BtlAiWork *s, s32 mode) {
     } cand;
     typeof(cand) *list;
     s32 n = 1;
-    f32 top = func_0023FEF8() + 20.0f;
-    f32 rad = func_0023FEB0() - 100.0f;
+    f32 top = BtlStage_GetTop() + 20.0f;
+    f32 rad = BtlStage_GetInnerRadius() - 100.0f;
 
     BtlCharApi_GetPos(s->objId, &pos);
     BtlCharApi_GetPos(s->objId ^ 1, &opp);
@@ -348,7 +348,7 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     BtlAiSegment seg;
     BtlAiSeq *act = &s->seq;
     BtlAiMoveWork *m = &s->move;
-    f32 rad = func_0023FE70();
+    f32 rad = BtlStage_GetRadius();
     s32 special = BtlChar_IsStage4Or27();
     f32 reach;
 
@@ -363,7 +363,7 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
         func_00121E20(&m->target);
         m->target.y = pos.y;
     } else if (m->type == 4) {
-        func_002427A0(s->objId, &m->target, &tmp, 0);
+        BtlStage_GetStartPlace(s->objId, &m->target, &tmp, 0);
         m->target.y -= 20.0f;
         m->target.x = (s32)(Rand_Range(400) - 200);
         m->target.z = (s32)(Rand_Range(400) - 200);

@@ -169,7 +169,7 @@ typedef struct BtlCapiBObj {
     /* 0xCAD */ s8 unkCAD;          /* expected to be ~unkCAC */
 } BtlCapiBObj;
 
-/* Blast list (func_0012E0A0): 64 records of 0x190 bytes and a count. */
+/* Blast list (EftHit_GetList): 64 records of 0x190 bytes and a count. */
 typedef struct BtlCapiBBlastDef {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ s16 ownerId;

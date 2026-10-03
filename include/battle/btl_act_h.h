@@ -239,12 +239,12 @@ extern f32 BtlAtk_GetLaunchAngleA(BtlActHChr *chr);             /* an angle to t
 extern u32 BtlParam_GetFlags(BtlActHChr *chr);             /* character parameter flags */
 extern s32 BtlParam_GetDashSound(BtlActHChr *chr);             /* common sound id */
 extern f32 BtlMoveParam_GetSpeed(BtlActHChr *chr, s32 action); /* a speed for an action id */
-extern f32 func_0023FEB0(void);                        /* stage radius */
-extern f32 func_0023FEF8(void);                        /* stage height limit */
-extern f32 func_0023FF38(void);                        /* stage floor level */
-extern s32 func_00242668(f32 *out);                    /* a stage height, 0 when the stage has none */
-extern void func_002427A0(s32 player, Vec4 *pos, Vec4 *rot, s32 arg3); /* start placement of a player */
-extern void func_002428B8(Vec4 *pos, Vec4 *rot);       /* a stage reference point */
+extern f32 BtlStage_GetInnerRadius(void);                        /* stage radius */
+extern f32 BtlStage_GetTop(void);                        /* stage height limit */
+extern f32 BtlStage_GetBottom(void);                        /* stage floor level */
+extern s32 BtlStage_GetWaterLevel(f32 *out);                    /* a stage height, 0 when the stage has none */
+extern void BtlStage_GetStartPlace(s32 player, Vec4 *pos, Vec4 *rot, s32 arg3); /* start placement of a player */
+extern void BtlStage_GetPlace(Vec4 *pos, Vec4 *rot);       /* a stage reference point */
 
 void BtlActThrow_SetReleaseHeading(BtlActHChr *chr);
 s32 BtlAct_GrabDash(BtlActHChr *chr, s32 phase);

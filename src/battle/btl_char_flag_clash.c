@@ -40,8 +40,8 @@ extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);            /*
 extern f32 func_00174F68(s32 side, s32 type);
 extern f32 func_00175048(void);
 extern void func_00174CE0(s32 objId);
-extern s32 func_00241EA0(void);                                       /* number of stage paths */
-extern BtlClashPath *func_00241EC8(s32 n);                            /* stage path n */
+extern s32 BtlStage_GetPathCount(void);                                       /* number of stage paths */
+extern BtlClashPath *BtlStage_GetPath(s32 n);                            /* stage path n */
 extern s32 BtlSuper_IsThrow(BtlFlagChr *chr, s32 cls);
 extern s32 BtlSuper_GetFlags(BtlFlagChr *chr, s32 cls);                   /* attribute word of the technique */
 extern s32 BtlSuper_GetDamage(BtlFlagChr *chr, s32 cls, s32 arg2, s32 arg3); /* damage of the technique */
@@ -207,7 +207,7 @@ void BtlClash_SetMidCut(Vec4 *mid, f32 bias) {
 void BtlClash_SetPathCut(s32 n) {
     Vec4 pos;
     Vec4 look;
-    BtlClashPath *path = func_00241EC8(n);
+    BtlClashPath *path = BtlStage_GetPath(n);
 
     if (path != NULL) {
         f32 *p = path->points;
@@ -458,9 +458,9 @@ s32 BtlClash_UpdateC(s32 state) {
     switch (state) {
     case 9:
         c->count = 0;
-        c->path = (BtlChar_Rand() >> 2) % (u32)(func_00241EA0() - 1) + 1;
+        c->path = (BtlChar_Rand() >> 2) % (u32)(BtlStage_GetPathCount() - 1) + 1;
         c->hold = (BtlChar_Rand() >> 2) % 10 < 7 ? 2 : 1;
-        path = func_00241EC8(c->path);
+        path = BtlStage_GetPath(c->path);
         if (path != NULL) {
             c->point = (BtlChar_Rand() >> 2) % (u32)(path->end - path->first) + path->first;
         } else {
@@ -501,19 +501,19 @@ s32 BtlClash_UpdateC(s32 state) {
                 c->hold--;
                 if (c->hold <= 0) {
                     s32 prev = c->path;
-                    s32 n = (BtlChar_Rand() >> 2) % (u32)(func_00241EA0() - 2);
+                    s32 n = (BtlChar_Rand() >> 2) % (u32)(BtlStage_GetPathCount() - 2);
                     c->path = n + 1;
                     if (c->path >= prev) {
                         c->path = n + 2;
                     }
                     c->hold = (BtlChar_Rand() >> 2) % 10 < 7 ? 2 : 1;
                     c->point = 0;
-                    path = func_00241EC8(c->path);
+                    path = BtlStage_GetPath(c->path);
                     if (path != NULL) {
                         c->point = (BtlChar_Rand() >> 2) % (u32)(path->end - path->first) + path->first;
                     }
                 } else {
-                    path = func_00241EC8(c->path);
+                    path = BtlStage_GetPath(c->path);
                     if (path != NULL) {
                         s32 prev = c->point;
                         c->point = (BtlChar_Rand() >> 2) % (u32)(path->end - path->first - 1) + path->first;

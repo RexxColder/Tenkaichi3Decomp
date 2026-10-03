@@ -57,7 +57,7 @@ extern void BtlAnim_SetUnkC8C(BtlMoveChr *chr, f32 v);
 extern void BtlAnim_SetStep(BtlMoveChr *chr, f32 v);
 extern void BtlAnim_ApplyBlend(BtlMoveChr *chr);
 extern void BtlAct_Update(BtlMoveChr *chr);
-extern BtlMoveBlastList *func_0012E0A0(void);
+extern BtlMoveBlastList *EftHit_GetList(void);
 extern s32 BtlParam_GetCount80(BtlMoveChr *chr);
 extern s32 BtlParam_GetUnk82(BtlMoveChr *chr);
 extern f32 BtlInput_GetStickX(BtlMoveChr *chr);
@@ -74,9 +74,9 @@ extern void BtlOpp_GetVelocity(BtlMoveChr *chr, Vec4 *out);
 extern void BtlOpp_GetObjVecFA0(BtlMoveChr *chr, Vec4 *out);
 extern void BtlCharApi_GetBodyPos(s32 objId, Vec4 *out);
 extern void BtlChar_SetUnk1310(BtlMoveChr *chr, Vec4 *v);
-extern f32 func_0023FEB0(void);
-extern f32 func_0023FEF8(void);
-extern f32 func_0023FF38(void);
+extern f32 BtlStage_GetInnerRadius(void);
+extern f32 BtlStage_GetTop(void);
+extern f32 BtlStage_GetBottom(void);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern f32 BtlOpp_GetHeight(BtlMoveChr *chr);
 extern void BtlChar_GetSnapPos(BtlMoveChr *chr, Vec4 *out, s32 slot);
@@ -220,7 +220,7 @@ s32 BtlMove_IsHeadingIntoWall(BtlMoveChr *chr, f32 angle) {
    returns 1 while it is below the character's limit for the class (BtlParam_GetCount80 / BtlParam_GetUnk82). */
 s32 BtlMove_CanFireBlast(BtlMoveChr *chr, s32 mode, s32 *outCount) {
     s32 n = 0;
-    BtlMoveBlastList *list = func_0012E0A0();
+    BtlMoveBlastList *list = EftHit_GetList();
     s32 i;
 
     for (i = 0; i < list->count; i++) {
@@ -278,7 +278,7 @@ s32 BtlMove_CanFireBlast(BtlMoveChr *chr, s32 mode, s32 *outCount) {
 s32 BtlMove_IsBlastIncoming(BtlMoveChr *chr, s32 a, s32 b, s32 c, f32 limit) {
     Vec4 step;
     Vec4 d;
-    BtlMoveBlastList *list = func_0012E0A0();
+    BtlMoveBlastList *list = EftHit_GetList();
     s32 i;
 
     for (i = 0; i < list->count; i++) {
@@ -342,7 +342,7 @@ s32 BtlMove_IsBlastIncoming(BtlMoveChr *chr, s32 a, s32 b, s32 c, f32 limit) {
 
 /* Number of type-1 blast records whose source belongs to this fighter. */
 s32 BtlMove_CountOwnBeams(BtlMoveChr *chr) {
-    BtlMoveBlastList *list = func_0012E0A0();
+    BtlMoveBlastList *list = EftHit_GetList();
     s32 n = 0;
     s32 i;
 
@@ -835,7 +835,7 @@ void BtlMove_WarpAheadOfOpponent(BtlMoveChr *chr, f32 lead) {
         }
         Vec4_Add(&pose->pos, &opp, &ofs);
         rad = BtlChar_GetObj(chr)->unkFA0->radius;
-        rad = func_0023FEB0() - rad;
+        rad = BtlStage_GetInnerRadius() - rad;
         lim = BtlUtil_LengthXZ(&pose->pos);
         if (rad < lim) {
             Vec4_Scale(&pose->pos, &pose->pos, rad / lim);
@@ -964,7 +964,7 @@ s32 BtlMove_CircleOpponent(BtlMoveChr *chr, s32 side, s32 lead, f32 baseYaw, f32
     tgt.y = 0.0f;
     tgt.z = Mathf_Cos(a) * radius * scale;
     Vec4_Add(&tgt, &tgt, &opp);
-    if (BtlMove_ClipToRadius(&hit, &opp, &tgt, func_0023FEB0())) {
+    if (BtlMove_ClipToRadius(&hit, &opp, &tgt, BtlStage_GetInnerRadius())) {
         Vec4_Copy(&tgt, &hit);
     }
     BtlMove_TurnToPoint(chr, &tgt, 3.14159265f, 3.14159265f);
@@ -1023,11 +1023,11 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
         }
         tgt.y = hit.y;
     }
-    top = func_0023FEF8() + oppScale * 0.5f;
+    top = BtlStage_GetTop() + oppScale * 0.5f;
     if (tgt.y < top) {
         tgt.y = top;
     }
-    bottom = func_0023FF38() + oppScale * 0.5f;
+    bottom = BtlStage_GetBottom() + oppScale * 0.5f;
     if (bottom < tgt.y) {
         f32 len3;
         f32 lenXZ;
@@ -1069,7 +1069,7 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
         len += BtlCharApi_GetRadius(chr->objId);
         Vec4_Scale(&d, &d, len + BtlOpp_GetRadius(chr));
         Vec4_Sub(out, &tgt, &d);
-        top = func_0023FEF8() + scale * 0.5f;
+        top = BtlStage_GetTop() + scale * 0.5f;
         if (out->y < top) {
             f32 r;
 
@@ -1172,7 +1172,7 @@ void BtlMove_ClampToStage(BtlMoveChr *chr) {
     BtlMovePose *pose = BtlChar_GetPos(chr);
     f32 r = BtlUtil_LengthXZ(&pose->pos);
     f32 rad = BtlChar_GetObj(chr)->unkFA0->radius;
-    f32 lim = func_0023FEB0() - rad;
+    f32 lim = BtlStage_GetInnerRadius() - rad;
 
     if (lim < r) {
         f32 k = lim / r;
@@ -1184,7 +1184,7 @@ void BtlMove_ClampToStage(BtlMoveChr *chr) {
         BtlChar_ClearFlag(chr, 0x14);
     }
     if (!BtlChar_TestFlag(chr, 0x18)) {
-        f32 top = func_0023FEF8();
+        f32 top = BtlStage_GetTop();
 
         top += BtlCharApi_GetHeight(chr->objId) * 0.5f;
         if (pose->pos.y < top) {
@@ -1195,7 +1195,7 @@ void BtlMove_ClampToStage(BtlMoveChr *chr) {
         }
     }
     if (!BtlChar_IsDead(chr)) {
-        f32 bottom = func_0023FF38();
+        f32 bottom = BtlStage_GetBottom();
 
         bottom += BtlCharApi_GetHeight(chr->objId) * 0.5f;
         if (bottom < pose->pos.y) {

@@ -57,15 +57,15 @@ extern void BtlScene_CreateChar(s32 side);
 
 /* Stage / scene. */
 extern void func_00115170(void);
-extern void func_00137BD0(void);
-extern void func_00137BF8(void);
-extern void func_0013F310(void);
-extern s32 func_0013F3A0(void);
-extern void func_0013F3C8(void);
+extern void EftStage_Recreate(void);
+extern void EftStage_ResetAll(void);
+extern void EftBurst_Start(void);
+extern s32 EftBurst_IsBusy(void);
+extern void EftBurst_End(void);
 extern void func_001B3628(void);
-extern void func_0023FCD8(void);
-extern void func_002473C8(s32 arg);
-extern void func_002473D8(void);
+extern void BtlStage_Term(void);
+extern void StgFx_SetDisabled(s32 arg);
+extern void StgFx_Reset(void);
 
 /* Fighters. */
 extern void BtlAiMgr_ResetSide(s32 side);
@@ -156,9 +156,9 @@ s32 BtlJob_GetFreeCount(void) {
 
 /* Shuts the stage-dependent systems down before the stage file is replaced. */
 void BtlLoad_BeginStageSwap(void) {
-    func_00137BF8();
-    func_0023FCD8();
-    func_002473C8(1);
+    EftStage_ResetAll();
+    BtlStage_Term();
+    StgFx_SetDisabled(1);
 }
 
 /* Brings them back up on the new stage. */
@@ -166,8 +166,8 @@ void BtlLoad_EndStageSwap(void) {
     func_00115170();
     BtlChars_OnStageLoaded();
     func_001B3628();
-    func_00137BD0();
-    func_002473D8();
+    EftStage_Recreate();
+    StgFx_Reset();
 }
 
 /* Job: reloads the stage model and stage sound bank (no transition). */
@@ -240,7 +240,7 @@ s32 BtlLoad_StepStageChange(BtlJob *job) {
         if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
             return 0;
         }
-        func_0013F310();
+        EftBurst_Start();
         job->state++;
         return 0;
     case 4:
@@ -259,7 +259,7 @@ s32 BtlLoad_StepStageChange(BtlJob *job) {
         if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
             return 0;
         }
-        if (func_0013F3A0()) {
+        if (EftBurst_IsBusy()) {
             return 0;
         }
         Fade_Start(2, 0, 1.0f);
@@ -267,7 +267,7 @@ s32 BtlLoad_StepStageChange(BtlJob *job) {
         break;
     case 7:
         if (Fade_IsDone(2)) {
-            func_0013F3C8();
+            EftBurst_End();
             job->state++;
         }
         break;

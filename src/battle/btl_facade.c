@@ -73,7 +73,7 @@ extern s32 BtlCtrl_IsInterruptible(s32 side);
 extern s32 BtlCtrl_CanAct(s32 side);
 
 /* BtlLoad_RequestStageChange(0x243470()): asks the loader for the destroyed version of the stage */
-extern void func_00241E38(void);
+extern void BtlStage_RequestChange(void);
 
 /* Shakes the scripted camera at full strength for `time` seconds. */
 s32 BtlFacade_ShakeCamera(f32 time) {
@@ -439,7 +439,7 @@ s32 BtlFacade_GetEndCheckOff(void) {
 
 /* Requests the stage change of the current stage. */
 void BtlFacade_RequestStageChange(void) {
-    func_00241E38();
+    BtlStage_RequestChange();
 }
 
 /* Sets battle flag 0x200. */

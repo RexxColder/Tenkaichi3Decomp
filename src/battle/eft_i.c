@@ -1,0 +1,1933 @@
+#include "common.h"
+#include "battle/eft_i.h"
+
+/*
+ * Technique effects, third part: 0x14F230..0x1532A0. See include/battle/eft_i.h.
+ *
+ * Callees are declared here with this file's own view types. The ones without a name yet are called by
+ * address; what each does is in the comment at its declaration (from how this file uses it, unless stated).
+ *
+ * Emitted data: .rodata 0x2EC990..0x2ECAD0 (the two jump tables of EftEmit_Spawn, those of EftEmit_KillAll and
+ * EftEmit_UpdateAlive, the event bit tables of EftEmit_UpdateNodes and EftFollow_UpdateLight) and
+ * .lit4 0x2FC744..0x2FC764 (three constants of EftEmit_Spawn, then EftSweep_InitPath, EftSweep_Move,
+ * EftFollow_UpdateLight).
+ */
+
+extern void *memset(void *dst, s32 c, u32 n);
+extern s32 rand(void);
+extern f32 asinf(f32 x);
+extern f32 atan2f(f32 y, f32 x);
+extern f32 sqrtf(f32 x);
+
+extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
+extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
+extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec3_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
+extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
+extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
+extern void Mtx_StoreIdentity(Mtx44 *m);
+extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
+extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = base + dir * s */
+extern void func_00121E40(Vec4 *dst, f32 x, f32 y, f32 z);          /* set x, y, z */
+extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Z */
+extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
+extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
+
+extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
+extern s32 BtlCharApi_ObjGetParamFlags0(s32 objId);
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
+extern f32 BtlScene_GetCharScale(s32 objId);
+extern s32 BtlScene_IsCharStopped(s32 objId);
+extern void BtlTask_CreateChildList(EftTask *task, s32 count, s32 workSize);
+
+/* Layer 1 services (0x14A8C0..0x14DBB8, the file before this one). */
+extern s32 EftShot_TestBits(s32 objId, s32 bit);                 /* is this effect event of the fighter raised */
+extern s32 EftShot_GetAttrKind(s32 objId, s32 bit);                 /* model node of the event */
+extern s32 EftShot_HasTwoAttrs(s32 objId, s32 bit);                 /* does the event have two nodes */
+extern void EftShot_GetAttrPair(s32 objId, s32 bit, s32 *a, s32 *b); /* both nodes of the event */
+extern void EftShot_SetHeldFlagA8(s32 objId);                         /* sets the fighter's held flag 0xA8 */
+extern void EftShot_Nop(s32 size);                          /* empty */
+extern void EftEmit_LoadSet(EftOwner *owner, EftEmitSet *set, s32 a2, s32 *pack, s32 a4, s32 a5);
+extern void EftEmit_FreeSet(EftEmitSet *set);
+extern void EftEmit_BeginFrame(EftEmitSet *set);
+extern s32 EftEmit_GetEndFrames(EftEmitSet *set);                    /* frames the set keeps running after its end */
+extern void EftEmit_InitState(EftEmitSet *set, EftEmitState *state);
+extern void EftEmit_TermState(EftEmitSet *set, EftEmitState *state);
+extern s32 EftEmit_GetFlagsFromReq(EftEmitSet *set, EftEmitState *state, s32 objId, s32 type, s32 idx, s32 ending, s32 now);
+extern s32 EftEmit_GetResetFlags(EftEmitSet *set, EftEmitState *state, s32 type, s32 idx);
+extern void EftEmit_TagTask(void *handle, s32 objId, s32 arg);
+
+/* Effect scene services. */
+extern EftIHitRec *EftHit_GetNew(void);                        /* new hit record */
+extern void EftHit_Add(EftIHitRec *rec);                    /* adds it to this frame's list */
+extern void *EftHitArena_AllocSphere(void);                              /* sphere from the hit arena */
+extern void *EftHitArena_AllocBox(void);                              /* box from the hit arena */
+extern void EftHit_SetShapeSpheres(EftIHitRec *rec, void *a, void *b);  /* record shape: two spheres */
+extern void EftHit_SetShapeBoxes(EftIHitRec *rec, void *a, void *b);  /* record shape: two boxes */
+extern void func_002399A0(void *sphere, Vec4 *center, f32 radius);
+extern void func_00239588(void *box, Vec4 *from, Vec4 *to, f32 radius);
+extern void EftAim_GetDir(Vec4 *dir, Vec4 *from, s32 objId);   /* aim direction of the fighter from a point */
+extern void EftAim_GetDirKeep(EftOwner *owner, Vec4 *dir, Vec4 *from, s32 objId);
+extern EftTask *func_001ADB98(EftTask *task);                  /* task that owns the list the task is in */
+extern void func_001ADB78(EftTask *task, s32 flags);           /* ors into the task flags */
+extern void func_001ADA58(EftTask *task);                      /* kills the task */
+
+/* Stage. */
+typedef struct EftISegment {
+    Vec4 a;
+    Vec4 b;
+} EftISegment;
+typedef struct EftIStageHit {
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ Vec4 pos;
+    /* 0x20 */ u8 unk20[0x20];
+    /* 0x40 */ s32 obj;  /* stage object that was hit, < 0 none */
+} EftIStageHit;
+extern void func_002398F0(EftISegment *seg, Vec4 *a, Vec4 *b); /* builds a segment */
+extern s32 func_001B2DF0(EftISegment *seg);                    /* segment against the stage */
+extern EftIStageHit *func_001B2F40(void);                      /* result of the last stage line test */
+extern void BtlStage_DestroyObj(s32 objId, s32 obj, Vec4 *dir); /* stage (stg_a): destroys a stage object */
+extern void StgBlur_SetCenter(s32 idx, Vec4 *dir, s32 arg);    /* stage blur (stg_c) */
+extern void StgBlur_SetColor0Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor1Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor2Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor3Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
+
+/* Argument of the impact effect 0x187BE0. */
+typedef struct EftIMarkArg {
+    /* 0x00 */ EftIVec4A pos;
+    /* 0x10 */ Vec4 dir;
+    /* 0x20 */ s32 effect;
+    /* 0x24 */ s32 objId;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 pad2C;
+} __attribute__((aligned(8))) EftIMarkArg; /* size 0x30 */
+extern void func_00187BE0(EftIMarkArg *arg, f32 size, f32 unk);
+
+/* Spawners of the other particle modules (previous file), same shape as the four in this file. */
+extern void EftEmit_SpawnType0(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType2(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType16(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType17(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType18(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType14(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType5(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+
+/* Particle modules. Per module: create(arg block), parameter setters, set position (two variants), set size,
+   set direction, kill, stop, "is alive". */
+typedef struct EftArg9 {
+    /* 0x00 */ EftEmitRes res;
+    /* 0x08 */ void *tex;
+    /* 0x0C */ s32 padC;
+    /* 0x10 */ Vec4 pos;
+    /* 0x20 */ Vec4 dir;
+    /* 0x30 */ f32 size;
+    /* 0x34 */ f32 rate;
+    /* 0x38 */ s32 objId;
+    /* 0x3C */ s32 pad3C;
+} EftArg9;
+extern void *func_00194970(EftArg9 *arg);
+extern void func_001949D8(void *h);
+extern void func_00194A68(void *h, s32 v);
+extern void func_00194B50(void *h);
+extern void func_00194B90(void *h, Vec4 *pos);
+extern void func_00194BE8(void *h, Vec4 *pos);
+extern void func_00194D10(void *h, Vec4 *dir);
+extern void func_00194D80(void *h, f32 size);
+extern void func_00194E40(void *h, void *tex, s32 a, s32 b);
+extern void func_00194E98(void *h, s32 v);
+extern void func_00194EE0(void *h, s32 v);
+extern void func_00194F28(void *h);
+extern s32 func_00194F70(void *h);
+extern void func_00194FA8(void *h, s32 v);
+extern void func_00195000(void *h, s32 v);
+
+typedef struct EftArg10 {
+    /* 0x00 */ EftEmitRes res;
+    /* 0x08 */ void *tex;
+    /* 0x0C */ s32 padC;
+    /* 0x10 */ Vec4 pos;
+    /* 0x20 */ Vec4 dir;
+    /* 0x30 */ f32 size;
+    /* 0x34 */ f32 rate;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 objId;
+    /* 0x44 */ s32 pad44[3];
+} __attribute__((aligned(8))) EftArg10;
+extern void *func_00190610(EftArg10 *arg);
+extern void func_00190658(void *h);
+extern void func_00190708(void *h, s32 v);
+extern void func_00190770(void *h);
+extern void func_001907C8(void *h, Vec4 *pos);
+extern void func_00190838(void *h, Vec4 *pos);
+extern void func_00190950(void *h, Vec4 *dir);
+extern void func_001909C0(void *h, f32 size);
+extern void func_00190AD8(void *h, s32 v);
+extern void func_00190B30(void *h, s32 v);
+extern void func_00190B88(void *h);
+extern void func_00190BE8(void *h, s32 v);
+extern s32 func_00190C48(void *h);
+
+typedef struct EftArg15 {
+    /* 0x00 */ EftEmitRes res;
+    /* 0x08 */ void *tex;
+    /* 0x0C */ s32 padC;
+    /* 0x10 */ Vec4 pos;
+    /* 0x20 */ Vec4 pos2;
+    /* 0x30 */ f32 size;
+    /* 0x34 */ f32 rate;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 objId;
+    /* 0x44 */ s32 pad44[3];
+} __attribute__((aligned(8))) EftArg15;
+extern void *func_0018BB08(EftArg15 *arg);
+extern void func_0018BB50(void *h);
+extern void func_0018BC00(void *h);
+extern void func_0018BC58(void *h, s32 v);
+extern void func_0018BD60(void *h, Vec4 *pos);
+extern void func_0018BDD0(void *h, Vec4 *pos2);
+extern void func_0018BE40(void *h, Vec4 *pos);
+extern void func_0018BE60(void *h, Vec4 *dir);
+extern void func_0018BE80(void *h, f32 size);
+extern void func_0018BF88(void *h, s32 v);
+extern void func_0018BFF8(void *h, s32 v);
+extern void func_0018C0B0(void *h, s32 v);
+extern s32 func_0018C110(void *h);
+
+typedef struct EftArg12 {
+    /* 0x00 */ EftEmitRes res;
+    /* 0x08 */ void *tex;
+    /* 0x0C */ s32 padC;
+    /* 0x10 */ Vec4 dir;
+    /* 0x20 */ Vec4 pos;
+    /* 0x30 */ f32 size;
+    /* 0x34 */ f32 rate;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 objId;
+    /* 0x40 */ u8 unk40;
+    /* 0x41 */ u8 pad41[15];
+} __attribute__((aligned(8))) EftArg12;
+extern void *func_001A6598(EftArg12 *arg);
+extern void func_001A65E8(void *h);
+extern void func_001A6640(void *h);
+extern void func_001A6700(void *h, Vec4 *pos);
+extern void func_001A6770(void *h, Vec4 *pos);
+extern void func_001A67E0(void *h, Vec4 *dir);
+extern void func_001A6850(void *h, f32 size);
+extern void func_001A6968(void *h, s32 v);
+extern void func_001A69C0(void *h, s32 v);
+extern void func_001A6A18(void *h, s32 v);
+extern void func_001A6A78(void *h);
+extern s32 func_001A6B40(void *h);
+
+/* Kill / "is alive" entries of the other seven modules (types 0..8). */
+extern void func_0017D390(void *h);
+extern void func_00168668(void *h);
+extern void func_00196AD0(void *h);
+extern void func_001A36E0(void *h);
+extern void func_0017CD98(void *h);
+extern void func_0019D798(void *h);
+extern void func_00186C20(void *h);
+extern s32 func_0017D448(void *h);
+extern s32 func_001687C8(void *h);
+extern s32 func_00196B20(void *h);
+extern s32 func_001A3740(void *h);
+extern s32 func_0017CDF0(void *h);
+extern s32 func_0019D9F0(void *h);
+extern s32 func_00186C70(void *h);
+
+extern s32 gEftEmitNodeSlot[8];
+
+/* Sweep: 0.003 of a turn a frame (1.08 degrees), starting 11 steps before the opponent. */
+#define EFT_SWEEP_STEP (6.2831853f * 0.003f)
+#define EFT_SWEEP_START (6.2831853f * 0.003f * -11.0f)
+
+#define H(n) (handles->h[n])
+#define EFT_EMIT_SCALE(state, n) ((state)->scale[n])
+#define EFT_EMIT_TIME(state, n) ((state)->time[n])
+
+/* Starts / moves / stops the particle object of emitter idx of group 9 (module 0x194970). */
+/* Not matching: 17 of 195 instructions differ, all in the block that fills the argument: the original sets up memset's a0 / a1 after the resource and texture loads (using a0-a2 as temporaries), this C sets a0 first. Order only; the rest matches. */
+#if 0
+void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
+                        f32 scale, f32 rate, Vec4 *pos, Vec4 *dir) {
+    Vec4 p;
+    EftArg9 arg;
+    EftEmitGroup *grp = &set->grp[9];
+    s32 n = grp->first + idx;
+    EftEmitDef *def = &set->defs[n];
+
+    func_001225D0(&p, dir, pos, def->offset * scale);
+    p.w = 1.0f;
+    if (flags & EFT_SPAWN_START) {
+        if (H(n) == NULL) {
+            void *tex = set->tex17 + (grp->texBase + def->tex) * 0x88;
+            s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
+            s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+
+            arg.res.unk0 = res0;
+            arg.res.unk4 = res1;
+            arg.tex = tex;
+            memset(&arg.pos, 0, sizeof(Vec4));
+            memset(&arg.dir, 0, sizeof(Vec4));
+            arg.objId = objId;
+            arg.rate = rate;
+            arg.size = size;
+            Vec4_Copy(&arg.dir, dir);
+            if (def->flags & 0x40) {
+                Vec4_Copy(&arg.pos, pos);
+            } else {
+                Vec4_Copy(&arg.pos, &p);
+            }
+            H(n) = func_00194970(&arg);
+            func_00194E98(H(n), def->unk5);
+            func_00194EE0(H(n), def->unk6);
+            func_00194A68(H(n), def->unk7);
+            func_00194E40(H(n), tex, def->unk2, def->unk2);
+            if (def->flags & 0x20) {
+                func_00194F28(H(n));
+            }
+            if (def->flags2 & 8) {
+                func_00194FA8(H(n), 1);
+            }
+            func_00195000(H(n), arg3);
+            EftEmit_TagTask(H(n), objId, arg3);
+        }
+    }
+    if (H(n) != NULL) {
+        if (flags & EFT_SPAWN_MOVE) {
+            if (flags & EFT_SPAWN_WARP) {
+                func_00194BE8(H(n), &p);
+            } else {
+                func_00194B90(H(n), &p);
+            }
+        }
+        if (flags & EFT_SPAWN_SCALE) {
+            func_00194D80(H(n), size);
+        }
+        if (flags & EFT_SPAWN_DIR) {
+            func_00194D10(H(n), dir);
+        }
+        if (flags & EFT_SPAWN_KILL) {
+            func_00194B50(H(n));
+            H(n) = NULL;
+        } else if (flags & EFT_SPAWN_STOP) {
+            if (flags & EFT_SPAWN_FADE) {
+                func_00194EE0(H(n), 0);
+            }
+            func_001949D8(H(n));
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType9);
+
+/* Starts / moves / stops the particle object of emitter idx of group 10 (module 0x190610). */
+/* Not matching: 25 of 207 instructions differ: same block as type 9 (memset's a1 is set before the loads instead of after) and the order of three stores into the argument. The rest matches. */
+#if 0
+void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
+                         f32 scale, f32 rate, Vec4 *pos, Vec4 *unused, Vec4 *dir) {
+    Vec4 p;
+    EftArg10 arg;
+    EftArg10 tmp;
+    EftEmitGroup *grp = &set->grp[10];
+    s32 n = grp->first + idx;
+    EftEmitDef *def = &set->defs[n];
+
+    func_001225D0(&p, dir, pos, def->offset * scale);
+    p.w = 1.0f;
+    if (flags & EFT_SPAWN_START) {
+        if (H(n) == NULL) {
+            void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
+            s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
+            s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+
+            tmp.tex = tex;
+            tmp.res.unk0 = res0;
+            tmp.res.unk4 = res1;
+            memset(&tmp.pos, 0, sizeof(Vec4));
+            memset(&tmp.dir, 0, sizeof(Vec4));
+            tmp.rate = rate;
+            tmp.size = size;
+            tmp.unk38 = def->unk2;
+            tmp.objId = objId;
+            tmp.unk3C = def->unk2;
+            arg = tmp;
+            Vec4_Copy(&arg.dir, dir);
+            if (def->flags & 0x40) {
+                Vec4_Copy(&arg.pos, pos);
+            } else {
+                Vec4_Copy(&arg.pos, &p);
+            }
+            H(n) = func_00190610(&arg);
+            func_00190AD8(H(n), def->unk5);
+            func_00190B30(H(n), def->unk6);
+            func_00190708(H(n), def->unk7);
+            if (def->flags & 0x20) {
+                func_00190B88(H(n));
+            }
+            func_00190BE8(H(n), arg3);
+            EftEmit_TagTask(H(n), objId, arg3);
+        }
+    }
+    if (H(n) != NULL) {
+        if (flags & EFT_SPAWN_MOVE) {
+            if (flags & EFT_SPAWN_WARP) {
+                func_00190838(H(n), &p);
+            } else {
+                func_001907C8(H(n), &p);
+            }
+        }
+        if (flags & EFT_SPAWN_SCALE) {
+            func_001909C0(H(n), size);
+        }
+        if (flags & EFT_SPAWN_DIR) {
+            func_00190950(H(n), dir);
+        }
+        if (flags & EFT_SPAWN_KILL) {
+            func_00190770(H(n));
+            H(n) = NULL;
+        } else if (flags & EFT_SPAWN_STOP) {
+            if (flags & EFT_SPAWN_FADE) {
+                func_00190B30(H(n), 0);
+            }
+            func_00190658(H(n));
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType10);
+
+/* Starts / moves / stops the particle object of emitter idx of group 15 (module 0x18BB08), which has two
+   end points: pos + dir * offset and pos2 + dir * offset2. */
+/* Not matching: 52 of 229 instructions differ: s3 / s4 swapped between set and handles, and the same argument block ordering as type 9. The rest matches. */
+#if 0
+void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
+                         f32 scale, f32 rate, Vec4 *pos, Vec4 *pos2, Vec4 *dir) {
+    Vec4 p;
+    Vec4 p2;
+    EftArg15 arg;
+    EftArg15 tmp;
+    EftEmitGroup *grp = &set->grp[15];
+    s32 n = grp->first + idx;
+    EftEmitDef *def = &set->defs[n];
+
+    func_001225D0(&p, dir, pos, def->offset * scale);
+    p.w = 1.0f;
+    func_001225D0(&p2, dir, pos2, def->offset2 * scale);
+    p2.w = 1.0f;
+    if (flags & EFT_SPAWN_START) {
+        if (H(n) == NULL) {
+            void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
+            s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
+            s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+
+            tmp.res.unk0 = res0;
+            tmp.res.unk4 = res1;
+            tmp.tex = tex;
+            memset(&tmp.pos, 0, sizeof(Vec4));
+            memset(&tmp.pos2, 0, sizeof(Vec4));
+            tmp.rate = rate;
+            tmp.size = size;
+            tmp.unk3C = 0;
+            tmp.unk38 = def->unk2;
+            tmp.objId = objId;
+            arg = tmp;
+            if (def->flags & 0x40) {
+                Vec4_Copy(&arg.pos, pos);
+                Vec4_Copy(&arg.pos2, pos2);
+            } else {
+                Vec4_Copy(&arg.pos, &p);
+                Vec4_Copy(&arg.pos2, &p2);
+            }
+            H(n) = func_0018BB08(&arg);
+            func_0018BF88(H(n), def->unk5);
+            func_0018BFF8(H(n), def->unk6);
+            func_0018BC58(H(n), def->unk7);
+            func_0018C0B0(H(n), arg3);
+            EftEmit_TagTask(H(n), objId, arg3);
+        }
+    }
+    if (H(n) != NULL) {
+        if (flags & EFT_SPAWN_MOVE) {
+            if (flags & EFT_SPAWN_WARP) {
+                func_0018BE40(H(n), &p);
+            } else {
+                func_0018BD60(H(n), &p);
+                func_0018BDD0(H(n), &p2);
+            }
+        } else if (flags & EFT_SPAWN_DIR2) {
+            func_0018BDD0(H(n), &p2);
+        }
+        if (flags & EFT_SPAWN_SCALE) {
+            func_0018BE80(H(n), size);
+        }
+        if (flags & EFT_SPAWN_DIR) {
+            func_0018BE60(H(n), dir);
+        }
+        if (flags & EFT_SPAWN_KILL) {
+            func_0018BC00(H(n));
+            H(n) = NULL;
+        } else if (flags & EFT_SPAWN_STOP) {
+            if (flags & EFT_SPAWN_FADE) {
+                func_0018BFF8(H(n), 0);
+            }
+            func_0018BB50(H(n));
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType15);
+
+/* Starts / moves / stops the particle object of emitter idx of group 12 (module 0x1A6598). */
+/* Not matching: 56 of 205 instructions differ: s2 / s3 swapped between set and the slot offset, and the same argument block ordering as type 9. The rest matches. */
+#if 0
+void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
+                         f32 scale, f32 rate, Vec4 *pos, Vec4 *dir) {
+    Vec4 p;
+    EftArg12 arg;
+    EftArg12 tmp;
+    EftEmitGroup *grp = &set->grp[12];
+    s32 n = grp->first + idx;
+    EftEmitDef *def = &set->defs[n];
+
+    func_001225D0(&p, dir, pos, def->offset * scale);
+    p.w = 1.0f;
+    if (flags & EFT_SPAWN_START) {
+        if (H(n) == NULL) {
+            void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
+            s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
+            s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+
+            tmp.tex = tex;
+            tmp.res.unk0 = res0;
+            tmp.res.unk4 = res1;
+            memset(&tmp.dir, 0, sizeof(Vec4));
+            memset(&tmp.pos, 0, sizeof(Vec4));
+            tmp.rate = rate;
+            tmp.size = size;
+            tmp.objId = objId;
+            tmp.unk38 = def->unk2;
+            tmp.unk40 = arg3;
+            arg = tmp;
+            if (def->flags & 0x40) {
+                Vec4_Copy(&arg.pos, pos);
+            } else {
+                Vec4_Copy(&arg.pos, &p);
+            }
+            Vec4_Copy(&arg.dir, dir);
+            H(n) = func_001A6598(&arg);
+            func_001A6968(H(n), def->unk5);
+            func_001A69C0(H(n), def->unk6);
+            func_001A6A18(H(n), def->unk7);
+            if (def->flags & 0x20) {
+                func_001A6A78(H(n));
+            }
+            EftEmit_TagTask(H(n), objId, arg3);
+        }
+    }
+    if (H(n) != NULL) {
+        if (flags & EFT_SPAWN_MOVE) {
+            if (flags & EFT_SPAWN_WARP) {
+                func_001A6770(H(n), &p);
+            } else {
+                func_001A6700(H(n), &p);
+            }
+        }
+        if (flags & EFT_SPAWN_SCALE) {
+            func_001A6850(H(n), size);
+        }
+        if (flags & EFT_SPAWN_DIR) {
+            func_001A67E0(H(n), dir);
+        }
+        if (flags & EFT_SPAWN_KILL) {
+            func_001A65E8(H(n));
+            H(n) = NULL;
+        } else if (flags & EFT_SPAWN_STOP) {
+            if (flags & EFT_SPAWN_FADE) {
+                func_001A69C0(H(n), 0);
+            }
+            func_001A6640(H(n));
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType12);
+
+/* EftEmit_Spawn for the set's own fighter: object id and node come from the set's owner, arg7 is 1. */
+void EftEmit_SpawnOwn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 type,
+                      s32 idx, s32 flags, f32 scale) {
+    EftEmit_Spawn(set, state, nodes, pos, dir, set->owner->objId, set->owner->param->node, 1, type, idx, flags,
+                  scale);
+}
+
+/* Gives one part of an effect pack its command: resolves where it is (node slot, opponent, or the caller's
+   position, plus a random offset inside the part's spread when it starts), which way it points and how big it
+   is, hands that to the part's module, then records started / stopped and advances the part's scale animation. */
+/* Not matching: 66 of 753 instructions differ, every one a register name: the original keeps def / flags / objId in s3 / s4 / s5, this C in s5 / s3 / s4. Instruction for instruction the code is otherwise identical (stack slots, both jump tables, float constants). */
+#if 0
+void EftEmit_Spawn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 objId,
+                   s32 node, s32 arg7, s32 type, s32 idx, s32 flags, f32 scale) {
+    Vec4 p;
+    Vec4 off;
+    Vec4 d;
+    Vec4 up;
+    Mtx44 m;
+    s32 half;
+    s32 count = 1;
+    s32 slot;
+    s32 sel;
+    s32 n = set->grp[type].first + idx;
+    EftEmitDef *def = &set->defs[n];
+    f32 rate;
+    f32 size;
+
+    if (def->flags2 & 1) {
+        if (def->flags2 & 0x10) {
+            if (!(BtlCharApi_ObjGetParamFlags0(BtlCharApi_GetOpponentObjId(objId)) & 0x80)) {
+                return;
+            }
+        } else {
+            if (BtlCharApi_ObjGetParamFlags0(BtlCharApi_GetOpponentObjId(objId)) & 0x80) {
+                return;
+            }
+        }
+    }
+    sel = def->node;
+    if (state->flags[n] & EFT_EMIT_ALTNODE) {
+        sel = def->altNode;
+    }
+    slot = gEftEmitNodeSlot[sel];
+    if (flags & EFT_SPAWN_START) {
+        if (!(state->flags[n] & EFT_EMIT_STARTED)) {
+            if (def->kind == 2 || def->kind == 6) {
+                if (def->unk9 != 0) {
+                    return;
+                }
+                if (def->rate <= 0.0f) {
+                    return;
+                }
+                state->flags[n] |= EFT_EMIT_ONESHOT;
+            }
+            if (def->unk9 == 0) {
+                rate = def->rate;
+                if (rate <= 0.0f) {
+                    return;
+                }
+                goto have_rate;
+            }
+        }
+    }
+    rate = def->rate;
+have_rate:
+    if (flags & EFT_SPAWN_STOP) {
+        if (def->kind == 2) {
+            flags &= ~EFT_SPAWN_STOP;
+        }
+    }
+    switch (def->scaleMode) {
+    case 0:
+        size = EFT_EMIT_SCALE(state, n) * scale;
+        break;
+    case 1:
+        size = EFT_EMIT_SCALE(state, n) * BtlScene_GetCharScale(objId);
+        break;
+    case 2:
+        size = EFT_EMIT_SCALE(state, n) * BtlScene_GetCharScale(BtlCharApi_GetOpponentObjId(objId));
+        break;
+    default:
+        size = EFT_EMIT_SCALE(state, n) * scale;
+        break;
+    }
+    switch (def->dirMode) {
+    case 0:
+        Vec4_Copy(&d, dir);
+        break;
+    case 1:
+        Vec4_Copy(&d, dir);
+        Vec3_Scale(&d, &d, -1.0f);
+        break;
+    case 2:
+        Vec4_Set(&up, 0.0f, 1.0f, 0.0f, 1.0f);
+        if (dir->y == -1.0f) {
+            Vec4_Set(&up, 0.0f, 0.0f, 1.0f, 1.0f);
+        }
+        Vec3_Cross(&d, dir, &up);
+        Vec3_Cross(&d, dir, &d);
+        break;
+    case 3:
+        Vec4_Set(&up, 0.0f, 1.0f, 0.0f, 1.0f);
+        if (dir->y == -1.0f) {
+            Vec4_Set(&up, 0.0f, 0.0f, 1.0f, 1.0f);
+        }
+        Vec3_Cross(&d, dir, &up);
+        Vec3_Cross(&d, dir, &d);
+        Vec3_Scale(&d, &d, -1.0f);
+        break;
+    case 4:
+        Vec4_Set(&d, 0.0f, -1.0f, 0.0f, 1.0f);
+        break;
+    case 5:
+        Vec4_Set(&d, 0.0f, 1.0f, 0.0f, 1.0f);
+        break;
+    }
+    if (nodes->flags & (1 << (slot * 2 + 1))) {
+        count = 2;
+    }
+    for (half = 0; half < count; half++) {
+        EftEmitHandles *handles = &state->handle[half];
+
+        if (slot >= 0) {
+            if (def->flags & 8) {
+                Vec4_Copy(&p, &nodes->c[slot].pos);
+            } else {
+                Vec4_Copy(&p, &nodes->n[slot][half].pos);
+            }
+        } else if (sel == 6) {
+            BtlCharApi_GetNodePos(BtlCharApi_GetOpponentObjId(objId), 3, &p);
+        } else {
+            Vec4_Copy(&p, pos);
+        }
+        if (flags & EFT_SPAWN_START) {
+            f32 spread;
+
+            Vec4_Set(&off, 0.0f, 0.0f, 0.0f, 1.0f);
+            spread = def->spread;
+            if (0.0f < spread) {
+                f32 angle = rand() / 2147483647.0f * 6.2831853f;
+                f32 pitch;
+                f32 yaw;
+
+                if (3.14159265f <= angle) {
+                    angle -= 6.2831853f;
+                }
+                func_00121E40(&off, 0.0f, spread * (rand() / 2147483647.0f), 0.0f);
+                Mtx_StoreIdentity(&m);
+                func_00120308(&m, &m, angle);
+                Mtx_MulVec4(&off, &m, &off);
+                pitch = asinf(-dir->y);
+                yaw = atan2f(dir->x, dir->z);
+                Mtx_StoreIdentity(&m);
+                func_00120398(&m, &m, pitch);
+                func_00120428(&m, &m, yaw);
+                Mtx_MulVec4(&off, &m, &off);
+                Vec3_Add(&p, &p, &off);
+            }
+        }
+        switch (type) {
+        case 0:
+            EftEmit_SpawnType0(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 2:
+            EftEmit_SpawnType2(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 16:
+            EftEmit_SpawnType16(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 17:
+            EftEmit_SpawnType17(set, handles, flags, arg7, objId, node, idx, size, scale, rate, &p, pos, &d);
+            break;
+        case 18:
+            EftEmit_SpawnType18(set, handles, flags, arg7, objId, node, idx, size, scale, rate, &p, &d);
+            break;
+        case 14:
+            EftEmit_SpawnType14(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 5:
+            EftEmit_SpawnType5(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 9:
+            EftEmit_SpawnType9(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        case 10:
+            EftEmit_SpawnType10(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, pos, &d);
+            break;
+        case 15:
+            EftEmit_SpawnType15(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, pos, &d);
+            break;
+        case 12:
+            EftEmit_SpawnType12(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            break;
+        }
+    }
+    if (flags & EFT_SPAWN_START) {
+        state->flags[n] = (state->flags[n] | EFT_EMIT_STARTED) & ~EFT_EMIT_STOPPED;
+    }
+    if (flags & EFT_SPAWN_STOP) {
+        state->flags[n] |= EFT_EMIT_STOPPED;
+    }
+    if (state->flags[n] & EFT_EMIT_STARTED) {
+        def = &set->defs[n];
+        if (flags & EFT_SPAWN_SCALE) {
+            if (0.0f < def->scaleTime) {
+                f32 total = def->scaleTime * 30.0f;
+                f32 first;
+                f32 t;
+                f32 dd;
+                f32 r;
+
+                first = total * def->scaleSplit;
+                t = state->time[n] + 1.0f;
+                state->time[n] = t;
+                if (t < first) {
+                    r = t / first;
+                    dd = def->scale1 - def->scale0;
+                    state->scale[n] = def->scale0 + dd * r;
+                    if (state->scale[n] < 0.0f) {
+                        state->scale[n] = 0.0f;
+                    }
+                } else if (t < total) {
+                    r = (t - first) / (total - first);
+                    dd = def->scale2 - def->scale1;
+                    state->scale[n] = def->scale1 + dd * r;
+                    if (state->scale[n] < 0.0f) {
+                        state->scale[n] = 0.0f;
+                    }
+                } else {
+                    state->scale[n] = def->scale2;
+                }
+            } else {
+                state->scale[n] += def->scaleStep;
+                if (def->scale2 != 0.0f) {
+                    if (0.0f < def->scaleStep) {
+                        if (def->scale2 < state->scale[n]) {
+                            state->scale[n] = def->scale2;
+                        }
+                    } else if (def->scaleStep < 0.0f) {
+                        if (state->scale[n] < def->scale2) {
+                            state->scale[n] = def->scale2;
+                        }
+                        if (state->scale[n] < 0.0f) {
+                            state->scale[n] = 0.0f;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_Spawn);
+
+/* Flags (0x20, "use the alternative node") the emitters whose condition bit is among the fighter's requests. */
+void EftEmit_MarkCond(s32 objId, s32 extra, EftEmitSet *set, EftEmitState *state) {
+    u32 mask;
+    s32 half;
+    s32 type;
+    s32 i;
+    EftEmitHdr *hdr;
+
+    mask = EftShot_TestBits(objId, 2) != 0;
+    if (EftShot_TestBits(objId, 4)) {
+        mask |= 2;
+    }
+    if (EftShot_TestBits(objId, 0x10)) {
+        mask |= 4;
+    }
+    if (EftShot_TestBits(objId, 0x20)) {
+        mask |= 8;
+    }
+    if (EftShot_TestBits(objId, 0x40)) {
+        mask |= 0x10;
+    }
+    if (extra) {
+        mask |= 0x20;
+    }
+    hdr = set->hdr;
+    for (half = 0; half < 2; half++) {
+        for (type = 0; type < EFT_EMIT_TYPES; type++) {
+            if (hdr->mask & (1 << type)) {
+                EftEmitGroup *grp = &set->grp[type];
+                EftEmitGroupDef *gd = grp->def;
+
+                for (i = 0; i < gd->count; i++) {
+                    s32 n = grp->first + i;
+                    EftEmitDef *def = &set->defs[n];
+
+                    if ((def->flags2 & 4) && (mask & (1 << def->cond))) {
+                        state->flags[n] |= EFT_EMIT_ALTNODE;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Flags (0x40) the kind 6 emitters that have neither been started nor stopped. */
+void EftEmit_MarkKind6(EftEmitSet *set, EftEmitState *state) {
+    s32 type;
+    s32 i;
+    EftEmitHdr *hdr = set->hdr;
+
+    for (type = 0; type < EFT_EMIT_TYPES; type++) {
+        if (hdr->mask & (1 << type)) {
+            EftEmitGroup *grp = &set->grp[type];
+            EftEmitGroupDef *gd = grp->def;
+
+            for (i = 0; i < gd->count; i++) {
+                s32 n = grp->first + i;
+                EftEmitDef *def = &set->defs[n];
+
+                if (!(state->flags[n] & EFT_EMIT_STARTED)) {
+                    s32 stopped = state->flags[n] & EFT_EMIT_STOPPED;
+
+                    if (!stopped && def->kind == 6) {
+                        state->flags[n] |= EFT_EMIT_KIND6;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Destroys every particle object the set has started (both halves) and clears the slots. */
+void EftEmit_KillAll(EftEmitSet *set, EftEmitState *state) {
+    s32 half;
+    s32 type;
+    s32 i;
+    EftEmitHdr *hdr = set->hdr;
+
+    for (half = 0; half < 2; half++) {
+        EftEmitHandles *handles = &state->handle[half];
+
+        for (type = 0; type < EFT_EMIT_TYPES; type++) {
+            if (hdr->mask & (1 << type)) {
+                EftEmitGroup *grp = &set->grp[type];
+                EftEmitGroupDef *gd = grp->def;
+
+                for (i = 0; i < gd->count; i++) {
+                    s32 n = grp->first + i;
+
+                    switch (type) {
+                    case 0:
+                        if (handles->h[n] != NULL) {
+                            func_0017D390(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 2:
+                        if (handles->h[n] != NULL) {
+                            func_00168668(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 16:
+                        if (handles->h[n] != NULL) {
+                            func_00196AD0(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 17:
+                        if (handles->h[n] != NULL) {
+                            func_001A36E0(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 18:
+                        if (handles->h[n] != NULL) {
+                            func_0017CD98(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 14:
+                        if (handles->h[n] != NULL) {
+                            func_0019D798(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 5:
+                        if (handles->h[n] != NULL) {
+                            func_00186C20(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 9:
+                        if (handles->h[n] != NULL) {
+                            func_00194B50(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 10:
+                        if (handles->h[n] != NULL) {
+                            func_00190770(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 15:
+                        if (handles->h[n] != NULL) {
+                            func_0018BC00(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 12:
+                        if (handles->h[n] != NULL) {
+                            func_001A65E8(handles->h[n]);
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Clears the slots whose particle object has ended; returns the groups that still have a live object of an
+   emitter that is not a one-shot (kind 2). */
+s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
+    s32 result = 0;
+    EftEmitHdr *hdr = set->hdr;
+    s32 half;
+    s32 type;
+    s32 i;
+
+    for (half = 0; half < 2; half++) {
+        EftEmitHandles *handles = &state->handle[half];
+
+        for (type = 0; type < EFT_EMIT_TYPES; type++) {
+            if (hdr->mask & (1 << type)) {
+                EftEmitGroup *grp = &set->grp[type];
+                EftEmitGroupDef *gd = grp->def;
+
+                for (i = 0; i < gd->count; i++) {
+                    s32 n = grp->first + i;
+                    EftEmitDef *def = &set->defs[n];
+
+                    switch (type) {
+                    case 0:
+                        if (func_0017D448(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 2:
+                        if (func_001687C8(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 16:
+                        if (func_00196B20(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 17:
+                        if (func_001A3740(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 18:
+                        if (func_0017CDF0(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 14:
+                        if (func_0019D9F0(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 5:
+                        if (func_00186C70(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 9:
+                        if (func_00194F70(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 10:
+                        if (func_00190C48(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 15:
+                        if (func_0018C110(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    case 12:
+                        if (func_001A6B40(handles->h[n])) {
+                            if (def->kind != 2) {
+                                result |= 1 << type;
+                            }
+                        } else {
+                            handles->h[n] = NULL;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+/* Builds the mask of the fighter's active effect requests and updates the node slots with it. */
+void EftEmit_UpdateNodesReq(EftOwner *owner, EftEmitNodes *nodes) {
+    s32 objId = owner->objId;
+    s32 req;
+
+    req = EftShot_TestBits(objId, 2) ? 2 : 0;
+    if (EftShot_TestBits(objId, 4)) {
+        req |= 4;
+    }
+    if (EftShot_TestBits(objId, 8)) {
+        req |= 8;
+    }
+    if (EftShot_TestBits(objId, 0x10)) {
+        req |= 0x10;
+    }
+    if (EftShot_TestBits(objId, 0x20)) {
+        req |= 0x20;
+    }
+    if (EftShot_TestBits(objId, 0x40)) {
+        req |= 0x40;
+    }
+    if (EftShot_TestBits(objId, 0x400)) {
+        req |= 0x400;
+    }
+    EftEmit_UpdateNodes(owner, nodes, req);
+}
+
+/* Resolves each node slot the first time its request bit is seen, then samples the node positions.
+   Request 0x400 freezes the slots (flag 0x1000) for good. */
+void EftEmit_UpdateNodes(EftOwner *owner, EftEmitNodes *nodes, s32 req) {
+    s32 bits[EFT_EMIT_NODES] = { 2, 4, 8, 0x10, 0x20, 0x40 };
+    s32 objId = owner->objId;
+    s32 i;
+
+    if (req & 0x400) {
+        nodes->flags |= 0x1000;
+    }
+    if (nodes->flags & 0x1000) {
+        return;
+    }
+    if (owner->param->flags & 4) {
+        for (i = 0; i < EFT_EMIT_NODES; i++) {
+            if (!(nodes->flags & (1 << (i * 2)))) {
+                if (req & bits[i]) {
+                    nodes->flags |= 1 << (i * 2);
+                    nodes->n[i][0].id = owner->param->nodes[i];
+                }
+            }
+            if (nodes->flags & (1 << (i * 2))) {
+                BtlCharApi_GetNodePos(objId, nodes->n[i][0].id, &nodes->n[i][0].pos);
+            } else if (nodes->flags & 1) {
+                BtlCharApi_GetNodePos(objId, nodes->n[0][0].id, &nodes->n[i][0].pos);
+            }
+            if (nodes->flags & (1 << (i * 2 + 1))) {
+                BtlCharApi_GetNodePos(objId, nodes->n[i][1].id, &nodes->n[i][1].pos);
+            } else if (nodes->flags & 1) {
+                BtlCharApi_GetNodePos(objId, nodes->n[0][0].id, &nodes->n[i][1].pos);
+            }
+        }
+    } else {
+        for (i = 0; i < EFT_EMIT_NODES; i++) {
+            if (!(nodes->flags & (1 << (i * 2)))) {
+                if (req & bits[i]) {
+                    nodes->flags |= 1 << (i * 2);
+                    if (EftShot_HasTwoAttrs(objId, bits[i])) {
+                        nodes->flags |= 1 << (i * 2 + 1);
+                        EftShot_GetAttrPair(objId, bits[i], &nodes->n[i][0].id, &nodes->n[i][1].id);
+                    } else {
+                        nodes->n[i][0].id = EftShot_GetAttrKind(objId, bits[i]);
+                    }
+                }
+            }
+            if (nodes->flags & (1 << (i * 2))) {
+                BtlCharApi_GetNodePos(objId, nodes->n[i][0].id, &nodes->n[i][0].pos);
+            } else if (nodes->flags & 1) {
+                BtlCharApi_GetNodePos(objId, nodes->n[0][0].id, &nodes->n[i][0].pos);
+            }
+            if (nodes->flags & (1 << (i * 2 + 1))) {
+                BtlCharApi_GetNodePos(objId, nodes->n[i][1].id, &nodes->n[i][1].pos);
+            } else if (nodes->flags & 1) {
+                BtlCharApi_GetNodePos(objId, nodes->n[0][0].id, &nodes->n[i][1].pos);
+            }
+            if (owner->param->flags & 8) {
+                if (!(nodes->flagsC & (1 << i))) {
+                    if (req & bits[i]) {
+                        nodes->flagsC |= 1 << i;
+                        nodes->flags |= 1 << (i * 2);
+                        nodes->c[i].id = owner->param->nodes[i];
+                    }
+                }
+                if (nodes->flagsC & (1 << i)) {
+                    BtlCharApi_GetNodePos(objId, nodes->c[i].id, &nodes->c[i].pos);
+                } else if (nodes->flagsC & 1) {
+                    BtlCharApi_GetNodePos(objId, nodes->c[0].id, &nodes->c[i].pos);
+                }
+            }
+        }
+    }
+}
+
+/* Marks a slot resolved: fixed to a fighter node, or (node < 0) to a position. */
+void EftEmit_SetNode(EftEmitNodes *nodes, s32 slot, s32 node, Vec4 *pos) {
+    nodes->flags |= 1 << (slot * 2);
+    if (node >= 0) {
+        nodes->fixed |= 1 << (slot * 2);
+        nodes->n[slot][0].id = node;
+    } else {
+        Vec4_Copy(&nodes->n[slot][0].pos, pos);
+    }
+}
+
+/* Overwrites the position of a slot. */
+void EftEmit_SetNodePos(EftEmitNodes *nodes, s32 slot, Vec4 *pos) {
+    Vec4_Copy(&nodes->n[slot][0].pos, pos);
+}
+
+/* Samples again the slots that EftEmit_SetNode fixed to a fighter node. */
+void EftEmit_RefreshFixedNodes(s32 objId, EftEmitNodes *nodes) {
+    s32 i;
+
+    for (i = 0; i < EFT_EMIT_NODES; i++) {
+        s32 bit = 1 << (i * 2);
+
+        if ((nodes->flags & bit) && (nodes->fixed & bit)) {
+            BtlCharApi_GetNodePos(objId, nodes->n[i][0].id, &nodes->n[i][0].pos);
+        }
+    }
+}
+
+/* Advances the trail width animation of the set header by one frame. */
+void EftEmit_UpdateTrailWidth(EftEmitSet *set, EftEmitState *state) {
+    EftEmitHdr *hdr = set->hdr;
+
+    if (0.0f < hdr->widthTime) {
+        f32 total = hdr->widthTime * 30.0f;
+        f32 first;
+        f32 t;
+        f32 d;
+        f32 r;
+
+        first = total * hdr->widthSplit;
+        t = state->trailTime + 1.0f;
+        state->trailTime = t;
+        if (t < first) {
+            r = t / first;
+            d = hdr->width1 - hdr->width0;
+            state->trailWidth = hdr->width0 + d * r;
+            if (state->trailWidth < 0.0f) {
+                state->trailWidth = 0.0f;
+            }
+        } else if (t < total) {
+            r = (t - first) / (total - first);
+            d = hdr->width2 - hdr->width1;
+            state->trailWidth = hdr->width1 + d * r;
+            if (state->trailWidth < 0.0f) {
+                state->trailWidth = 0.0f;
+            }
+        } else {
+            state->trailWidth = hdr->width2;
+        }
+    } else {
+        state->trailWidth += hdr->widthStep;
+        if (0.0f < hdr->width2 && hdr->width2 < state->trailWidth) {
+            state->trailWidth = hdr->width2;
+        }
+    }
+}
+
+/* Current trail width factor. */
+f32 EftEmit_GetTrailWidth(EftEmitState *state) {
+    return state->trailWidth;
+}
+
+/* Does the set header use the second animation. */
+s32 EftEmit_HasWidth2(EftEmitSet *set) {
+    if (set->hdr->flags & 4) {
+        return 1;
+    }
+    return 0;
+}
+
+/* Advances the second animation of the set header by one frame. */
+void EftEmit_UpdateWidth2(EftEmitSet *set, EftEmitState *state) {
+    EftEmitHdr *hdr = set->hdr;
+
+    if (0.0f < hdr->bTime) {
+        f32 total = hdr->bTime * 30.0f;
+        f32 first;
+        f32 t;
+        f32 d;
+        f32 r;
+
+        t = state->time2 + 1.0f;
+        first = total * hdr->bSplit;
+        state->time2 = t;
+        if (t < first) {
+            r = t / first;
+            d = hdr->b1 - hdr->b0;
+            state->width2 = hdr->b0 + d * r;
+            if (state->width2 < 0.0f) {
+                state->width2 = 0.0f;
+            }
+        } else if (t < total) {
+            r = (t - first) / (total - first);
+            d = hdr->b2 - hdr->b1;
+            state->width2 = hdr->b1 + d * r;
+            if (state->width2 < 0.0f) {
+                state->width2 = 0.0f;
+            }
+        } else {
+            state->width2 = hdr->b2;
+        }
+    }
+}
+
+/* Current value of the second animation. */
+f32 EftEmit_GetWidth2(EftEmitState *state) {
+    return state->width2;
+}
+
+/* Drops a mark where the last stage line test hit: 10 frames later the mark effect starts there. The beam end
+   is pulled back onto the surface and the stage object that was hit, if any, is destroyed. */
+/* Not matching: the original keeps the constant 1 of 'active = 1' inside the loop; this C hoists it in front of the loop (one extra li + nop, which shifts everything after). Otherwise the same instructions. */
+#if 0
+void EftSweep_AddMark(EftTask *task) {
+    Vec4 dir;
+    Vec4 v;
+    EftSweepWork *w = task->work;
+    EftIStageHit *hit = func_001B2F40();
+    s32 i;
+
+    for (i = 0; i < 15; i++) {
+        if (w->mark[i].active == 0) {
+            f32 width;
+
+            w->mark[i].timer = 10.0f;
+            w->mark[i].active = 1;
+            Vec4_Copy((Vec4 *)&w->mark[i].pos, &hit->pos);
+            width = w->width * EftEmit_GetTrailWidth(&w->state) * 0.5f;
+            Vec3_Sub(&v, &w->pos, (Vec4 *)&w->mark[i].pos);
+            Vec3_Normalize(&v, &v);
+            Vec3_Scale(&v, &v, width);
+            Vec3_Add((Vec4 *)&w->mark[i].pos, (Vec4 *)&w->mark[i].pos, &v);
+            w->mark[i].pos.w = 1.0f;
+            Vec4_Copy(&w->pose.cur, (Vec4 *)&w->mark[i].pos);
+            if (hit->obj >= 0) {
+                Vec3_Sub(&dir, &w->pose.cur, &w->pos);
+                Vec3_Normalize(&dir, &dir);
+                dir.w = 1.0f;
+                BtlStage_DestroyObj(-1, hit->obj, &dir);
+            }
+            return;
+        }
+    }
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftSweep_AddMark);
+
+/* Counts the marks down and starts the mark effect of the ones that reach zero; returns whether any is left. */
+/* Not matching: the original loads 1.0f where it is used; this C hoists it in front of the loop into f21 (so 0.0f moves to f22 and the frame is 16 bytes larger). Otherwise the same instructions. */
+#if 0
+s32 EftSweep_UpdateMarks(EftTask *task) {
+    EftIMarkArg arg;
+    EftIMarkArg tmp;
+    s32 any = 0;
+    EftSweepWork *w = task->work;
+    EftOwner *owner = w->owner;
+    s32 i;
+
+    for (i = 0; i < 15; i++) {
+        if (w->mark[i].active) {
+            if (w->mark[i].timer <= 0.0f) {
+                s32 effect = w->owner->param->markEffect;
+
+                if (effect >= 0) {
+                    f32 size;
+
+                    ((u64 *)&tmp.pos)[0] = ((u64 *)&w->mark[i].pos)[0];
+                    ((u64 *)&tmp.pos)[1] = ((u64 *)&w->mark[i].pos)[1];
+                    memset(&tmp.dir, 0, sizeof(Vec4));
+                    tmp.effect = effect;
+                    tmp.objId = owner->objId;
+                    tmp.unk28 = 0;
+                    arg = tmp;
+                    size = owner->param->markSize;
+                    Vec4_Sub(&arg.dir, &w->pose.cur, &w->pos);
+                    Vec3_Normalize(&arg.dir, &arg.dir);
+                    func_00187BE0(&arg, size, 1.0f);
+                }
+                w->mark[i].active = 0;
+            } else {
+                any = 1;
+                w->mark[i].timer -= 1.0f;
+            }
+        }
+    }
+    return any;
+}
+#endif
+INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftSweep_UpdateMarks);
+
+/* Radius of the sweep (distance between the fighters' node 3, plus 50, at most 800) and its start angle. */
+void EftSweep_InitPath(EftTask *task) {
+    Vec4 b;
+    Vec4 a;
+    EftSweepWork *w = task->work;
+    EftOwner *owner = w->owner;
+    s32 opp = BtlCharApi_GetOpponentObjId(owner->objId);
+
+    BtlCharApi_GetNodePos(owner->objId, 3, &a);
+    BtlCharApi_GetNodePos(opp, 3, &b);
+    Vec4_Sub(&a, &b, &a);
+    w->radius = sqrtf(Vec3_Dot(&a, &a)) + 50.0f;
+    if (800.0f < w->radius) {
+        w->radius = 800.0f;
+    }
+    w->angleStep = EFT_SWEEP_STEP;
+    w->angle = EFT_SWEEP_START;
+}
+
+/* Moves the beam end one step along its circle around pos, in the plane given by dir. */
+void EftSweep_Move(EftTask *task) {
+    Mtx44 m;
+    Mtx44 m2;
+    Vec4 a;
+    Vec4 b;
+    EftSweepWork *w = task->work;
+    EftOwner *owner = w->owner;
+    Vec4 *cur = &w->pose.cur;
+    s32 opp = BtlCharApi_GetOpponentObjId(owner->objId);
+    f32 pitch;
+    f32 yaw;
+
+    BtlCharApi_GetNodePos(owner->objId, 3, &a);
+    BtlCharApi_GetNodePos(opp, 3, &b);
+    Vec4_Sub(&a, &b, &a);
+    w->radius = sqrtf(Vec3_Dot(&a, &a)) + 50.0f;
+    if (800.0f < w->radius) {
+        w->radius = 800.0f;
+    }
+    Vec4_Set(cur, 0.0f, 0.0f, w->radius, 1.0f);
+    Mtx_StoreIdentity(&m);
+    func_00120428(&m, &m, w->angle);
+    Mtx_MulVec4(cur, &m, cur);
+    pitch = asinf(-w->dir.y);
+    yaw = atan2f(w->dir.x, w->dir.z);
+    func_00120398(&m2, &m, pitch);
+    func_00120428(&m2, &m2, yaw);
+    Mtx_MulVec4(cur, &m2, cur);
+    if (!(w->flags & EFT_SWEEP_PREV_VALID)) {
+        Vec3_Add(&w->pose.prev, cur, &w->pos);
+        w->flags |= EFT_SWEEP_PREV_VALID;
+    }
+    Vec3_Add(cur, cur, &w->pos);
+    w->angle += w->angleStep;
+    if (3.14159265f < w->angle) {
+        w->angle -= 6.2831853f;
+    }
+}
+
+/* Adds this frame's hit record: two spheres at the beam end now and last frame, or two boxes from the beam
+   origin (node slot 1) to those points, by the technique's hit shape. */
+void EftSweep_AddHit(EftTask *task) {
+    EftSweepWork *w = task->work;
+    EftIHitRec *rec = EftHit_GetNew();
+    f32 width = w->width * EftEmit_GetTrailWidth(&w->state);
+
+    rec->pose = w->pose;
+    rec->task = task;
+    rec->owner = w->owner;
+    rec->flags |= 0x40;
+    switch (w->owner->param->hitShape) {
+    case 1: {
+        void *a = EftHitArena_AllocBox();
+        void *b = EftHitArena_AllocBox();
+
+        func_00239588(a, &w->nodes.n[1][0].pos, &w->pose.cur, width);
+        func_00239588(b, &w->nodes.n[1][0].pos, &w->pose.prev, width);
+        EftHit_SetShapeBoxes(rec, a, b);
+        break;
+    }
+    case 0: {
+        void *a = EftHitArena_AllocSphere();
+        void *b = EftHitArena_AllocSphere();
+
+        func_002399A0(a, &w->pose.cur, width);
+        func_002399A0(b, &w->pose.prev, width);
+        EftHit_SetShapeSpheres(rec, a, b);
+        break;
+    }
+    default:
+        return;
+    }
+    EftHit_Add(rec);
+}
+
+/* Gives every part of the effect pack its command for this frame. */
+void EftSweep_Emit(s32 objId, EftTask *task, EftEmitSet *set, s32 reset) {
+    EftSweepWork *w = task->work;
+    s32 type;
+    s32 i;
+
+    for (type = 0; type < EFT_EMIT_TYPES; type++) {
+        if (set->hdr->mask & (1 << type)) {
+            EftEmitGroupDef *gd = set->grp[type].def;
+
+            for (i = 0; i < gd->count; i++) {
+                s32 flags;
+
+                if (reset == 0) {
+                    flags = EftEmit_GetFlagsFromReq(set, &w->state, objId, type, i, w->flags & EFT_SWEEP_ENDING,
+                                          w->flags & EFT_SWEEP_NOW);
+                } else {
+                    flags = EftEmit_GetResetFlags(set, &w->state, type, i);
+                }
+                if (w->flags & EFT_SWEEP_KILLED) {
+                    flags = EFT_SPAWN_STOP;
+                }
+                if (flags) {
+                    EftEmit_SpawnOwn(set, &w->state, &w->nodes, &w->pose.cur, &w->dir, type, i, flags, w->scale);
+                }
+            }
+        }
+    }
+}
+
+/* Instance init: clears the work, takes the technique's scale and speed, attaches the group's effect pack. */
+void EftSweep_Init(EftTask *task, EftOwner *owner) {
+    EftTask *group = func_001ADB98(task);
+    EftSweepWork *w = task->work;
+    EftEmitSet *set = &((EftSetWork *)group->work)->set;
+    EftOwnerParam *p;
+
+    memset(w, 0, sizeof(EftSweepWork));
+    w->owner = owner;
+    p = owner->param;
+    w->speed = p->speed;
+    w->unk784 = p->scale;
+    w->scale = p->scale;
+    w->width = w->unk784;
+    w->set = set;
+    EftEmit_InitState(set, &w->state);
+    if (EftEmit_HasWidth2(w->set)) {
+        w->speed = EftEmit_GetWidth2(&w->state);
+        w->flags |= EFT_SWEEP_OWN_WIDTH;
+    }
+    w->life = EftEmit_GetEndFrames(w->set);
+    EftSweep_InitPath(task);
+    func_001ADB78(task, owner->objId == 0 ? 0x800 : 0x1000);
+}
+
+/* Instance term. */
+void EftSweep_Term(EftTask *task) {
+    EftSweepWork *w = task->work;
+    EftOwner *owner = w->owner;
+
+    EftEmit_TermState(w->set, &w->state);
+    if (owner->param->unk4 != 0) {
+        EftShot_SetHeldFlagA8(owner->objId);
+    }
+}
+
+/* Instance update: follows the fighter's effect events (2 aim, 4 fire, 8 stop, 0x400 end), sweeps the beam,
+   marks the stage, drives the effect pack and adds the hit record. */
+void EftSweep_Update(EftTask *task) {
+    EftISegment seg;
+    EftSweepWork *w = task->work;
+    EftOwner *owner = w->owner;
+    s32 next = 0;
+    s32 any;
+
+    if (BtlScene_IsCharStopped(owner->objId)) {
+        return;
+    }
+    EftEmit_UpdateNodesReq(owner, &w->nodes);
+    if (!(w->flags & EFT_SWEEP_STARTED)) {
+        if (EftShot_TestBits(owner->objId, 2)) {
+            EftAim_GetDir(&w->dir, &w->nodes.n[0][0].pos, owner->objId);
+            task->step = 0;
+            w->flags |= EFT_SWEEP_STARTED;
+        } else if (EftShot_TestBits(owner->objId, 4)) {
+            task->step = 0;
+            w->flags |= EFT_SWEEP_STARTED;
+        }
+    }
+    if (w->flags & EFT_SWEEP_STARTED) {
+        switch (task->step) {
+        case 0:
+            if (EftShot_TestBits(owner->objId, 4)) {
+                w->flags |= EFT_SWEEP_TRAIL;
+                Vec4_Copy(&w->pos, &w->nodes.n[1][0].pos);
+                Vec4_Copy(&w->pose.start, &w->nodes.n[1][0].pos);
+                Vec4_Copy(&w->pose.cur, &w->pose.start);
+                BtlCharApi_GetNodePos(owner->objId, 0x11, &w->pose.prev);
+                EftAim_GetDirKeep(owner, &w->dir, &w->pose.cur, owner->objId);
+                Vec3_Scale(&w->pose.vel, &w->dir, w->speed);
+                task->step = 1;
+            }
+            break;
+        case 2:
+            Vec4_Copy(&w->pose.prev, &w->pose.cur);
+            Vec4_Copy(&w->pos, &w->nodes.n[1][0].pos);
+            EftSweep_Move(task);
+            func_002398F0(&seg, &w->pos, &w->pose.cur);
+            if (func_001B2DF0(&seg)) {
+                EftSweep_AddMark(task);
+            }
+            if (EftShot_TestBits(owner->objId, 8)) {
+                w->flags |= EFT_SWEEP_STOP_SEEN | EFT_SWEEP_ENDING;
+                task->step = 3;
+            }
+            break;
+        case 1:
+        case 3:
+            next = 1;
+            break;
+        }
+    }
+    if (EftShot_TestBits(owner->objId, 0x400)) {
+        if (!(w->flags & EFT_SWEEP_STOP_SEEN)) {
+            w->flags |= EFT_SWEEP_NOW;
+        }
+        w->flags |= EFT_SWEEP_ENDING;
+    }
+    EftSweep_Emit(owner->objId, task, w->set, 0);
+    if (next) {
+        task->step++;
+    }
+    any = EftSweep_UpdateMarks(task);
+    if (w->flags & EFT_SWEEP_ENDING) {
+        w->time += 1.0f;
+    }
+    if (!any && (w->flags & EFT_SWEEP_DEAD)) {
+        func_001ADA58(task);
+        return;
+    }
+    if (w->flags & EFT_SWEEP_ENDING) {
+        if (!(w->flags & EFT_SWEEP_NOW)) {
+            if (!(w->time >= w->life)) {
+                return;
+            }
+        }
+        w->flags |= EFT_SWEEP_DEAD;
+    } else if (owner->param->flags & 1) {
+        if (w->flags & EFT_SWEEP_TRAIL) {
+            EftEmit_UpdateTrailWidth(w->set, &w->state);
+            EftSweep_AddHit(task);
+        }
+    }
+}
+
+/* Instance post-update: drops the parts that ended; a hit result (task flags 1 / 2) stops the hit record. */
+void EftSweep_PostUpdate(EftTask *task) {
+    EftSweepWork *w = task->work;
+
+    if (!BtlScene_IsCharStopped(w->owner->objId)) {
+        EftEmit_UpdateAlive(w->set, &w->state);
+        if (task->flags & 1) {
+            w->flags &= ~EFT_SWEEP_TRAIL;
+        } else if (task->flags & 2) {
+            w->flags &= ~EFT_SWEEP_TRAIL;
+        }
+    }
+}
+
+/* Instance reset: kills the parts and the task. */
+void EftSweep_Reset(EftTask *task) {
+    EftSweepWork *w = task->work;
+
+    if (!(w->flags & EFT_SWEEP_KILLED)) {
+        w->flags |= EFT_SWEEP_KILLED;
+        EftEmit_KillAll(w->set, &w->state);
+    }
+    func_001ADA58(task);
+}
+
+/* Instance draw: nothing. */
+void EftSweep_Draw(EftTask *task) {
+}
+
+/* Group init: loads the technique's effect pack and makes room for two instances. */
+void EftSweepGroup_Init(EftTask *task, EftOwner *owner) {
+    EftSetWork *gw = task->work;
+
+    EftShot_Nop(sizeof(EftSetWork));
+    memset(gw, 0, sizeof(EftSetWork));
+    EftEmit_LoadSet(owner, &gw->set, 0, owner->pack, 0, 4);
+    BtlTask_CreateChildList(task, 2, sizeof(EftSweepWork));
+}
+
+/* Group term: frees the pack. */
+void EftSweepGroup_Term(EftTask *task) {
+    EftEmit_FreeSet(&((EftSetWork *)task->work)->set);
+}
+
+/* Group update. */
+void EftSweepGroup_Update(EftTask *task) {
+    EftEmit_BeginFrame(&((EftSetWork *)task->work)->set);
+}
+
+/* Group reset: nothing. */
+void EftSweepGroup_Reset(EftTask *task) {
+}
+
+/* Adds this frame's hit record: two spheres, at node 3 now and last frame. */
+void EftFollow_AddHit(EftTask *task) {
+    EftFollowWork *w = task->work;
+    EftIHitRec *rec = EftHit_GetNew();
+    f32 width = w->width * EftEmit_GetTrailWidth(&w->state);
+    void *a;
+    void *b;
+
+    rec->pose = w->pose;
+    rec->task = task;
+    rec->owner = w->owner;
+    rec->flags |= 0x40;
+    a = EftHitArena_AllocSphere();
+    b = EftHitArena_AllocSphere();
+    func_002399A0(a, &w->pose.cur, width);
+    func_002399A0(b, &w->pose.prev, width);
+    EftHit_SetShapeSpheres(rec, a, b);
+    EftHit_Add(rec);
+}
+
+/* Stage blur light of the technique: fades in from the "on" event, cut by the "off" event. */
+void EftFollow_UpdateLight(EftTask *task) {
+    Vec4 pos;
+    EftFollowWork *w = task->work;
+    EftOwner *owner = w->owner;
+
+    if (owner->param->lightOnBit != 2) {
+        s32 bits[EFT_EMIT_NODES] = { 2, 4, 8, 0x10, 0x20, 0x40 };
+        s32 off = bits[owner->param->lightOffBit];
+        s32 a0;
+        s32 a1;
+        s32 a2;
+
+        if (EftShot_TestBits(owner->objId, bits[owner->param->lightOnBit])) {
+            w->flags |= EFT_FOLLOW_LIGHT;
+            BtlCharApi_GetNodePos(owner->objId, 0x11, &pos);
+            EftAim_GetDir(&w->dir, &pos, owner->objId);
+        }
+        if (EftShot_TestBits(owner->objId, off)) {
+            w->light = 0.0f;
+            w->flags &= ~EFT_FOLLOW_LIGHT;
+        }
+        if (w->flags & EFT_FOLLOW_LIGHT) {
+            w->light += 0.1f;
+            if (1.0f < w->light) {
+                w->light = 1.0f;
+            }
+        }
+        a0 = w->light * 32.0f;
+        a1 = w->light * 64.0f;
+        a2 = w->light * 128.0f;
+        StgBlur_SetColor0Rgba(0, 0x80, 0x80, 0x80, a0 & 0xFF);
+        StgBlur_SetColor1Rgba(0, 0x80, 0x80, 0x80, a1 & 0xFF);
+        StgBlur_SetColor2Rgba(0, 0x80, 0x80, 0x80, a2 & 0xFF);
+        StgBlur_SetColor3Rgba(0, 0x80, 0x80, 0x80, 0x40);
+        StgBlur_SetCenter(0, &w->dir, 0);
+    }
+}
+
+/* Gives every part of the effect pack its command for this frame. */
+void EftFollow_Emit(s32 objId, EftTask *task, EftEmitSet *set, s32 reset) {
+    EftFollowWork *w = task->work;
+    s32 type;
+    s32 i;
+
+    for (type = 0; type < EFT_EMIT_TYPES; type++) {
+        if (set->hdr->mask & (1 << type)) {
+            EftEmitGroupDef *gd = set->grp[type].def;
+
+            for (i = 0; i < gd->count; i++) {
+                s32 flags;
+
+                if (reset == 0) {
+                    flags = EftEmit_GetFlagsFromReq(set, &w->state, objId, type, i, w->flags & EFT_FOLLOW_ENDING,
+                                          w->flags & EFT_FOLLOW_NOW);
+                } else {
+                    flags = EftEmit_GetResetFlags(set, &w->state, type, i);
+                }
+                if (w->flags & EFT_FOLLOW_KILLED) {
+                    flags = EFT_SPAWN_STOP;
+                }
+                if (flags) {
+                    EftEmit_SpawnOwn(set, &w->state, &w->nodes, &w->pose.cur, &w->dir, type, i, flags, w->scale);
+                }
+            }
+        }
+    }
+}
+
+/* Instance init. */
+void EftFollow_Init(EftTask *task, EftOwner *owner) {
+    EftTask *group = func_001ADB98(task);
+    EftFollowWork *w = task->work;
+    EftEmitSet *set = &((EftSetWork *)group->work)->set;
+    EftOwnerParam *p;
+
+    memset(w, 0, sizeof(EftFollowWork));
+    w->owner = owner;
+    p = owner->param;
+    w->unk4 = 0.0f;
+    w->unk8 = p->scale;
+    w->scale = p->scale;
+    w->width = w->unk8;
+    w->set = set;
+    EftEmit_InitState(set, &w->state);
+    if (EftEmit_HasWidth2(w->set)) {
+        w->unk4 = EftEmit_GetWidth2(&w->state);
+        w->flags |= EFT_FOLLOW_OWN_WIDTH;
+    }
+    w->life = EftEmit_GetEndFrames(w->set);
+    func_001ADB78(task, owner->objId == 0 ? 0x800 : 0x1000);
+}
+
+/* Instance term. */
+void EftFollow_Term(EftTask *task) {
+    EftFollowWork *w = task->work;
+    EftOwner *owner = w->owner;
+
+    EftEmit_TermState(w->set, &w->state);
+    EftShot_SetHeldFlagA8(owner->objId);
+}
+
+/* Instance update: follows the fighter's effect events (2 / 4 start, 4 fire, 8 stop, 0x400 end), tracks node 3,
+   drives the effect pack and the stage light, adds the hit record. */
+void EftFollow_Update(EftTask *task) {
+    Vec4 pos;
+    EftFollowWork *w = task->work;
+    EftOwner *owner = w->owner;
+    s32 next = 0;
+    s32 flags;
+
+    if (BtlScene_IsCharStopped(owner->objId)) {
+        return;
+    }
+    EftEmit_UpdateNodesReq(owner, &w->nodes);
+    if (!(w->flags & EFT_FOLLOW_STARTED)) {
+        if (EftShot_TestBits(owner->objId, 2) || EftShot_TestBits(owner->objId, 4)) {
+            task->step = 0;
+            w->flags |= EFT_FOLLOW_STARTED;
+        }
+    }
+    if (w->flags & EFT_FOLLOW_STARTED) {
+        switch (task->step) {
+        case 0:
+            if (EftShot_TestBits(owner->objId, 4)) {
+                w->flags |= EFT_FOLLOW_TRAIL;
+                BtlCharApi_GetNodePos(owner->objId, 3, &w->pose.start);
+                Vec4_Copy(&w->pose.cur, &w->pose.start);
+                BtlCharApi_GetNodePos(owner->objId, 0x11, &w->pose.prev);
+                task->step = 1;
+            }
+            break;
+        case 1:
+        case 3:
+            next = 1;
+            break;
+        case 2:
+            if (EftShot_TestBits(owner->objId, 8)) {
+                w->flags |= EFT_FOLLOW_STOP_SEEN | EFT_FOLLOW_ENDING;
+                task->step = 3;
+            }
+            break;
+        }
+    }
+    if (EftShot_TestBits(owner->objId, 0x400)) {
+        if (!(w->flags & EFT_FOLLOW_STOP_SEEN)) {
+            w->flags |= EFT_FOLLOW_NOW;
+        }
+        w->flags |= EFT_FOLLOW_ENDING;
+    }
+    BtlCharApi_GetNodePos(owner->objId, 0x2E, &w->dir);
+    BtlCharApi_GetNodePos(owner->objId, 3, &pos);
+    Vec3_Sub(&w->dir, &pos, &w->dir);
+    w->dir.w = 1.0f;
+    Vec3_Normalize(&w->dir, &w->dir);
+    Vec4_Copy(&w->pose.prev, &w->pose.cur);
+    BtlCharApi_GetNodePos(owner->objId, 3, &w->pose.cur);
+    EftFollow_Emit(owner->objId, task, w->set, 0);
+    if (owner->param->flags & 0x200) {
+        EftFollow_UpdateLight(task);
+    }
+    if (next) {
+        task->step++;
+    }
+    flags = w->flags;
+    if (flags & EFT_FOLLOW_ENDING) {
+        w->time += 1.0f;
+    }
+    if (flags & EFT_FOLLOW_DEAD) {
+        func_001ADA58(task);
+        return;
+    }
+    if (flags & EFT_FOLLOW_ENDING) {
+        if (!(flags & EFT_FOLLOW_NOW)) {
+            if (!(w->time >= w->life)) {
+                return;
+            }
+        }
+        w->flags = flags | EFT_FOLLOW_DEAD;
+    } else if (flags & EFT_FOLLOW_TRAIL) {
+        EftEmit_UpdateTrailWidth(w->set, &w->state);
+        EftFollow_AddHit(task);
+    }
+}
+
+/* Instance post-update: drops the parts that ended; a hit result (task flags 1 / 2) stops the hit record, and
+   on result 1 the kind 6 parts are flagged. */
+void EftFollow_PostUpdate(EftTask *task) {
+    EftFollowWork *w = task->work;
+    EftEmitState *state = &w->state;
+
+    if (!BtlScene_IsCharStopped(w->owner->objId)) {
+        EftEmit_UpdateAlive(w->set, state);
+        if (task->flags & 1) {
+            EftEmit_MarkKind6(w->set, state);
+            w->flags &= ~EFT_FOLLOW_TRAIL;
+        } else if (task->flags & 2) {
+            w->flags &= ~EFT_FOLLOW_TRAIL;
+        }
+    }
+}

@@ -99,7 +99,7 @@ typedef struct BtlClashC {
     /* 0x18 [0x94] */ s32 prevPick;
 } BtlClashC;
 
-/* A stage path as returned by func_00241EC8 (the same thing as BtlCtlPath in btl_char_ctl.h). */
+/* A stage path as returned by BtlStage_GetPath (the same thing as BtlCtlPath in btl_char_ctl.h). */
 typedef struct BtlClashPath {
     /* 0x0 */ s32 end;      /* one past the last usable point */
     /* 0x4 */ f32 *points;  /* 0x30 bytes each: x y z ? rx ry ... */

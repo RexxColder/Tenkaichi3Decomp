@@ -66,9 +66,9 @@ extern void func_00230CC8(BtlObjBox *box, Vec4 *center);
 extern void func_00230D20(BtlObjBox *box, Vec4 *extent);
 extern s32 func_00230E10(BtlObjBox *box, Vec4 *point);
 /* Stage: light direction, light record (bytes 8..11 = colour), ambient colour as integers. */
-extern void func_002429E8(Vec4 *dir);
-extern u8 *func_00242CC8(void);
-extern void func_00243190(s32 *rgb);
+extern void BtlStage_GetLightVecB(Vec4 *dir);
+extern u8 *BtlStage_GetLightColors(void);
+extern void BtlStage_GetAmbient(s32 *rgb);
 /* Object passes of the following files. */
 extern void func_0024C958(BtlObj *obj);
 extern void func_0024CC88(BtlObj *obj);
@@ -684,7 +684,7 @@ void BtlObj_CalcViewColor(BtlObj *obj, BtlObjView *view) {
     BtlObjVec color = { 128.0f, 128.0f, 128.0f, 128.0f };
     s32 ambient[4];
 
-    func_00243190(ambient);
+    BtlStage_GetAmbient(ambient);
     if (view->flags & BTL_OBJ_FLAG_COLOR_STAGE) {
         color.x = ambient[0];
         color.y = ambient[1];
@@ -890,8 +890,8 @@ void BtlObj_UpdateAll(void) {
         BtlObjVec color = { 10.0f, 10.0f, 40.0f, 64.0f };
         u8 *light;
 
-        func_002429E8(&dir);
-        light = func_00242CC8();
+        BtlStage_GetLightVecB(&dir);
+        light = BtlStage_GetLightColors();
         if (light != NULL) {
             Vec4_Set((Vec4 *)&color, light[8], light[9], light[10], light[11]);
         }

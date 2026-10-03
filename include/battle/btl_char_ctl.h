@@ -65,7 +65,7 @@ typedef struct BtlChangeQueue {
 /* Partial view of the roster (0x280 bytes). */
 typedef struct BtlCtlRoster {
     /* 0x000 */ u8 unk0[0x7C];
-    /* 0x07C */ s32 unk7C[4];   /* [2] (+0x84): path id for func_00241EC8; [3] (+0x88): point counter (BtlChar_PlaceOnPath) */
+    /* 0x07C */ s32 unk7C[4];   /* [2] (+0x84): path id for BtlStage_GetPath; [3] (+0x88): point counter (BtlChar_PlaceOnPath) */
     /* 0x08C */ u8 unk8C[0x138 - 0x8C];
     /* 0x138 */ BtlChangeQueue change;
     /* 0x278 */ u8 unk278[8];
@@ -139,7 +139,7 @@ typedef struct BtlCtlObj {
     /* 0x970 */ Vec4 outPos;   /* read back into the pose by BtlChar_ObjToPose */
     /* 0x980 */ u8 unk980[0xA20 - 0x980];
     /* 0xA20 */ f32 scale;     /* copy of fighter + 0x988 */
-    /* 0xA24 */ s32 area;      /* what func_0023FF78(-1, pos) returns for the position */
+    /* 0xA24 */ s32 area;      /* what BtlStage_FindZoneNear(-1, pos) returns for the position */
     /* 0xA28 */ u8 unkA28[0xC84 - 0xA28];
     /* 0xC84 */ f32 unkC84;
     /* 0xC88 */ u8 unkC88[0xCB4 - 0xC88];
@@ -203,7 +203,7 @@ typedef struct BtlCtlChr {
     /* 0x15D0 */ u8 unk15D0[0x1600 - 0x15D0];
 } BtlCtlChr; /* 0x1600 */
 
-/* A stage path as returned by func_00241EC8. */
+/* A stage path as returned by BtlStage_GetPath. */
 typedef struct BtlCtlPathPoint {
     /* 0x00 */ f32 x, y, z;
     /* 0x0C */ u8 unkC[0x30 - 0xC];

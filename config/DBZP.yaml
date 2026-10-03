@@ -90,6 +90,22 @@ options:
     - config/symbols/btl_capi_b.txt
     - config/symbols/btl_tech_a.txt
     - config/symbols/btl_tech_b.txt
+    - config/symbols/eft_a.txt
+    - config/symbols/eft_b.txt
+    - config/symbols/eft_c.txt
+    - config/symbols/eft_d.txt
+    - config/symbols/eft_e.txt
+    - config/symbols/eft_f.txt
+    - config/symbols/eft_g.txt
+    - config/symbols/eft_h.txt
+    - config/symbols/eft_i.txt
+    - config/symbols/eft_j.txt
+    - config/symbols/eft_k.txt
+    - config/symbols/eft_l.txt
+    - config/symbols/eft_m.txt
+    - config/symbols/stg_a.txt
+    - config/symbols/stg_b.txt
+    - config/symbols/stg_c.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

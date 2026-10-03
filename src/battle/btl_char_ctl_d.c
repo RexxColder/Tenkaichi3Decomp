@@ -11,8 +11,8 @@
  *
  * BtlChar_Place is the one function that teleports a fighter: pose, object, fighter camera eye and yaw, and
  * flags 0xCD, 0x24, 0x3F. Seven requests, each a fighter flag tested once per frame in this order by the
- * fighter manager, end in it: 0xF3 (start position, variant 1), 0xF4 (stage position of func_002428B8),
- * 0xF6 (the same plus stored offsets), 0xF8 (beside a point of a stage path), 0xF7 (the func_002428B8 position
+ * fighter manager, end in it: 0xF3 (start position, variant 1), 0xF4 (stage position of BtlStage_GetPlace),
+ * 0xF6 (the same plus stored offsets), 0xF8 (beside a point of a stage path), 0xF7 (the BtlStage_GetPlace position
  * raised), 0xF5 (the saved placement), 0xFC / 0xFD (warp position / rotation, only in actions 4 and 7..10).
  * None of them clears its flag here except 0xFC / 0xFD.
  *
@@ -60,11 +60,11 @@ extern f32 BtlCharApi_GetCenterHeight(s32 objId);
 extern f32 BtlCharApi_GetRadius(s32 objId);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlSuper_GetStagePlacement(BtlCtlChr *target, s32 arg1, s32 arg2, Vec4 *pos, Vec4 *rot);
-extern s32 func_0023FF78(s32 arg0, Vec4 *pos);
-extern f32 func_0023FEF8(void);
-extern BtlCtlPath *func_00241EC8(s32 arg0);
-extern s32 func_002427A0(s32 player, Vec4 *pos, Vec4 *rot, s32 restart);
-extern s32 func_002428B8(Vec4 *pos, Vec4 *rot);
+extern s32 BtlStage_FindZoneNear(s32 arg0, Vec4 *pos);
+extern f32 BtlStage_GetTop(void);
+extern BtlCtlPath *BtlStage_GetPath(s32 arg0);
+extern s32 BtlStage_GetStartPlace(s32 player, Vec4 *pos, Vec4 *rot, s32 restart);
+extern s32 BtlStage_GetPlace(Vec4 *pos, Vec4 *rot);
 extern void func_0024DD20(BtlCtlObj *obj);
 extern void func_0024E2B0(BtlCtlObj *obj);
 extern void func_0024E3F8(BtlCtlObj *obj);
@@ -186,7 +186,7 @@ void BtlChar_PlaceAtStart(BtlCtlChr *chr) {
     Vec4 pos;
     Vec4 rot;
 
-    BtlChar_Place(chr, &pos, &rot, func_002427A0(chr->player, &pos, &rot, 0));
+    BtlChar_Place(chr, &pos, &rot, BtlStage_GetStartPlace(chr->player, &pos, &rot, 0));
 }
 
 /* Flag 0xF3: places the fighter at its player's second start position. */
@@ -195,17 +195,17 @@ void BtlChar_PlaceRestart(BtlCtlChr *chr) {
     Vec4 rot;
 
     if (BtlChar_TestFlag(chr, 0xF3)) {
-        BtlChar_Place(chr, &pos, &rot, func_002427A0(chr->player, &pos, &rot, 1));
+        BtlChar_Place(chr, &pos, &rot, BtlStage_GetStartPlace(chr->player, &pos, &rot, 1));
     }
 }
 
-/* Flag 0xF4: places the fighter at the stage position func_002428B8 gives. */
+/* Flag 0xF4: places the fighter at the stage position BtlStage_GetPlace gives. */
 void BtlChar_PlaceCenter(BtlCtlChr *chr) {
     Vec4 pos;
     Vec4 rot;
 
     if (BtlChar_TestFlag(chr, 0xF4)) {
-        BtlChar_Place(chr, &pos, &rot, func_002428B8(&pos, &rot));
+        BtlChar_Place(chr, &pos, &rot, BtlStage_GetPlace(&pos, &rot));
     }
 }
 
@@ -215,7 +215,7 @@ void BtlChar_PlaceRelative(BtlCtlChr *chr) {
     Vec4 rot;
 
     if (BtlChar_TestFlag(chr, 0xF6)) {
-        s32 area = func_002428B8(&pos, &rot);
+        s32 area = BtlStage_GetPlace(&pos, &rot);
 
         Vec4_Add(&pos, &pos, &chr->relPos);
         Vec4_Add(&rot, &rot, &chr->relRot);
@@ -233,7 +233,7 @@ void BtlChar_PlaceOnPath(BtlCtlChr *chr) {
     s32 *work = gBtlChars->unk7C;
 
     if (BtlChar_TestFlag(chr, 0xF8)) {
-        BtlCtlPath *path = func_00241EC8(work[2]);
+        BtlCtlPath *path = BtlStage_GetPath(work[2]);
 
         if (path != NULL) {
             s32 index = work[3] % (path->count - path->first) + path->first;
@@ -271,19 +271,19 @@ void BtlChar_PlaceOnPath(BtlCtlChr *chr) {
                 Vec4_Add(&pos, &pos, &side);
                 rot.y = atan2f(-side.x, -side.z);
             }
-            BtlChar_Place(chr, &pos, &rot, func_0023FF78(-1, &pos));
+            BtlChar_Place(chr, &pos, &rot, BtlStage_FindZoneNear(-1, &pos));
         }
     }
 }
 
-/* Flag 0xF7: the func_002428B8 position at a height of func_0023FEF8() plus half the fighter's height. */
+/* Flag 0xF7: the BtlStage_GetPlace position at a height of BtlStage_GetTop() plus half the fighter's height. */
 void BtlChar_PlaceCenterHigh(BtlCtlChr *chr) {
     Vec4 pos;
     Vec4 rot;
 
     if (BtlChar_TestFlag(chr, 0xF7)) {
-        s32 area = func_002428B8(&pos, &rot);
-        f32 y = func_0023FEF8();
+        s32 area = BtlStage_GetPlace(&pos, &rot);
+        f32 y = BtlStage_GetTop();
 
         pos.y = y + BtlCharApi_GetHeight(chr->objId) * 0.5f;
         BtlChar_Place(chr, &pos, &rot, area);
@@ -330,7 +330,7 @@ void BtlChar_PlaceWarp(BtlCtlChr *chr) {
             BtlChar_ClearFlag(chr, 0xFC);
             changed = 1;
             Vec4_Copy(&pos, &chr->warpPos);
-            area = func_0023FF78(-1, &pos);
+            area = BtlStage_FindZoneNear(-1, &pos);
         }
         if (BtlChar_TestFlag(chr, 0xFD)) {
             BtlChar_ClearFlag(chr, 0xFD);
@@ -436,7 +436,7 @@ void BtlChar_SetSavedPlacement(BtlCtlChr *chr, Vec4 *pos, Vec4 *rot, Vec4 *unk13
     Vec4_Copy(&chr->savedPos, pos);
     Vec4_Copy(&chr->savedRot, rot);
     Vec4_Copy(&chr->unk1310, unk1310);
-    chr->savedArea = func_0023FF78(-1, pos);
+    chr->savedArea = BtlStage_FindZoneNear(-1, pos);
     chr->savedFlagF = flagF;
     chr->savedFlagE = flagE;
 }

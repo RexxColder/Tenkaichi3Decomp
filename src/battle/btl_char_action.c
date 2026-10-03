@@ -139,8 +139,8 @@ extern s32 BtlParam_GetDashSound(BtlActChr *chr);
 extern s32 BtlParam_GetChargeLoopSound(BtlActChr *chr);
 extern s32 BtlParam_GetMaxPowerSound(BtlActChr *chr);
 extern f32 BtlMoveParam_GetSpeed(BtlActChr *chr, s32 arg);
-extern f32 func_0023FEF8(void);
-extern f32 func_0023FF38(void);
+extern f32 BtlStage_GetTop(void);
+extern f32 BtlStage_GetBottom(void);
 extern s32 func_0024D610(void *obj, s32 a, s32 b, s32 c);
 extern void func_002500E8(void *obj, s32 a, s32 b);
 extern void func_00250B88(void *obj, Vec4 *v, f32 arg);
@@ -290,8 +290,8 @@ f32 BtlAct_GetHeightRatio(BtlActChr *chr) {
     f32 y;
 
     half = BtlCharApi_GetHeight(chr->objId);
-    top = func_0023FEF8() + half * 0.5f;
-    bottom = func_0023FF38() + half * 0.5f;
+    top = BtlStage_GetTop() + half * 0.5f;
+    bottom = BtlStage_GetBottom() + half * 0.5f;
     ground = BtlAct_GetGroundY(chr);
     pose = BtlChar_GetPos(chr);
     y = pose->pos.y;

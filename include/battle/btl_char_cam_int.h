@@ -69,8 +69,8 @@ extern s32 BtlInput_TestAction(ChrCamChr *chr, s32 action, s32 arg);  /* action 
 extern f32 BtlCharApi_GetHeight(s32 objId);                            /* body scale, obj + 0xFF4 (10 when no object) */
 extern f32 BtlCharApi_GetBodyUnk1000(s32 objId);                            /* obj + 0x1000 (5 when no object) */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);      /* world position of a model node (obj + 0x970 when the node is missing) */
-extern f32 func_0023FE70(void);                                 /* stage: first float of the stage's limit block (horizontal radius, inferred) */
-extern f32 func_0023FF38(void);                                 /* stage: third float of the same block (a height, inferred) */
+extern f32 BtlStage_GetRadius(void);                                 /* stage: first float of the stage's limit block (horizontal radius, inferred) */
+extern f32 BtlStage_GetBottom(void);                                 /* stage: third float of the same block (a height, inferred) */
 extern s32 Battle_IsSplitScreen(void);
 
 #define PI 3.14159265f

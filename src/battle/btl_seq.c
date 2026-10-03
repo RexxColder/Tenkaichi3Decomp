@@ -565,8 +565,8 @@ extern s32 DemoCam_PlayStageAnim(s32 cut);          /* stage camera cut */
 extern s32 DemoCam_IsActive(void);             /* camera cut still playing */
 extern s32 DemoCam_IsInUse(void);
 extern void DemoCam_Stop(void);            /* stop the camera cut */
-extern void func_00244870(void);
-extern void func_00244830(s32 a, f32 seconds);
+extern void ScrXfade_RequestCapture(void);
+extern void ScrXfade_Start(s32 a, f32 seconds);
 extern s32 BtlScript_IsEventRunning(void);
 extern void BtlScript_AbortEvents(void);
 extern u8 *BtlScript_GetCurrentEvent(void);
@@ -896,12 +896,12 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
     case 1:
         if (BtlCtrl_IsPoseReached(ctx->side[0])) {
             if (Voice_IsStopped(ctx->side[0])) {
-                func_00244870();
-                func_00244830(1, 1.0f);
+                ScrXfade_RequestCapture();
+                ScrXfade_Start(1, 1.0f);
                 ctx->step++;
             } else if (Ramp_Step(&ctx->timer)) {
-                func_00244870();
-                func_00244830(1, 1.0f);
+                ScrXfade_RequestCapture();
+                ScrXfade_Start(1, 1.0f);
                 ctx->step++;
             }
         }
@@ -910,8 +910,8 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
     case 3:
         if (BtlCtrl_IsPoseReached(ctx->side[1])) {
             if (Voice_IsStopped(ctx->side[1]) || Ramp_Step(&ctx->timer)) {
-                func_00244870();
-                func_00244830(1, 1.0f);
+                ScrXfade_RequestCapture();
+                ScrXfade_Start(1, 1.0f);
                 ctx->step++;
             }
         }
@@ -920,8 +920,8 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
         return 2;
     case 99:
         if (ctx->skip) {
-            func_00244870();
-            func_00244830(1, 1.0f);
+            ScrXfade_RequestCapture();
+            ScrXfade_Start(1, 1.0f);
             goto done;
         }
         break;
@@ -929,8 +929,8 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
     if (ctx->poll != NULL) {
         if (ctx->poll()) {
             if (ctx->step != 4) {
-                func_00244870();
-                func_00244830(1, 1.0f);
+                ScrXfade_RequestCapture();
+                ScrXfade_Start(1, 1.0f);
                 if (BtlScript_IsEventRunning()) {
                     BtlScript_AbortEvents();
                 }
@@ -1014,8 +1014,8 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
 /* State 5 enter: prepares the winner scene and hides HUD parts; mode 1 can be told to wait for the skip instead. */
 s32 BtlSeqWinTalk_Enter(BtlSeqTalkCtx *ctx) {
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
-    func_00244870();
-    func_00244830(1, 1.0f);
+    ScrXfade_RequestCapture();
+    ScrXfade_Start(1, 1.0f);
     if (Battle_GetMode() == 1) {
         if (*BtlScript_GetCurrentEvent() & 0x10) {
             ctx->skip = 0;
@@ -1157,8 +1157,8 @@ s32 BtlSeqStageIntro_Update(BtlSeqWaitCtx *ctx) {
     case 2:
     case 3:
         if (!DemoCam_IsActive()) {
-            func_00244870();
-            func_00244830(1, 1.0f);
+            ScrXfade_RequestCapture();
+            ScrXfade_Start(1, 1.0f);
             ctx->step++;
         }
         break;
@@ -1185,8 +1185,8 @@ s32 BtlSeqStageIntro_Exit(BtlSeqWaitCtx *ctx) {
     if (DemoCam_IsActive()) {
         DemoCam_Stop();
     }
-    func_00244870();
-    func_00244830(1, 1.0f);
+    ScrXfade_RequestCapture();
+    ScrXfade_Start(1, 1.0f);
     return 1;
 }
 

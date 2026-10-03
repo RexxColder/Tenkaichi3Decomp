@@ -53,7 +53,7 @@ extern f32 BtlSuper_GetShotUnk6C(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTime(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotSpeed(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
-extern void func_0014AB90(BtlMemberAuraReq *req);
+extern void EftShot_Request(BtlMemberAuraReq *req);
 extern void func_001A0D78(BtlMemberFx0Req *req);
 extern void func_001A0DD8(void);
 extern void func_001A0E10(void);
@@ -193,7 +193,7 @@ void BtlChar_SpawnFxBits3C(BtlMemberChr *chr) {
             req.unk18 = BtlSuper_GetShotTurnRate(chr, kind);
             break;
         }
-        func_0014AB90(&req);
+        EftShot_Request(&req);
     }
 }
 
@@ -514,7 +514,7 @@ extern s32 BtlKiBlast_GetType(FxChr *chr);
 extern s32 BtlKiBlast_GetUnk3(FxChr *chr);
 extern void func_002500E8(FxObj *obj, s32 bit, s32 on);
 extern s32 func_00250828(s32 kind);
-extern void func_0015EF18(s32 objId);
+extern void EftSpdLine_SpawnBodyTrails(s32 objId);
 extern void func_00165180(s32 objId, f32 level);
 extern void func_00165418(s32 objId, s32 cmd);
 extern void func_0016D0B8(FxHitArg *arg, s32 kind);
@@ -528,12 +528,12 @@ extern void func_0017D710(FxLineArg *arg);
 extern void func_00180A00(s32 objId, s32 kind);
 #define func_00187B00 ((void (*)(FxPosArg *arg))func_00187B00)
 extern void func_001A6FD0(s32 *arg);
-extern void func_00248D20(s32 view, s32 mode);
-extern void func_00248D78(s32 view, Vec4 *pos, s32 arg);
-extern void func_00248DC8(s32 view, s32 r, s32 g, s32 b, s32 a);
-extern void func_00248E20(s32 view, s32 r, s32 g, s32 b, s32 a);
-extern void func_00248E78(s32 view, s32 r, s32 g, s32 b, s32 a);
-extern void func_00248ED0(s32 view, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetPasses(s32 view, s32 mode);
+extern void StgBlur_SetCenter(s32 view, Vec4 *pos, s32 arg);
+extern void StgBlur_SetColor0Rgba(s32 view, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor1Rgba(s32 view, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor2Rgba(s32 view, s32 r, s32 g, s32 b, s32 a);
+extern void StgBlur_SetColor3Rgba(s32 view, s32 r, s32 g, s32 b, s32 a);
 
 /* Request 0x20: effect 0xE between model part 0x2E and the fighter, with sound 0x46. */
 void BtlFx_SpawnFlashReq20(FxChr *chr) {
@@ -726,13 +726,13 @@ void BtlFx_UpdateScreenFilter(FxChr *chr) {
     a = chr->filter * 8.0f;
     b = chr->filter * 32.0f;
     c = chr->filter * 128.0f;
-    func_00248D20(chr->side, 3);
-    func_00248ED0(chr->side, 0x80, 0x80, 0x80, 0x40);
-    func_00248DC8(chr->side, 0x80, 0x80, 0x80, a);
-    func_00248E20(chr->side, 0x80, 0x80, 0x80, b);
-    func_00248E78(chr->side, 0x80, 0x80, 0x80, c);
+    StgBlur_SetPasses(chr->side, 3);
+    StgBlur_SetColor3Rgba(chr->side, 0x80, 0x80, 0x80, 0x40);
+    StgBlur_SetColor0Rgba(chr->side, 0x80, 0x80, 0x80, a);
+    StgBlur_SetColor1Rgba(chr->side, 0x80, 0x80, 0x80, b);
+    StgBlur_SetColor2Rgba(chr->side, 0x80, 0x80, 0x80, c);
     if (BtlChar_TestFxBit(chr, 9)) {
-        func_00248D78(chr->side, &BtlChar_GetPos(chr)->unk80, 0);
+        StgBlur_SetCenter(chr->side, &BtlChar_GetPos(chr)->unk80, 0);
     }
 }
 
@@ -760,7 +760,7 @@ void BtlFx_SpawnFastMoveFx(FxChr *chr) {
         pose = BtlChar_GetPos(chr);
         if (pose->unk98 > 0.01f) {
             if (Vec3_Length(&pose->vel) / pose->unk98 > 0.5f) {
-                func_0015EF18(chr->objId);
+                EftSpdLine_SpawnBodyTrails(chr->objId);
             }
         }
     }
@@ -850,14 +850,14 @@ extern f32 BtlAtk_GetLaunchAngleAOf(FxChr *chr, s32 param);
 extern f32 BtlAtk_GetLaunchAngleBOf(FxChr *chr, s32 param);
 extern s32 BtlKiBlast_GetType(FxChr *chr);
 extern s32 BtlKiBlast_GetUnk3(FxChr *chr);
-extern s32 func_00242668(f32 *height);
+extern s32 BtlStage_GetWaterLevel(f32 *height);
 extern s32 func_00250828(s32 kind);
-extern void func_001333C8(s32 objId);
-extern void func_00140358(s32 objId, s32 off);
-extern void func_00140478(s32 objId, Vec4 *pos, s32 arg, f32 speed);
-extern void func_0015EDF0(FxArg2 *arg);
-extern void func_0015EE78(s32 objId);
-extern void func_0015EEC0(FxArg2 *arg);
+extern void EftBubble_StartBurst(s32 objId);
+extern void EftWater_SetWake(s32 objId, s32 off);
+extern void EftWater_AddSplashFor(s32 objId, Vec4 *pos, s32 arg, f32 speed);
+extern void EftAbsorb_Start(FxArg2 *arg);
+extern void EftAbsorb_Stop(s32 objId);
+extern void EftAbsorb_StartHands(FxArg2 *arg);
 extern void func_0016B418(FxArg3 *arg);
 extern void func_0016B4A0(s32 objId);
 extern void func_00171C78(FxDirArg *arg);
@@ -973,7 +973,7 @@ void BtlFx_UpdateGroundFx(FxChr *chr) {
     if (BtlChar_TestFxBit(chr, 0x35)) {
         water = 0.0f;
         under = 0;
-        if (func_00242668(&water)) {
+        if (BtlStage_GetWaterLevel(&water)) {
             if (BtlChar_GetPos(chr)->unkB0.y > water) {
                 under = 1;
             }
@@ -1005,19 +1005,19 @@ void BtlFx_UpdateWaterFx(FxChr *chr) {
 
     if (BtlChar_TestFlag(chr, 0x11) != BtlChar_TestPrevFlag(chr, 0x11)) {
         if (!BtlChar_TestFlag(chr, 0x24)) {
-            if (func_00242668(&water)) {
+            if (BtlStage_GetWaterLevel(&water)) {
                 pos.x = pose->pos.x;
                 pos.y = water;
                 pos.z = pose->pos.z;
                 pos.w = 1.0f;
-                func_00140478(chr->objId, &pos, 0, BtlChar_GetPos(chr)->vel.y);
+                EftWater_AddSplashFor(chr->objId, &pos, 0, BtlChar_GetPos(chr)->vel.y);
                 if (BtlChar_TestFlag(chr, 0x11)) {
                     BtlCharSnd_PlayCommon(chr, 0x3A);
                 } else {
                     BtlCharSnd_PlayCommon(chr, 0x3B);
                 }
                 if (BtlChar_TestFlag(chr, 0x11)) {
-                    func_001333C8(chr->objId);
+                    EftBubble_StartBurst(chr->objId);
                 }
             }
         }
@@ -1028,10 +1028,10 @@ void BtlFx_UpdateWaterFx(FxChr *chr) {
         }
     }
     if (BtlChar_IsFxBitNew(chr, 0x19)) {
-        func_00140358(chr->objId, 0);
+        EftWater_SetWake(chr->objId, 0);
     }
     if (BtlChar_IsFxBitEnded(chr, 0x19)) {
-        func_00140358(chr->objId, 1);
+        EftWater_SetWake(chr->objId, 1);
     }
 }
 
@@ -1083,10 +1083,10 @@ void BtlFx_UpdateReq38(FxChr *chr) {
     if (BtlChar_IsFxBitNew(chr, 0x38)) {
         arg.objId = chr->objId;
         arg.scale = 1.0f;
-        func_0015EDF0(&arg);
+        EftAbsorb_Start(&arg);
     }
     if (BtlChar_IsFxBitEnded(chr, 0x38)) {
-        func_0015EE78(chr->objId);
+        EftAbsorb_Stop(chr->objId);
     }
 }
 
@@ -1097,7 +1097,7 @@ void BtlFx_SpawnReq37(FxChr *chr) {
     if (BtlChar_TestFxBit(chr, 0x37)) {
         arg.objId = chr->objId;
         arg.scale = 1.0f;
-        func_0015EEC0(&arg);
+        EftAbsorb_StartHands(&arg);
     }
 }
 

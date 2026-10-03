@@ -79,8 +79,8 @@ extern s32 BtlParam_GetFlags(BtlCollChr *chr);            /* parameter word +0x1
 extern s32 BtlParam_GetUnk2(BtlCollChr *chr);
 extern f32 BtlParam_GetUnkC7Scale(BtlCollChr *chr);
 extern s32 func_0024D610(BtlCollObj *obj, s32 arg1, s32 arg2, s32 arg3);
-extern s32 func_00242668(f32 *height);
-extern s32 func_0012E750(BtlCollHit *hit);
+extern s32 BtlStage_GetWaterLevel(f32 *height);
+extern s32 EftHit_GetHitCount(BtlCollHit *hit);
 
 /* Blast parameter readers (hit record). */
 extern s32 BtlKiBlast_GetFlagsOfHit(BtlCollHit *hit);            /* blast flag word */
@@ -1143,7 +1143,7 @@ s32 BtlColl_TryDodge(s32 objId, BtlCollHit *hit) {
     if (!BtlChar_IsFree(chr)) {
         return 0;
     }
-    if (!(BtlAnim_GetFlags(BtlAnim_GetId(chr)) & 0xB1) || func_0012E750(hit)) {
+    if (!(BtlAnim_GetFlags(BtlAnim_GetId(chr)) & 0xB1) || EftHit_GetHitCount(hit)) {
         return 0;
     }
     if (canDodge) {
@@ -1626,7 +1626,7 @@ void BtlColl_UpdateGround(BtlCollChr *chr) {
     }
     BtlChar_ClearFlag(chr, 0x11);
     BtlChar_ClearFlag(chr, 0x12);
-    if (func_00242668(&water)) {
+    if (BtlStage_GetWaterLevel(&water)) {
         if (water < g->pos.y) {
             size = BtlCharApi_GetHeight(chr->objId);
             if (water < pose->pos.y - size * 0.5f) {

@@ -49,7 +49,7 @@ extern s32 func_0024D518(s32 bits);
 extern s32 func_0024D610(FxObj *obj, s32 a, s32 b, s32 c);
 extern void func_00250940(FxObj *obj, s32 part, Vec4 *out);
 extern void Mtx_MulVec4(Vec4 *out, void *mtx, Vec4 *in);
-extern void func_0015F3D8(s32 objId, Vec4 *pos, s32 part);
+extern void EftSpdLine_SpawnPartStreaks(s32 objId, Vec4 *pos, s32 part);
 extern s32 BtlChar_FrameMod(s32 n);
 extern void BtlChar_Vibrate(FxChr *chr, f32 power, f32 seconds);
 extern void BtlChar_SetHeldFlag(FxChr *chr, s32 flag);
@@ -70,7 +70,7 @@ extern void func_00250D38(FxObj *obj);
 extern void func_002500B0(FxObj *obj, FxObj *owner);
 extern void func_00250B88(FxObj *obj, Vec4 *v, f32 arg);
 extern void func_00250C38(FxObj *obj, f32 a, f32 b);
-extern void func_00247AF8(s32 a, s32 b, f32 time);
+extern void StgTint_Start(s32 a, s32 b, f32 time);
 extern void BtlChar_SpawnFxBits3C(FxChr *chr);
 extern void BtlChar_SpawnFxBits0(FxChr *chr);
 extern void BtlChar_SpawnHitFx(FxChr *chr);
@@ -226,7 +226,7 @@ void BtlFx_SpawnPartFxEvent8(FxChr *chr) {
                 func_00250940(obj, part, &pos);
                 pos.w = 0.0f;
                 Mtx_MulVec4(&pos, obj->mtx, &pos);
-                func_0015F3D8(chr->objId, &pos, part);
+                EftSpdLine_SpawnPartStreaks(chr->objId, &pos, part);
             }
         }
     }
@@ -546,10 +546,10 @@ void BtlFx_UpdateStageFx(void) {
         prev |= BtlChar_TestPrevFxBit(chr, 0x12);
     }
     if (now && !prev) {
-        func_00247AF8(0, 0, 0.2f);
+        StgTint_Start(0, 0, 0.2f);
     }
     if (!now && prev) {
-        func_00247AF8(0, 1, 0.2f);
+        StgTint_Start(0, 1, 0.2f);
     }
 }
 

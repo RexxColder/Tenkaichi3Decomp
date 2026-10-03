@@ -29,7 +29,7 @@ s32 BtlAct_Throw(BtlActHChr *chr, s32 phase) {
             ChrCam_RequestCut(chr, 0, BtlChar_FrameMod(2) ? 7 : 8);
         }
         if (__builtin_fabsf(BtlAtk_GetLaunchAngleA(chr)) < BTL_DEG(90.0f)) {
-            radius = func_0023FEB0();
+            radius = BtlStage_GetInnerRadius();
             dist = BtlUtil_LengthXZ(&BtlChar_GetPos(chr)->pos);
             if (radius - 200.0f < dist) {
                 BtlMove_TurnYaw(chr, alt ? 8 : 7, BTL_DEG(180.0f));
@@ -146,7 +146,7 @@ s32 BtlAct_Thrown(BtlActHChr *chr, s32 phase) {
  * 0xBB: slam throw, the thrower. Animation 0x96, then the loop 0x99 while diving at 1500 km/h (+Y is down) with the
  * victim, then 0x98. The loop ends (decide phase) on flag 0xF (on the ground) or 0x16 (stage bound), when the opponent
  * is no longer in 0xBC, on flag 0x17 on stages 4 / 27, on the 91st loop frame, or from the 11th on when a stage level
- * (func_00242668) is less than three body heights below; only characters with parameter flag 0x400 test that level.
+ * (BtlStage_GetWaterLevel) is less than three body heights below; only characters with parameter flag 0x400 test that level.
  * Void in the original (the delay slot of the last switch only matches that way).
  */
 void BtlAct_SlamThrow(BtlActHChr *chr, s32 phase) {
@@ -227,7 +227,7 @@ void BtlAct_SlamThrow(BtlActHChr *chr, s32 phase) {
                     end = 1;
                 }
                 if (BtlParam_GetFlags(chr) & 0x400) {
-                    if (func_00242668(&top)) {
+                    if (BtlStage_GetWaterLevel(&top)) {
                         room = top - BtlChar_GetPos(chr)->pos.y;
                         if (room < BtlCharApi_GetHeight(chr->objId) * 3.0f) {
                             end = 1;
@@ -546,9 +546,9 @@ void BtlActSwitch_SaveEntryPlacement(BtlActHChr *chr) {
     f32 t;
     f32 len;
 
-    func_002427A0(chr->player, &own, &dir, 0);
-    func_002427A0(BtlOpp_GetPlayer(chr), &opp, &dir, 0);
-    limit = func_0023FEF8();
+    BtlStage_GetStartPlace(chr->player, &own, &dir, 0);
+    BtlStage_GetStartPlace(BtlOpp_GetPlayer(chr), &opp, &dir, 0);
+    limit = BtlStage_GetTop();
     dir.x = own.x - opp.x;
     dir.z = own.z - opp.z;
     t = -Mathf_Tan(BTL_DEG(40.0f));
@@ -570,7 +570,7 @@ void BtlActSwitch_SaveEntryPlacement(BtlActHChr *chr) {
     rot.x = 0.0f;
     rot.y = atan2f(dir.x, dir.z);
     rot.z = 0.0f;
-    t = func_0023FEB0() - BtlCharApi_GetRadius(chr->objId);
+    t = BtlStage_GetInnerRadius() - BtlCharApi_GetRadius(chr->objId);
     len = sqrtf(pos.x * pos.x + pos.z * pos.z);
     if (t < len) {
         t /= len;
@@ -592,7 +592,7 @@ s32 BtlActSwitch_SetLeaveCut(BtlActHChr *chr) {
     s32 onFighter;
 
     onFighter = 1;
-    if (func_0023FF38() < pose->pos.y) {
+    if (BtlStage_GetBottom() < pose->pos.y) {
         onFighter = 0;
         hidden = 1;
     }
@@ -605,7 +605,7 @@ s32 BtlActSwitch_SetLeaveCut(BtlActHChr *chr) {
                       BTL_DEG(90.0f), -0.9f, -0.4f, BtlCharApi_GetHeight(chr->objId) * 1.5f, BtlCharApi_GetHeight(chr->objId) * 0.5f,
                       3, 3, 3, 0x3C, 0xC5);
     } else {
-        func_002428B8(&pos, &rot);
+        BtlStage_GetPlace(&pos, &rot);
         pos.y -= 5.0f;
         ChrCam_SetCut(chr, &pos, &D_002EC2A0, &pos, &D_002EC2A0, &pos, &D_002EC2A0, -1, 0.0f, BTL_DEG(-45.0f), -0.2f,
                       0.0f, 100.0f, 0.0f, -1, -1, -1, 0x3C, 0xC5);
@@ -620,7 +620,7 @@ void BtlActSwitch_SetEnterCut(BtlActHChr *chr) {
     Vec4 a;
     Vec4 b;
 
-    func_002427A0(chr->player, &pos, &rot, 0);
+    BtlStage_GetStartPlace(chr->player, &pos, &rot, 0);
     a.x = pos.x;
     a.y = pos.y - BtlCharApi_GetHeight(chr->objId) * 0.3f;
     a.z = pos.z;
@@ -1411,7 +1411,7 @@ extern s32 BtlChange_IsLoadedFor(s32 player);
 extern void BtlChange_SetReady(s32 player);
 extern void BtlChange_SetDone(s32 player);
 extern s32 BtlChars_IsTimeStopped(void);
-extern void func_002427A0(s32 player, Vec4 *pos, Vec4 *rot, s32 arg3); /* start placement of a player (stage side) */
+extern void BtlStage_GetStartPlace(s32 player, Vec4 *pos, Vec4 *rot, s32 arg3); /* start placement of a player (stage side) */
 extern void func_002500E8(BtlActIObj *obj, s32 arg1, s32 arg2);        /* battle object: called for object flag 0x40000 */
 
 /* Gauges and stat modifiers. */
@@ -1625,7 +1625,7 @@ s32 BtlAct_KoSwitchFlyIn(BtlActIChr *chr, s32 phase) {
 
     if (phase == 0) {
         BtlAnim_Play(chr, 0x19, 0.0f);
-        func_002427A0(chr->player, &pos, &rot, 0);
+        BtlStage_GetStartPlace(chr->player, &pos, &rot, 0);
         BtlMove_TurnToPoint(chr, &pos, 3.14159265f, 3.14159265f);
         BtlMove_TurnModelYaw(chr, 3.14159265f, 1.0f);
         BtlCharSnd_PlayCommon(chr, BtlParam_GetDashSound(chr));

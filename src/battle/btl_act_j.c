@@ -16,7 +16,7 @@
 extern s32 Battle_GetMode(void);
 extern s32 BattleSide_IsCharaUsable(s32 side, s32 chara);
 extern void BtlEvent_Raise(s32 player, s32 event);
-extern s32 func_00243160(void); /* the stage's flag word has bit 0x10 */
+extern s32 BtlStage_HasMoon(void); /* the stage's flag word has bit 0x10 */
 
 extern f32 BtlUtil_WrapAngle(f32 a);
 extern BtlActJPose *BtlChar_GetPos(BtlActJChr *chr);
@@ -220,7 +220,7 @@ s32 BtlAct_CanTransform(BtlActJChr *chr, u32 index, s32 needBlast, s32 needAllow
     if (!BattleSide_IsCharaUsable(chr->player, chara)) {
         return 0;
     }
-    if (kind == 3 && !func_00243160()) {
+    if (kind == 3 && !BtlStage_HasMoon()) {
         return 0;
     }
     if (needBlast && !BtlMember_HasBlast(chr, cost)) {

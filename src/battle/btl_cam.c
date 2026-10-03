@@ -40,7 +40,7 @@ extern void BtlCharApi_GetCamPose(s32 objId, Vec4 *pos, Vec4 *rot); /* the fight
 extern s32 BtlCharApi_HasCamPriority(s32 objId);                /* the fighter camera's priority */
 extern s32 BtlCharApi_GetMgrUnk134(void);
 extern s32 func_001B1A38(s32 obj, void *seg, Vec4 *hitPos, f32 *frac, void *unk);
-extern s32 func_0023FF78(s32 arg0, Vec4 *pos);
+extern s32 BtlStage_FindZoneNear(s32 arg0, Vec4 *pos);
 extern s32 D_002FF280[2];
 
 extern View gDbgCamView;
@@ -365,8 +365,8 @@ s32 BtlCam_TraceStage(Vec4 *out, Vec4 *from, Vec4 *to, f32 *frac, s32 *hitObj) {
     }
     Vec4_Copy(&a, to);
     Vec4_Copy(&b, from);
-    objA = func_0023FF78(-1, &a);
-    objB = func_0023FF78(-1, &b);
+    objA = BtlStage_FindZoneNear(-1, &a);
+    objB = BtlStage_FindZoneNear(-1, &b);
     Vec4_Copy(&seg.a, &a);
     Vec4_Copy(&seg.b, &b);
     seg.radius = 2.0f;

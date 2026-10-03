@@ -152,7 +152,7 @@ void ChrCam_CalcLockOn(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
 
     scale = BtlCharApi_GetHeight(chr->objId);
     Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
-    floorY = func_0023FF38() + scale * 0.5f;
+    floorY = BtlStage_GetBottom() + scale * 0.5f;
     if (floorY < pos.y) {
         pos.y = floorY;
     }
@@ -501,7 +501,7 @@ shake:
     CamShake_Calc(&cam->shake, &shakePos, &shakeRot);
     Vec4_Add(&eye, &eye, &shakePos);
     CamShake_Tick(&cam->shake);
-    limit = func_0023FE70();
+    limit = BtlStage_GetRadius();
     len = BtlUtil_LengthXZ(&eye);
     if (limit < len) {
         f32 k = limit / len;

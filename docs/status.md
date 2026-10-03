@@ -5,8 +5,8 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last build verified byte-identical: the first wave of the effect and stage batch linked (47.79% of the
-  main executable's game code in C; 110 C files linked; 3855 functions diff clean; DBZP 0%). Left
+- Last build verified byte-identical: the commit "Link the first effects wave and the stage"
+  (47.79% of the main executable's game code in C; 110 C files linked; 3855 functions diff clean).
   uncommitted by the integrator: commit after checking.
 - Check at any time: `.venv/bin/python configure.py && ninja`, then
   `cmp build/SLUS_216.78.rom disc/SLUS_216.78.rom` and `cmp build/DBZP.BIN disc/BIN/DBZP.BIN`,

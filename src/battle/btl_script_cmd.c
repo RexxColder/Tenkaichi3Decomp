@@ -36,7 +36,7 @@ extern void BtlFacade_StartCharMoveF(s32 side, s32 type, f32 value, s32 mode) __
 /* the text module's default window (0x23AC50, not decompiled) */
 extern BtlScriptCmdWindow *func_0023AC50(void);
 /* start position and direction of a side (0x2427A0, stage code, not decompiled) */
-extern void func_002427A0(s32 side, Vec4 *pos, Vec4 *rot, s32 arg);
+extern void BtlStage_GetStartPlace(s32 side, Vec4 *pos, Vec4 *rot, s32 arg);
 /* called with a second argument (0) that BtlFacade_SetCpuParam8 does not take */
 extern void BtlFacade_SetCpuParam8Ex(s32 value, s32 unused) __asm__("BtlFacade_SetCpuParam8");
 
@@ -764,8 +764,8 @@ s32 BtlScriptCmd_BeginScene(u32 phase, void *taskWork) {
             BtlFacade_BeginInterrupt();
             BtlScene_Reset(BTL_SCENE_RESET_CHAR0);
             BtlScene_Reset(BTL_SCENE_RESET_CHAR1);
-            func_002427A0(0, &pos0, &rot0, 0);
-            func_002427A0(1, &pos1, &rot1, 0);
+            BtlStage_GetStartPlace(0, &pos0, &rot0, 0);
+            BtlStage_GetStartPlace(1, &pos1, &rot1, 0);
             BtlFacade_SetCharPos(0, &pos0);
             BtlFacade_SetCharRot(0, &rot0);
             BtlFacade_SetCharPos(1, &pos1);
@@ -774,8 +774,8 @@ s32 BtlScriptCmd_BeginScene(u32 phase, void *taskWork) {
             BtlFacade_StartCharMoveF(1, 0, 0.0f, 1);
         }
         if (work->cur.event == NULL) {
-            func_002427A0(0, &pos0, &rot0, 0);
-            func_002427A0(1, &pos1, &rot1, 0);
+            BtlStage_GetStartPlace(0, &pos0, &rot0, 0);
+            BtlStage_GetStartPlace(1, &pos1, &rot1, 0);
             BtlFacade_SetCharPos(0, &pos0);
             BtlFacade_SetCharRot(0, &rot0);
             BtlFacade_SetCharPos(1, &pos1);

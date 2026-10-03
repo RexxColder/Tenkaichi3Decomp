@@ -29,13 +29,13 @@
  *               0x2FEB10 holding two 0x520-byte entries (one per side)
  *               func_001B3670 init / func_001B35B8 term: 0x14-byte manager at gp 0x2FEB0C with two 0xC00 buffers
  *               func_001AF9C0      four sub-updates (0x1AF8D8, 0x1B0910, 0x1B10F0, 0x1B0030), skipped when paused
- *   stage       func_00115170 binds the stage data from gCommonRes->0x24; func_0023FC40 reset,
- *               func_0023FCD8 term (state at gp 0x2FEBE0); func_00115950(view) and func_00115DE0(view)
+ *   stage       func_00115170 binds the stage data from gCommonRes->0x24; BtlStage_Reset reset,
+ *               BtlStage_Term term (state at gp 0x2FEBE0); func_00115950(view) and func_00115DE0(view)
  *               draw the stage for one view (skipped under BATTLE_FLAG_LOADING)
- *               func_00243568      per-frame update of the 0x24xxxx stage-side systems (skipped when LOADING)
- *   effects     func_00247468 init / func_00247500 term / func_002473D8 reset of a group of a dozen
+ *               BtlStage_Update      per-frame update of the 0x24xxxx stage-side systems (skipped when LOADING)
+ *   effects     StgFx_Init init / StgFx_Term term / StgFx_Reset reset of a group of a dozen
  *               subsystems (0x105F30..0x109848 and 0x244000..0x248000), enable word at gp 0x2FF208;
- *               func_00247578, func_00247660, func_00247688, func_002476D8 are its four draw passes
+ *               StgFx_DrawPre, StgFx_DrawNop, StgFx_DrawPost, StgFx_DrawOverlay are its four draw passes
  *   objects     BtlObj_UpdateAll per-frame update of the object list (lighting colour, list walk);
  *               BtlObj_UpdateVisibility(view) builds the visibility data of every listed object for one view;
  *               BtlObj_FinishVisibility(split) finishes it for 1 (split == 0) or 2 views
@@ -117,16 +117,16 @@ extern void BtlChars_PostScene(void);
 extern void BtlChars_EndFrame(void);
 extern void func_0023A2B8(void);
 extern void func_0023D1E0(void);
-extern void func_0023FC40(void);
-extern void func_0023FCD8(void);
-extern void func_00243568(void);
-extern void func_002473D8(void);
-extern void func_00247468(void);
-extern void func_00247500(void);
-extern void func_00247578(void);
-extern void func_00247660(void);
-extern void func_00247688(void);
-extern void func_002476D8(void);
+extern void BtlStage_Reset(void);
+extern void BtlStage_Term(void);
+extern void BtlStage_Update(void);
+extern void StgFx_Reset(void);
+extern void StgFx_Init(void);
+extern void StgFx_Term(void);
+extern void StgFx_DrawPre(void);
+extern void StgFx_DrawNop(void);
+extern void StgFx_DrawPost(void);
+extern void StgFx_DrawOverlay(void);
 extern void BtlObj_UpdateAll(void);
 extern void BtlObj_UpdateVisibility(s32 view);
 extern void BtlObj_FinishVisibility(s32 split);
@@ -137,9 +137,9 @@ s32 Battle_Restart(void) {
     Snd_StopBankAndResume(0x3C);
     Battle_ResetWork();
     BtlScene_Reset(0);
-    func_002473D8();
+    StgFx_Reset();
     BtlGame_Reset();
-    func_0023FC40();
+    BtlStage_Reset();
     BtlChar_ResetAll();
     Fade_ResetAll();
     Fade_Start(0, 1, 1.0f);
@@ -149,7 +149,7 @@ s32 Battle_Restart(void) {
 /* Loads the battle data, creates every battle subsystem, then starts the first match. */
 s32 Battle_Init(void) {
     Battle_Load();
-    func_00247468();
+    StgFx_Init();
     func_00115170();
     BtlChar_AllocAll(2);
     BtlAiMgr_Init();
@@ -170,8 +170,8 @@ s32 Battle_Term(void) {
     BtlCam_Term();
     BtlScene_Term();
     Ot_Term();
-    func_00247500();
-    func_0023FCD8();
+    StgFx_Term();
+    BtlStage_Term();
     BtlAiMgr_Term();
     func_001B35B8();
     BtlGame_Term();
@@ -196,7 +196,7 @@ s32 Battle_Update(void) {
     BtlScene_CheckStageChange();
     BtlLoad_PollCharaRequest();
     BtlLoad_PollObjectRequest();
-    func_00243568();
+    BtlStage_Update();
     BtlCam_SelectView(0);
     BtlCam_UpdateView(0);
     BtlCam_SelectView(1);
@@ -231,7 +231,7 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x80FF4040);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
-    func_00247578();
+    StgFx_DrawPre();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(2);
@@ -239,7 +239,7 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x8040FF40);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
-    func_00247660();
+    StgFx_DrawNop();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(4);
@@ -249,7 +249,7 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x804040FF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
-    func_00247688();
+    StgFx_DrawPost();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(0);
@@ -262,7 +262,7 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x80FF40FF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
-    func_002476D8();
+    StgFx_DrawOverlay();
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Gfx_MarkPass(0);
     return 0;
@@ -283,7 +283,7 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x80FF4040);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);
-    func_00247578();
+    StgFx_DrawPre();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(2);
@@ -291,7 +291,7 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x8040FF40);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);
-    func_00247660();
+    StgFx_DrawNop();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(4);
@@ -305,7 +305,7 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x804040FF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);
-    func_00247688();
+    StgFx_DrawPost();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(0);
@@ -318,7 +318,7 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x80FF40FF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);
-    func_002476D8();
+    StgFx_DrawOverlay();
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Gfx_MarkPass(0);
     return 0;

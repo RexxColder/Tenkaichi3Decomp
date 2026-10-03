@@ -112,7 +112,7 @@ typedef struct BtlMoveSeg {
     /* 0x10 */ Vec4 b;
 } BtlMoveSeg;
 
-/* One record of the blast list (func_0012E0A0: 64 records and a count at +0x6400). */
+/* One record of the blast list (EftHit_GetList: 64 records and a count at +0x6400). */
 typedef struct BtlMoveBlastDef {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ s16 ownerId;  /* object id of the fighter that fired it */

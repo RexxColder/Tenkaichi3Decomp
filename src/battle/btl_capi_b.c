@@ -65,7 +65,7 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
 
-extern BtlCapiBBlastList *func_0012E0A0(void);             /* the blast list */
+extern BtlCapiBBlastList *EftHit_GetList(void);             /* the blast list */
 extern s32 BtlAct_CanTransform(BtlCapiBChr *chr, u32 slot, s32 needBlast, s32 needAllowed);
 extern s32 BtlAct_CanFuse(BtlCapiBChr *chr, s32 slot, s32 needBlast, s32 needAllowed, s32 *partner);
 extern s32 BtlAct_CanSwitch(BtlCapiBChr *chr, s32 needGauge, s32 needAllowed);
@@ -244,7 +244,7 @@ s32 BtlCharApi_FindIncomingBlast(s32 objId, s32 mode) {
         reach = 1.9f;
     }
     BtlCharApi_GetPos(objId, &pos);
-    list = func_0012E0A0();
+    list = EftHit_GetList();
     for (i = 0; i < list->count; i++) {
         rec = &list->rec[i];
         if (BtlCharApi_SkipBlastRec(objId, rec, mode) == 1) {
@@ -288,7 +288,7 @@ s32 BtlCharApi_IsBlastPassing(s32 objId) {
     BtlCapiBBlastRec *rec;
     s32 i;
 
-    list = func_0012E0A0();
+    list = EftHit_GetList();
     BtlCharApi_GetPos(objId, &pos);
     for (i = 0; i < list->count; i++) {
         rec = &list->rec[i];
@@ -317,7 +317,7 @@ s32 BtlCharApi_IsBlastPassing(s32 objId) {
 
 /* Marks the blast BtlCharApi_FindIncomingBlast(objId, 0) finds as seen, so it is not reported again. */
 void BtlCharApi_MarkIncomingBlast(s32 objId) {
-    BtlCapiBBlastList *list = func_0012E0A0();
+    BtlCapiBBlastList *list = EftHit_GetList();
     s32 i = BtlCharApi_FindIncomingBlast(objId, 0);
     BtlCapiBBlastRec *rec;
 

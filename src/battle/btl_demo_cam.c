@@ -24,7 +24,7 @@ extern void *BtlCharApi_GetPlayer(void *arg);
 extern s32 BtlCharApi_HasMemberUnk70(void *arg);
 extern void BtlCharApi_GetCamUnk460(void *arg, Vec4 *out);
 extern s32 BtlStage_IsReady(void);
-extern DemoCamAnim *func_00242F18(s32 idx);          /* the stage's camera animation idx (0..2) */
+extern DemoCamAnim *BtlStage_GetFileMember(s32 idx);          /* the stage's camera animation idx (0..2) */
 extern u8 *func_002505A8(void *obj, s32 arg);
 
 /* Turns the file offsets of a camera animation into pointers (once). */
@@ -497,7 +497,7 @@ void DemoCam_PlayCharAnim2(s32 objId) {
 
 /* Plays the stage's camera animation idx (the intro cuts) in world space; 0 if the stage has none. */
 s32 DemoCam_PlayStageAnim(s32 idx) {
-    DemoCamAnim *anim = func_00242F18(idx);
+    DemoCamAnim *anim = BtlStage_GetFileMember(idx);
 
     if (anim != NULL) {
         DemoCam_SetAnim(anim);

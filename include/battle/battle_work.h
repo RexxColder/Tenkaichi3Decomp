@@ -86,9 +86,9 @@
  *     clear flag, BtlLoad_EndStageSwap().
  *   BtlLoad_StepStageChange (in-battle stage change, with fade 2): 0 set flag; 1 request file 0x1BF (when the
  *     new stage is 3) or 0x1C0 (heap) -> res->transition, BtlLoad_BeginStageSwap(); 2 wait; 3 when not
- *     paused func_0013F310(); 4 request stage 0x171 + curStage and bank 0x14E + curStage (never the split-screen
- *     file); 5 wait, Snd_ReloadBank(8, bank, 0); 6 when not paused and func_0013F3A0() == 0: Fade_Start(2, 0, 1.0);
- *     7 Fade_IsDone(2): func_0013F3C8(); 8 when not paused: clear flag, BtlLoad_EndStageSwap(), free
+ *     paused EftBurst_Start(); 4 request stage 0x171 + curStage and bank 0x14E + curStage (never the split-screen
+ *     file); 5 wait, Snd_ReloadBank(8, bank, 0); 6 when not paused and EftBurst_IsBusy() == 0: Fade_Start(2, 0, 1.0);
+ *     7 Fade_IsDone(2): EftBurst_End(); 8 when not paused: clear flag, BtlLoad_EndStageSwap(), free
  *     res->transition; 9 Fade_Start(2, 1, 1.0), done.
  */
 

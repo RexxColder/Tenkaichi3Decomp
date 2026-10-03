@@ -1987,7 +1987,7 @@ extern void BtlCharApi_ShakeCamsNear(Vec4 *pos, f32 near, f32 far, f32 arg3, f32
 extern void BtlCharApi_RumbleNear(Vec4 *pos, f32 near, f32 far, f32 power, f32 time);
 extern BtlActBGauge *BtlMember_GetActiveGauge(BtlActBChr *chr);
 extern s32 BtlAct_CheckRecoveryInput(BtlActBChr *chr, s32 arg); /* get-up input of a downed fighter: queues 0xE1..0xE6 */
-extern f32 func_0023FF38(void); /* stage: height below which a fighter is out of the arena (inferred) */
+extern f32 BtlStage_GetBottom(void); /* stage: height below which a fighter is out of the arena (inferred) */
 
 /* Action 0x63: animation 0x93 after taking off toward the opponent, with the attack voice; attack inputs (mask 3)
    are read all through and the queued action starts once the animation is past 90%. Ends in 0xB. */
@@ -3555,7 +3555,7 @@ s32 BtlAct_FallHandler(BtlActBChr *chr, s32 phase) {
             }
             if (BtlChar_GetPos(chr)->groundFlags & 0x40) {
                 pos = BtlChar_GetPos(chr);
-                if (func_0023FF38() < pos->pos.y) {
+                if (BtlStage_GetBottom() < pos->pos.y) {
                     if (BtlActB_TickMemberChange(chr, NULL)) {
                         BtlAct_Request(chr, 0xF6);
                     }

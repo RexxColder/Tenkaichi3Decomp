@@ -26,7 +26,7 @@
  *   BtlParam_GetDamageTakenScale(chr)                    float at (object + 0x91C) + 0x7C: the character's damage-taken multiplier
  *   BtlStat_GetScale7(chr)                second damage-taken multiplier, from the member's bonus level
  *   BtlColl_NextPoolMember(chr)                    side 1 in mode 3: brings in the next opponent of the pool (BtlMember_Replace)
- *   func_0014AB90 / func_001A0D78 / func_001A0DD8 / func_001A0E10 / func_00187B00   effect spawners
+ *   EftShot_Request / func_001A0D78 / func_001A0DD8 / func_001A0E10 / func_00187B00   effect spawners
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -67,7 +67,7 @@ extern f32 BtlSuper_GetShotUnk6C(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTime(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotSpeed(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
-extern void func_0014AB90(BtlMemberAuraReq *req);
+extern void EftShot_Request(BtlMemberAuraReq *req);
 extern void func_001A0D78(BtlMemberFx0Req *req);
 extern void func_001A0DD8(void);
 extern void func_001A0E10(void);

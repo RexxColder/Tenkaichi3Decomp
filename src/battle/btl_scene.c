@@ -17,19 +17,19 @@
  * The callees still called func_XXXXXXXX, from a first read of their code:
  *
  *   next module (blast records, gp 0x2FE9A8; 0x12DD80..0x12EEA0)
- *     func_0012DD80 init / func_0012DDC0 term: 0x6410 bytes from the pool
- *     func_0012E040   empties the list unless BtlScene_IsTimeStopped(); func_0012E078 empties it always
- *     func_0012E0A0   returns the list; func_0012E0A8(i) returns record i's definition flags (+0x60 -> +4)
- *     func_0012E160, func_0012EB10, func_0012ECC8   per-frame passes over the records
- *     func_0012E910(rec)   1 when rec+0x68 is 0 and rec+0x64 points at a task without flag 0x200000
- *   0x1C-byte block at gp 0x2FE9B0: func_0012F550 init / func_0012F588 term / func_0012F5B8 clear /
- *     func_0012F720 per-frame / func_0012F6D8 returns its word +0xC
+ *     EftHit_Init init / EftHit_Term term: 0x6410 bytes from the pool
+ *     EftHit_BeginFrame   empties the list unless BtlScene_IsTimeStopped(); EftHit_Clear empties it always
+ *     EftHit_GetList   returns the list; EftHit_GetTaskFlags(i) returns record i's definition flags (+0x60 -> +4)
+ *     EftHit_SpawnImpacts, EftHit_ClampToStage, EftHit_UpdateResults   per-frame passes over the records
+ *     EftHit_HasDefFlag200000(rec)   1 when rec+0x68 is 0 and rec+0x64 points at a task without flag 0x200000
+ *   0x1C-byte block at gp 0x2FE9B0: EftCam_Init init / EftCam_Term term / EftCam_Clear clear /
+ *     EftCam_Update per-frame / EftCam_IsActive returns its word +0xC
  *   func_001ADBA8 init / func_001ADC00 term: 0x80C-byte block at gp 0x2FEAF4
  *   func_001AA818 init / func_001AA850 term: 0xC200-byte block at gp 0x2FEAE8
- *   func_0013A388, func_001AE0A0, func_001AE118, func_00130BA8   draw work shared by all tasks
- *   func_001721D0 / func_00172240, func_0014BB20 / func_0014BB98   free / create a character's task in
+ *   EftSurf_BuildPalettes, func_001AE0A0, func_001AE118, EftGfx_UpdateClipPlanes   draw work shared by all tasks
+ *   func_001721D0 / func_00172240, EftShot_DestroyChar / EftShot_CreateChar   free / create a character's task in
  *     layer 2 and in layer 1
- *   func_00140ED0, func_00133478   per-record update
+ *   EftWater_UpdateBlast, EftBubble_OnBlastRecord   per-record update
  *   fighter queries, 0x204EA0..0x2080E0 (they take an object id and look the fighter up):
  *     BtlCharApi_GetHeight(i)   BtlObj_Get(i)->0xFF4 as float, 10.0 when there is no object
  *     BtlCharApi_IsFighter(id)  1 when a fighter has this object id
@@ -43,8 +43,8 @@
  *     BtlCharApi_IsTargetBelowHalfHp(a, b)  both alive and b's HP below half of its maximum
  *     BtlCharApi_CanTechniqueFinish(a, b)  a second test on a's current technique (0x80000 bit of 0x210D80)
  *     BtlCharApi_IsCamShown(id)  split-screen visibility test; BtlCharApi_AnyCamPriority() any fighter with flag 0xD3
- *   func_00241E38     BtlLoad_RequestStageChange(func_00243470()): asks for the changed stage
- *   func_00247D60     returns the block at 0x31C4A0
+ *   BtlStage_RequestChange     BtlLoad_RequestStageChange(BtlStage_GetChangeTarget()): asks for the changed stage
+ *   StgTint_GetWork     returns the block at 0x31C4A0
  *   func_002129F0     tail call of BtlSeq_IsFighting
  *   BtlChars_IsTimeStopped     returns gBtlChars + 0x274
  */
@@ -73,27 +73,27 @@ extern void BtlTask_Kill(void *task);
 
 extern s32 BtlStage_IsReady(void);
 
-extern void func_0012DD80(void);
-extern void func_0012DDC0(void);
-extern void func_0012E040(void);
-extern void func_0012E078(void);
-extern BtlBlastList *func_0012E0A0(void);
-extern s32 func_0012E0A8(s32 idx);
-extern void func_0012E160(void);
-extern s32 func_0012E910(BtlBlastRec *rec);
-extern void func_0012EB10(void);
-extern void func_0012ECC8(void);
-extern void func_0012F550(void);
-extern void func_0012F588(void);
-extern void func_0012F5B8(void);
-extern s32 func_0012F6D8(void);
-extern void func_0012F720(void);
-extern void func_00130BA8(void);
-extern void func_00133478(BtlBlastRec *rec);
-extern void func_0013A388(void);
-extern void func_00140ED0(BtlBlastRec *rec);
-extern void func_0014BB20(s32 chr);
-extern void func_0014BB98(s32 chr);
+extern void EftHit_Init(void);
+extern void EftHit_Term(void);
+extern void EftHit_BeginFrame(void);
+extern void EftHit_Clear(void);
+extern BtlBlastList *EftHit_GetList(void);
+extern s32 EftHit_GetTaskFlags(s32 idx);
+extern void EftHit_SpawnImpacts(void);
+extern s32 EftHit_HasDefFlag200000(BtlBlastRec *rec);
+extern void EftHit_ClampToStage(void);
+extern void EftHit_UpdateResults(void);
+extern void EftCam_Init(void);
+extern void EftCam_Term(void);
+extern void EftCam_Clear(void);
+extern s32 EftCam_IsActive(void);
+extern void EftCam_Update(void);
+extern void EftGfx_UpdateClipPlanes(void);
+extern void EftBubble_OnBlastRecord(BtlBlastRec *rec);
+extern void EftSurf_BuildPalettes(void);
+extern void EftWater_UpdateBlast(BtlBlastRec *rec);
+extern void EftShot_DestroyChar(s32 chr);
+extern void EftShot_CreateChar(s32 chr);
 extern void func_001721D0(s32 chr);
 extern void func_00172240(s32 chr);
 extern void func_001AA818(void);
@@ -118,8 +118,8 @@ extern s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId);
 extern s32 BtlCharApi_IsCamShown(s32 objId);
 extern s32 BtlCharApi_AnyCamPriority(void);
 extern s32 func_002129F0(void);
-extern void func_00241E38(void);
-extern u8 *func_00247D60(void);
+extern void BtlStage_RequestChange(void);
+extern u8 *StgTint_GetWork(void);
 
 /* Allocates the scene, the pool arenas and the effect subsystems, then creates the root task (0 = every layer). */
 void BtlScene_Init(s32 layerMask) {
@@ -137,8 +137,8 @@ void BtlScene_Init(s32 layerMask) {
     }
     BtlPool_Init(0);
     func_001ADBA8();
-    func_0012DD80();
-    func_0012F550();
+    EftHit_Init();
+    EftCam_Init();
     BtlScene_InitRates();
     func_001AA818();
     gBtlScene->root = BtlTaskList_Create(NULL, 1, 0);
@@ -149,8 +149,8 @@ void BtlScene_Init(s32 layerMask) {
 void BtlScene_Term(void) {
     BtlScene_Reset(0);
     BtlTaskList_Destroy(gBtlScene->root);
-    func_0012DDC0();
-    func_0012F588();
+    EftHit_Term();
+    EftCam_Term();
     func_001ADC00();
     BtlScene_TermRates();
     func_001AA850();
@@ -164,30 +164,30 @@ void BtlScene_Term(void) {
 
 /* First per-frame pass: empties the record list, refreshes the character scales, runs every task's update. */
 void BtlScene_Update(void) {
-    func_0012E040();
-    func_0012F720();
+    EftHit_BeginFrame();
+    EftCam_Update();
     BtlScene_UpdateCharScales();
     BtlTaskList_Update(gBtlScene->root);
-    func_0012EB10();
+    EftHit_ClampToStage();
 }
 
 /* Second per-frame pass: every task's post-update, then the blast records. */
 void BtlScene_PostUpdate(void) {
-    func_0012ECC8();
+    EftHit_UpdateResults();
     BtlTaskList_PostUpdate(gBtlScene->root);
     BtlScene_UpdateRecords();
-    func_0012E160();
+    EftHit_SpawnImpacts();
 }
 
 /* Resets the tasks selected by mode (BTL_SCENE_RESET_*) and drops a pending stage change request. */
 void BtlScene_Reset(s32 mode) {
-    func_0012F5B8();
+    EftCam_Clear();
     BtlScene_ClearStageChangeRequest();
     gBtlScene->randState = 0;
     switch (mode) {
     case 0:
         BtlTaskList_Reset(gBtlScene->root, 0);
-        func_0012E078();
+        EftHit_Clear();
         break;
     case 1:
         BtlTaskList_Reset(gBtlScene->root, 0);
@@ -210,13 +210,13 @@ void BtlScene_Reset(s32 mode) {
 void BtlScene_Draw(s32 first) {
     gBtlScene->notFirstView = first != 1;
     if (first) {
-        func_0013A388();
+        EftSurf_BuildPalettes();
         if (BtlStage_IsReady()) {
             func_001AE0A0();
         }
         func_001AE118();
     }
-    func_00130BA8();
+    EftGfx_UpdateClipPlanes();
     BtlTaskList_Draw(gBtlScene->root);
 }
 
@@ -327,7 +327,7 @@ s32 BtlScene_IsSecondView(void) {
 s32 BtlScene_IsCharInView(s32 objId) {
     if (Battle_IsSplitScreen()) {
         if (BtlScene_IsSingleView()) {
-            if (func_0012F6D8()) {
+            if (EftCam_IsActive()) {
                 return 1;
             }
             return BtlCharApi_IsCamShown(objId);
@@ -351,7 +351,7 @@ s32 BtlScene_IsStageFlagOn(void) {
     case 32:
         return 1;
     default:
-        p = func_00247D60();
+        p = StgTint_GetWork();
         if (p != NULL) {
             return p[0x58] != 0;
         }
@@ -361,7 +361,7 @@ s32 BtlScene_IsStageFlagOn(void) {
 
 /* Returns whether byte 0x58 of the block at 0x31C4A0 is set. */
 s32 BtlScene_GetStageFlag(void) {
-    u8 *p = func_00247D60();
+    u8 *p = StgTint_GetWork();
 
     if (p != NULL) {
         return p[0x58] != 0;
@@ -415,12 +415,12 @@ void BtlScene_CreateCharLayer2(s32 chr) {
 /* Frees a character's tasks in layers 2 and 1; called when the character is streamed out. */
 void BtlScene_FreeChar(s32 chr) {
     BtlScene_FreeCharLayer2(chr);
-    func_0014BB20(chr);
+    EftShot_DestroyChar(chr);
 }
 
 /* Creates a character's tasks in layers 1 and 2; called by the loader job when it is streamed in. */
 void BtlScene_CreateChar(s32 chr) {
-    func_0014BB98(chr);
+    EftShot_CreateChar(chr);
     BtlScene_CreateCharLayer2(chr);
 }
 
@@ -551,7 +551,7 @@ void BtlScene_ClearStageChangeRequest(void) {
 /*
  * Once per frame, while fighting, outside modes 4..7 and with the time limit off or at least 10: looks for the
  * first active blast record whose definition is of type 1 (flags & 3) and, when that definition has bit 0x4000,
- * whose own flag 0x10 is set. hit is 1 when rule word 0x18 is on, func_0012E910(rec) holds and the opponent is
+ * whose own flag 0x10 is set. hit is 1 when rule word 0x18 is on, EftHit_HasDefFlag200000(rec) holds and the opponent is
  * below half HP (BtlCharApi_IsTargetBelowHalfHp), else 2 when BtlCharApi_CanTechniqueFinish holds. hit 1 marks the record (flags 2 and 8, two
  * separate stores in the source: with one `|= 0xA` the loop is short enough for the compiler to hoist its
  * constants) and asks for the stage change; hit 2 sets held flag 0xAB on the opponent. A pending
@@ -561,7 +561,7 @@ void BtlScene_CheckStageChange(void) {
     s32 hit = 0;
     s32 target = -1;
     s32 found = 0;
-    BtlBlastList *list = func_0012E0A0();
+    BtlBlastList *list = EftHit_GetList();
     BtlBlastRec *rec;
     s32 i;
     s32 attr;
@@ -586,9 +586,9 @@ void BtlScene_CheckStageChange(void) {
         rec = &list->rec[i];
         hit = 0;
         target = BtlCharApi_GetOpponentObjId(rec->objId);
-        attr = func_0012E0A8(i);
+        attr = EftHit_GetTaskFlags(i);
         if (rec->active != 0) {
-            if (Battle_GetRuleUnk10() && func_0012E910(rec) && BtlCharApi_IsTargetBelowHalfHp(rec->objId, target)) {
+            if (Battle_GetRuleUnk10() && EftHit_HasDefFlag200000(rec) && BtlCharApi_IsTargetBelowHalfHp(rec->objId, target)) {
                 hit = 1;
             } else if (BtlCharApi_CanTechniqueFinish(rec->objId, target)) {
                 hit = 2;
@@ -625,7 +625,7 @@ void BtlScene_CheckStageChange(void) {
     }
     if (found) {
         if (hit == 1) {
-            func_00241E38();
+            BtlStage_RequestChange();
         } else if (hit == 2) {
             BtlCharApi_SetHeldFlagAB(target);
         }
@@ -818,13 +818,13 @@ s32 BtlScene_RandRange(s32 a, s32 b) {
 
 /* Runs 0x140ED0 and 0x133478 on every blast record. */
 void BtlScene_UpdateRecords(void) {
-    BtlBlastList *list = func_0012E0A0();
+    BtlBlastList *list = EftHit_GetList();
     s32 i;
 
     if (list != NULL) {
         for (i = 0; i < list->count; i++) {
-            func_00140ED0(&list->rec[i]);
-            func_00133478(&list->rec[i]);
+            EftWater_UpdateBlast(&list->rec[i]);
+            EftBubble_OnBlastRecord(&list->rec[i]);
         }
     }
 }
