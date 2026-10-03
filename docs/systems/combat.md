@@ -787,3 +787,42 @@ swap at P+4, time running from P+5. **A port can make `IsLoadedFor` become true 
 of frames after the push and leave everything else untouched.**
 
 Random draws: one `BtlChar_FrameMod(2)` (throw camera cut).
+
+## Rush techniques, clash struggle (`btl_act_g.c`, 0x1F8C00..0x1FC2B0; verified unless marked)
+
+13 of 14 functions match per function; `BtlAct_SuperRushDashHandler` is one instruction off
+(a delay-slot choice) and stays in assembly. Not linked yet. Game terms are guesses. This file
+continues `btl_act_f.c`; these are technique actions, not generic hit reactions.
+
+| Actions | What (inferred terms) |
+|---|---|
+| 0x105 | pose before an Ultimate; freezes the battle (hit-stop level 2) until its animation event |
+| 0x11B..0x120 | rush technique: start-up, then a homing (or straight) dash at the opponent |
+| 0x121..0x123 | the same struck in place |
+| 0x124..0x129 | player-steered rush dash, and its follow-up form |
+| 0x12A..0x12C | attacker's closing animation |
+| 0x12D..0x12F / 0x139..0x13B | the scripted hit sequence: attacker / victim, one handler for both |
+| 0x133..0x135 | victim of a catch with no sequence |
+| 0x136..0x138 | victim thrown straight up |
+| 0x130..0x132 | clash A struggle (forced by flag 0xAA) |
+| 0x104 | struggle loser, or hit by a finishing technique |
+| 0x103 | the fighter is replaced by one of six fixed characters (`BtlChar_FrameMod(6)`) |
+
+- The rush dash loop ends after 16 consecutive frames slower than 100 km/h, after the
+  technique's time limit, on loss of lock-on, or on a contact flag. Flag 0x72 (caught) starts
+  the sequence.
+- The sequence is driven by the throw block at fighter +0xE90: up to five animation steps per
+  side, the pair kept placed relative to each other, optional partner object, optional model
+  reloads (the victim's damaged variant), the landing kind, and the victim's final turn. The
+  field uses are listed in `include/battle/btl_act_g.h`.
+- Damage goes through the damage queue at fighter +0xD94, filled on the attacker's entry and
+  dealt on animation hit events. Level 1 hit-stop and the deferred reaction damage (+0xFEC) are
+  not used here.
+- **Clash A struggle score** (fighter +0xE4C): starts at a technique value / 20; +10 / +6 / +3
+  with abilities 0x14 / 0x13 / 0x12; -10 / -6 / -3 with 0x6A / 0x69 / 0x68; +1 for each frame
+  from frame 16 on that input condition 51 is true. The camera shakes every frame of it.
+- **Load dependencies**: the sequence (partner object, model reloads), 0x104 and 0x103 wait on
+  `BtlChange_IsLoadedFor`; 0x104 and 0x103 hold hit-stop level 2 meanwhile.
+- Player dependence: 0x104 requests camera cut `0x21 + player`.
+- (inferred) The original object boundary is probably 0x1FC008, not 0x1FC2B0: the two throw
+  helpers at the end are only called from `btl_act_h.c`.
