@@ -46,6 +46,7 @@ and the stage update at 0x243568).
 | 0x245F58..0x248F28 | stg_c.c | screen effects (haze, tints, blur) | no | libc `rand()` in a draw pass (haze) | 66/68 |
 | 0x15F728..0x1609C8 | eft_m.c | speed lines `EftSpdLine_*` (30 trails, 40 streaks; task table `D_002C3A18`) | no | libc `rand()` in update / spawn | 20/20 |
 | 0x1609C8..0x1637A0 | eft_m.c | aura particles `EftAura_*`, first half (flames from 10 body parts, sparks from 12 emitters; pools shared by all fighters) | no | libc `rand()` in update / spawn, count depends on live particles | 30/30 |
+| 0x142CA0..0x147050 | eft_f.c | water-surface particles, second half of the water module in eft_e.c (pools: 15 trails, 60 drops, 30 rings, 30 sprays, 30 mists) | no (reads a hit record's position, fighter height, water height) | libc `rand()`: 19 per blast trail, **not spawned in split screen** | 35/40 |
 
 ## Notes common to effect modules
 
@@ -60,3 +61,9 @@ and the stage update at 0x243568).
   tie-break, camera shake), a port must give visual effects their own generator.
 - (inferred hazard, eft_m) `EftAura_StepFlames` revisits the same flame forever if the flame
   pool is exhausted when an expired flame tries to spawn its successor.
+- (verified, eft_f / eft_e) Blast trails on water are not spawned in split screen, so the libc
+  `rand()` call count depends on the screen mode: another reason for a separate generator.
+- (verified, eft_f) Effect particles step by a fixed 1/30 s; durations are `seconds * 30`
+  frames; updates do nothing while paused (battle flag 0x100).
+- (evidence) eft_e.c and eft_f.c were one source file: `EftWaterRing_Update` matches only with
+  `EftWater_GetSurfaceY` (0x140338) defined earlier in the same file.
