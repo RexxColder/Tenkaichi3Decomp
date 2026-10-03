@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "battle/battle.h"
+#include "sys/ramp.h"
 
 /*
  * Battle sequence: the state machine that drives one match from the stage intro to the fade out.
@@ -67,15 +68,8 @@ typedef struct BtlSeqState {
     /* 0x14 */ BtlSeqPollFunc poll;  /* copied to BtlSeq.ctx.poll before every handler call */
 } BtlSeqState; /* size 0x18 */
 
-/* Linear ramp used as a frame timer (Ramp_Start starts it, Ramp_Step steps it). */
-typedef struct BtlSeqTimer {
-    /* 0x00 */ s32 unk0;
-    /* 0x04 */ s32 state;   /* 0 running, -1 makes the step function report "done" */
-    /* 0x08 */ f32 frames;  /* frames left: seconds * 30 */
-    /* 0x0C */ f32 step;    /* (to - from) / frames */
-    /* 0x10 */ f32 value;
-    /* 0x14 */ f32 target;
-} BtlSeqTimer; /* size 0x18 */
+/* The linear ramp of sys/ramp.h used as a frame timer (Ramp_Start starts it, Ramp_Step steps it). */
+typedef Ramp BtlSeqTimer;
 
 /* Context of the states that only wait: READY, FINISH, END. */
 typedef struct BtlSeqWaitCtx {

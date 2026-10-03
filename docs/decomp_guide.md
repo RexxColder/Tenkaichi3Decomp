@@ -77,12 +77,25 @@ written plainly, and the workarounds can be removed where the plain form still m
 
 ## Assembler prelude (include/gcc_prelude.inc)
 Prepended to all compiler output so the modern gas encodes it as Sony's assembler did: `move`,
-`break`, FPU hazard nops (compares, `mtc1`/`mfc1`, `li.s`), `cvt.w.s`, `sqrt.s`, and one
-duplicated-return shape. Do not add per-file `__asm__` macro blocks; extend the prelude.
-Known gaps, to check first if a float function is off by a swapped or extra instruction near a
-return: an FPU instruction directly before an unfilled `jr $ra` is never moved into the delay
-slot; a kept instruction whose preceding filled slot holds a different instruction is still
-swapped; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN` operands.
+`break`, FPU hazard nops (compares, `mtc1`/`mfc1`, the `lui`/`mtc1` form of `li.s`), `cvt.w.s`,
+`sqrt.s`, and which instruction in front of an unfilled branch moves into its delay slot.
+Do not add per-file `__asm__` macro blocks; extend the prelude.
+What Sony's assembler did with an unfilled `jal` / `j $31` / branch, and the prelude now does:
+- The instruction in front moves into the delay slot, including a `li.s` that is a `.lit4` load
+  (`li.s $f12,1.5707963 / jal f` becomes `jal f / lwc1 $f12,...`; a `return 0.28f;` leaf comes
+  out as `jr $ra / lwc1 $f0,...` by the same mechanism, though the binary has no example yet).
+- `mtc1`, `mfc1`, `ctc1`, `cfc1`, FPU compares and the `lui`/`mtc1` form of `li.s` (constants
+  with a zero half, such as 21.0f) never move: the branch gets a nop.
+- Nothing moves when the instruction before the candidate was a delay slot the compiler filled
+  itself (`jal f / li $4,1 / li.s $f12,0.9 / jal g / nop`), provided the candidate is a single
+  machine instruction; a macro that expands to several (`la $4,69132($17)`) still gives up its
+  last one.
+Known gaps, to check first if a function is off by a swapped or extra instruction next to a
+branch: a load, store or `la` right after a compiler-filled delay slot and in front of an
+unfilled branch is still moved (their size is not known to the macros); `break` and `sqrt.s`
+are emitted as data and never move; `li.s` under `-G0` is untested; `sqrt.s` needs `$fN`
+operands. The probes the prelude uses leave an unloaded `.gcc_prelude_scratch` section in every
+object; the linker script discards it.
 
 ## Object boundaries and rodata alignment
 Jump tables are 16-byte aligned inside an object's `.rodata`, so where the object *starts*
@@ -90,6 +103,17 @@ matters. If a file's rodata only lines up when the object begins earlier than th
 decompiled, extend the C file backwards and pull the earlier functions in with `INCLUDE_ASM`
 (splat moves each one's jump table into its generated .s file). `src/battle/btl_seq.c` is the
 example: its code starts at 0x216AC0 but the object starts at 0x215540.
+Things that only show when the file is linked (fdiff compares function by function and cannot
+see them):
+- A function-local table of a function that is still `INCLUDE_ASM` is not in its .s file (only
+  jump tables are). Emit it with `INCLUDE_RODATA("asm/nonmatchings/<area>/<module>", D_XXXXXXXX);`
+  next to the function; splat writes the .s for every symbol named that way. The same works for
+  file-scope tables at the top of an object (`src/battle/btl_ai_cond.c`).
+- The jump table in an `INCLUDE_ASM` .s file is only 8-byte aligned. If the object's rodata is
+  not on a 16-byte boundary there, put `RODATA_ALIGN16();` in front of the `INCLUDE_ASM`.
+- A non-static `inline` function is emitted at the END of the object by this compiler, whatever
+  its place in the source. If a function is both called normally and inlined into a neighbour,
+  write the body as a `static inline` helper and call it from both.
 
 ## Placeholder names across modules
 Integrator only (agents working in parallel must NOT run it: it edits every file under `src/`

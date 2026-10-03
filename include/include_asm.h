@@ -23,6 +23,17 @@
     )
 #endif
 
+/* Put in front of the INCLUDE_ASM of a function that has a jump table when the object's .rodata is not on a
+ * 16-byte boundary at that point: the compiler aligned jump tables to 16 bytes, the generated .s only to 8. */
+#ifndef RODATA_ALIGN16
+#define RODATA_ALIGN16() \
+    __asm__( \
+        ".section .rodata\n" \
+        "    .balign 16\n" \
+        ".section .text" \
+    )
+#endif
+
 #if INCLUDE_ASM_USE_MACRO_INC
 __asm__(".include \"macro.inc\"\n");
 #else
@@ -36,6 +47,9 @@ __asm__(".include \"labels.inc\"\n");
 #endif
 #ifndef INCLUDE_RODATA
 #define INCLUDE_RODATA(FOLDER, NAME)
+#endif
+#ifndef RODATA_ALIGN16
+#define RODATA_ALIGN16()
 #endif
 
 #endif /* !defined(M2CTX) && !defined(PERMUTER) */

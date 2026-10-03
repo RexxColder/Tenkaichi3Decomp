@@ -554,8 +554,6 @@ typedef struct BtlSeqObj {
 extern void BtlFacade_SetCtrl10D(s32 side);
 extern BtlSeqObj *BtlObj_Get(s32 idx);
 extern void BtlObj_SetSubState(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
-extern void Ramp_Start(BtlSeqTimer *timer, f32 seconds, f32 from, f32 to);
-extern s32 Ramp_Step(BtlSeqTimer *timer); /* steps a timer, 1 when it ended */
 extern void func_00209EE8(s32 side);        /* character flag 0xEF: entrance pose */
 extern void func_00209F20(s32 side);        /* character flag 0xF0: end of entrance */
 extern void func_00209F58(s32 side);        /* character flag 0xF1: win pose */

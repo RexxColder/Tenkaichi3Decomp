@@ -1,9 +1,11 @@
 # CPU opponent (AI)
 
 Sources: `src/battle/btl_ai_mgr.c` (manager and the move action, linked),
-`pending/battle/btl_ai.c` (sequence runner, step handlers, rule conditions; matches per
-function, not linked yet). Layouts: `include/battle/btl_ai_mgr.h`, `include/battle/btl_ai.h`
-(two views of the same block under different type names; to be merged).
+`btl_ai_seq.c` (first AI object from 0x1B4140: step handlers 14..23, sequence runner; the
+functions before 0x1B6008 are still assembly) and `btl_ai_cond.c` (start of the second object,
+0x1B6D00: rule conditions and rate getters), both linked. Layout:
+`include/battle/btl_ai.h` is the single definition of the AI block (`BtlAi`, per side `BtlAiWork`
+with `seq`, `move`, `out`, `status`, `plan`); `btl_ai_mgr.h` adds the manager file's helper types.
 
 Not decompiled: the rule evaluator (0x1BA760), sense and think (0x1BFF70, 0x1BAC30), most step
 handlers (0x1B4C00..0x1B6008) and the virtual pad (0x1BC8A8..). Statements about those are read
@@ -26,9 +28,9 @@ buttons, stickX, stickY)`: the CPU plays through the same input path as a human.
 `gBtlAi`: one 0xA60 heap block. +0 AI data pointer, +4 fighter distance, +0xC sight flags,
 +0x10 two per-side blocks of 0x520, +0xA50 frame counter.
 
-Per side: object id, `aiType` (+4), `cpuLevel` (+8), the character's AI parameter pointer
+Per side (`BtlAiWork`): `objId`, `type` (+4, the member's aiType), `level` (+8, its cpuLevel), the character's AI parameter pointer
 (+0x18, from fighter object +0x934), then:
-- `seq` (+0x28): flags, an 8-entry stack of `{id, kind}` actions, phase 0..3, step, timers;
+- `seq` (+0x28): flags, an 8-entry stack of `{id, arg}` actions, phase 0..3, step, timers;
 - move work (+0xC0): keep-distance per move type, a 16-point path, rebuild timer;
 - output (+0x268): buttons, stick X, stick Y, per-button toggles;
 - status (+0x2C0): situation flags, opponent class and action, three 90-frame timers;

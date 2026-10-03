@@ -70,21 +70,18 @@ extern void func_002427A0(s32 objId, BtlAiVec *out, BtlAiVec *out2, s32 arg);
 extern s32 func_001B2DF0(BtlAiSegment *seg);           /* stage line test; fills the BtlAiHit block */
 extern BtlAiHit *func_001B2F40(void);
 extern void func_001B3A50(BtlAiVec *from, BtlAiVec *to, BtlAiMovePath *path);
-extern void func_001B3F78(BtlAiMgrAct *act);           /* clears the action state */
-extern void BtlAi_RunSeq(BtlAiMgrSide *s);             /* 0x1B6BA0 (btl_ai.c) */
-extern void BtlAi_SendInput(BtlAiMgrSide *s);          /* 0x1B6CD8 (btl_ai.c) */
-extern s32 BtlAi_GetPairRate(BtlAiMgrSide *s, s32 button, s32 arg, void *tblA, void *tblB, s32 arg5);
+extern void func_001B3F78(BtlAiSeq *act);           /* clears the action state */
 extern s32 func_001B82C0(s32 button, s32 arg);
-extern void func_001BA308(BtlAiMgrSide *s);
-extern void func_001BAC30(BtlAiMgrSide *s);
+extern void func_001BA308(BtlAiWork *s);
+extern void func_001BAC30(BtlAiWork *s);
 extern void func_001BAD50(s32 arg);                    /* binds the AI data section of gCommonRes */
 extern void func_001BAF68(s32 side, s32 arg);          /* resets one side's controller from its fighter */
-extern void func_001BC918(BtlAiMgrOutput *out, s32 keep); /* clears the virtual pad */
+extern void func_001BC918(BtlAiOutput *out, s32 keep); /* clears the virtual pad */
 /* Writes the virtual pad. hold / press / once are AI button bits (BTLAI_BTN_*): hold is passed on every
    frame, press only for a button not marked 1 in the output's per-button word, once only for a button not
    yet marked 2 (and marks it). x, y are averaged with the previous stick. The parameter order is the one
    that makes every call here match. */
-extern void func_001BCB78(BtlAiMgrSide *s, s32 hold, s32 press, s32 once, s16 special, f32 x, f32 y);
+extern void func_001BCB78(BtlAiWork *s, s32 hold, s32 press, s32 once, s16 special, f32 x, f32 y);
 
 /* The divisions by 10 in BtlAiMove_Start are real divide instructions with 10 in a register, reloaded for
    each one: that is what a constant passed to an inlined helper gives (a literal gives a multiply). */
@@ -95,13 +92,13 @@ static inline s32 BtlAiMove_Div(s32 a, s32 b) {
 static inline s32 BtlAiMove_Mod(s32 a, s32 b) {
     return a % b;
 }
-extern void func_001BFF70(BtlAiMgrSide *s);
+extern void func_001BFF70(BtlAiWork *s);
 
-extern BtlAiMgr *gBtlAi;
+extern BtlAi *gBtlAi;
 
 /* Frees what the block owns, rebinds the shared AI data and resets both sides from their fighters. */
 void BtlAiMgr_Reset(void) {
-    BtlAiMgrSide *s;
+    BtlAiWork *s;
     s32 i;
 
     if (gBtlAi->flags & 1) {
@@ -110,7 +107,7 @@ void BtlAiMgr_Reset(void) {
             gBtlAi->data = NULL;
         }
     }
-    for (s = gBtlAi->side; s != &gBtlAi->side[2]; s++) {
+    for (s = gBtlAi->work; s != &gBtlAi->work[2]; s++) {
         if (s->flags & 1) {
             if (s->param != NULL) {
                 Heap_Free(s->param);
@@ -139,7 +136,7 @@ void BtlAiMgr_Init(void) {
 
 /* Frees what the block owns, then the block. */
 void BtlAiMgr_Term(void) {
-    BtlAiMgrSide *s;
+    BtlAiWork *s;
 
     if (gBtlAi->flags & 1) {
         if (gBtlAi->data != NULL) {
@@ -147,7 +144,7 @@ void BtlAiMgr_Term(void) {
             gBtlAi->data = NULL;
         }
     }
-    for (s = gBtlAi->side; s != &gBtlAi->side[2]; s++) {
+    for (s = gBtlAi->work; s != &gBtlAi->work[2]; s++) {
         if (s->flags & 1) {
             if (s->param != NULL) {
                 Heap_Free(s->param);
@@ -162,51 +159,51 @@ void BtlAiMgr_Term(void) {
 }
 
 /* Fills the side's 14 per-button rates from its aiType table. */
-void BtlAiMgr_BuildRates(BtlAiMgrSide *s) {
-    BtlAiMgrTypeTbl *tbl = gBtlAi->data->typeTbl[s->aiType];
+void BtlAiMgr_BuildRates(BtlAiWork *s) {
+    u8 *tbl = gBtlAi->data->profile[s->type];
     s32 i;
 
     for (i = 0; i < 14; i++) {
         s32 r;
 
-        s->rate[i] = 0;
+        s->plan.rate[i] = 0;
         r = func_001B82C0(i, 3);
         if (r != -1) {
-            s->rate[i] = BtlAi_GetPairRate(s, i, r, tbl->unk004, tbl->unk2C4, 0);
+            s->plan.rate[i] = BtlAi_GetPairRate(s, i, r, (s8 *)tbl + 4, (s8 *)tbl + 0x2C4, 0);
         }
     }
 }
 
 /* Returns a side's aiType. */
 s32 BtlAiMgr_GetType(s32 side) {
-    return gBtlAi->side[side].aiType;
+    return gBtlAi->work[side].type;
 }
 
 /* Sets a side's aiType, rebuilds what depends on it and clears the side's work and action state. */
 void BtlAiMgr_SetType(s32 side, s32 aiType) {
-    BtlAiMgrSide *s = &gBtlAi->side[side];
+    BtlAiWork *s = &gBtlAi->work[side];
 
-    s->aiType = aiType;
+    s->type = aiType;
     BtlAiMgr_BuildRates(s);
     func_001BA308(s);
-    memset(s->work, 0, 0x188);
-    func_001B3F78(&s->act);
+    memset(s->plan.scratch, 0, 0x188);
+    func_001B3F78(&s->seq);
 }
 
 /* Returns a side's CPU level. */
 s32 BtlAiMgr_GetLevel(s32 side) {
-    return gBtlAi->side[side].cpuLevel;
+    return gBtlAi->work[side].level;
 }
 
 /* Sets a side's CPU level, rebuilds what depends on it and clears the side's work and action state. */
 void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel) {
-    BtlAiMgrSide *s = &gBtlAi->side[side];
+    BtlAiWork *s = &gBtlAi->work[side];
 
-    s->cpuLevel = cpuLevel;
+    s->level = cpuLevel;
     BtlAiMgr_BuildRates(s);
     func_001BA308(s);
-    memset(s->work, 0, 0x188);
-    func_001B3F78(&s->act);
+    memset(s->plan.scratch, 0, 0x188);
+    func_001B3F78(&s->seq);
 }
 
 /* Returns 1 when the battle sequence is in neither state 2 (Ready) nor 3 (Fight): the AI does not run. */
@@ -270,7 +267,7 @@ void BtlAiMgr_Update(void) {
     BtlAiMgr_UpdateSight();
     gBtlAi->frame++;
     for (i = 0; i < BtlChar_GetCount() && i < 2; i++) {
-        BtlAiMgrSide *s = &gBtlAi->side[i];
+        BtlAiWork *s = &gBtlAi->work[i];
 
         if (BtlCharApi_IsInputInjected(i) && s->param != NULL) {
             func_001BFF70(s);
@@ -284,7 +281,7 @@ void BtlAiMgr_Update(void) {
 /* Picks at random one of the directions the stage limits allow: 0 always; in mode 2 also 1 when a fighter
    is above the upper limit and 2 when one is below its own limit; 3 / 4 for the two sides, dropped when
    the fighter is near the stage edge and that side leads outwards. */
-s32 BtlAiMove_PickDir(BtlAiMgrSide *s, s32 mode) {
+s32 BtlAiMove_PickDir(BtlAiWork *s, s32 mode) {
     BtlAiVec pos;
     BtlAiVec opp;
     BtlAiVec d;
@@ -298,8 +295,8 @@ s32 BtlAiMove_PickDir(BtlAiMgrSide *s, s32 mode) {
     f32 top = func_0023FEF8() + 20.0f;
     f32 rad = func_0023FEB0() - 100.0f;
 
-    func_002053F0(s->side, &pos);
-    func_002053F0(s->side ^ 1, &opp);
+    func_002053F0(s->objId, &pos);
+    func_002053F0(s->objId ^ 1, &opp);
     list = &cand;
     list->v[0] = 0;
     if (mode == 2) {
@@ -307,7 +304,7 @@ s32 BtlAiMove_PickDir(BtlAiMgrSide *s, s32 mode) {
             cand.v[1] = 1;
             n = 2;
         }
-        if (pos.y < func_00205870(s->side) - 20.0f || opp.y < func_00205870(s->side ^ 1) - 20.0f) {
+        if (pos.y < func_00205870(s->objId) - 20.0f || opp.y < func_00205870(s->objId ^ 1) - 20.0f) {
             list->v[n++] = 2;
         }
     }
@@ -341,7 +338,7 @@ s32 BtlAiMove_PickDir(BtlAiMgrSide *s, s32 mode) {
 
 /* Computes the move target from the opponent's position and the move type, clamps it to the stage limit,
    and sets the three "blocked" flags from stage line tests. */
-void BtlAiMove_CalcTarget(BtlAiMgrSide *s) {
+void BtlAiMove_CalcTarget(BtlAiWork *s) {
     BtlAiVec pos;
     BtlAiVec opp;
     BtlAiVec a;
@@ -349,15 +346,15 @@ void BtlAiMove_CalcTarget(BtlAiMgrSide *s) {
     BtlAiVec ahead;
     BtlAiVec tmp;
     BtlAiSegment seg;
-    BtlAiMgrAct *act = &s->act;
+    BtlAiSeq *act = &s->seq;
     BtlAiMoveWork *m = &s->move;
     f32 rad = func_0023FE70();
     s32 special = BtlChar_IsStage4Or27();
     f32 reach;
 
-    func_002053F0(s->side, &pos);
+    func_002053F0(s->objId, &pos);
     a = pos;
-    func_002053F0(s->side ^ 1, &opp);
+    func_002053F0(s->objId ^ 1, &opp);
     a.y = pos.y;
     Vec3_Sub(&dir, &a, &opp);
     Vec3_Normalize(&dir, &dir);
@@ -366,14 +363,14 @@ void BtlAiMove_CalcTarget(BtlAiMgrSide *s) {
         func_00121E20(&m->target);
         m->target.y = pos.y;
     } else if (m->type == 4) {
-        func_002427A0(s->side, &m->target, &tmp, 0);
+        func_002427A0(s->objId, &m->target, &tmp, 0);
         m->target.y -= 20.0f;
         m->target.x = (s32)(Rand_Range(400) - 200);
         m->target.z = (s32)(Rand_Range(400) - 200);
     } else {
         Vec3_Add(&m->target, &opp, &a);
     }
-    pos.y -= func_00204EA0(s->side) * 0.5f;
+    pos.y -= func_00204EA0(s->objId) * 0.5f;
     act->flags &= ~(BTLAI_ACT_BLOCKED | BTLAI_ACT_BLOCKED_ID);
     if (rad < Vec3_Length(&m->target)) {
         Vec4_Scale(&a, &dir, rad - Vec3_Length(&pos));
@@ -387,9 +384,9 @@ void BtlAiMove_CalcTarget(BtlAiMgrSide *s) {
             act->flags |= BTLAI_ACT_BLOCKED_ID;
         }
     }
-    reach = func_002062F0(s->side);
-    reach += func_00205800(s->side) * 3.0f;
-    func_002056F8(s->side, &dir);
+    reach = func_002062F0(s->objId);
+    reach += func_00205800(s->objId) * 3.0f;
+    func_002056F8(s->objId, &dir);
     Vec3_Normalize(&dir, &dir);
     Vec4_Scale(&a, &dir, reach);
     Vec3_Add(&ahead, &pos, &a);
@@ -408,13 +405,13 @@ void BtlAiMove_CalcTarget(BtlAiMgrSide *s) {
 
 /* Returns 1 when the fighter is within 20 units, or within five times fighter transform +0x98, of a point.
    The height difference counts only for move type 1 with flat == 0. */
-s32 BtlAiMove_IsNear(BtlAiMgrSide *s, BtlAiVec *p, s32 flat) {
+s32 BtlAiMove_IsNear(BtlAiWork *s, BtlAiVec *p, s32 flat) {
     BtlAiVec pos;
     BtlAiVec d;
     BtlAiMoveWork *m = &s->move;
     f32 len;
 
-    func_002053F0(s->side, &pos);
+    func_002053F0(s->objId, &pos);
     Vec3_Sub(&d, &pos, p);
     if (m->type != 1 || flat != 0) {
         d.y = 0.0f;
@@ -423,20 +420,20 @@ s32 BtlAiMove_IsNear(BtlAiMgrSide *s, BtlAiVec *p, s32 flat) {
     if (len < 20.0f) {
         return 1;
     }
-    if (len < func_00205800(s->side) * 5.0f) {
+    if (len < func_00205800(s->objId) * 5.0f) {
         return 1;
     }
     return 0;
 }
 
 /* Builds the path from the fighter to the target. Returns 1 when the path is empty. */
-s32 BtlAiMove_BuildPath(BtlAiMgrSide *s) {
+s32 BtlAiMove_BuildPath(BtlAiWork *s) {
     BtlAiVec pos;
     BtlAiVec d;
     BtlAiMovePath *path = &s->move.path;
     BtlAiMoveWork *m = &s->move;
 
-    func_002053F0(s->side, &pos);
+    func_002053F0(s->objId, &pos);
     func_001B3A50(&pos, &s->move.target, path);
     m->pathTimer = 60;
     if (path->count > 0) {
@@ -450,16 +447,16 @@ s32 BtlAiMove_BuildPath(BtlAiMgrSide *s) {
 
 /* Decides what the run phase does this frame: 0 recompute the target, 1 arrived, 2 head straight for the
    target, 3 follow the path, 4 wait (fighter state 0x1F..0x22). */
-s32 BtlAiMove_Check(BtlAiMgrSide *s) {
+s32 BtlAiMove_Check(BtlAiWork *s) {
     BtlAiVec pos;
     BtlAiVec opp;
     BtlAiVec d;
     BtlAiSegment seg;
     s32 skip = 0;
     BtlAiMoveWork *m = &s->move;
-    BtlAiMgrAct *act = &s->act;
+    BtlAiSeq *act = &s->seq;
     BtlAiMovePath *path = &s->move.path;
-    s32 state = BtlCharApi_GetUnk974(s->side);
+    s32 state = BtlCharApi_GetUnk974(s->objId);
 
     if (m->pathTimer > 0) {
         m->pathTimer--;
@@ -471,7 +468,7 @@ s32 BtlAiMove_Check(BtlAiMgrSide *s) {
         if (path->count == 0) {
             return 0;
         }
-        func_002053F0(s->side, &pos);
+        func_002053F0(s->objId, &pos);
         if (path->count >= 2) {
             seg.from = pos;
             *(BtlAiMovePoint *)&seg.to = path->pts[path->count - 2];
@@ -490,7 +487,7 @@ s32 BtlAiMove_Check(BtlAiMgrSide *s) {
             m->remain = Vec3_Length(&d);
         }
         if (m->pathTimer == 0) {
-            func_002053F0(s->side ^ 1, &opp);
+            func_002053F0(s->objId ^ 1, &opp);
             Vec3_Sub(&d, &opp, (BtlAiVec *)path);
             if (50.0f < Vec3_Length(&d)) {
                 if (BtlAiMove_BuildPath(s)) {
@@ -518,7 +515,7 @@ s32 BtlAiMove_Check(BtlAiMgrSide *s) {
    ASCEND / DESCEND from the height difference, DASH held (fighter flags 0x13 and 0xF both clear) or pressed.
    While fighter flag 0x13 is set, CHARGE is added for move types 2..4 and the stick is reduced to its
    dominant axis. Within dist[2] of the point (kind 1, types 0 and 1) the stick is released and UP held. */
-void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
+void BtlAiMove_Steer(BtlAiWork *s, BtlAiVec *to, s32 kind) {
     BtlAiVec pos;
     BtlAiVec d;
     BtlAiVec opp;
@@ -527,10 +524,10 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
     s32 hold = 0;
     BtlAiMoveWork *m = &s->move;
     s32 press = 0;
-    BtlAiMgrChr *chr = BtlChar_Get(s->side);
-    BtlAiMgrTables *tbl;
+    BtlAiMgrChr *chr = BtlChar_Get(s->objId);
+    BtlAiActTable *tbl;
     s32 side;
-    BtlAiMgr *mgr;
+    BtlAi *mgr;
     s32 fly;
     f32 dy;
     f32 len;
@@ -539,19 +536,19 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
     f32 y;
 
     mgr = gBtlAi;
-    side = s->side;
-    flags = &s->act.flags;
-    tbl = mgr->data->tables;
-    cls = tbl->stateClass[BtlCharApi_GetUnk974(side)];
-    fly = BtlCharApi_TestFlag0F(s->side);
-    func_002053F0(s->side, &pos);
-    func_002053F0(s->side ^ 1, &opp);
+    side = s->objId;
+    flags = &s->seq.flags;
+    tbl = mgr->data->act;
+    cls = tbl->actClass[BtlCharApi_GetUnk974(side)];
+    fly = BtlCharApi_TestFlag0F(s->objId);
+    func_002053F0(s->objId, &pos);
+    func_002053F0(s->objId ^ 1, &opp);
     dy = to->y - pos.y;
     Vec3_Sub(&d, to, &pos);
     d.y = d.w = 0.0f;
     len = Vec3_Length(&d);
-    if (len < func_002062F0(s->side)) {
-        len = func_002062F0(s->side);
+    if (len < func_002062F0(s->objId)) {
+        len = func_002062F0(s->objId);
     }
     Vec3_Normalize(&d, &d);
     yaw = chr->yaw;
@@ -567,7 +564,7 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
     } else if (y < -1.0f) {
         y = -1.0f;
     }
-    if (func_00205CC8(s->side) || fly != 0) {
+    if (func_00205CC8(s->objId) || fly != 0) {
         press = BTLAI_BTN_DASH;
     } else {
         hold = BTLAI_BTN_DASH;
@@ -589,7 +586,7 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
     if (cls == 11) {
         press &= ~BTLAI_BTN_DASH;
     }
-    if (BtlCharApi_TestFlag0F(s->side) && !BtlCharApi_TestFlag0F(s->side ^ 1)) {
+    if (BtlCharApi_TestFlag0F(s->objId) && !BtlCharApi_TestFlag0F(s->objId ^ 1)) {
         if (pos.y > opp.y) {
             hold |= BTLAI_BTN_ASCEND;
         }
@@ -599,7 +596,7 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
         hold |= BTLAI_BTN_UP;
         x = y;
     }
-    if (func_00205CC8(s->side)) {
+    if (func_00205CC8(s->objId)) {
         if (!(hold & BTLAI_BTN_ASCEND)) {
             if ((u32)m->type >= 2) {
                 hold |= BTLAI_BTN_CHARGE;
@@ -616,15 +613,15 @@ void BtlAiMove_Steer(BtlAiMgrSide *s, BtlAiVec *to, s32 kind) {
 
 /* Virtual pad for move type 0 on a clear line: no stick, DASH held (plus CHARGE in mode 2, ASCEND when
    blocked ahead), stick Y -1 in state class 10. */
-void BtlAiMove_Hold(BtlAiMgrSide *s) {
+void BtlAiMove_Hold(BtlAiWork *s) {
     BtlAiMoveWork *m = &s->move;
-    BtlAiMgrAct *act = &s->act;
+    BtlAiSeq *act = &s->seq;
     f32 y = 0.0f;
     f32 x;
-    BtlAiMgrTables *tbl = gBtlAi->data->tables;
+    BtlAiActTable *tbl = gBtlAi->data->act;
     s32 hold;
     s32 cls;
-    s32 state = BtlCharApi_GetUnk974(s->side);
+    s32 state = BtlCharApi_GetUnk974(s->objId);
 
     hold = BTLAI_BTN_DASH;
     if (m->mode == 2) {
@@ -633,7 +630,7 @@ void BtlAiMove_Hold(BtlAiMgrSide *s) {
     if (act->flags & BTLAI_ACT_BLOCKED_AHEAD) {
         hold |= BTLAI_BTN_ASCEND;
     }
-    cls = tbl->stateClass[state];
+    cls = tbl->actClass[state];
     x = y;
     if (cls == 10) {
         y = -1.0f;
@@ -642,16 +639,16 @@ void BtlAiMove_Hold(BtlAiMgrSide *s) {
 }
 
 /* Phase 0 of the move action: goes to phase 1 at once. */
-void BtlAiMove_Init(BtlAiMgrSide *s) {
-    s->act.phase = 1;
+void BtlAiMove_Init(BtlAiWork *s) {
+    s->seq.phase = 1;
     BtlAiMove_Start(s);
 }
 
 /* Phase 1: reads mode and type from the action entry, picks a direction, computes the target, then runs. */
-void BtlAiMove_Start(BtlAiMgrSide *s) {
-    BtlAiMgrAct *act = &s->act;
+void BtlAiMove_Start(BtlAiWork *s) {
+    BtlAiSeq *act = &s->seq;
     BtlAiMoveWork *m = &s->move;
-    BtlAiMgrActEntry *e = &act->stack[act->depth - 1];
+    BtlAiSeqEntry *e = &act->stack[act->depth - 1];
     s32 v;
 
     v = BtlAiMove_Div(e->arg, 10);
@@ -676,9 +673,9 @@ void BtlAiMove_Start(BtlAiMgrSide *s) {
 
 /* Phase 2: acts on BtlAiMove_Check and ends the action when asked to, after 61 frames without progress, or
    (type 4) once the fighters are further apart than dist[1]. */
-void BtlAiMove_Run(BtlAiMgrSide *s) {
+void BtlAiMove_Run(BtlAiWork *s) {
     BtlAiMoveWork *m = &s->move;
-    BtlAiMgrAct *act = &s->act;
+    BtlAiSeq *act = &s->seq;
     BtlAiMovePath *path = &s->move.path;
 
     switch (BtlAiMove_Check(s)) {
@@ -722,11 +719,11 @@ void BtlAiMove_Run(BtlAiMgrSide *s) {
 
 /* Phase 3: releases the pad (pressing DASH in state class 10, holding ASCEND in states 0x1F..0x22), and
    pops the action once the fighter is in state class 0. */
-void BtlAiMove_End(BtlAiMgrSide *s) {
-    BtlAiMgrAct *act = &s->act;
-    BtlAiMgrTables *tbl = gBtlAi->data->tables;
-    s32 state = BtlCharApi_GetUnk974(s->side);
-    s32 cls = tbl->stateClass[state];
+void BtlAiMove_End(BtlAiWork *s) {
+    BtlAiSeq *act = &s->seq;
+    BtlAiActTable *tbl = gBtlAi->data->act;
+    s32 state = BtlCharApi_GetUnk974(s->objId);
+    s32 cls = tbl->actClass[state];
 
     func_001BC918(&s->out, 1);
     if (cls == 10) {

@@ -8,13 +8,21 @@
   object containing the battle sequence starts at 0x215540), and delay-slot behaviour that only
   matches when certain accessors are not defined earlier in the same file (`battle_work.c` vs
   `battle_load.c`).
+- The CPU player's code is two objects. The second one's file-scope tables (0x2EDA70..0x2EDF08)
+  sit between the two groups of function-local data, which puts the boundary after
+  `BtlAiStep_Unk23` (ends 0x1B6B08) and before `BtlAiCond_React` (0x1B7188). Nothing narrows it
+  further: the functions in between emit no read-only data and link identically on either side.
+  The files are split at 0x1B6D00, where the rule conditions' helpers begin. The first object is
+  taken to start at 0x1B4140 (its first read-only item is the jump table at 0x2ED8C0); the data
+  would equally allow an earlier start. Where the second object ends is unknown (at least
+  0x1BA308).
 - The 42 functions at 0x2BD230..0x2BF6B0, after the libraries, are game code (memory-card menu
   UI) that never uses `$gp`. Why they sit there, and whether they were built with different
   flags, is unknown.
 - Two functions in the main body reach short `.sdata` strings with absolute addressing
   (0x1094A8..0x111358), suggesting objects built with different small-data flags.
-- Assembler prelude gaps (see decomp_guide.md): an FPU instruction directly before an unfilled
-  return; `li.s` under `-G0`.
+- Assembler prelude gaps (see decomp_guide.md): a load, store or `la` between a compiler-filled
+  delay slot and an unfilled branch; `li.s` under `-G0`.
 
 ## Functions that resist matching
 
@@ -24,7 +32,6 @@ Still pulled from assembly inside linked files:
 |---|---|---|
 | `BtlInput_Update` | `btl_input.c` | 6 of 149 instructions: the emission order of twelve stores |
 | `DemoCam_Update` | `btl_demo_cam.c` | 11 of 384: two saved registers swapped in one branch |
-| `OrbitCam_Reset` | `orbit_cam.c` | prelude gap: a float load before a call is not moved into the delay slot |
 | `BtlText_DrawScrollBar` | `btl_seq.c` | one register swap |
 | `Ot_Reset` | `gfx_ot.c` | the original copies an address through two extra registers |
 | `Vu1Node_Animate` | `vu1_packet.c` | one instruction short; different loop induction variables |
@@ -34,13 +41,10 @@ Still pulled from assembly inside linked files:
 | `Sprite_DrawPicture` | `sprite.c` | 12 of 150: scheduling in the row loop |
 | `Rigid_Init` | `rigid.c` | 2 of 72: two instructions swapped before a memset |
 | `PadWatch_GetMissing` | `pad_watch.c` | 2 of 69: delay-slot fill |
-
-Matching per function but not linked (in `pending/`):
-
-| File | Why |
-|---|---|
-| `btl_ai.c` (51 of 55 match) | spans two original objects; its read-only data only lines up if each part starts where the original object did, which means pulling in the earlier functions |
-| `btl_char_cam.c` (21 of 23 match) | one function is blocked by the prelude gap (float load before a call); the unmatched cut evaluator owns constants in the middle of the pool, so the file must be split in three |
+| `ChrCam_CalcCut` | `btl_char_cam_cut.c` | 248 of 565: register allocation in the four "resolve a node" blocks; it owns two `.lit4` constants, which is why the fighter camera is three files |
+| `BtlAiStep_Unk17` | `btl_ai_seq.c` | 63 of 154: branch layout of the first half, registers of the class comparisons |
+| `BtlAiCond_TypeRateByOppAction` | `btl_ai_cond.c` | 5 of 50: a result register and the place of two pointer adds |
+| `BtlAi_GetPairRate`, `BtlAi_GetQuadRate` | `btl_ai_cond.c` | 75 of 90: the original repeats the row code in every even case and shares one tail for the odd ones |
 
 ## Game structure
 

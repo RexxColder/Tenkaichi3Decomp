@@ -18,8 +18,8 @@
  * fades: colour = from + delta * value) and as a plain time-out (battle sequence: wait until
  * Ramp_Step returns 1).
  *
- * This is the single definition of the struct that sys/fade.h calls FadeRamp and
- * battle/btl_seq.h calls BtlSeqTimer; both are layout-identical local views of it.
+ * This is the single definition: FadeRamp (sys/fade.h) and BtlSeqTimer (battle/btl_seq.h) are
+ * typedefs of it.
  */
 
 #define RAMP_FPS 30.0f

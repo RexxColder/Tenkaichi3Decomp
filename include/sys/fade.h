@@ -2,6 +2,7 @@
 #define SYS_FADE_H
 
 #include "types.h"
+#include "sys/ramp.h"
 
 /*
  * Screen fades. Source range 0x2527B0-0x252F68.
@@ -42,15 +43,8 @@
 #define FADE_FLAG_DONE 4   /* the ramp reached its end */
 #define FADE_FLAG_PAUSED 8 /* Fade_Update skips the slot (it is still drawn) */
 
-/* The linear ramp of 0x267AC8 / 0x267B00; same layout as BtlSeqTimer in battle/btl_seq.h. */
-typedef struct FadeRamp {
-    /* 0x00 */ s32 unk0;
-    /* 0x04 */ s32 state;  /* 0 running, -1 stopped */
-    /* 0x08 */ f32 frames; /* frames left: seconds * 30 */
-    /* 0x0C */ f32 step;   /* 1 / frames */
-    /* 0x10 */ f32 value;  /* 0 -> 1 */
-    /* 0x14 */ f32 target;
-} FadeRamp; /* size 0x18 */
+/* The slot's linear ramp (sys/ramp.h): value goes 0 -> 1 over the fade. */
+typedef Ramp FadeRamp;
 
 /* One full-screen colour overlay. Colours are r, g, b, a as floats (0-255, alpha 0-128). */
 typedef struct Fade {

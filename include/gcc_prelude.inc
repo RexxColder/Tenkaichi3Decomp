@@ -23,28 +23,41 @@
 #    comes next, from what it remembers of the previous instruction; an empty data directive
 #    makes it settle that early, and under `.set mips4` it settles on "no nop".
 #    Side effect: gas no longer knows the instruction, so it cannot move it into the delay slot
-#    of an unfilled branch that follows directly (`li.s $f0,<constant> / j $31`, for one).
+#    of an unfilled branch that follows directly. That is what the original has: Sony's
+#    assembler never moved these instructions into a delay slot either
+#    (`lui $at / mtc1 $at,$f12 / jal f / nop`).
 #
 # 2. Unfilled branches (.L__gp_state). In reorder mode the assembler fills an empty delay slot
 #    by moving the instruction in front of the branch into it. Sony's assembler did not do that
 #    when the instruction before THAT one was assembled under `.set noreorder` (its
 #    "prev_prev_insn_unreordered" rule), which in compiler output means a delay slot the
-#    compiler filled itself. The modern gas has no such rule. The case that shows up is a
-#    return the compiler duplicated, taking a copy of the first instruction of the shared tail
-#    for the delay slot:
+#    compiler filled itself. The modern gas has no such rule. Two shapes show up. A return the
+#    compiler duplicated, taking a copy of the first instruction of the shared tail for the
+#    delay slot:
 #            j $31 / move $2,$3      <- filled by the compiler (.set noreorder)
 #        $L26:
 #            move $2,$3              <- stays in front of the return ...
 #            j $31                   <- ... which gets a nop; modern gas: `jr $ra / move`
+#    and a call with a float constant right after a call whose slot the compiler filled:
+#            jal f / li $4,1         <- filled by the compiler
+#            li.s $f12,0.9           <- one instruction (a .lit4 load): stays in front ...
+#            jal g                   <- ... of the call, which gets a nop
+#    while after an unfilled branch (`jal f / nop / li.s $f12,0.9 / jal g`) the load does move.
 #    A label on the branch stops the swap, but it may only go where the rule applies:
-#    everywhere else the swap is original too. Macros cannot see gas's reorder mode, and using
-#    `.` to find out where things are stops the swap all by itself, so the wrappers recognise
-#    the shape above by its text: a branch, then the same instruction twice, then a branch.
-#      .L__gp_state   2 = behind a branch, 3 = one ordinary instruction later (its text is
-#                     in __gp_same_as_last), 4 = the same instruction again, 0 = anything else
-#    Not covered: an instruction kept in front of an unfilled branch for the same reason where
-#    the delay slot before it holds a different instruction; that still comes out swapped.
-#    Instructions whose mnemonic is in neither list below are not seen at all.
+#    everywhere else the swap is original too. So the wrappers track
+#      .L__gp_state   2 = behind a branch, 3 = behind the instruction after a branch that was
+#                     assembled under noreorder (a delay slot the compiler filled), 4 = one
+#                     further instruction later, and that one is a single machine instruction
+#                     (if it expands to several, the one before the branch's predecessor is
+#                     its own and the swap is right), 0 = anything else
+#    and a branch reached in state 4 gets the label.
+#    Macros cannot ask gas for its reorder mode or for the size of an instruction (using `.`
+#    behind an instruction stops the swap all by itself: gas records it as a label), so both
+#    are measured by assembling a probe into a scratch section (__gp_scratch).
+#    Not covered: loads, stores and `la` in state 3 are not measured (with a symbol operand gas
+#    decides their size after the macros have run), so they are still swapped; so is anything
+#    behind break or sqrt.s, which are emitted as data. Instructions whose mnemonic is in
+#    neither list below are not seen at all.
 # ---------------------------------------------------------------------------------------------
 .set .L__gp_state, 0
 
@@ -55,38 +68,62 @@
     .set pop
 .endm
 
-.macro __gp_same_as_last text:vararg
+# Scratch section for probes: not loaded, no file space (nobits), discarded by the linker
+# script. Switching sections makes gas settle the way __gp_forget does, so a probe may only go
+# in FRONT of the instruction being wrapped, where forgetting what came before is harmless
+# (and under noreorder nothing is settled). The __gp_forget keeps the switch itself from adding
+# a hazard nop. Ends with `.popsection`.
+.macro __gp_scratch
+    __gp_forget
+    .pushsection .gcc_prelude_scratch, "", @nobits
+    .set .L__gp_dot, .
 .endm
 
-# In front of an ordinary instruction; \text is the instruction as written.
-.macro __gp_note text:vararg
+# In front of an ordinary instruction. single=1: the instruction is known to be one machine
+# instruction, 0: known not to be or not known, 2: the caller measures it.
+.macro __gp_note single=0
     .if .L__gp_state == 2
-        .set .L__gp_state, 3
-        .purgem __gp_same_as_last
-        .macro __gp_same_as_last other:vararg
-            .ifeqs "\text", "\other"
-                .set .L__gp_state, 4
-            .endif
-        .endm
-    .else
-        .if .L__gp_state == 3
+        # Under noreorder a branch gets no nop from gas. bgezall has no wrapper.
+        __gp_scratch
+        bgezall $0, .L__gp_dot
+        .if (. - .L__gp_dot) == 4
+            .set .L__gp_state, 3
+        .else
             .set .L__gp_state, 0
-            __gp_same_as_last \text
+        .endif
+        .popsection
+    .else
+        .if (.L__gp_state == 3) && (\single != 0)
+            .set .L__gp_state, 4
         .else
             .set .L__gp_state, 0
         .endif
     .endif
 .endm
 
-.macro __gp_insn mnem, forget=0
+# measure=1: in state 3, assemble the instruction into the scratch section first to see
+# whether it is a single machine instruction.
+.macro __gp_insn mnem, forget=0, measure=1
     .macro \mnem operands:vararg
         .purgem \mnem
-        __gp_note \mnem \operands
+        .if \measure
+            __gp_note 2
+            .if .L__gp_state == 4
+                __gp_scratch
+                \mnem \operands
+                .if (. - .L__gp_dot) != 4
+                    .set .L__gp_state, 0
+                .endif
+                .popsection
+            .endif
+        .else
+            __gp_note 0
+        .endif
         \mnem \operands
         .if \forget
             __gp_forget
         .endif
-        __gp_insn \mnem, \forget
+        __gp_insn \mnem, \forget, \measure
     .endm
 .endm
 
@@ -109,20 +146,48 @@
 
 # Not listed: move, break, cvt.w.s and sqrt.s (defined below on top of these) and what only
 # hand-written asm uses (COP0, COP2/VU, most of MMI, cache, syscall).
-.irp mnem, nop, lui, li, dli, la, dla, add, addu, addi, addiu, sub, subu, neg, negu, abs, dadd, daddu, daddi, daddiu, dsub, dsubu, dneg, dnegu, dabs, and, andi, or, ori, xor, xori, nor, not, sll, srl, sra, sllv, srlv, srav, dsll, dsrl, dsra, dsll32, dsrl32, dsra32, dsllv, dsrlv, dsrav, slt, slti, sltu, sltiu, seq, sne, sgt, sgtu, sge, sgeu, sle, sleu, movz, movn, mult, multu, mult1, multu1, mul, div, divu, div1, divu1, rem, remu, madd, maddu, madd1, maddu1, mfhi, mflo, mthi, mtlo, mfhi1, mflo1, mthi1, mtlo1, mfsa, mtsa, lb, lbu, lh, lhu, lw, lwu, ld, lwl, lwr, ldl, ldr, lq, sb, sh, sw, sd, swl, swr, sdl, sdr, sq, ulh, ulhu, ulw, uld, ush, usw, usd, por, pand, pxor, pnor, pcpyld, pcpyud, lwc1, swc1, l.s, s.s, add.s, sub.s, mul.s, div.s, abs.s, neg.s, mov.s, cvt.s.w, trunc.w.s, max.s, min.s, madd.s, msub.s, adda.s, suba.s, mula.s, madda.s, msuba.s, rsqrt.s
+.irp mnem, nop, lui, li, dli, add, addu, addi, addiu, sub, subu, neg, negu, abs, dadd, daddu, daddi, daddiu, dsub, dsubu, dneg, dnegu, dabs, and, andi, or, ori, xor, xori, nor, not, sll, srl, sra, sllv, srlv, srav, dsll, dsrl, dsra, dsll32, dsrl32, dsra32, dsllv, dsrlv, dsrav, slt, slti, sltu, sltiu, seq, sne, sgt, sgtu, sge, sgeu, sle, sleu, movz, movn, mult, multu, mult1, multu1, mul, div, divu, div1, divu1, rem, remu, madd, maddu, madd1, maddu1, mfhi, mflo, mthi, mtlo, mfhi1, mflo1, mthi1, mtlo1, mfsa, mtsa, por, pand, pxor, pnor, pcpyld, pcpyud, add.s, sub.s, mul.s, div.s, abs.s, neg.s, mov.s, cvt.s.w, trunc.w.s, max.s, min.s, madd.s, msub.s, adda.s, suba.s, mula.s, madda.s, msuba.s, rsqrt.s
     __gp_insn \mnem
+.endr
+
+# Loads, stores and addresses: not measured (see "Not covered" above).
+.irp mnem, la, dla, lb, lbu, lh, lhu, lw, lwu, ld, lwl, lwr, ldl, ldr, lq, sb, sh, sw, sd, swl, swr, sdl, sdr, sq, ulh, ulhu, ulw, uld, ush, usw, usd, lwc1, swc1, l.s, s.s
+    __gp_insn \mnem, 0, 0
 .endr
 
 # The instructions gas would put a hazard nop behind. They stay real instructions, in any
 # operand syntax; the compares keep the R5900 function codes gas already uses for this CPU.
 #
-# `li.s`: gas assembles it itself, as lui $at / mtc1 $at when the low 16 bits of the constant
-# are zero and as a load from .lit4 otherwise (under -G0 it would be .rodata; not seen yet).
-# Both match the original, so every constant is handled and there is no error case; the mtc1
-# form is why it is in this list.
-.irp mnem, c.f.s, c.eq.s, c.lt.s, c.le.s, mtc1, mfc1, ctc1, cfc1, li.s
-    __gp_insn \mnem, 1
+.irp mnem, c.f.s, c.eq.s, c.lt.s, c.le.s, mtc1, mfc1, ctc1, cfc1
+    __gp_insn \mnem, 1, 0
 .endr
+
+# `li.s`: gas assembles it itself, as lui $at / mtc1 $at when the low or the high 16 bits of
+# the constant are zero and as a one-instruction load from .lit4 otherwise (under -G0 it would
+# always be lui / ori / mtc1; not seen yet, and treated as the .lit4 form here). Both match
+# the original. The two forms need different treatment: the mtc1 form is forgotten like any
+# other mtc1 (which also keeps it out of a following branch's delay slot, as in the original),
+# the .lit4 form is an ordinary instruction that Sony's assembler did move into the delay slot
+# of an unfilled `jal` or `j $31` behind it. Which form it will be is found out by loading the
+# same constant into an integer register in the scratch section: one instruction (lui or ori)
+# exactly when gas picks the mtc1 form. (The real load cannot be tried out there: it would
+# leave a second copy of the constant in .lit4.)
+.macro __gp_lis
+    .macro li.s reg, value
+        .purgem li.s
+        __gp_scratch
+        li.s $2, \value
+        .set .L__gp_lit4, (. - .L__gp_dot) > 4
+        .popsection
+        __gp_note .L__gp_lit4
+        li.s \reg, \value
+        .if !.L__gp_lit4
+            __gp_forget
+        .endif
+        __gp_lis
+    .endm
+.endm
+__gp_lis
 
 # ---------------------------------------------------------------------------------------------
 # Encodings
@@ -136,7 +201,7 @@
 # `break N` (emitted for division-by-zero checks) put N in the low code field, which is where
 # the two-operand form `break 0, N` has it.
 .macro break code, code2
-    __gp_note break \code \code2
+    __gp_note 0
     .ifb \code2
         .word (\code << 6) | 0xD
     .else
@@ -172,6 +237,6 @@
     .if (.L__gp_fd > 31) || (.L__gp_ft > 31)
         .error "gcc_prelude.inc: sqrt.s \fd, \ft: operands must be written $fN"
     .endif
-    __gp_note sqrt.s \fd \ft
+    __gp_note 0
     .word 0x46000004 | (.L__gp_ft << 16) | (.L__gp_fd << 6)
 .endm

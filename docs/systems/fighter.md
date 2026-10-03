@@ -2,8 +2,9 @@
 
 Sources: `src/battle/btl_char_mgr.c` (roster, reset, per-frame phases), `btl_char_get.c`
 (accessors, fighter generator, vibration, voice), `btl_char_api.c` (by-object-id interface),
-`btl_input.c` (input, see input.md), `btl_replay.c`, and `pending/battle/btl_char_cam.c`
-(fighter camera; matches per function, not linked yet).
+`btl_input.c` (input, see input.md), `btl_replay.c`, and the fighter camera in
+`btl_char_cam.c`, `btl_char_cam_cut.c` and `btl_char_cam_modes.c` (one module, three files
+because the unmatched cut evaluator owns constants in the middle of the float pool).
 
 Each file declares its own partial view of the fighter object (`BtlMgrChr`, `BtlCharGetChr`,
 `BtlCharApiChr`, `BtlInputChr`, `ChrCamChr`, ...). A single unified header does not exist yet;

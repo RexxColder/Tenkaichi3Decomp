@@ -6,9 +6,8 @@
 /* Orbit camera, 0x23F620-0x23FB20: a camera on a sphere around a target point, turned and zoomed with pad 0's
  * sticks. See battle/orbit_cam.h.
  *
- * This is a separate file from btl_cam.c for a link reason as well as a logical one: OrbitCam_Reset does not
- * match yet, so its three .lit4 constants (0x2FE550..0x2FE55C) stay in the assembly data, and an object's .lit4
- * has to be contiguous. With the split, btl_cam.c emits 0x2FE4CC..0x2FE550 and this file 0x2FE55C..0x2FE588. */
+ * Its .lit4 pool (0x2FE550..0x2FE588) directly follows btl_cam.c's (0x2FE4CC..0x2FE550); nothing in the data says
+ * whether the two were one source file. */
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 sinf(f32 x);
@@ -21,11 +20,6 @@ extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
 extern OrbitCam *gOrbitCam;
 
 /* Puts the orbit camera back to its defaults. */
-#if 0
-/* 14 of 36 instructions differ, from one misplaced instruction that comes from the assembler prelude. The compiler emits
- * `li.s $f12,1.5707963` (a .lit4 load) directly in front of `jal OrbitCam_SetPitchLimit`; Sony's assembler moved that
- * load into the jal's delay slot, the prelude's li.s wrapper stops gas from doing so (jal / nop instead). Everything
- * after is the same code shifted by one instruction. It should match once the prelude handles li.s before a jal. */
 void OrbitCam_Reset(void) {
     memset(gOrbitCam, 0, sizeof(OrbitCam));
     View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_FULL);
@@ -35,9 +29,6 @@ void OrbitCam_Reset(void) {
     OrbitCam_SetTarget(0.0f, -8.29f, 0.0f);
     OrbitCam_SetAngles(0.0f, 3.14159265f, 0.0f);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/orbit_cam", OrbitCam_Reset);
-#endif
 
 /* Allocates the orbit camera. */
 void OrbitCam_Init(void) {

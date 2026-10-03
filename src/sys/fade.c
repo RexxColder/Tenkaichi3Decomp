@@ -8,9 +8,6 @@ extern void Vec4_Add(f32 *dst, f32 *a, f32 *b);
 extern void Vec4_Sub(f32 *dst, f32 *a, f32 *b);
 extern void Vec4_Scale(f32 *dst, f32 *src, f32 scale);
 extern void Gfx_PutDefaultEnv(u64 **pp);  /* appends the common 2D GS state (13 quadwords) at *pp and advances it */
-extern void Ramp_Stop(FadeRamp *ramp);  /* stops a ramp: state = -1 */
-extern void Ramp_Start(FadeRamp *ramp, f32 seconds, f32 from, f32 to); /* starts a ramp */
-extern s32 Ramp_Step(FadeRamp *ramp); /* steps a ramp, 1 when it ended */
 
 /* The rectangle in GS primitive coordinates: the 512x448 screen centred on 2048,2048. */
 #define FADE_X 1792
