@@ -53,6 +53,21 @@ boundaries to apply: btl_char_action.c + btl_act_a + btl_act_b are one object; b
 btl_act_g continue each other; btl_act_h_b (from 0x1FD958) + btl_act_i are one object;
 btl_act_g's last two functions (from 0x1FC008) probably belong with btl_act_h.
 
+## Effect and stage batch (seventh), brief in docs/briefs_effects_stage.md
+
+First wave running when this was written (stems `eft_*` and `stg_*`; the integrator skips them):
+
+| Stem | Range |
+|---|---|
+| eft_a .. eft_m | 0x12DD80..0x1637A0 in thirteen chunks (cuts at 0x132290, 0x136760, 0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550, 0x15F728) |
+| stg_a, stg_b, stg_c | 0x23FB20..0x242D28, ..0x245F58, ..0x248F28 |
+
+Second wave not launched yet: the rest of the effects, 0x1637A0..0x1AE200, eighteen chunks with
+cuts at 0x167E68, 0x16C2E0, 0x170A50, 0x174A70, 0x178AB0, 0x17CB40, 0x180BF8, 0x1853C8,
+0x1895E8, 0x18D618, 0x191D28, 0x195EE8, 0x199F28, 0x19E0C0, 0x1A21A8, 0x1A62C8, 0x1AA7E8
+(suggested stems eft_n .. eft_z, then eft_aa ..). Launch it once the first wave has shown what
+the effect object model is (eft_a's report), and put that in the brief.
+
 ## Known follow-ups
 
 - Apply the btl_tech_a rename list (`BtlParam_GetRateA` -> `GetKiChargeRate`, `GetStepA` ->
