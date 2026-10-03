@@ -63,7 +63,7 @@ purpose. Each is confirmed by C that compiles to the original bytes unless marke
 | Script commands 13 / 14, option `-B` | Calls the ki adder instead of the blast adder. | Scripts cannot add blast gauge. |
 | Script command 1602, option `-h` | The channel value is stored and then overwritten with 0. | Voice always plays on channel 0. |
 | Fighter flags | Flags written before the first stage of a fight are never promoted; `ClearFlag` does not refresh the previous plain bit. | Edge tests can misreport in those cases. |
-| `prev` action (fighter +0x950) | Never written. | Reads 0; one blend test is always false. |
+| `prev` action (fighter +0x950) | Never written anywhere in the executable. | Reads 0, so every branch on the previous action is constant: ki blasts never alternate hands, clash C always plays its first strike animation, dash start animations never vary. |
 | `BtlMove_CalcApproachPoint` | Takes `sqrt(len^2 - dy^2)`, which can be negative (inferred hazard). | The PS2 returns a number where a PC returns NaN. |
 | `BtlMove_CalcVerticalSpeed`, `BtlMove_CalcJumpSpeed` | Loops end on a sign change (inferred hazard). | Would not end on a NaN. |
 | `BtlCharSnd_PlayCommonFar` | near = far = 100000, so the attenuation divides by zero. | |

@@ -534,3 +534,42 @@ Suspected misname (inferred): `BtlFx_SpawnDamageSparks` in btl_char_fx_b.c reads
 ki blast's kind, type, lifetime, speed, turn rate and hit count: it looks like the ki blast
 launcher, not hit sparks. If so its three `BtlChar_RandF` draws are the blast's spread, and
 simulation-relevant.
+
+## Guard, charge, search, knock-down, ki blasts (`btl_act_c.c`, 0x1EA5F8..0x1EE058; verified unless marked)
+
+29 of 30 functions match per function; `BtlAct_GuardHandler` is two instructions off (an
+instruction-order difference) and stays in assembly. Not linked yet. Names are guesses.
+
+| Actions | What (inferred terms) | Notes |
+|---|---|---|
+| 0x36 | search for a lost opponent | a window grows each frame (half angle fighter +0xD58 from 0.5 to pi, range +0xD5C from 500); when the opponent is inside both, lock-on (flag 5) is restored |
+| 0x37 | ki charge | adds ki per frame; at full ki with one blast stock it fills the +0x1C gauge; when that is full a stock is spent and the powered-up mode (held flag 6) begins. Clears the stat penalty at full ki |
+| 0x38 | guard | three poses (animations 0xEF / 0xF1 / 0xF3) chosen by inputs 36 / 37, a pose change takes 3 frames; recoil = pose + 1; released when input 34 is no longer held |
+| 0x39 | counter out of guard | queues the evasion attack |
+| 0x3A..0x40 | guard-related moves | 0x3B / 0x3D look like blast deflection (low confidence); 0x3E / 0x3F a side step in the air / on the ground |
+| 0x41 | reads the fighter camera `side` | picks camera cut 0x11 or 0x12 |
+| 0x42 | deals 5000 damage to its own fighter (cannot kill) | |
+| 0x43 | idle timeout action (taunt?) | counts in member +0xA0 |
+| 0xAE / 0xAF | ki blast / charged ki blast | costs ki; aim limited to +-36 degrees under lock-on, else along the facing |
+| 0xB0 / 0xB1 | ki blast / charged ki blast from a dash | animation and aim by facing relative to the camera yaw |
+| 0xD3 / 0xE0 | stun on the ground / in the air | lasts while fighter +0xFE0 > 0 |
+| 0xDA..0xDE | knocked down | while the member's "must mash" word is set, each face-button press decrements fighter +0x1000; recovery input is accepted once it reaches 0 |
+| 0xE1..0xE5 | get up / recover | |
+| 0xE6..0xEA | air recovery and landings | |
+| 0xEB | waiting for a member switch | then 0xF6 |
+
+- Random draws: one `BtlChar_FrameMod(2)` for a get-up voice. The charge handler requests a
+  camera shake.
+- Action 0x41 is a reader of the camera's `side` (+0x4A8): it selects between two cuts only.
+- Characters that cannot fly sink at 100 km/h while airborne in guard and charge.
+
+### The previous action (fighter +0x950) is never written (verified by search)
+
+No instruction in the executable stores to offset 0x950 of any register, and the two places
+that take a pointer to the action block (+0x948: `BtlAct_Update`, `BtlAct_CheckForced`, both
+matching C) do not store to its third word. It is zeroed with the fighter and stays 0. So every
+branch on `BtlAct_GetPrev` is constant in the shipped game, including: the alternating-hand ki
+blast (always the first animation), the four strike animations of clash C (always the first),
+the start-animation choices of the dashes, and the "came from action 0x44" test of the vanish
+step. This looks like a store lost in development; a port can choose to restore it, but the
+original behaviour is "previous action = 0".
