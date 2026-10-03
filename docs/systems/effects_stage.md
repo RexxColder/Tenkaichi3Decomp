@@ -47,6 +47,9 @@ and the stage update at 0x243568).
 | 0x12F550..0x12F810 | eft_a.c | technique camera cut `EftCam_*` (drives the demo camera) | camera only | none | |
 | 0x12F810..0x131030 | eft_a.c | shared helpers: palette lighting, splines, `EftMath_WrapAngle`, **projectile aim and homing `EftAim_*`**, clip planes | aim and homing: **yes** | none | |
 | 0x1312A8..0x132290 | eft_a.c | clipped polygon and sprite drawing `EftGfx_*` | no | none | |
+| 0x14B108..0x14BC98 | eft_h.c | tail of the shot manager: slot parameter blocks, `EftShot_Start` (starts the technique event timeline) | **yes** (effect-side state, starts the event timers) | none | (eft_h 54/61) |
+| 0x14BC98..0x14D000 (approx.) | eft_h.c | type -1 (no effect) and **type 1 `EftVolley*`: up to 30 shots** (tasks of the 0x16A400 module, which carry the hits) | **yes**: creates and steers shots, flag 0xA8, restarts the technique timer | none | |
+| ..0x14F230 | eft_h.c | effect pack library `EftEmit_*`, first half: `EftEmit_LoadSet` and seven part spawners | no | none | |
 | 0x14F230..0x151AD8 | eft_i.c | effect pack library `EftEmit_*` (continues eft_h): spawns, moves and kills the part objects of 11 part modules; six node slots per pack | drives parts; no hit records itself | libc `rand()`: 2 per started part with a spread (reaches the part's spawn position) | (eft_i 36/43) |
 | 0x151AD8..0x152978 | eft_i.c | **technique effect type 3 `EftSweep*`: a sweeping beam** | **yes**: one hit record per frame; traces the stage; **destroys stage objects** (`BtlStage_DestroyObj`); sets fighter flag 0xA8 at its end | none | |
 | 0x152978..0x1532A0 | eft_i.c | **technique effect type 7 `EftFollow*`: an effect on fighter node 3** | **yes**: a two-sphere hit record per frame; sets flag 0xA8 at its end. Also drives the stage blur light (visual) | none | |
@@ -333,3 +336,9 @@ blasts, simulation); layer 4 is the stage-change transition.
 - (evidence, eft_d) Source file boundaries: 0x138178..0x13C300 (surfaces: eft_c + eft_d.c) and
   0x13C300..0x13F430 (transition: eft_d_b.c + the first part of eft_e.c; the two "tests without
   callers" at its end are that file's non-static inlines).
+- (verified, eft_h) Shot slots 0 and 1 are the two skills, 2..4 the techniques (correcting the
+  eft_g note). `EftShot_Start` sets the effect's life to the request's seconds x 30 (60 frames
+  for a skill) and starts the event timeline with a lead time of 0.85 s (0.8 s for some
+  techniques; per-id values for the ultimate), read from disassembly.
+
+First wave complete: all sixteen agents reported; every file was re-diffed.

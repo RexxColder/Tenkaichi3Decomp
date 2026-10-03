@@ -68,8 +68,11 @@ INCLUDE_ASM).
 First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x132290, 0x136760,
 0x13A9D0, 0x13EA00, 0x142CA0, 0x147050, 0x14B108, 0x14F230, 0x1532A0, 0x157398, 0x15B550,
 0x15F728; `stg_a` 0x23FB20..0x242D28, `stg_b` ..0x245F58, `stg_c` ..0x248F28).
-Reported and documented: eft_a, eft_b, eft_c, eft_d, eft_e, eft_f, eft_g, eft_i, eft_j, eft_k, eft_l, eft_m, stg_a, stg_b, stg_c. Still running:
-eft_h.
+ALL SIXTEEN REPORTED and are documented in docs/systems/effects_stage.md; every file was
+re-diffed. Nothing of this batch is linked yet. Merge evidence for the integration: eft_c +
+eft_d.c (surfaces, 0x138178..0x13C300); eft_d_b + first part of eft_e (transition,
+0x13C300..0x13F430); rest of eft_e + eft_f (water); eft_g tail + eft_h + eft_i (shot manager
+and effect pack library); eft_j + eft_k + eft_l.c; eft_l_d + eft_m (speed lines).
 
 Second wave: launched, then STOPPED after a few minutes (2026-10-04) to stay inside the usage
 limit. Relaunch these from scratch after the reset; any partial `eft_n`..`eft_u`, `eft_det_*`
