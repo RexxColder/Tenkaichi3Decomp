@@ -59,6 +59,8 @@ and the stage update at 0x243568).
 | 0x1333C8..0x135070 | eft_b.c | underwater bubbles `EftBubble_*` (pool of 100; layer 0 sub-task 7) | no | libc `rand()`; **count depends on camera pose** (per frame while a view's camera is under water), none in split screen; ambient body bubbles only for object 0 | |
 | 0x135070..0x135610 | eft_b.c | scrolling stage sheet `EftStageScroll_*` (sub-task 0) | no | libc `rand()` once at load | |
 | 0x135610..0x136760 | eft_b.c | geyser columns `EftGeyser_*` at stage-defined positions (sub-task 6) | no (its two emitters, in other files, not classified) | libc `rand()` once per column at creation | |
+| 0x13A9D0..0x13C300 | eft_d.c | end of the stage surface module (triangle queueing) | no | none | 7/11 |
+| 0x13C300..0x13EA00 | eft_d_b.c | stage-change transition, first half: 350 particles of six kinds, model draw | no | libc `rand()` at particle creation (14 per streak, re-created when it expires) | 21/22 |
 | 0x13EA00..0x13F3D8 | eft_e.c | **stage-change transition `EftBurst_*` (scene layer 4)**: demo-camera animation, a model, 350 particles on a fixed schedule | no state writes, but **the stage swap waits on it** (150 unpaused frames) | libc `rand()` every unpaused frame | (eft_e 47/49) |
 | 0x13F430..0x140338 | eft_e.c | stage particle emitters `EftSteam_*` (layer 0 sub-task 5; also used by the geysers) | no | VU0 register: 7 per new particle; emission is not gated by pause | |
 | 0x140338..0x142CA0 | eft_e.c | water surface `EftWater_*`, first half (splashes, wakes; continues in eft_f) | one bit: sets flag 0x400 on a hit record's task (inferred private) | libc `rand()`: **one per eligible hit record per frame**, 61 / 44 per splash, 19 / 6 per frame per wake; **all creation is off in split screen** | |
@@ -328,3 +330,6 @@ blasts, simulation); layer 4 is the stage-change transition.
   `EftRushShot_UpdateModels` in the same file); eft_l_d.c + eft_m.c are the speed-line object.
 - (verified) Original bugs: `EftSpdLine_SpawnBodyTrails` never resets its extra-trail count
   between nodes; `EftAbsorb_Init` aims the second hand glow from the first hand for one frame.
+- (evidence, eft_d) Source file boundaries: 0x138178..0x13C300 (surfaces: eft_c + eft_d.c) and
+  0x13C300..0x13F430 (transition: eft_d_b.c + the first part of eft_e.c; the two "tests without
+  callers" at its end are that file's non-static inlines).
