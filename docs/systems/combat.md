@@ -612,3 +612,33 @@ All 124 functions match per function; not linked yet. 102 names are guesses. Ful
   tutorial, inferred): flags raised this frame, which button prompt to show. They read pad
   status and progress data: display only.
 - No random draws.
+
+## Melee: rush chain, charged smash, vanish attack (`btl_act_a.c`, 0x1E3158..0x1E6CC0; verified unless marked)
+
+All 21 functions match per function; not linked yet. This file continues the object of
+`btl_char_action.c`. Handler names and game terms are guesses.
+
+| Actions | What (inferred terms) | Notes |
+|---|---|---|
+| 7..0xA | scripted wait stances | hold lock-on, face the opponent, end when flag 0xAF / 0xB0 drops |
+| 0x44 | rush chain step | animation 0x37 + step (fighter +0xD60), ten steps in two halves of five; flag 0x86 or a powered skill jumps to the second half |
+| 0x45 | automatic rush chain | forced by flag 0x7E; camera cut 0x11 / 0x12 by the camera `side` |
+| 0x46 | rapid rush | five steps; re-queues itself on input 52; camera cut by `side` |
+| 0x47..0x4C | charged smash, six directions | see charge below |
+| 0x4D..0x52 | full smash | requests hit-stop (flags 0x125 + 0x12A) every frame of wind-up and a 0.2 s hold |
+| 0x53..0x57 | smash out of a dash | spends ki per frame while charging; steers at the opponent |
+| 0x58 / 0x59 | flying kick / lift strike | |
+| 0x5A..0x5D | vanish attack | 8 frames, snap to the opponent, warp ahead by the attack's lead time, strike |
+| 0x5E..0x66 | rush finishers | released on input 67; follow-up attack pairs per action |
+
+- **Attack charge**: fighter +0xD78 level 0..1 (float), +0xD7C timer, +0xD84 frames at full.
+  A full charge always takes 22.5 frames; the character's rate (two parameters blended by the
+  gauge at +0xD80, floor 0.1) changes the level reached and the animation speed. Released on
+  the first full frame, a smash holds flag 0x84 and lunges at 3500 km/h for four frames with
+  the invulnerability flags 0x42..0x46.
+- Follow-ups (`BtlAct_DecideAttackFollow`): only while flag 0x5B is up (inferred: the attack
+  connected); the attack block's flag bits open groups of inputs, and which follow-up table is
+  read depends on the opponent's seen action, i.e. on its hit reaction.
+- Function-local data: `BtlAct_FlyingKickHandler` owns 8 bytes of `.sdata` at 0x2FEB20.
+- No random draws; no pad or camera reads other than the camera `side` for cut ids (0x45,
+  0x46); nothing depends on player 0.
