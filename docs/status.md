@@ -74,31 +74,38 @@ eft_d.c (surfaces, 0x138178..0x13C300); eft_d_b + first part of eft_e (transitio
 0x13C300..0x13F430); rest of eft_e + eft_f (water); eft_g tail + eft_h + eft_i (shot manager
 and effect pack library); eft_j + eft_k + eft_l.c; eft_l_d + eft_m (speed lines).
 
-Second wave: launched, then STOPPED after a few minutes (2026-10-04) to stay inside the usage
-limit. Relaunch these from scratch after the reset; any partial `eft_n`..`eft_u`, `eft_det_*`
-or `stg_d*` files on disk are unverified leftovers and can be overwritten. The prompts are the
-shared brief plus these ranges and leads:
+Relaunched 2026-10-04 (20 agents, the session limit): one integrator linking eft_a..eft_m and
+stg_a..stg_c, and nineteen decomp agents:
 
 | Stem | Range |
 |---|---|
-| eft_det_a | 0x1AE200..0x1B16F0 (hit detection of hit records against fighters, 0x1AFDB0..0x1B10F0; `func_001AF9C0` is called by the battle loop between scene update and post-update) |
-| eft_det_b | 0x1B16F0..0x1B4140 (stage tests: `func_001B2DF0` segment against stage, 0x1B24B8 fighter stage-break tests; may run into AI code) |
-| stg_d | 0x22FD10..0x230AA0 (stage rigid bodies / debris, 0x2309A8 is called by `BtlStage_Update`) plus func_00115370 in stg_d_b.c |
-| eft_n | 0x1637A0..0x167E68 (aura, second half; first half is eft_m) |
-| eft_o | 0x167E68..0x16C2E0 (part kind 2; 0x1699D0 creates hit records: blast objects of `EftShotTech`) |
-| eft_p | 0x16C2E0..0x170A50 (0x16C788 creates hit records: the pieces of `EftMulti`, 0x16D858..) |
-| eft_q | 0x170A50..0x174A70 (aura constructor 0x170E00, aimed effect 0x171C78, flash 0x172480) |
-| eft_r | 0x174A70..0x178AB0 (KI BLASTS: hit record creators 0x1763E8, 0x177548, 0x178530; deflect at 0x1764E8 / 0x178630) |
+| eft_det_a | 0x1AE200..0x1B16F0 (projectile hit detection 0x1AFDB0..0x1B10F0; stage collision query `func_001B14C0`) |
+| eft_det_b | 0x1B16F0..0x1B4140 (stage collision, fighter-through-object 0x1B24B8, `func_001B2DF0` segment trace) |
+| stg_d | 0x22FD10..0x230B38 (stage rigid bodies) + func_00115370 in stg_d_b.c |
+| eft_n | 0x1637A0..0x167E68 (aura, second half) |
+| eft_o | 0x167E68..0x16C2E0 (blast object module 0x16A400..) |
+| eft_p | 0x16C2E0..0x170A50 (pieces of `EftMulti`) |
+| eft_q | 0x170A50..0x174A70 |
+| eft_r | 0x174A70..0x178AB0 (ki blasts) |
 | eft_s | 0x178AB0..0x17CB40 |
-| eft_t | 0x17CB40..0x180BF8 (part kinds 18 and 0; 0x17D500 request 0x18; 0x180A00 requests 0xC..0xF) |
+| eft_t | 0x17CB40..0x180BF8 |
 | eft_u | 0x180BF8..0x1853C8 |
+| eft_v | 0x1853C8..0x1895E8 (impact effect 0x187BE0) |
+| eft_w | 0x1895E8..0x18D618 |
+| eft_x | 0x18D618..0x191D28 |
+| eft_y | 0x191D28..0x195EE8 |
+| eft_z | 0x195EE8..0x199F28 (ground impact 0x1975A8) |
+| eft_aa | 0x199F28..0x19E0C0 |
+| eft_ab | 0x19E0C0..0x1A21A8 |
+| eft_ac | 0x1A21A8..0x1A62C8 |
 
-NOT launched yet: eft_v 0x1853C8..0x1895E8 (holds the impact effect
-0x187BE0, task class 0x2C3F20: establish whether it is visual), then nine more chunks
-0x1895E8..0x1AE200 with cuts at 0x18D618, 0x191D28, 0x195EE8, 0x199F28, 0x19E0C0, 0x1A21A8,
-0x1A62C8, 0x1AA7E8 (suggested stems eft_w, eft_x, eft_y, eft_z, eft_aa .. eft_ae).
-
-Merge evidence so far: eft_e + eft_f are one source file; eft_h + eft_i continue each other.
+NOT launched yet (no free slot): eft_ad 0x1A62C8..0x1AA7E8 (part kind 12 module 0x1A6598, kill /
+alive 0x1A65E8 / 0x1A6B40; 0x1A6C58 shock wave; 0x1A6FD0 fighter request 6; model object helpers
+0x1A7608.., `BtlObj_Create` wrapper 0x1A8C40; rotated sprite 0x1AA188), eft_ae 0x1AA7E8..0x1AE200
+(task helpers 0x1ADA58 / 0x1ADB78 / 0x1ADB98, texture set 0x1ADC68 / 0x1ADF20 / 0x1AE148 /
+0x1AE1F8), and the animation player in the battle object (functions around 0x24D498, 0x24D518,
+0x24D610, 0x2500E8, 0x250570, 0x2505A8, 0x250940, 0x250B88; see docs/roadmap.md), plus the
+unassigned first half of the AI sequence file (0x1B4140..0x1B6008).
 
 ## Known follow-ups
 
