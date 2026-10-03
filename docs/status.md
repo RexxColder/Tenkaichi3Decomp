@@ -71,16 +71,26 @@ First wave (stems `eft_a` .. `eft_m` over 0x12DD80..0x1637A0 with cuts at 0x1322
 Reported and documented: eft_a, eft_f, eft_g, eft_i, eft_j, eft_m, stg_b, stg_c. Still running:
 eft_b, eft_c, eft_d, eft_e, eft_h, eft_k, eft_l, stg_a.
 
-Second wave launched (11 agents; the session allows 20 at once):
+Second wave: launched, then STOPPED after a few minutes (2026-10-04) to stay inside the usage
+limit. Relaunch these from scratch after the reset; any partial `eft_n`..`eft_u`, `eft_det_*`
+or `stg_d*` files on disk are unverified leftovers and can be overwritten. The prompts are the
+shared brief plus these ranges and leads:
 
 | Stem | Range |
 |---|---|
-| eft_det_a | 0x1AE200..0x1B16F0 (hit detection of hit records against fighters, 0x1AFDB0..0x1B10F0) |
-| eft_det_b | 0x1B16F0..0x1B4140 (stage tests; may run into AI code) |
-| stg_d | 0x22FD10..0x230AA0 (stage rigid bodies / debris) plus func_00115370 in stg_d_b.c |
-| eft_n .. eft_u | 0x1637A0..0x1853C8 in eight chunks (cuts at 0x167E68, 0x16C2E0, 0x170A50, 0x174A70, 0x178AB0, 0x17CB40, 0x180BF8); eft_r is ki blasts |
+| eft_det_a | 0x1AE200..0x1B16F0 (hit detection of hit records against fighters, 0x1AFDB0..0x1B10F0; `func_001AF9C0` is called by the battle loop between scene update and post-update) |
+| eft_det_b | 0x1B16F0..0x1B4140 (stage tests: `func_001B2DF0` segment against stage, 0x1B24B8 fighter stage-break tests; may run into AI code) |
+| stg_d | 0x22FD10..0x230AA0 (stage rigid bodies / debris, 0x2309A8 is called by `BtlStage_Update`) plus func_00115370 in stg_d_b.c |
+| eft_n | 0x1637A0..0x167E68 (aura, second half; first half is eft_m) |
+| eft_o | 0x167E68..0x16C2E0 (part kind 2; 0x1699D0 creates hit records: blast objects of `EftShotTech`) |
+| eft_p | 0x16C2E0..0x170A50 (0x16C788 creates hit records: the pieces of `EftMulti`, 0x16D858..) |
+| eft_q | 0x170A50..0x174A70 (aura constructor 0x170E00, aimed effect 0x171C78, flash 0x172480) |
+| eft_r | 0x174A70..0x178AB0 (KI BLASTS: hit record creators 0x1763E8, 0x177548, 0x178530; deflect at 0x1764E8 / 0x178630) |
+| eft_s | 0x178AB0..0x17CB40 |
+| eft_t | 0x17CB40..0x180BF8 (part kinds 18 and 0; 0x17D500 request 0x18; 0x180A00 requests 0xC..0xF) |
+| eft_u | 0x180BF8..0x1853C8 |
 
-NOT launched yet (concurrency limit): eft_v 0x1853C8..0x1895E8 (holds the impact effect
+NOT launched yet: eft_v 0x1853C8..0x1895E8 (holds the impact effect
 0x187BE0, task class 0x2C3F20: establish whether it is visual), then nine more chunks
 0x1895E8..0x1AE200 with cuts at 0x18D618, 0x191D28, 0x195EE8, 0x199F28, 0x19E0C0, 0x1A21A8,
 0x1A62C8, 0x1AA7E8 (suggested stems eft_w, eft_x, eft_y, eft_z, eft_aa .. eft_ae).
