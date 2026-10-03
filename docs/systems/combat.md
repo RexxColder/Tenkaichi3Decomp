@@ -171,7 +171,8 @@ values at -20, 0 and 80; for example the damage-taken multiplier runs from 1.187
 ## Hits between fighters (verified)
 
 There is no hit object. A hit is: the attacker's current attack id, the 0x30-byte attack record
-it selects (battle object +0x920 + id * 0x30), the attacker's pending target (fighter +0xF40),
+it selects (a table of 0xA3 records reached through the pointer at battle object +0x920;
+an id outside 0..0xA2 reads record 0), the attacker's pending target (fighter +0xF40),
 and the defender's reaction block (fighter +0xFB0).
 
 Per frame (`BtlColl_Update`), fighter 0 first in each loop:
@@ -573,3 +574,41 @@ blast (always the first animation), the four strike animations of clash C (alway
 the start-animation choices of the dashes, and the "came from action 0x44" test of the vanish
 step. This looks like a store lost in development; a port can choose to restore it, but the
 original behaviour is "previous action = 0".
+
+## Attack ids, attack records, gauge rates (`btl_tech_a.c`, 0x20BA80..0x20F0E8; verified unless marked)
+
+All 124 functions match per function; not linked yet. 102 names are guesses. Full tables
+(attack id by action and animation, the 0x30-byte record, the parameter block) are in
+`include/battle/btl_tech_a.h`.
+
+- **Attack id** (`BtlAtk_GetId`) is a pure function of the action, the animation, the charge at
+  fighter +0xD78 (weak below 0.3, medium below 0.99, else full), fighter +0xD68, flag 0x84, the
+  object's hit counters and the frame of the animation's last hit event. Table-driven attack
+  actions 0x70..0xAD take it from their row in roster +0x2C. Inferred: ids 0..10 are the rush
+  combo, 0x13..0x21 the charged smash (5 directions x 3 charge levels), 0x55 / 0x56 throws.
+- **Melee damage** = record damage x attack curve (x0.5 at level -20, x1 at 0, x3 at 80), then
+  +-10% by abilities 4 / 5 (rush ids) or 6 / 7 (smash ids), x2 / x0.5 by abilities 8 / 9
+  (throws), then divided by the animation's hit-event count when it has two or more. Integer
+  arithmetic throughout. Guard damage follows the same chain from its own field.
+- **Animation event data is simulation input**: damage, ki gain and several attack ids depend
+  on the number and frame of hit events in the playing animation.
+- Record units: push and launch speeds in 10 km/h, angles in whole degrees, shake times in
+  tenths of a second. Reaction ids are stored per defender state with a default fallback;
+  guard results per guard kind.
+- **Gauge rates** (per frame at 30 fps; ki maximum 100000, max power 30000):
+  ki charge = (parameter / 30 + stat curve + bonus / 30) x ability scale, at least 200;
+  passive ki regeneration runs only below a per-character level; a faster recovery rate
+  applies in the ki-exhausted state (flag 0xBE) and is x4 on a button press; blast gauge gain
+  per frame from its own parameter and curve; max power fills in `param / curve` seconds and
+  lasts `param + 0..8` seconds, both converted to an integer per-frame step (so real durations
+  are rounded).
+- Fixed costs: vanishing step 10000 ki, vanish behind 20000 (ability 0x23 halves, 0x24 frees).
+- Stat curve rows: 0 ki charge bonus, 1 ki regeneration bonus, 2 ki recovery bonus, 3 blast
+  gain bonus, 4 melee damage, 5 guard ki cost, 8 speed, 11 max power charge, 12 max power extra
+  time (6, 9, 10: ki blast, Blast 2, Ultimate damage, from btl_tech_b.c).
+- This file's km/h constants need `x * (1000.0f / 3600.0f) / 30.0f`; the form used in
+  `btl_char_move.c` is one bit different. The source had more than one spelling.
+- The first 29 functions (`BtlCtrl_*`) are by-side queries for one caller at 0x218D88 (HUD or
+  tutorial, inferred): flags raised this frame, which button prompt to show. They read pad
+  status and progress data: display only.
+- No random draws.
