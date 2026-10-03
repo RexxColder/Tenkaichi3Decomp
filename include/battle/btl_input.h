@@ -2,6 +2,7 @@
 #define BATTLE_BTL_INPUT_H
 
 #include "types.h"
+#include "battle/battle.h"
 
 /*
  * Per-fighter battle input (src/battle/btl_input.c, 0x1D3B40..0x1D4F30).
@@ -72,9 +73,9 @@
 #define BTLB_DIR_MASK     0x000000F0
 #define BTL_BUTTON_BITS   31 /* entries of BtlCharInput.mask; bit 31 is never set */
 
-/* BattleWork.flags bits tested by BtlInput_Fetch (BATTLE_FLAG_UNK200 / BATTLE_FLAG_UNK400 of battle/battle.h). */
-#define BTL_INPUT_FLAG_BLOCK  0x200 /* every fighter's fetched input is neutral */
-#define BTL_INPUT_FLAG_FILTER 0x400 /* fetched input is masked (below); neutral instead on stages 4 and 27 */
+/* BattleWork.flags bits tested by BtlInput_Fetch (battle/battle.h). */
+#define BTL_INPUT_FLAG_BLOCK  BATTLE_FLAG_DEMO  /* every fighter's fetched input is neutral */
+#define BTL_INPUT_FLAG_FILTER BATTLE_FLAG_READY /* fetched input is masked (below); neutral instead on stages 4 and 27 */
 
 /* Buttons / commands that still get through under BTL_INPUT_FLAG_FILTER. */
 #define BTLB_FILTER_MASK  0x008F18F3

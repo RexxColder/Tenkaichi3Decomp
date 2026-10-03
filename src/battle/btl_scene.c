@@ -1,5 +1,6 @@
 #include "common.h"
 #include "battle/battle.h"
+#include "battle/battle_setup.h"
 #include "battle/btl_pool.h"
 #include "battle/btl_scene.h"
 #include "sys/common.h"
@@ -12,7 +13,7 @@
  * Everything this file calls outside itself is another module that is not decompiled. The names used for
  * the task system (BtlTask*), BtlChar_FindByObjId and BtlStage_IsReady are guesses recorded in
  * config/symbols/btl_scene.txt; Battle_GetStage, Battle_IsTimeLimitOff, Battle_GetTimeLimit and
- * Battle_GetRuleUnk10 are battle_setup's names at the time of writing, declared here as a local view.
+ * Battle_GetRuleUnk10 come from battle/battle_setup.h.
  * The callees still called func_XXXXXXXX, from a first read of their code:
  *
  *   next module (blast records, gp 0x2FE9A8; 0x12DD80..0x12EEA0)
@@ -56,12 +57,6 @@ extern BtlTaskClass D_002C35D0;         /* layer 4 */
 extern BtlTaskClass D_002C36D0;         /* layer 1 */
 extern BtlTaskClass D_002C3BB0;         /* layer 2 */
 extern BtlTaskClass D_002C3F98;         /* layer 3 */
-
-/* battle_setup (local view) */
-extern s32 Battle_GetStage(void);
-extern s32 Battle_IsTimeLimitOff(void);
-extern s32 Battle_GetTimeLimit(void);
-extern s32 Battle_GetRuleUnk10(void);
 
 /* task system, 0x1AD150..0x1ADB48 */
 extern void BtlTaskList_Update(void *list);

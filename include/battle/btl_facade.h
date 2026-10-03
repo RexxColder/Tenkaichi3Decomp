@@ -28,7 +28,7 @@
  *                    SetMemberItems, AddHp / RaiseHp / LowerHp and the two gauges
  *   func_00259570, func_00259C20, func_00259D90   IsWaitOff, AreBothInterruptible, CanCharAct
  *
- * The three callers outside the script are in battle_setup.c (BtlEvent code, 0x129450 and 0x129808):
+ * The three callers outside the script are in battle_load.c (BtlEvent code, 0x129450 and 0x129808):
  * ClearFixedCamera, AreBothInterruptible, SetFlag200 and ClearFlag200.
  *
  * Seven functions have no caller at all: SetCpuParam4, IsCharAction4, AddGauge14, PulseCtrl10D, Nop,

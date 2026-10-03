@@ -1,5 +1,7 @@
 #include "common.h"
 #include "battle/battle.h"
+#include "battle/battle_setup.h"
+#include "battle/battle_work.h"
 #include "battle/btl_facade.h"
 #include "battle/btl_seq.h"
 
@@ -10,24 +12,14 @@
  * Nearly every function is a tail call, so what a wrapper passes through is not visible in its code: the
  * parameter lists below come from reading the targets. The targets are other modules, not decompiled; the
  * names given to them here (BtlCtrl_*, BtlObj_*SubState) are guesses recorded in
- * config/symbols/btl_scene.txt. BattleSide_*, BattleResult_Set, BtlEvent_* and DemoCam_* are the names of the
- * battle_setup / battle_work / btl_cam modules at the time of writing, declared here as a local view.
+ * config/symbols/btl_scene.txt. BattleSide_*, BattleResult_Set and BtlEvent_* come from battle/battle_setup.h and
+ * battle/battle_work.h; DemoCam_* are btl_cam's names at the time of writing, declared here as a local view.
  */
 
 typedef struct Vec4 Vec4;
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern void *BtlObj_Get(s32 id);
-
-/* battle_setup / battle_work (local view) */
-extern s32 BattleSide_GetObjId(s32 side);
-extern void BattleSide_SetMemberItems(s32 side, s32 member, u16 *items);
-extern void BattleResult_Set(s32 flags, s32 reason);
-extern void BtlEvent_Raise(s32 side, s32 event);
-extern void BtlEvent_BeginInterrupt(void);
-extern void BtlEvent_EndInterrupt(void);
-extern void BtlEvent_SetWaitOff(s32 on);
-extern s32 BtlEvent_IsWaitOff(void);
 
 /* scripted camera, 0x23DD30..0x23DE58 (state at gp 0x2FEBCC); btl_cam's names (local view) */
 extern void DemoCam_AddShake(f32 time);
@@ -225,7 +217,7 @@ void BtlFacade_SetMemberItems(s32 side, s32 member, BtlFacadeItem *src) {
     for (i = 0; i < 8; i++) {
         buf[i] = src[i].id + 1;
     }
-    BattleSide_SetMemberItems(side, member, buf);
+    BattleSide_SetMemberItems(side, member, (BattleItemSet *)buf);
     if (member == -1) {
         BtlFacade_NotifyMemberItems(side, BtlCtrl_GetActiveMember(side));
     } else {
@@ -452,12 +444,12 @@ void BtlFacade_RequestStageChange(void) {
 
 /* Sets battle flag 0x200. */
 void BtlFacade_SetFlag200(void) {
-    Battle_GetWork()->flags |= BATTLE_FLAG_UNK200;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
 }
 
 /* Clears battle flag 0x200. */
 void BtlFacade_ClearFlag200(void) {
-    Battle_GetWork()->flags &= ~BATTLE_FLAG_UNK200;
+    Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
 }
 
 /* Stores one of four battle results. */

@@ -2,6 +2,7 @@
 #define BATTLE_BTL_SEQ_H
 
 #include "types.h"
+#include "battle/battle.h"
 
 /*
  * Battle sequence: the state machine that drives one match from the stage intro to the fade out.
@@ -94,17 +95,6 @@ typedef struct BtlSeqTalkCtx {
     /* 0x38 */ s32 skip;       /* set by the `extra` handler in mode 1 */
 } BtlSeqTalkCtx;
 
-/* A running clock. One tick is 34, 32, 34 ms in turn: 100 ms per 3 frames, 30 ticks per second. */
-typedef struct BtlClock {
-    /* 0x00 */ u32 ticks;
-    /* 0x04 */ s16 hours;    /* stops at 9:59:59.999 */
-    /* 0x06 */ s16 minutes;
-    /* 0x08 */ s16 seconds;
-    /* 0x0A */ s16 ms;
-    /* 0x0C */ s16 timeLeft; /* battle clock only: seconds left of the time limit */
-    /* 0x0E */ s16 unkE;
-} BtlClock; /* size 0x10 */
-
 typedef struct BtlSeq {
     /* 0x000 */ s32 state;
     /* 0x004 */ union {
@@ -118,27 +108,6 @@ typedef struct BtlSeq {
     /* 0x118 */ BtlClock subClock; /* second clock, restarted by BtlSeq_ResetSubClock() */
     /* 0x128 */ s32 endCheckOff;   /* non-zero: BtlSeq_CheckBattleEnd() does nothing (clocks stop too) */
 } BtlSeq; /* size 0x12C */
-
-/* BtlSeqResult.winner */
-#define BTL_RESULT_WIN_P1 0x01
-#define BTL_RESULT_WIN_P2 0x02
-#define BTL_RESULT_DRAW   0x04
-#define BTL_RESULT_ABORT  0x08 /* battle left without a finish scene (set from the pause menu in mode 7) */
-#define BTL_RESULT_OTHER  0x10 /* set together with reason 0x40000 */
-/* BtlSeqResult.reason */
-#define BTL_REASON_KO      0x00001 /* every character of a side has no health left */
-#define BTL_REASON_TIME_UP 0x00002
-#define BTL_REASON_FLAG7   0x00004 /* character flag 7 set on the active fighter (ring out / forced defeat) */
-#define BTL_REASON_RESTART 0x18000 /* either bit: restart the battle instead of leaving */
-#define BTL_REASON_BIT18   0x40000
-
-/* Local view of the result block inside the battle work (work + 0x1938); battle/battle.h has BattleResult. */
-typedef struct BtlSeqResult {
-    /* 0x00 */ s32 winner;
-    /* 0x04 */ s32 reason;
-    /* 0x08 */ u8 unk8[0x24];
-    /* 0x2C */ f32 health[2]; /* compared to pick the winner of a time up or of a double finish */
-} BtlSeqResult;
 
 extern BtlSeq *gBtlSeq;
 extern BtlSeqState gBtlSeqTblDefault[BTL_SEQ_STATE_COUNT];

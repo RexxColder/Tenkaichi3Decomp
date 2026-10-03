@@ -29,9 +29,6 @@
 | `BtlScene_TestCharPackBit` | `btl_scene.c` | the original keeps a mask in a saved register |
 | `BtlScene_IsEffectHidden` | `btl_scene.c` | the first switch's shared block and fall-through |
 
-Matching but not linked: `battle_load.c` and `battle_setup.c` (136 functions) were one object in
-the original and must be merged into one file before they can link.
-
 ## Game structure
 
 - What each of the 70 `gProgress->mode` values (overlay dispatch) is.

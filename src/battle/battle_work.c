@@ -1,5 +1,6 @@
 #include "common.h"
 #include "battle/battle_work.h"
+#include "battle/battle_setup.h"
 #include "sys/adx.h"
 #include "sys/loading.h"
 
@@ -17,17 +18,6 @@ extern void *memset(void *dst, s32 c, u32 n);
 
 extern BattleWork gBattleWork;
 extern s32 D_002C6EC0[]; /* table handed to func_002579C0 */
-
-/* The rest of the battle work code (0x129170..0x12B570). */
-extern void BattleResult_CountFrame(void);
-extern void BtlEvent_ClearAll(void);
-extern void BtlEvent_Reset(void);
-extern void BtlEvent_Update(void);
-extern void BattleSetup_Clear(void);
-extern void BattleReplay_ClearDataFlag(void);
-extern s32 Battle_GetBgm(void);              /* work->bgm */
-extern s32 BattleSide_GetModelSlot(s32 side);          /* side->unk26C */
-extern void BattleSide_SetObjId(s32 side, s32 id); /* side->objId = id */
 
 extern s32 func_00249BB0(s32 id);
 extern void func_00249CF0(s32 arg);
@@ -54,7 +44,7 @@ void Battle_ClearWork(void) {
 
 /* Start-of-match reset: stops audio, clears flags/result/events, reloads what changed and starts the BGM. */
 void Battle_ResetWork(void) {
-    BtlEventView *ev;
+    BattleEvents *ev;
 
     Adx_StopAll();
     Battle_GetWork()->flags = 0;
@@ -80,8 +70,8 @@ void Battle_UpdateWork(void) {
 }
 
 /* Returns the same block as Battle_GetWork (the setup lives at its start). */
-BattleWork *Battle_GetSetup(void) {
-    return Battle_GetWork();
+BattleSetup *Battle_GetSetup(void) {
+    return &Battle_GetWork()->setup;
 }
 
 /* Returns the result block. */
@@ -90,13 +80,13 @@ BattleResult *Battle_GetResult(void) {
 }
 
 /* Returns the script handle + event bit sets block. */
-BtlEventView *Battle_GetEventWork(void) {
-    return (BtlEventView *)Battle_GetWork()->unk1980;
+BattleEvents *Battle_GetEventWork(void) {
+    return &Battle_GetWork()->events;
 }
 
-/* Returns the 0x1390-byte block at work + 0x5A8. */
-void *Battle_GetWork5A8(void) {
-    return Battle_GetWork()->unk5A8;
+/* Returns the opponent pool of mode 3 (work + 0x5A8). */
+BattleMemberPool *Battle_GetWork5A8(void) {
+    return &Battle_GetWork()->pool;
 }
 
 /* Loads everything a battle needs (blocking, behind the loading screen) and creates the two sides' objects. */

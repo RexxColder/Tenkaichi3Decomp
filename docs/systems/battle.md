@@ -1,13 +1,12 @@
 # Battle
 
-Sources: `src/battle/battle.c`, `btl_seq.c`, `battle_work.c`, `battle_load.c`, `battle_setup.c`,
-`btl_pool.c`. Layouts: `include/battle/*.h`.
+Sources: `src/battle/battle.c`, `btl_seq.c`, `battle_work.c`, `battle_load.c`, `btl_pool.c`. Layouts: `include/battle/*.h`.
 
-`battle_load.c` and `battle_setup.c` match per function but are not linked: they were one object
-in the original (their read-only data only lines up together) and have to be merged first.
-Three headers (`battle.h`, `battle_work.h`, `battle_setup.h`) still describe the battle block
-with differing local views; the tables below use the most recent, most strongly evidenced
-reading.
+`include/battle/battle.h` is the single description of the battle block (`BattleWork`,
+`BattleSetup`, `BattleSide`, `BattleMember`, `BattleResult`, `BattleEvents`, the flag bits and
+the mode / control / result constants). The loader jobs and the setup accessors are one file,
+`battle_load.c`, because they were one object in the original: their read-only data only lines
+up together.
 
 ## Entry (verified)
 

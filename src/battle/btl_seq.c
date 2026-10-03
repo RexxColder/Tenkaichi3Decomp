@@ -1,5 +1,7 @@
 #include "common.h"
 #include "battle/btl_seq.h"
+#include "battle/battle_setup.h"
+#include "battle/battle_work.h"
 #include "sys/heap.h"
 #include "sys/adx.h"
 
@@ -542,21 +544,6 @@ extern void *memset(void *dst, s32 c, u32 n);
 extern s32 rand(void);
 
 /* Local views of things owned by other modules (their headers are still moving). */
-typedef struct BtlSeqBattleWork {
-    /* 0x0000 */ u8 unk0[0x1938];
-    /* 0x1938 */ BtlSeqResult result;
-    /* 0x196C */ u8 unk196C[0x19F0 - 0x196C];
-    /* 0x19F0 */ u64 flags;
-} BtlSeqBattleWork;
-
-/* BtlSeqBattleWork.flags bits used here */
-#define BTL_FLAG_SKIP 0x100       /* simulation skipped this frame */
-#define BTL_FLAG_DEMO 0x200       /* set by every non-fight state, cleared when the fighters are released */
-#define BTL_FLAG_READY 0x400      /* set during the 2 s of state 2, cleared on entering state 3 */
-#define BTL_FLAG_UNK2000 0x2000
-#define BTL_FLAG_PAUSE 0x4000     /* pause menu open */
-#define BTL_FLAG_RESTART 0x8000   /* restart the battle */
-
 typedef struct BtlSeqObj {
     /* 0x000 */ u8 unk0[0xC];
     /* 0x00C */ s32 chara;  /* character id */
@@ -564,27 +551,6 @@ typedef struct BtlSeqObj {
     /* 0x93C */ u8 *talkTbl; /* 4 bytes per opponent character id: {intro line or 0xFF, speaks second, win line or 0xFF, ?} */
 } BtlSeqObj;
 
-extern BtlSeqBattleWork *Battle_GetWork(void);
-extern s32 Battle_GetMode(void);
-extern BtlSeqResult *Battle_GetResult(void);   /* &Battle_GetWork()->result */
-extern void BattleResult_Set(s32 winner, s32 reason); /* sets the result */
-extern s32 BattleResult_IsAborted(void);             /* result.winner & BTL_RESULT_ABORT */
-extern s32 Battle_IsRematchRequested(void);             /* result.reason & BTL_REASON_RESTART */
-extern s32 BattleResult_HasWinner(void);             /* result.winner & 3: a side won */
-extern s32 BattleResult_IsPlayerWin(void);             /* split screen, mode 8, mode 1, or side 0 won */
-extern s32 BattleResult_GetWinnerSide(void);             /* winning side: 0, or 1 when only bit 1 is set */
-extern s32 BattleResult_IsKo(void);             /* result.reason bit 0 */
-extern s32 BattleResult_IsTimeUp(void);             /* result.reason bit 1 */
-extern s32 BattleResult_IsReasonBit2(void);             /* result.reason bit 2 */
-extern s32 BattleResult_IsReasonBit18(void);             /* result.reason bit 18 */
-extern s32 BattleResult_IsWinnerEvent59Clear(void);
-extern s32 BattleResult_IsEvent3CSet(s32 side);         /* rule flag 0x3C of a side */
-extern s32 BattleReplay_IsActive(void);
-extern s32 BattleReplay_IsLoaded(void);
-extern s32 BattleReplay_TestDataFlag(void);
-extern s32 Battle_GetTimeLimit(void);             /* time limit in seconds (table gBattleTimeLimitTbl) */
-extern s32 Battle_IsTimeLimitOff(void);             /* time limit is off */
-extern s32 BattleSide_GetObjId(s32 side);         /* object index of a side's fighter */
 extern void BtlFacade_SetCtrl10D(s32 side);
 extern BtlSeqObj *BtlObj_Get(s32 idx);
 extern void BtlObj_SetSubState(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
@@ -630,7 +596,7 @@ extern void Fade_Start(s32 idx, s32 dir, f32 seconds);
 s32 BtlSeqIntroTalk_Setup(BtlSeqTalkCtx *ctx);
 s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx);
 s32 BtlSeq_CanDraw(void);
-void BtlSeq_JudgeByHealth(BtlSeqResult *result);
+void BtlSeq_JudgeByHealth(BattleResult *result);
 void BtlSeq_SetResultPad(void);
 s32 BtlSeq_IsModeZero(void);
 
@@ -705,7 +671,7 @@ s32 BtlSeq_Update(void) {
         gBtlSeq->state = next;
         if (gBtlSeq->state == BTL_SEQ_EXIT) {
             if (Battle_IsRematchRequested() || (Battle_GetMode() == 6 && BattleResult_IsReasonBit2())) {
-                Battle_GetWork()->flags |= BTL_FLAG_RESTART;
+                Battle_GetWork()->flags |= BATTLE_FLAG_RESTART;
                 return 0;
             }
             return 1;
@@ -896,7 +862,7 @@ s32 BtlSeqIntroTalk_Enter(BtlSeqTalkCtx *ctx) {
     } else {
         BtlSeqIntroTalk_Setup(ctx);
     }
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     return 1;
 }
 
@@ -1049,7 +1015,7 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
 
 /* State 5 enter: prepares the winner scene and hides HUD parts; mode 1 can be told to wait for the skip instead. */
 s32 BtlSeqWinTalk_Enter(BtlSeqTalkCtx *ctx) {
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     func_00244870();
     func_00244830(1, 1.0f);
     if (Battle_GetMode() == 1) {
@@ -1157,7 +1123,7 @@ s32 BtlSeqWinTalk_Skip(BtlSeqTalkCtx *ctx) {
 /* State 0 enter: restarts the step counter and holds the fighters. */
 s32 BtlSeqStageIntro_Enter(BtlSeqWaitCtx *ctx) {
     ctx->step = 0;
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     return 1;
 }
 
@@ -1235,7 +1201,7 @@ s32 BtlSeq_CanDraw(void) {
 }
 
 /* Picks the winner from the two sides' health; equal health falls back to a rule flag, a draw, or rand(). */
-void BtlSeq_JudgeByHealth(BtlSeqResult *result) {
+void BtlSeq_JudgeByHealth(BattleResult *result) {
     if (result->health[0] == result->health[1]) {
         if (BattleResult_IsEvent3CSet(0)) {
             result->winner = BTL_RESULT_WIN_P1;
@@ -1271,7 +1237,7 @@ void BtlSeq_JudgeByHealth(BtlSeqResult *result) {
 extern s32 BtlSeq_TickClocksExt(void) __asm__("BtlSeq_TickClocks");
 
 s32 BtlSeq_CheckBattleEnd(void) {
-    BtlSeqResult *result = Battle_GetResult();
+    BattleResult *result = Battle_GetResult();
     s32 timeUp;
 
     if (result->winner & 0x1F) {
@@ -1280,10 +1246,10 @@ s32 BtlSeq_CheckBattleEnd(void) {
     if (BtlSeq_GetEndCheckOff()) {
         return 0;
     }
-    if (Battle_GetWork()->flags & BTL_FLAG_SKIP) {
+    if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         return 0;
     }
-    if (Battle_GetWork()->flags & BTL_FLAG_UNK2000) {
+    if (Battle_GetWork()->flags & BATTLE_FLAG_LOADING) {
         return 0;
     }
     if (func_00207090()) {
@@ -1341,8 +1307,8 @@ s32 BtlSeq_CheckBattleEnd(void) {
 
 /* State 3 enter: releases the fighters (clears the demo and ready flags); mode 8 shows the HUD. */
 s32 BtlSeqFight_Enter(BtlSeqWaitCtx *ctx) {
-    Battle_GetWork()->flags &= ~BTL_FLAG_DEMO;
-    Battle_GetWork()->flags &= ~BTL_FLAG_READY;
+    Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
+    Battle_GetWork()->flags &= ~BATTLE_FLAG_READY;
     if (Battle_GetMode() == 8) {
         func_00218A58(1);
     }
@@ -1357,21 +1323,21 @@ s32 BtlSeqFight_PreUpdate(BtlSeqWaitCtx *ctx) {
 /* State 3 update: opens / runs the pause menu, then checks for the end of the battle (-> 4, or 6 without a finish scene). */
 s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
     if (Battle_GetMode() != 8) {
-        if (ctx->poll != NULL && !(Battle_GetWork()->flags & BTL_FLAG_PAUSE) && ctx->poll()) {
+        if (ctx->poll != NULL && !(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE_MENU) && ctx->poll()) {
             if (Battle_GetMode() == 7) {
                 BattleResult_Set(BTL_RESULT_ABORT, 0);
             } else if (BattleReplay_IsActive() && BattleReplay_IsLoaded() && func_0022FC20() == 1) {
             } else if (Battle_GetMode() == 1 && func_002592D8()) {
                 func_00259360();
             } else {
-                Battle_GetWork()->flags |= BTL_FLAG_PAUSE | BTL_FLAG_SKIP;
+                Battle_GetWork()->flags |= BATTLE_FLAG_PAUSE_MENU | BATTLE_FLAG_PAUSE;
                 Adx_PauseSeVoice();
                 Snd_SetPause(4, 1);
             }
         }
-        if (Battle_GetWork()->flags & BTL_FLAG_PAUSE) {
+        if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE_MENU) {
             if (func_00212FF8(func_0022FBD8(), 0) == 0) {
-                Battle_GetWork()->flags &= ~(BTL_FLAG_PAUSE | BTL_FLAG_SKIP);
+                Battle_GetWork()->flags &= ~(BATTLE_FLAG_PAUSE_MENU | BATTLE_FLAG_PAUSE);
                 Snd_SetPause(4, 0);
             }
         }
@@ -1392,7 +1358,7 @@ s32 BtlSeqFight_Exit(BtlSeqWaitCtx *ctx) {
 
 /* State 2 enter: holds the fighters, starts the 0.8 s wait and shows the HUD. */
 s32 BtlSeqReady_Enter(BtlSeqWaitCtx *ctx) {
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     ctx->step = 0;
     func_00267AC8(&ctx->timer, 0.8f, 0.0f, 1.0f);
     func_00218A58(1);
@@ -1410,8 +1376,8 @@ s32 BtlSeqReady_Update(BtlSeqWaitCtx *ctx) {
     case 0:
         if (func_00267B00(&ctx->timer)) {
             func_0022AB50(0);
-            Battle_GetWork()->flags &= ~BTL_FLAG_DEMO;
-            Battle_GetWork()->flags |= BTL_FLAG_READY;
+            Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
+            Battle_GetWork()->flags |= BATTLE_FLAG_READY;
             func_00267AC8(&ctx->timer, 2.0f, 0.0f, 1.0f);
             ctx->step++;
         }
@@ -1447,7 +1413,7 @@ s32 BtlSeq_IsModeZero(void) {
 
 /* State 6 enter: mode 0 with a finished battle opens the result menu (step 0); otherwise starts the 1.2 s fade out (step 1). */
 s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     if (BattleResult_IsAborted()) {
         Fade_Start(0, 0, 1.0f);
         func_00267AC8(&ctx->timer, 1.2f, 0.0f, 1.0f);
@@ -1502,7 +1468,7 @@ s32 BtlSeqEnd_Exit(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     BtlSeqTimer *timer;
 
-    Battle_GetWork()->flags |= BTL_FLAG_DEMO;
+    Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     timer = &ctx->timer;
     func_00267AC8(timer, 3.5f, 0.0f, 1.0f);
     if (BattleResult_IsKo()) {

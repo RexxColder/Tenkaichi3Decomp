@@ -115,10 +115,9 @@ segments:
       - [0x023F48, c, sys/snd]
       - [0x025568, asm, cod/025568]
       - [0x026EC8, c, battle/battle_work]
-      # battle_load.c (0x127120) and battle_setup.c (0x129170) match per function but were one
-      # object in the original (their .rodata only lines up together); they stay in assembly
-      # until the two files are merged.
-      - [0x027120, asm, cod/027120]
+      # Loader jobs and setup accessors were one object in the original: their .rodata only
+      # lines up together.
+      - [0x027120, c, battle/battle_load]
       - [0x02B570, c, battle/battle]
       - [0x02BD58, c, battle/btl_facade]
       - [0x02C9F0, c, battle/btl_scene]
@@ -167,6 +166,7 @@ segments:
       - [0x1EB5B0, .rodata, sys/gfx]
       - [0x1EB610, .rodata, sys/gfx_ot]
       - [0x1EB6A0, rodata, cod/1EB6A0]
+      - [0x1EC350, .rodata, battle/battle_load]
       - [0x1EC420, .rodata, battle/btl_scene]
       - [0x1EC4E0, rodata, cod/1EC4E0]
       - [0x1EF050, .rodata, battle/btl_input]

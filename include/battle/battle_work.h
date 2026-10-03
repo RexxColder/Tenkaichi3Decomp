@@ -9,9 +9,10 @@
  * Battle work and battle loader. Two translation units (see the note in src/battle/battle_work.c):
  *   src/battle/battle_work.c  0x126EC8..0x127120  the static BattleWork block: accessors, reset, per-frame
  *                                                 update, Battle_Load / Battle_Unload
- *   src/battle/battle_load.c  0x127120..0x129170  loader job pool, the five job step functions, load requests,
- *                                                 result block accessors
- * (More battle work code follows at 0x129170; battle.c starts at 0x12B570.)
+ *   src/battle/battle_load.c  0x127120..0x12B570  first half (to 0x129170): loader job pool, the five job step
+ *                                                 functions, load requests, result block accessors; second
+ *                                                 half: events, setup, replay (battle/battle_setup.h)
+ * The battle block (BattleWork, BattleSide, BattleMember, BattleResult, BattleEvents) is in battle/battle.h.
  *
  * Everything below marked "verified" is what the matching C reads or writes; the rest is inference.
  *
@@ -30,48 +31,48 @@
  *
  * --- Battle_Load(): the first load (job BtlLoad_StepInitial, run to completion by Load_RunBlocking) ---
  *   Before the job: func_00249CF0(1), func_002579C0(D_002C6EC0), func_00258D98(), BtlJob_InitPool().
- *   The job starts at step 0, or at step 0x5A when work->unkBC != 0 (Battle_GetScript() >= 0).
- *   0x5A  request file 0x1FF + (work->unkBC - 1) (heap)                      -> res->script
+ *   The job starts at step 0, or at step 0x5A when setup.script != 0 (Battle_GetScript() >= 0).
+ *   0x5A  request file 0x1FF + (setup.script - 1) (heap)                       -> res->script
  *   0x5B  wait; events->script = func_00257DA0(res->script); func_00258050(script, 1000);
  *         func_00258DB8(script); func_00258DB0(); BattleSetup_Finish(); then go to step 0.
  *   0     request, all heap-allocated by the file layer:
  *           0x14A                                    -> res->sndCommon   (common battle sound bank)
- *           0x14E + work->unk1C (stage)              -> res->sndStage
+ *           0x14E + rule.stage                       -> res->sndStage
  *           0xBDA + side 0 character (0xC7B + .. when gSaveData->flags bit 0: alternate voices) -> res->sndChara[0]
  *           the same for side 1                      -> res->sndChara[1]
  *   1     wait for the reads
  *   2     Snd_LoadBank(4, sndCommon), (8, sndStage), (0x10, sndChara[0]), (0x20, sndChara[1])
  *   3     wait until Snd_IsUploadDone() (no sound bank transfer pending), then Heap_Free the four files
- *   4     for each side: objA = func_00249C60(side, chara, costume, variant) -> side->unk26C (BattleSide_SetModelSlot)
+ *   4     for each side: objA = func_00249C60(side, chara, costume, variant) -> side->modelSlot (BattleSide_SetModelSlot)
  *         res->stage = Heap_Alloc(0x6CB800) (zeroed), res->stageSize = 0x6CB800   (stage model buffer)
  *         res->bank  = Heap_Alloc(0x90800)  (zeroed), res->bankSize  = 0x90800    (sound bank reload buffer)
  *         for each side, for each of the 5 members: member->buf[0], buf[1] = Heap_Alloc(0x1000) (zeroed),
  *           member->data = buf[0]
  *         request 0x171 + stage (0x198 + stage in split-screen) into res->stage
- *         for each side, for each member in use (side->unk0 of them): request file
+ *         for each side, for each member in use (side->memberCount of them): request file
  *           8 + member->chara * 2 + side into member->buf[0] (0x1000 bytes)
  *         request file 6 + gProgress->unk0[0] (heap) -> res->unk8
  *   5     wait; Res_RelocateOffsets(&member->buf[0], buf[0], buf[0]) for every member in use; done.
- *   After the job: side->objId = func_00249BB0(side->unk26C) for both sides (BattleSide_SetObjId).
+ *   After the job: side->objId = func_00249BB0(side->modelSlot) for both sides (BattleSide_SetObjId).
  *   The character models themselves are not loaded here: Battle_Restart -> Battle_ResetWork ->
  *   BtlLoad_Reload pushes one BtlLoad_StepChara job per side whose current character differs from
  *   the initial one (always the case after the memset of the first load).
  *
- * --- BtlLoad_StepChara (flag BATTLE_FLAG_UNK800 while it runs) -----------------------------------
+ * --- BtlLoad_StepChara (flag BATTLE_FLAG_LOAD_CHARA while it runs) -----------------------------------
  *   0  model file = 0x590 + chara * 10 + costume (+4 when `variant` is non-zero).
- *      Full load (modelOnly == 0): func_0024B9A8(side->unk26C, model, 0x598 + animChara * 10, 0x599 + unk1C * 10);
+ *      Full load (modelOnly == 0): func_0024B9A8(side->modelSlot, model, 0x598 + animChara * 10, 0x599 + unk1C * 10);
  *        voice bank 0xBDA / 0xC7B + voiceChara into res->bank; unless func_0020BEC8(side), file
  *        8 + chara * 2 + side into the member's second buffer (member = 0 for the initial load, else
  *        func_0020B5E8(side)).
- *      Model only: func_0024B9A8(side->unk26C, model, -1, -1).
+ *      Model only: func_0024B9A8(side->modelSlot, model, -1, -1).
  *   1  wait; for kind 1 (in-battle change) func_0020B350().
  *   2  kind 1 waits for func_0020B368() (fighter manager request state 4, not paused); then
  *      func_0024BAC0(); Snd bank 0x10 (side 0) / 0x20 (side 1) reloaded from res->bank through Snd_ReloadBank;
- *      func_00249BD8(side->objId, side->unk26C); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
+ *      func_00249BD8(side->objId, side->modelSlot); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
  *      func_001C29A0(side); full load: func_001BB1F0(side), BtlScene_CreateChar(side), relocate the member's
  *      second buffer and make it member->data. Clears the flag.
  *
- * --- BtlLoad_StepObject (flag BATTLE_FLAG_UNK1000) ------------------------------------------------
+ * --- BtlLoad_StepObject (flag BATTLE_FLAG_LOAD_OBJECT) ------------------------------------------------
  *   0  file = id + 0xC1C when id >= 0x100, else the character model file as above;
  *      gBtlLoadHandle = func_0024B7A8(0, file, -1, -1)
  *   1  wait; kind 2: func_0020B350()
@@ -80,12 +81,12 @@
  *      kind 2: gBtlLoadObj = func_00249AB8(job->costume [request word +0x20], func_0024B910(handle), 1), func_0020B3C0(side, handle, obj)
  *
  * --- Stage jobs (flag BATTLE_FLAG_LOADING) ---------------------------------------------------------
- *   BtlLoad_StepStageReload: 0 set flag; 1 BtlLoad_BeginStageSwap(), request 0x171/0x198 + work->unk28 into
- *     res->stage and 0x14E + unk28 into res->bank; 2 wait, Snd_ReloadBank(8, res->bank, 0); 3 when not paused:
+ *   BtlLoad_StepStageReload: 0 set flag; 1 BtlLoad_BeginStageSwap(), request 0x171/0x198 + rule.curStage into
+ *     res->stage and 0x14E + curStage into res->bank; 2 wait, Snd_ReloadBank(8, res->bank, 0); 3 when not paused:
  *     clear flag, BtlLoad_EndStageSwap().
  *   BtlLoad_StepStageChange (in-battle stage change, with fade 2): 0 set flag; 1 request file 0x1BF (when the
  *     new stage is 3) or 0x1C0 (heap) -> res->transition, BtlLoad_BeginStageSwap(); 2 wait; 3 when not
- *     paused func_0013F310(); 4 request stage 0x171 + unk28 and bank 0x14E + unk28 (never the split-screen
+ *     paused func_0013F310(); 4 request stage 0x171 + curStage and bank 0x14E + curStage (never the split-screen
  *     file); 5 wait, Snd_ReloadBank(8, bank, 0); 6 when not paused and func_0013F3A0() == 0: Fade_Start(2, 0, 1.0);
  *     7 Fade_IsDone(2): func_0013F3C8(); 8 when not paused: clear flag, BtlLoad_EndStageSwap(), free
  *     res->transition; 9 Fade_Start(2, 1, 1.0), done.
@@ -97,7 +98,7 @@ typedef struct BattleRes {
     /* 0x04 */ void *stage;        /* stage model file 0x171 + stage (0x198 + stage in split-screen) */
     /* 0x08 */ void *unk8;         /* file 6 + gProgress->unk0[0] */
     /* 0x0C */ void *bank;         /* sound bank file being (re)loaded: 0x14E + stage, 0xBDA / 0xC7B + character */
-    /* 0x10 */ void *script;       /* file 0x1FF + n, only when work->unkBC != 0 */
+    /* 0x10 */ void *script;       /* file 0x1FF + n, only when setup.script != 0 */
     /* 0x14 */ void *transition;   /* file 0x1BF / 0x1C0 during a stage change */
     /* 0x18 */ void *sndCommon;    /* file 0x14A, freed once sent to the sound driver */
     /* 0x1C */ void *sndStage;     /* file 0x14E + stage, same */
@@ -117,7 +118,7 @@ typedef struct BattleRes {
 #define BTL_FILE_STAGE_SPLIT 0x198   /* + stage, split-screen version */
 #define BTL_FILE_TRANSITION_3 0x1BF  /* stage change to stage 3 */
 #define BTL_FILE_TRANSITION 0x1C0
-#define BTL_FILE_SCRIPT 0x1FF        /* + work->unkBC - 1 */
+#define BTL_FILE_SCRIPT 0x1FF        /* + setup.script - 1 */
 #define BTL_FILE_CHARA 0x590         /* + character * 10 + costume; +4: variant; +8, +9: two more files */
 #define BTL_FILE_VOICE 0xBDA         /* + character */
 #define BTL_FILE_VOICE_ALT 0xC7B     /* + character, when gSaveData->flags bit 0 */
@@ -126,24 +127,6 @@ typedef struct BattleRes {
 #define BTL_STAGE_BUF_SIZE 0x6CB800
 #define BTL_BANK_BUF_SIZE 0x90800
 #define BTL_MEMBER_BUF_SIZE 0x1000
-
-/* Local view of battle.h's BattleMember (battle.h cannot be edited from here). */
-typedef struct BtlMemberView {
-    /* 0x00 */ s32 chara;      /* character id: file 8 + chara * 2 + side */
-    /* 0x04 */ s32 unk4;
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 unkC[2];
-    /* 0x14 */ u16 unk14[8];   /* summed by BattleResult_CollectEvents (all zero -> result bit 46) */
-    /* 0x24 */ u8 unk24[0x34];
-    /* 0x58 */ void *data;     /* the block in use: buf[0] after a (re)start, buf[1] after an in-battle change */
-    /* 0x5C */ void *buf[2];   /* two 0x1000-byte heap blocks */
-} BtlMemberView; /* size 0x64 */
-
-/* Local view of the block Battle_GetEventWork() returns (work + 0x1980). */
-typedef struct BtlEventView {
-    /* 0x00 */ s32 script;     /* handle made by func_00257DA0 from BattleRes.script; kept across resets */
-    /* 0x04 */ s32 unk4;       /* func_00258038(script), mode 1 only */
-} BtlEventView;
 
 #define BTL_JOB_COUNT 8
 
@@ -157,7 +140,7 @@ typedef struct BtlJob {
     /* 0x00 */ SListNode node;                  /* free-list link while in the pool */
     /* 0x04 */ s32 (*step)(struct BtlJob *job); /* returns 1 when finished */
     /* 0x08 */ s32 state;
-    /* 0x0C */ s32 kind;       /* BTL_JOB_KIND_*; the stage jobs keep the stage id here, the initial job unkBC - 1 */
+    /* 0x0C */ s32 kind;       /* BTL_JOB_KIND_*; the stage jobs keep the stage id here, the initial job setup.script - 1 */
     /* 0x10 */ s32 side;
     /* 0x14 */ s32 chara;      /* character (or object id) whose model is loaded */
     /* 0x18 */ s32 animChara;  /* file 0x598 + n * 10; BtlLoad_StepObject: costume */
@@ -177,31 +160,17 @@ typedef struct BtlJobPool {
 } BtlJobPool; /* size 0x20C */
 
 /*
- * BattleWork fields the matching code reads or writes (offsets from Battle_GetWork()):
- *   +0x0000 size 0x1A00   whole block zeroed by Battle_ClearWork
- *   +0x05A8               Battle_GetWork5A8()
- *   +0x1938 size 0x48     result block: Battle_GetResult(), zeroed by BattleResult_Clear
- *   +0x1980               Battle_GetEventWork(): +0 script handle (s32), +4 s32 (BtlEventView)
- *   +0x19F0 u64 flags     = 0 in Battle_ResetWork; PAUSE (0x100) tested; 0x800 / 0x1000 / 0x2000 set and
- *                         cleared by the job step functions and tested by the two stage requests
- * Through the accessors of the following code (not verified here, taken from their disassembly):
- *   +0x0C bgm, +0x1C initial stage, +0x28 loaded stage, +0xBC script number + 1,
- *   sides[s] +0 member count, +0x250.. initial character / costume / variant, +0x25C.. current triple,
- *   +0x268 objId, +0x26C second object id; members[m] see BtlMemberView.
- *
- * BattleResult bits verified here (battle.h's BattleResult, see also btl_seq.h):
- *   flags  (+0): 1 side 0 won, 2 side 1 won, 8 aborted.
- *   reason (+4): bit 0 K.O., 1 time up, 2, 5|6, 15 / 16 (restart; BattleResult_Set forwards them to
- *                BattleReplay_SetActive(0 / 1)), 18, 20.
- *   unk10  (+0x10, u64): event summary built by BattleResult_CollectEvents, see battle_work.c.
+ * What this code verifies of the battle block (battle/battle.h): the whole 0x1A00 bytes are zeroed by
+ * Battle_ClearWork; the pool is at +0x5A8, the result block (0x48 bytes, zeroed by BattleResult_Clear) at
+ * +0x1938, the event work at +0x1980 and the flags at +0x19F0 (= 0 in Battle_ResetWork; PAUSE tested;
+ * LOAD_CHARA / LOAD_OBJECT / LOADING set and cleared by the job step functions and tested by the two stage
+ * requests). Result bits read here: winner 1 (side 0 won), 2 (side 1 won), 8 (aborted); reason bits 0 K.O.,
+ * 1 time up, 2, 5|6, 15 / 16 (restart; BattleResult_Set forwards them to BattleReplay_SetActive(0 / 1)), 18, 20.
  */
 
 void Battle_ClearWork(void);
 void Battle_ResetWork(void);
 void Battle_UpdateWork(void);
-BattleResult *Battle_GetResult(void);
-BtlEventView *Battle_GetEventWork(void);
-void *Battle_GetWork5A8(void);
 s32 Battle_Load(void);
 s32 Battle_Unload(void);
 

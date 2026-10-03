@@ -1,4 +1,4 @@
-// Battle result finish, battle events, battle setup and replay block: src/battle/battle_setup.c = 0x129170..0x12B570.
+// Battle result finish, battle events, battle setup and replay block: src/battle/battle_load.c = 0x129170..0x12B570.
 // Battle_IsSplitScreen (0x12AB10) and Battle_GetMode (0x12AB38) are in this file's range and stay named in game.txt.
 
 // Battle result, end of the file's result part. 0x129170(): result->frames (+0x18) += 1 when event 0x48 of side 0 is
