@@ -282,3 +282,34 @@ action core, movement, hit, collision, member, status or flag code. The only sou
   variant, one of six random forms, clash tie-breaks, sound variants;
 - `BtlChar_Rand`: clash C only.
 (Camera shake requested by hits does call `rand()`; see netplay_notes.md.)
+
+## Fighter effect layer (`btl_char_fx*.c`, 0x1D00D8..0x1D3B40)
+
+64 of 67 functions match per function (three left in assembly); not linked yet. What each
+effect looks like is not known: names carrying a request or event number mean the trigger is
+verified and the visual is not.
+
+- (verified) It turns two inputs into effect-scene calls, sounds, camera shake and vibration:
+  the 72 one-frame effect request bits the action code sets (fighter +0x1262), and the
+  animation event bits of the playing animation (`BtlAnim_TestAttr(chr, mask)`, a 64-bit mask).
+- (verified) It runs at several points of the frame, the main one being `BtlFx_UpdateAll` in
+  the camera stage: 37 steps in a fixed order (aura, charge effect, damage sparks, impact
+  events, swing sound, power-up look, screen filter, speed lines, ground and water effects...).
+- (verified) **It writes simulation state**, so it cannot be skipped on re-simulated frames:
+  fighter flag 0x30 is set and cleared by animation events; held flags 0x9F and 0x12E; a
+  backward push while flag 0x9F lasts; request bits 0x12, 0x19, 0x1B. Animation event data is
+  therefore simulation input.
+- (verified) Animation events: 0x80 / 0x100 are heavy / light impacts (flash, camera shake of
+  10 for 0.2 s or 5 for 0.1 s, sound, voice); 4 spawns damage sparks; bit 45 vibrates; bit 46
+  shakes the camera.
+- (read from disassembly) The only random draws are three `BtlChar_RandF` per damage spark for
+  position jitter (the fighter generator). No `rand()`, twister or vector-unit generator here.
+- (verified) **Partner object**: a second character model attached to a fighter (fighter
+  +0x1330: active, resource slot, object id), created by the object load job. It follows the
+  fighter, plays animation ids from 0x19E up, and plays voice lines. `BtlPartner_StepAnim`
+  returns "finished" when there is no partner, and action handlers branch on it, so two peers
+  must attach the partner on the same frame (another load-completion dependency). That it is
+  the second character of fusion and team techniques is inferred.
+- (verified) Evidence of the original file: `BtlFx_UpdateGroundFx` only matches when the effect
+  request-bit helpers (in `btl_char_member.c`) are in the same translation unit, and the float
+  pools are contiguous.
