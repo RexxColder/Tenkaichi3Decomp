@@ -75,6 +75,21 @@ options:
     - config/symbols/btl_char_action.txt
     - config/symbols/btl_ai_act.txt
     - config/symbols/btl_ai_think.txt
+    - config/symbols/btl_char_fx.txt
+    - config/symbols/btl_act_a.txt
+    - config/symbols/btl_act_b.txt
+    - config/symbols/btl_act_c.txt
+    - config/symbols/btl_act_d.txt
+    - config/symbols/btl_act_e.txt
+    - config/symbols/btl_act_f.txt
+    - config/symbols/btl_act_g.txt
+    - config/symbols/btl_act_h.txt
+    - config/symbols/btl_act_i.txt
+    - config/symbols/btl_act_j.txt
+    - config/symbols/btl_capi_a.txt
+    - config/symbols/btl_capi_b.txt
+    - config/symbols/btl_tech_a.txt
+    - config/symbols/btl_tech_b.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

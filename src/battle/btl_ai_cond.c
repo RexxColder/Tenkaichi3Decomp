@@ -84,7 +84,7 @@ s32 BtlAiCond_Status4(BtlAiWork *ai, u8 arg) {
 
 /* Condition 7: member word +0xC (of 100000) is at least arg percent. */
 s32 BtlAiCond_GaugeAPercent(BtlAiWork *ai, u8 arg) {
-    if ((f32)func_0020B4E0(ai->objId) / 100000.0f * 100.0f >= (f32)arg) {
+    if ((f32)BtlSide_GetKi(ai->objId) / 100000.0f * 100.0f >= (f32)arg) {
         return 1;
     }
     return 0;
@@ -92,7 +92,7 @@ s32 BtlAiCond_GaugeAPercent(BtlAiWork *ai, u8 arg) {
 
 /* Condition 8: member word +0x14 holds at least arg units of 100000. */
 s32 BtlAiCond_GaugeBStock(BtlAiWork *ai, u8 arg) {
-    if (func_0020B518(ai->objId) / 100000 < arg) {
+    if (BtlSide_GetBlast(ai->objId) / 100000 < arg) {
         return 0;
     }
     return 1;
@@ -102,7 +102,7 @@ s32 BtlAiCond_GaugeBStock(BtlAiWork *ai, u8 arg) {
  * function in the original; a non-static `inline` BtlAiCond_Flag6 itself matches too, but this compiler emits such a
  * function at the end of the object instead of here. */
 static inline s32 BtlAiCond_TestFlag6(BtlAiWork *ai, u8 arg) {
-    return func_0020B7C0(ai->objId) == arg;
+    return BtlSide_IsPoweredUp(ai->objId) == arg;
 }
 
 /* Condition 9: fighter flag 6 equals arg. */
@@ -115,21 +115,21 @@ s32 BtlAiCond_Status6(BtlAiWork *ai, u8 arg) {
     return ((s32)(ai->status.flags >> 6) & 1) == arg;
 }
 
-/* Condition 11: on stage 4 or 27 and func_00209D98(1) is zero. */
+/* Condition 11: on stage 4 or 27 and BtlCharApi_TestPoseBit80(1) is zero. */
 s32 BtlAiCond_Unk11(BtlAiWork *ai, u8 arg) {
     s32 r;
 
     if (BtlChar_IsStage4Or27() == 0) {
         r = 0;
     } else {
-        r = func_00209D98(ai->objId, 1) == 0;
+        r = BtlCharApi_TestPoseBit80(ai->objId, 1) == 0;
     }
     return r == arg;
 }
 
-/* Condition 12: func_002096E8 equals arg. */
+/* Condition 12: BtlCharApi_TestOppSkillFlags equals arg. */
 s32 BtlAiCond_Unk12(BtlAiWork *ai, u8 arg) {
-    return func_002096E8(ai->objId) == arg;
+    return BtlCharApi_TestOppSkillFlags(ai->objId) == arg;
 }
 
 /* Condition 13: plan word 8 is 2. */
@@ -207,7 +207,7 @@ s32 BtlAiCond_React(BtlAiWork *ai, u8 arg) {
     switch (arg) {
     case 0:
         BtlAi_NoteOpponent(ai, 0x10000);
-        if (func_002099E8(ai->objId) & 4) {
+        if (BtlCharApi_GetPromptButtons(ai->objId) & 4) {
             return BtlAiCond_GuardRoll(ai);
         }
     case 1:
@@ -259,9 +259,9 @@ s32 BtlAiCond_React40000(BtlAiWork *ai, u8 arg) {
     return roll < chance;
 }
 
-/* Condition 24: func_00208550 equals arg. */
+/* Condition 24: BtlCharApi_HasBlastLimit equals arg. */
 s32 BtlAiCond_Unk24(BtlAiWork *ai, u8 arg) {
-    return func_00208550(ai->objId) == arg;
+    return BtlCharApi_HasBlastLimit(ai->objId) == arg;
 }
 
 /* Condition 25: character rate 0. */
@@ -286,8 +286,8 @@ s32 BtlAiCond_Rate5(BtlAiWork *ai, u8 arg) {
     s8 *hi = (s8 *)ai->param + 0x100;
     s32 roll = Rand_Range(100);
     s32 chance = RATE(ai, lo, hi, 5);
-    s32 a = func_00209378(ai->objId);
-    s32 b = func_002093B0(ai->objId);
+    s32 a = BtlCharApi_GetParamUnk14(ai->objId);
+    s32 b = BtlCharApi_GetParamFlags(ai->objId);
 
     if (!(a & 0x20) && !(b & 2)) {
         return 0;
@@ -295,9 +295,9 @@ s32 BtlAiCond_Rate5(BtlAiWork *ai, u8 arg) {
     return roll < chance;
 }
 
-/* Condition 27: func_002086C0(1) is 2 (only with arg 1). */
+/* Condition 27: BtlCharApi_FindIncomingBlast(1) is 2 (only with arg 1). */
 s32 BtlAiCond_Unk27(BtlAiWork *ai, u8 arg) {
-    if (func_002086C0(ai->objId, 1) == 2 && arg == 1) {
+    if (BtlCharApi_FindIncomingBlast(ai->objId, 1) == 2 && arg == 1) {
         return 1;
     }
     return 0;
@@ -322,7 +322,7 @@ s32 BtlAiCond_Rate1(BtlAiWork *ai, u8 arg) {
     s32 roll = Rand_Range(100);
     s32 chance = RATE(ai, lo, hi, 1);
 
-    if (func_002095E8(ai->objId) == -1) {
+    if (BtlCharApi_GetOppSkillKind(ai->objId) == -1) {
         BtlAi_NoteOpponent(ai, 0x40);
     }
     seq->roll = roll;
@@ -391,7 +391,7 @@ s32 BtlAiCond_Rate8(BtlAiWork *ai, u8 arg) {
     s8 *hi = (s8 *)ai->param + 0x100;
     s32 roll = Rand_Range(100);
     s32 chance = RATE(ai, lo, hi, 8);
-    s32 force = func_00209AC0(ai->objId);
+    s32 force = BtlCharApi_GetUnk1290(ai->objId);
 
     if (arg == 0) {
         st->timer18 = 90;
@@ -422,7 +422,7 @@ s32 BtlAiCond_TenPercent(BtlAiWork *ai, u8 arg) {
 void BtlAi_ScaleByGauge(BtlAiWork *ai, s32 *lo, s32 *hi) {
     u8 *prof = gBtlAi->data->profile[ai->type];
     f32 limit = (f32)BtlAi_ScaleByLevel(ai->level, prof[0x2AC], prof[0x56C]);
-    f32 pct = (f32)func_00208D48(ai->objId) / 30000.0f * 100.0f;
+    f32 pct = (f32)BtlCharApi_GetMaxPower(ai->objId) / 30000.0f * 100.0f;
 
     s32 a = *lo;
     s32 b = *hi;
@@ -437,7 +437,7 @@ void BtlAi_ScaleByGauge(BtlAiWork *ai, s32 *lo, s32 *hi) {
 
 /* Multiplier applied when member word +0xC is under 20% / 40% of 100000. */
 f32 BtlAi_GetLowGaugeFactor(BtlAiWork *ai) {
-    f32 pct = (f32)func_0020B4E0(ai->objId) / 100000.0f * 100.0f;
+    f32 pct = (f32)BtlSide_GetKi(ai->objId) / 100000.0f * 100.0f;
     u8 *prof = gBtlAi->data->profile[ai->type];
     f32 r = 1.0f;
     s32 lo;
@@ -699,26 +699,26 @@ extern void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel);
 extern void func_001B3F78(AiThSeq *seq);
 extern void func_001B3FC8(AiThWork *ai, AiThRule *rule);
 extern s32 BtlAiSense_IsBehindOpponent(AiThWork *ai);
-extern f32 func_00204EA0(s32 objId);
-extern void func_002053F0(s32 objId, AiThVec *out);
-extern f32 func_00205C58(s32 objId);
-extern f32 func_002062F0(s32 objId);
-extern s32 func_00208C30(s32 objId);
-extern s32 func_00208DE0(s32 objId);
-extern s32 func_00208F30(s32 objId);
-extern s32 func_00208F68(s32 objId);
-extern s32 func_00209378(s32 objId);
-extern s32 func_002093E8(s32 objId);
-extern s32 func_002097C0(s32 objId);
-extern s32 func_00209978(s32 objId, s32 slot);
-extern s32 func_002099C0(s32 objId);
-extern s32 func_00209D48(s32 objId);
-extern s32 func_00209D98(s32 objId, s32 arg);
-extern s32 func_00209DF8(s32 objId);
-extern s32 func_00209E78(s32 objId);
-extern s32 func_0020B4E0(s32 objId);
-extern s32 func_0020B518(s32 objId);
-extern s32 func_0020B7C0(s32 objId);
+extern f32 BtlCharApi_GetHeight(s32 objId);
+extern void BtlCharApi_GetPos(s32 objId, AiThVec *out);
+extern f32 BtlCharApi_GetCloseRange(s32 objId);
+extern f32 BtlCharApi_GetRadius(s32 objId);
+extern s32 BtlCharApi_GetHp(s32 objId);
+extern s32 BtlCharApi_HasParamBit80(s32 objId);
+extern s32 BtlCharApi_GetCpuLevel(s32 objId);
+extern s32 BtlCharApi_GetAiType(s32 objId);
+extern s32 BtlCharApi_GetParamUnk14(s32 objId);
+extern s32 BtlCharApi_GetParamUnk18(s32 objId);
+extern s32 BtlCharApi_GetOppSkillClass(s32 objId);
+extern s32 BtlCharApi_IsMoveFlag100(s32 objId, s32 slot);
+extern s32 BtlCharApi_GetStunTimer(s32 objId);
+extern s32 BtlCharApi_IsAnimFlag2800(s32 objId);
+extern s32 BtlCharApi_TestPoseBit80(s32 objId, s32 arg);
+extern s32 BtlCharApi_TestFlag98(s32 objId);
+extern s32 BtlCharApi_GetUnkE40(s32 objId);
+extern s32 BtlSide_GetKi(s32 objId);
+extern s32 BtlSide_GetBlast(s32 objId);
+extern s32 BtlSide_IsPoweredUp(s32 objId);
 
 s32 AiThink_TestMove(AiThWork *ai);
 s32 AiThink_TestSkill(AiThWork *ai);
@@ -731,9 +731,9 @@ s32 AiThink_TestSkill(AiThWork *ai);
 #define BtlAi_GetLowGaugeFactor(ai) BtlAi_GetLowGaugeFactor((BtlAiWork *)(ai))
 #define BtlAi_GetPairRate(ai, kind, off, lo, hi, byGauge) BtlAi_GetPairRate((BtlAiWork *)(ai), kind, off, lo, hi, byGauge)
 #define BtlAi_GetQuadRate(ai, kind, off, lo, hi, byGauge) BtlAi_GetQuadRate((BtlAiWork *)(ai), kind, off, lo, hi, byGauge)
-#define func_00208B58(objId) ((AiThChrSkills *)func_00208B58(objId))
-#define func_00208B98(objId) ((AiThChrMoves *)func_00208B98(objId))
-#define func_00209910(objId, slot) (((s32 (*)(s32, s32))func_00209910)(objId, slot))
+#define BtlCharApi_GetSkillTable(objId) ((AiThChrSkills *)BtlCharApi_GetSkillTable(objId))
+#define BtlCharApi_GetMoveTable(objId) ((AiThChrMoves *)BtlCharApi_GetMoveTable(objId))
+#define BtlCharApi_IsMoveSlotActive(objId, slot) (((s32 (*)(s32, s32))BtlCharApi_IsMoveSlotActive)(objId, slot))
 
 #define PROFILE(ai) (gBtlAi->data->profile[(ai)->type])
 
@@ -923,12 +923,12 @@ s32 AiThink_TestBasic(AiThWork *ai) {
     return 0;
 }
 
-/* Condition function 38: the basic test, never with fighter flag 6 or while func_00209DF8 is set. */
+/* Condition function 38: the basic test, never with fighter flag 6 or while BtlCharApi_TestFlag98 is set. */
 s32 AiThCond_BasicNoFlag6(AiThWork *ai, u8 arg) {
-    if (func_0020B7C0(ai->objId) != 0) {
+    if (BtlSide_IsPoweredUp(ai->objId) != 0) {
         return 0;
     }
-    if (func_00209DF8(ai->objId) != 0) {
+    if (BtlCharApi_TestFlag98(ai->objId) != 0) {
         return 0;
     }
     return AiThink_TestBasic(ai);
@@ -986,8 +986,8 @@ s32 AiThink_TestWeighted(AiThWork *ai, s32 byGauge) {
     u8 *prof = PROFILE(ai);
     AiThRoll *r = &plan->rolls[plan->condNo];
     s32 fn = D_002EDA70[plan->cond];
-    AiThChrSkills *skills = func_00208B58(ai->objId);
-    s32 dist = func_00208C30(ai->objId);
+    AiThChrSkills *skills = BtlCharApi_GetSkillTable(ai->objId);
+    s32 dist = BtlCharApi_GetHp(ai->objId);
     s32 near = BtlAi_ScaleByLevel(ai->level, prof[0x2AE], prof[0x56E]);
     s32 col = AiThink_FindWeightColumn(plan);
     s32 rate;
@@ -1052,11 +1052,11 @@ s32 AiThink_TestMove(AiThWork *ai) {
     s32 list[4];
     AiThPlan *plan = &ai->plan;
     s32 count = 0;
-    AiThChrMoves *moves = func_00208B98(ai->objId);
-    s32 stock = func_0020B518(ai->objId) / 100000;
+    AiThChrMoves *moves = BtlCharApi_GetMoveTable(ai->objId);
+    s32 stock = BtlSide_GetBlast(ai->objId) / 100000;
     s32 kind = plan->cond - 0x5C;
-    s32 dist = func_00208C30(ai->objId);
-    s32 oppVal = func_002099C0(ai->objId ^ 1);
+    s32 dist = BtlCharApi_GetHp(ai->objId);
+    s32 oppVal = BtlCharApi_GetStunTimer(ai->objId ^ 1);
     s32 i;
     s32 blocked;
 
@@ -1088,14 +1088,14 @@ s32 AiThink_TestMove(AiThWork *ai) {
         case 4:
             break;
         case 5:
-            if (func_00209978(ai->objId, i) == 0) {
-                if (func_00209910(ai->objId, i) != 0) {
+            if (BtlCharApi_IsMoveFlag100(ai->objId, i) == 0) {
+                if (BtlCharApi_IsMoveSlotActive(ai->objId, i) != 0) {
                     blocked = 1;
                 }
             }
             break;
         case 6:
-            blocked = func_0020B7C0(ai->objId) != 0;
+            blocked = BtlSide_IsPoweredUp(ai->objId) != 0;
             break;
         case 7:
         case 8:
@@ -1151,15 +1151,15 @@ s32 AiThink_TestSkill(AiThWork *ai) {
     plan = &ai->plan;
     count = 0;
     anyBasic = 0;
-    skills = func_00208B58(ai->objId);
+    skills = BtlCharApi_GetSkillTable(ai->objId);
     beatOpp = 0;
     strict = 1;
-    gauge = func_0020B4E0(ai->objId);
+    gauge = BtlSide_GetKi(ai->objId);
     kind = plan->cond - 0x65;
-    dist = func_00208C30(ai->objId);
-    oppSlot = func_002097C0(ai->objId);
-    opp = func_00208B58(ai->objId ^ 1);
-    if (func_00209E78(ai->objId) != 0) {
+    dist = BtlCharApi_GetHp(ai->objId);
+    oppSlot = BtlCharApi_GetOppSkillClass(ai->objId);
+    opp = BtlCharApi_GetSkillTable(ai->objId ^ 1);
+    if (BtlCharApi_GetUnkE40(ai->objId) != 0) {
         return 0;
     }
     if (D_002EDA70[plan->cond] == 0x6B) {
@@ -1179,7 +1179,7 @@ s32 AiThink_TestSkill(AiThWork *ai) {
             return 0;
         }
     }
-    if (func_0020B7C0(ai->objId) != 0) {
+    if (BtlSide_IsPoweredUp(ai->objId) != 0) {
         n = 3;
     }
     for (i = n - 1; i >= 0; i--) {
@@ -1211,10 +1211,10 @@ s32 AiThink_TestSkill(AiThWork *ai) {
             continue;
         }
         if (skills->kind[i] == 5 && BtlChar_IsStage4Or27() != 0) {
-            if (func_00209D98(ai->objId, 1) == 0) {
+            if (BtlCharApi_TestPoseBit80(ai->objId, 1) == 0) {
                 continue;
             }
-            if (func_00209D98(ai->objId ^ 1, 1) == 0) {
+            if (BtlCharApi_TestPoseBit80(ai->objId ^ 1, 1) == 0) {
                 continue;
             }
         }
@@ -1241,7 +1241,7 @@ s32 AiThink_TestSkill(AiThWork *ai) {
             plan->slot = list[Rand_Range(count)];
         }
     }
-    if (AiThink_TestWeighted(ai, func_0020B7C0(ai->objId)) != 0) {
+    if (AiThink_TestWeighted(ai, BtlSide_IsPoweredUp(ai->objId)) != 0) {
         return 1;
     }
     plan->slot = -1;
@@ -1250,16 +1250,16 @@ s32 AiThink_TestSkill(AiThWork *ai) {
 #endif
 INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_TestSkill);
 
-/* Condition function 40: the weighted test while bit 0 of func_00209378 is set. */
+/* Condition function 40: the weighted test while bit 0 of BtlCharApi_GetParamUnk14 is set. */
 s32 AiThCond_WeightedIfBit0(AiThWork *ai, u8 arg) {
-    if (func_00209378(ai->objId) & 1) {
+    if (BtlCharApi_GetParamUnk14(ai->objId) & 1) {
         return AiThink_TestWeighted(ai, 0);
     }
     return 0;
 }
 
 /* Condition function 77: misc rate 0x10 (arg 0) or 0x13 (arg 1); on stage 4 / 27 only when the opponent's
- * func_00209D98(1) is set. */
+ * BtlCharApi_TestPoseBit80(1) is set. */
 s32 AiThCond_MiscRate0Or3(AiThWork *ai, u8 arg) {
     AiThSeq *seq = &ai->seq;
     u8 *prof = PROFILE(ai);
@@ -1280,7 +1280,7 @@ s32 AiThCond_MiscRate0Or3(AiThWork *ai, u8 arg) {
         chance = 0;
         break;
     }
-    if (stage != 0 && func_00209D98(ai->objId ^ 1, 1) == 0) {
+    if (stage != 0 && BtlCharApi_TestPoseBit80(ai->objId ^ 1, 1) == 0) {
         return 0;
     }
     seq->roll = roll;
@@ -1364,13 +1364,13 @@ s32 AiThCond_Weighted(AiThWork *ai, u8 arg) {
 s32 AiThCond_WeightedByHeight(AiThWork *ai, u8 arg) {
     AiThStatus *st = &ai->status;
     AiThPlan *plan = &ai->plan;
-    f32 height = func_00204EA0(ai->objId);
+    f32 height = BtlCharApi_GetHeight(ai->objId);
     AiThVec pos;
     AiThVec opp;
     f32 dy;
 
-    func_002053F0(ai->objId, &pos);
-    func_002053F0(ai->objId ^ 1, &opp);
+    BtlCharApi_GetPos(ai->objId, &pos);
+    BtlCharApi_GetPos(ai->objId ^ 1, &opp);
     dy = opp.y - pos.y;
     switch (D_002EDA70[plan->cond]) {
     case 0x36:
@@ -1391,10 +1391,10 @@ s32 AiThCond_WeightedByHeight(AiThWork *ai, u8 arg) {
         }
         break;
     case 0x37:
-        if (func_00209D48(ai->objId ^ 1) == 0) {
+        if (BtlCharApi_IsAnimFlag2800(ai->objId ^ 1) == 0) {
             return 0;
         }
-        if (gBtlAi->distance > gBtlAi->radiusSum + func_002062F0(ai->objId)) {
+        if (gBtlAi->distance > gBtlAi->radiusSum + BtlCharApi_GetRadius(ai->objId)) {
             return 0;
         }
         if ((dy < 0.0f ? -dy : dy) > height) {
@@ -1570,10 +1570,10 @@ s32 AiThink_RollActRate(AiThWork *ai, s32 cond) {
 
 /* Condition functions 114, 115, 117: the weighted test, only with fighter flag 6 and one ability bit. */
 s32 AiThCond_WeightedIfAbility(AiThWork *ai, u8 arg) {
-    s32 ab = func_002093E8(ai->objId);
+    s32 ab = BtlCharApi_GetParamUnk18(ai->objId);
     s32 fn = D_002EDA70[ai->plan.cond];
 
-    if (func_0020B7C0(ai->objId) == 0) {
+    if (BtlSide_IsPoweredUp(ai->objId) == 0) {
         return 0;
     }
     switch (fn) {
@@ -1644,7 +1644,7 @@ s32 AiThink_GetGroupClass(s32 group) {
 
 /* Whether one of the fighter's two move slots has this kind. */
 s32 AiThink_HasMoveKind(AiThWork *ai, s32 kind) {
-    AiThChrMoves *moves = func_00208B98(ai->objId);
+    AiThChrMoves *moves = BtlCharApi_GetMoveTable(ai->objId);
     s32 i;
     s8 *p;
 
@@ -1659,7 +1659,7 @@ s32 AiThink_HasMoveKind(AiThWork *ai, s32 kind) {
 
 /* Whether one of the fighter's three skill slots has this kind. */
 s32 AiThink_HasSkillKind(AiThWork *ai, s32 kind) {
-    AiThChrSkills *skills = func_00208B58(ai->objId);
+    AiThChrSkills *skills = BtlCharApi_GetSkillTable(ai->objId);
     s32 i;
     s8 *p;
 
@@ -1672,14 +1672,14 @@ s32 AiThink_HasSkillKind(AiThWork *ai, s32 kind) {
     return 0;
 }
 
-/* Whether the fighter's ability word (func_002093E8) has one of the bits. */
+/* Whether the fighter's ability word (BtlCharApi_GetParamUnk18) has one of the bits. */
 s32 AiThink_HasAbility(AiThWork *ai, s32 mask) {
-    return (func_002093E8(ai->objId) & mask) != 0;
+    return (BtlCharApi_GetParamUnk18(ai->objId) & mask) != 0;
 }
 
 /* Whether this fighter can ever do what a condition code (id - 40) stands for. */
 s32 AiThink_IsCodeUsable(AiThWork *ai, s32 code) {
-    s32 r = func_00209378(ai->objId) & 1;
+    s32 r = BtlCharApi_GetParamUnk14(ai->objId) & 1;
 
     if (code == 0) {
         return r;
@@ -1918,7 +1918,7 @@ s32 AiThink_GetRollRange(AiThWork *ai, s32 tbl) {
         idx = plan->sub;
     }
     total = plan->total[tbl][idx];
-    dist = func_00208C30(ai->objId);
+    dist = BtlCharApi_GetHp(ai->objId);
     near = BtlAi_ScaleByLevel(ai->level, PROFILE(ai)[0x2AE], PROFILE(ai)[0x56E]);
     if (total == 0) {
         return 100;
@@ -2237,11 +2237,11 @@ void AiThink_BindData(s32 owned) {
     }
 }
 
-/* Reads what the fighter's kit offers: move kinds 6 / 7, func_00208DE0, and the cheapest / dearest of the first
+/* Reads what the fighter's kit offers: move kinds 6 / 7, BtlCharApi_HasParamBit80, and the cheapest / dearest of the first
  * two skills in thousands. */
 void AiThink_ReadKit(AiThWork *ai) {
-    AiThChrMoves *moves = func_00208B98(ai->objId);
-    AiThChrSkills *skills = func_00208B58(ai->objId);
+    AiThChrMoves *moves = BtlCharApi_GetMoveTable(ai->objId);
+    AiThChrSkills *skills = BtlCharApi_GetSkillTable(ai->objId);
     s32 i;
 
     ai->kit = 0;
@@ -2256,7 +2256,7 @@ void AiThink_ReadKit(AiThWork *ai) {
     if ((ai->kit & 3) == 3) {
         ai->kit &= ~AITH_KIT_MOVE7;
     }
-    if (func_00208DE0(ai->objId) != 0) {
+    if (BtlCharApi_HasParamBit80(ai->objId) != 0) {
         ai->kit |= AITH_KIT_UNK4;
     }
     ai->costMin = (skills->cost[0] < skills->cost[1] ? skills->cost[0] : skills->cost[1]) / 1000;
@@ -2291,12 +2291,12 @@ void AiThink_ResetSide(s32 side, s32 owned) {
     ai->param = param;
     ai->objId = side;
     ai->own &= ~1;
-    BtlAiMgr_SetLevel(ai->objId, func_00208F30(side));
-    BtlAiMgr_SetType(ai->objId, func_00208F68(ai->objId));
+    BtlAiMgr_SetLevel(ai->objId, BtlCharApi_GetCpuLevel(side));
+    BtlAiMgr_SetType(ai->objId, BtlCharApi_GetAiType(ai->objId));
     func_001B3F78(&ai->seq);
-    gBtlAi->radiusSum = func_002062F0(ai->objId) + func_002062F0(ai->objId ^ 1);
+    gBtlAi->radiusSum = BtlCharApi_GetRadius(ai->objId) + BtlCharApi_GetRadius(ai->objId ^ 1);
     range->dist[0] = gBtlAi->radiusSum;
-    d = func_00205C58(side) - func_002062F0(side);
+    d = BtlCharApi_GetCloseRange(side) - BtlCharApi_GetRadius(side);
     range->dist[1] = d;
     range->dist[2] = d * 5.0f;
     range->dist[4] = range->dist[3] = d * 10.0f;

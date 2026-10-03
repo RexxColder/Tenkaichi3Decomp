@@ -26,16 +26,16 @@ extern void BtlChar_GetSnapPos(BtlFlagChr *chr, Vec4 *out, s32 slot); /* overrid
 extern void BtlChar_GetSnapRot(BtlFlagChr *chr, Vec4 *out, s32 slot); /* the same for the rotation */
 extern s32 BtlMember_HasAbility(BtlFlagChr *chr, s32 arg);
 extern s32 BtlAct_GetCurrent(BtlFlagChr *chr);                        /* action id */
-extern s32 BtlAct_IsDamageId(s32 action);                             /* action is 0x105..0x132 */
-extern f32 func_00204EA0(s32 objId);                              /* object +0xFF4: height (10 without object) */
-extern f32 func_00204ED0(s32 objId);                              /* object +0xFF8 (10 without object) */
-extern f32 func_00204F00(s32 objId);                              /* object +0xFFC (5 without object) */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);        /* world position of a model node */
-extern f32 func_002062F0(s32 objId);                              /* body radius */
-extern s32 func_00206C88(s32 objId);                              /* action is 0xFD..0x102 */
-extern s32 func_0020E108(BtlFlagChr *chr);                        /* u16 at +0 of the object's parameter block */
-extern s32 func_0020E130(BtlFlagChr *chr);                        /* s8 at +2 of the object's parameter block */
-extern f32 func_0020F318(BtlFlagChr *chr);
+extern s32 BtlAct_IsTechniqueId(s32 action);                             /* action is 0x105..0x132 */
+extern f32 BtlCharApi_GetHeight(s32 objId);                              /* object +0xFF4: height (10 without object) */
+extern f32 BtlCharApi_GetBodyUnkFF8(s32 objId);                              /* object +0xFF8 (10 without object) */
+extern f32 BtlCharApi_GetCenterHeight(s32 objId);                              /* object +0xFFC (5 without object) */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);        /* world position of a model node */
+extern f32 BtlCharApi_GetRadius(s32 objId);                              /* body radius */
+extern s32 BtlCharApi_IsInSkill(s32 objId);                              /* action is 0xFD..0x102 */
+extern s32 BtlParam_GetUnk0(BtlFlagChr *chr);                        /* u16 at +0 of the object's parameter block */
+extern s32 BtlParam_GetUnk2(BtlFlagChr *chr);                        /* s8 at +2 of the object's parameter block */
+extern f32 BtlParam_GetUnkC7Scale(BtlFlagChr *chr);
 
 #define OPPONENT(chr) ((chr)->player == 0 ? BtlChar_Get(1) : BtlChar_Get(0))
 
@@ -105,7 +105,7 @@ f32 BtlOpp_GetDistanceXZ(BtlFlagChr *chr) {
 f32 BtlOpp_GetGapXZ(BtlFlagChr *chr) {
     f32 d = BtlOpp_GetDistanceXZ(chr);
 
-    d -= func_002062F0(chr->objId);
+    d -= BtlCharApi_GetRadius(chr->objId);
     d -= BtlOpp_GetRadius(chr);
     return BtlUtil_MaxF(d, 0.0f);
 }
@@ -172,34 +172,34 @@ f32 BtlOpp_GetPitchAdjusted(BtlFlagChr *chr) {
 /* Half the fighter's height minus half the opponent's. */
 f32 BtlOpp_GetHalfHeightDiff(BtlFlagChr *chr) {
     BtlFlagChr *opp = OPPONENT(chr);
-    f32 own = func_00204EA0(chr->objId);
+    f32 own = BtlCharApi_GetHeight(chr->objId);
 
-    return own * 0.5f - func_00204EA0(opp->objId) * 0.5f;
+    return own * 0.5f - BtlCharApi_GetHeight(opp->objId) * 0.5f;
 }
 
 /* The opponent's body radius. */
 f32 BtlOpp_GetRadius(BtlFlagChr *chr) {
-    return func_002062F0(OPPONENT(chr)->objId);
+    return BtlCharApi_GetRadius(OPPONENT(chr)->objId);
 }
 
 /* Signed byte +2 of the opponent's parameter block. */
 s32 BtlOpp_GetParamByte2(BtlFlagChr *chr) {
-    return func_0020E130(OPPONENT(chr));
+    return BtlParam_GetUnk2(OPPONENT(chr));
 }
 
 /* The opponent's height (object +0xFF4). */
 f32 BtlOpp_GetHeight(BtlFlagChr *chr) {
-    return func_00204EA0(OPPONENT(chr)->objId);
+    return BtlCharApi_GetHeight(OPPONENT(chr)->objId);
 }
 
 /* The opponent's object +0xFFC. */
 f32 BtlOpp_GetObjUnkFFC(BtlFlagChr *chr) {
-    return func_00204F00(OPPONENT(chr)->objId);
+    return BtlCharApi_GetCenterHeight(OPPONENT(chr)->objId);
 }
 
 /* Word +0 of the opponent's parameter block. */
 s32 BtlOpp_GetParamWord0(BtlFlagChr *chr) {
-    return func_0020E108(OPPONENT(chr));
+    return BtlParam_GetUnk0(OPPONENT(chr));
 }
 
 /* The opponent's player index. */
@@ -239,7 +239,7 @@ s32 BtlOpp_GetSeenUnk964(BtlFlagChr *chr) {
 
 /* The opponent's object +0xFF8. */
 f32 BtlOpp_GetObjUnkFF8(BtlFlagChr *chr) {
-    return func_00204ED0(OPPONENT(chr)->objId);
+    return BtlCharApi_GetBodyUnkFF8(OPPONENT(chr)->objId);
 }
 
 /* Copies the opponent's vector at +0x15A0. */
@@ -251,7 +251,7 @@ void BtlOpp_GetUnk15A0(BtlFlagChr *chr, Vec4 *out) {
 
 /* World position of a node of the opponent's model. */
 void BtlOpp_GetNodePos(BtlFlagChr *chr, s32 node, Vec4 *out) {
-    func_002058E0(OPPONENT(chr)->objId, node, out);
+    BtlCharApi_GetNodePos(OPPONENT(chr)->objId, node, out);
 }
 
 /* Copies the vector the opponent's object points at with +0xFA0. */
@@ -304,9 +304,9 @@ s32 BtlOpp_HasAbility(BtlFlagChr *chr, s32 arg) {
     return BtlMember_HasAbility(OPPONENT(chr), arg);
 }
 
-/* func_0020F318 on the opponent. */
+/* BtlParam_GetUnkC7Scale on the opponent. */
 f32 BtlOpp_GetUnk20F318(BtlFlagChr *chr) {
-    return func_0020F318(OPPONENT(chr));
+    return BtlParam_GetUnkC7Scale(OPPONENT(chr));
 }
 
 /* The opponent's clash counter (+0xE50). */
@@ -336,10 +336,10 @@ void BtlOpp_MirrorFlags(BtlFlagChr *chr) {
     if (BtlChar_TestFlag(opp, 0x85)) {
         BtlChar_SetHeldFlag(chr, 0xB3);
     }
-    if (BtlAct_IsDamageId(BtlAct_GetCurrent(opp))) {
+    if (BtlAct_IsTechniqueId(BtlAct_GetCurrent(opp))) {
         BtlChar_SetHeldFlag(chr, 0xAF);
     }
-    if (func_00206C88(opp->objId)) {
+    if (BtlCharApi_IsInSkill(opp->objId)) {
         BtlChar_SetHeldFlag(chr, 0xB0);
     }
     if (BtlChar_IsDead(opp)) {

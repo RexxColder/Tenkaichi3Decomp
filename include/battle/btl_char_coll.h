@@ -41,7 +41,7 @@ typedef struct BtlCollAtk {
 typedef struct BtlCollHit {
     /* 0x00 */ s32 ownerId;    /* roster index / object id of the attacker (BtlChar_Get index) */
     /* 0x04 */ s32 unk4;
-    /* 0x08 */ s32 unk8;       /* compared with func_00210DF0(chr, class) in BtlColl_TryDodge */
+    /* 0x08 */ s32 unk8;       /* compared with BtlSuper_GetUnk1E(chr, class) in BtlColl_TryDodge */
     /* 0x0C */ s32 type;       /* BTL_HIT_* */
     /* 0x10 */ u8 unk10[0x10];
     /* 0x20 */ Vec4 pos;       /* where it hit: sounds, camera shake and rumble are placed here */
@@ -112,23 +112,23 @@ typedef struct BtlCollObj {
 /* Throw / catch description shared by the two fighters of a throw (fighter + 0xE90). The attacker fills its own
    copy and the fields are then copied into the victim's. */
 typedef struct BtlCollThrow {
-    /* 0x00 */ s32 tech;      /* func_00210DB8(attacker, slot) */
+    /* 0x00 */ s32 tech;      /* BtlSuper_GetId(attacker, slot) */
     /* 0x04 */ s32 atkSide;
     /* 0x08 */ s32 defSide;
     /* 0x0C */ s32 slot;
-    /* 0x10 */ s32 unk10;     /* func_00211218 */
-    /* 0x14 */ s32 unk14;     /* func_00211170 */
-    /* 0x18 */ s32 unk18;     /* func_002118D0, or -1 */
-    /* 0x1C */ s32 unk1C;     /* func_00211A08, or -1 */
-    /* 0x20 */ s32 unk20;     /* func_00211718; -1 in the victim */
-    /* 0x24 */ s32 unk24;     /* func_002117C0; 0 in the victim */
-    /* 0x28 */ s32 unk28;     /* func_00211858; 0 in the victim */
-    /* 0x2C */ s32 unk2C;     /* func_00211940; 1 in the victim */
+    /* 0x10 */ s32 unk10;     /* BtlSuper_GetStepCount */
+    /* 0x14 */ s32 unk14;     /* BtlSuper_GetUnk14D */
+    /* 0x18 */ s32 unk18;     /* BtlSuper_GetUnk220, or -1 */
+    /* 0x1C */ s32 unk1C;     /* BtlSuper_GetLastStep, or -1 */
+    /* 0x20 */ s32 unk20;     /* BtlSuper_GetThrowChara; -1 in the victim */
+    /* 0x24 */ s32 unk24;     /* BtlSuper_GetThrowCostume; 0 in the victim */
+    /* 0x28 */ s32 unk28;     /* BtlSuper_GetThrowGauge20; 0 in the victim */
+    /* 0x2C */ s32 unk2C;     /* BtlSuper_GetUnk226; 1 in the victim */
     /* 0x30 */ s32 unk30;     /* technique bit 0x400000 */
     /* 0x34 */ s32 unk34;     /* technique bit 0x400: BtlChar_FrameMod(2) != 0 */
     /* 0x38 */ s32 unk38;     /* technique bit 0x100000 */
     /* 0x3C */ s32 unk3C;     /* technique bit 0x800000 */
-    /* 0x40 */ s32 unk40;     /* func_00210D48 bit 0x2000000 */
+    /* 0x40 */ s32 unk40;     /* BtlSuper_GetFlagsA bit 0x2000000 */
     /* 0x44 */ s32 unk44;     /* 1 when the catch reaction is 0x1E */
     /* 0x48 */ s32 unk48;     /* technique bit 0x2000 and attacker gauge unk20 == 0 */
     /* 0x4C */ s32 unk4C;     /* technique bit 0x80000 and victim gauge unk20 == 0 */
@@ -136,8 +136,8 @@ typedef struct BtlCollThrow {
     /* 0x54 */ s32 unk54;     /* technique bit 0x10000 */
     /* 0x58 */ s32 unk58;     /* victim's state has table bit 0x800 */
     /* 0x5C */ s32 unk5C;     /* technique bit 0x4000000 */
-    /* 0x60 */ f32 unk60;     /* func_00211630 */
-    /* 0x64 */ f32 unk64;     /* func_00211680 */
+    /* 0x60 */ f32 unk60;     /* BtlSuper_GetThrowAngleA */
+    /* 0x64 */ f32 unk64;     /* BtlSuper_GetThrowAngleB */
 } BtlCollThrow; /* size 0x68 */
 
 /* Pending hit reaction of a fighter (fighter + 0xFB0). */
@@ -153,7 +153,7 @@ typedef struct BtlCollReact {
     /* 0x20 */ f32 faceYaw;   /* yaw to turn to (with flag 0x94) */
     /* 0x24 */ f32 unk24;
     /* 0x28 */ s32 unk28[2];
-    /* 0x30 */ s32 stun;      /* > 0: not free (BtlChar_IsFree); set from func_00212760 for reactions 0x17..0x1C */
+    /* 0x30 */ s32 stun;      /* > 0: not free (BtlChar_IsFree); set from BtlSkill_GetFrames for reactions 0x17..0x1C */
     /* 0x34 */ s32 unk34;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 unk3C[2];

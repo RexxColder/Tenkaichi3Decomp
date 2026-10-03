@@ -361,7 +361,7 @@ default index, +0xAE[3] fusion cost, +0xB1[3] fusion sequence, +0xB4[3] fusion r
 
 Correction: actions 0x106..0x11A are **not hit reactions**. They are the attacker's actions for
 the class 2..4 techniques (the two Blast 2 moves and the Ultimate), three ids per handler, the
-class being the position in the triple. `BtlAct_IsDamageId` (0x105..0x132) is therefore
+class being the position in the triple. `BtlAct_IsTechniqueId` (0x105..0x132) is therefore
 misnamed: it means "is a technique action id". The hit-reaction actions are the ones in the
 reaction table above (0xB8..0xE0 and 0x131..0x139). Handler names and the game terms below are
 guesses from the animation and flag sequences; not linked yet.
@@ -826,3 +826,13 @@ continues `btl_act_f.c`; these are technique actions, not generic hit reactions.
 - Player dependence: 0x104 requests camera cut `0x21 + player`.
 - (inferred) The original object boundary is probably 0x1FC008, not 0x1FC2B0: the two throw
   helpers at the end are only called from `btl_act_h.c`.
+
+## Status of this file's sources (after the second integration)
+
+Everything described above is linked and byte-identical. Renames applied at that point, so
+older text may describe them by their previous meaning: `BtlAct_IsTechniqueId` (was
+IsDamageId), `BtlCtrl_IsMotionPlaying` (was IsMoveDone, inverted), the stat curve getters
+(`BtlStat_GetKiChargeBonus` ... `GetMaxPowerExtraTime`, were GetRate0..3 / GetScale4..12).
+Files were merged where matching proved they were one original source file: the fx-bit helpers
++ `btl_char_fx.c`; `btl_act_a.c` (a + b); `btl_act_f.c` (f + g); `btl_act_h_b.c` (h_b + i).
+Seven functions of this code stay in assembly (docs/open_questions.md).

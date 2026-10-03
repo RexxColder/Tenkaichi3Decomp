@@ -34,8 +34,8 @@ extern s32 Battle_GetMode(void);
 extern s32 BtlScript_IsTextShown(void);
 extern s32 BtlAnim_TestAttr(BtlFlagChr *chr, u64 mask);       /* event bits of the object's animation */
 extern s32 BtlAct_GetCurrentClass(BtlFlagChr *chr);                 /* technique slot of the current action, or -1 */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out); /* world position of a model node */
-extern s32 func_00210D80(BtlFlagChr *chr, s32 slot);       /* attribute word of technique `slot` */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out); /* world position of a model node */
+extern s32 BtlSuper_GetFlags(BtlFlagChr *chr, s32 slot);       /* attribute word of technique `slot` */
 
 extern BtlFlagRoster *gBtlChars;
 /* Sample bank of request kinds 0..3; none for the rest. Defined here: this object's first rodata. */
@@ -283,7 +283,7 @@ void BtlCharSnd_RequestAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 far) {
 void BtlCharSnd_PlayCommon(BtlFlagChr *chr, s32 id) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 3, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 3, &pos);
     BtlCharSnd_Request(&pos, chr->player, 0, 200.0f, 1500.0f, id);
 }
 
@@ -291,7 +291,7 @@ void BtlCharSnd_PlayCommon(BtlFlagChr *chr, s32 id) {
 void BtlCharSnd_PlayCommonFar(BtlFlagChr *chr, s32 id) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 3, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 3, &pos);
     BtlCharSnd_Request(&pos, chr->player, 0, 100000.0f, 100000.0f, id);
 }
 
@@ -299,7 +299,7 @@ void BtlCharSnd_PlayCommonFar(BtlFlagChr *chr, s32 id) {
 void BtlCharSnd_PlayBank8(BtlFlagChr *chr, s32 id) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 3, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 3, &pos);
     BtlCharSnd_Request(&pos, chr->player, 1, 200.0f, 1500.0f, id);
 }
 
@@ -307,7 +307,7 @@ void BtlCharSnd_PlayBank8(BtlFlagChr *chr, s32 id) {
 void BtlCharSnd_PlayOwn(BtlFlagChr *chr, s32 id) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 0x30, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 0x30, &pos);
     BtlCharSnd_Request(&pos, chr->player, chr->player + 2, 200.0f, 1500.0f, id);
 }
 
@@ -315,7 +315,7 @@ void BtlCharSnd_PlayOwn(BtlFlagChr *chr, s32 id) {
 void BtlCharSnd_PlayStream(BtlFlagChr *chr, s32 id) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 3, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 3, &pos);
     BtlCharSnd_Request(&pos, chr->player, 4, 200.0f, 1500.0f, id);
 }
 
@@ -323,7 +323,7 @@ void BtlCharSnd_PlayStream(BtlFlagChr *chr, s32 id) {
 void BtlCharSnd_PlayVoice(BtlFlagChr *chr, s32 line) {
     Vec4 pos;
 
-    func_002058E0(chr->objId, 0x30, &pos);
+    BtlCharApi_GetNodePos(chr->objId, 0x30, &pos);
     BtlCharSnd_Request(&pos, chr->player, chr->player + 5, 200.0f, 1500.0f, line);
 }
 
@@ -364,12 +364,12 @@ void BtlCharSnd_PlayTechSounds(BtlFlagChr *chr) {
             BtlCharSnd_PlayOwn(chr, se);
         }
         if (BtlAnim_TestAttr(chr, 0x20000)) {
-            if (!(BtlOpp_GetParamWord0(chr) & 0x80) || !(func_00210D80(chr, slot) & 0x20)) {
+            if (!(BtlOpp_GetParamWord0(chr) & 0x80) || !(BtlSuper_GetFlags(chr, slot) & 0x20)) {
                 BtlCharSnd_PlayOwn(chr, se + 1);
             }
         }
         if (BtlAnim_TestAttr(chr, 0x40000)) {
-            if (!(BtlOpp_GetParamWord0(chr) & 0x80) || !(func_00210D80(chr, slot) & 0x40)) {
+            if (!(BtlOpp_GetParamWord0(chr) & 0x80) || !(BtlSuper_GetFlags(chr, slot) & 0x40)) {
                 BtlCharSnd_PlayOwn(chr, se + 2);
             }
         }

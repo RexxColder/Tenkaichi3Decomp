@@ -76,8 +76,8 @@ typedef struct BtlAiMovePath {
 /* Move action state: work + 0xC0. Step handlers 16 and 22 compare 2x / 3x dist[1] with BtlAi.dist. */
 typedef struct BtlAiMoveWork {
     /* 0x000 */ f32 dist[5];     /* distance to keep from the opponent, by move type. Set by AiThink_ResetSide (n/m):
-                                    [0] = both fighters' radius (func_002062F0) summed, [1] = d, [2] = d * 5,
-                                    [3] = [4] = d * 10 with d = func_00205C58(side) - radius(side) */
+                                    [0] = both fighters' radius (BtlCharApi_GetRadius) summed, [1] = d, [2] = d * 5,
+                                    [3] = [4] = d * 10 with d = BtlCharApi_GetCloseRange(side) - radius(side) */
     /* 0x014 */ u8 unk014[0x0C];
     /* 0x020 */ BtlAiMovePath path;
     /* 0x124 */ u8 unk124[0x0C];
@@ -181,7 +181,7 @@ typedef struct BtlAiData {
 typedef struct BtlAi {
     /* 0x000 */ BtlAiData *data;    /* (m) */
     /* 0x004 */ f32 dist;           /* (m) between the two fighters' centres, refreshed every frame */
-    /* 0x008 */ f32 radiusSum;      /* both fighters' func_002062F0 */
+    /* 0x008 */ f32 radiusSum;      /* both fighters' BtlCharApi_GetRadius */
     /* 0x00C */ s32 sight;          /* (m) BTLAI_SIGHT_*: stage line test between the two fighters */
     /* 0x010 */ BtlAiWork work[2];
     /* 0xA50 */ s32 frame;          /* frames the AI has run */

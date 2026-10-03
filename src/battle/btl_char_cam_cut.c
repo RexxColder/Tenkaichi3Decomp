@@ -61,11 +61,11 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
         }
         if (id < 0) {
             node &= CHRCUT_NODE_MASK;
-            func_002058E0(BtlChar_Get(0)->objId, node, &tmp0);
-            func_002058E0(BtlChar_Get(1)->objId, node, &tmp1);
+            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
+            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
             func_00122168(&cut->vecA, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
-            func_002058E0(id, cut->unk88 & CHRCUT_NODE_MASK, &cut->vecA);
+            BtlCharApi_GetNodePos(id, cut->unk88 & CHRCUT_NODE_MASK, &cut->vecA);
         }
         refreshed = 1;
     }
@@ -88,11 +88,11 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             }
             if (id < 0) {
                 node &= CHRCUT_NODE_MASK;
-                func_002058E0(BtlChar_Get(0)->objId, node, &tmp2);
-                func_002058E0(BtlChar_Get(1)->objId, node, &tmp3);
+                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp2);
+                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp3);
                 func_00122168(&tmp0, &tmp2, &tmp3, 0.5f);
             } else if (frozen == 0 || other == 0) {
-                func_002058E0(id, cut->unk8C & CHRCUT_NODE_MASK, &tmp0);
+                BtlCharApi_GetNodePos(id, cut->unk8C & CHRCUT_NODE_MASK, &tmp0);
             }
             Vec4_Sub(&cut->vecADelta, &tmp0, &cut->vecA);
         }
@@ -112,11 +112,11 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
         }
         if (id < 0) {
             node &= CHRCUT_NODE_MASK;
-            func_002058E0(BtlChar_Get(0)->objId, node, &tmp0);
-            func_002058E0(BtlChar_Get(1)->objId, node, &tmp1);
+            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
+            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
             func_00122168(&cut->vecC, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
-            func_002058E0(id, node & CHRCUT_NODE_MASK, &cut->vecC);
+            BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &cut->vecC);
         }
     }
 
@@ -136,11 +136,11 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             }
             if (id < 0) {
                 node &= CHRCUT_NODE_MASK;
-                func_002058E0(BtlChar_Get(0)->objId, node, &tmp1);
-                func_002058E0(BtlChar_Get(1)->objId, node, &tmp2);
+                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp1);
+                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp2);
                 func_00122168(&tmp0, &tmp1, &tmp2, 0.5f);
             } else if (frozen == 0 || other == 0) {
-                func_002058E0(id, node & CHRCUT_NODE_MASK, &tmp0);
+                BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &tmp0);
             }
             Vec4_Sub(&cut->vecCDelta, &tmp0, &cut->vecC);
         }

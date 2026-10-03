@@ -11,7 +11,7 @@ BtlScriptCmd_ShakeCamera = 0x00259FE0; // type:func // guess
 BtlScriptCmd_StopShake = 0x0025A068; // type:func // guess
 BtlScriptCmd_MoveCamera = 0x0025A0A8; // type:func // guess
 // Fighter. 801 / 802 / 803: BtlFacade_SetCharPos and / or SetCharDir. 804..810: one control-flag wrapper each,
-// named after the facade function it calls. 901: BtlFacade_StartCharMove and wait. 902: StopCharMove on both sides.
+// named after the facade function it calls. 901: BtlFacade_PlayCharMotion and wait. 902: StopCharMove on both sides.
 BtlScriptCmd_PlaceChar = 0x0025A2D8; // type:func // guess
 BtlScriptCmd_SetCharPos = 0x0025A3C8; // type:func // guess
 BtlScriptCmd_SetCharDir = 0x0025A438; // type:func // guess

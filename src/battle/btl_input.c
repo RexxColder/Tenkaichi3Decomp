@@ -37,7 +37,7 @@ extern s32 BtlChar_TestFlag(BtlInputChr *chr, s32 bit);
 extern void BtlChar_ClearFlag(BtlInputChr *chr, s32 bit);
 extern f32 BtlAct_GetFacingRelCam(BtlInputChr *chr); /* wrap(pose heading - fighter camera yaw) */
 extern s32 BattleReplay_IsActive(void); /* 0x12A9E8: a replay is being played back */
-extern BtlInputSwitchEntry *func_002119A0(BtlInputChr *chr, s32 arg);
+extern BtlInputSwitchEntry *BtlSuper_GetPromptRow(BtlInputChr *chr, s32 arg);
 extern s32 BtlChars_IsTimeStopped(void);          /* gBtlChars->unk274 */
 extern void BtlReplay_Play(BtlInputChr *chr, u32 *buttons, u8 *stick);              /* replay: read this frame */
 extern void BtlReplay_Record(BtlInputChr *chr, u32 buttons, u32 commands, u8 *stick); /* replay: record this frame */
@@ -177,7 +177,7 @@ u32 BtlInput_AddDoubleTaps(BtlInputChr *chr, u32 buttons, u32 prev, s32 padStatu
     return buttons;
 }
 
-/* Tells whether the buttons ask for BTLC_SWITCH: RUSH pressed while holding the direction of the entry func_002119A0 returns. */
+/* Tells whether the buttons ask for BTLC_SWITCH: RUSH pressed while holding the direction of the entry BtlSuper_GetPromptRow returns. */
 s32 BtlInput_TestSwitch(BtlInputChr *chr, s32 arg, u32 held, u32 pressed) {
     if (BtlChar_TestFlag(chr, 0xA2)) {
         if (!(held & BTLB_BLAST)) {
@@ -188,7 +188,7 @@ s32 BtlInput_TestSwitch(BtlInputChr *chr, s32 arg, u32 held, u32 pressed) {
             return 1;
         }
     } else {
-        switch (func_002119A0(chr, arg)->dir) {
+        switch (BtlSuper_GetPromptRow(chr, arg)->dir) {
             case 1:
                 if ((held & BTLB_DOWN) && (pressed & BTLB_RUSH)) {
                     return 1;

@@ -133,9 +133,9 @@ typedef struct BtlMgrChr {
     /* 0x0D5C */ f32 unkD5C;     /* 500.0 after a round reset */
     /* 0x0D60 */ u8 unkD60[0xD68 - 0xD60];
     /* 0x0D68 */ s32 unkD68;
-    /* 0x0D6C */ s32 unkD6C;     /* per-frame level: 1 (or func_0020F188 with flag 6) + ability 1 / 0 bonus */
+    /* 0x0D6C */ s32 unkD6C;     /* per-frame level: 1 (or BtlParam_GetUnk70 with flag 6) + ability 1 / 0 bonus */
     /* 0x0D70 */ s32 unkD70;
-    /* 0x0D74 */ s32 unkD74;     /* per-frame level: 1 (or func_0020F1B0 with flag 6) + ability 3 / 2 bonus */
+    /* 0x0D74 */ s32 unkD74;     /* per-frame level: 1 (or BtlParam_GetUnk72 with flag 6) + ability 3 / 2 bonus */
     /* 0x0D78 */ u8 unkD78[0xE00 - 0xD78];
     /* 0x0E00 */ s32 unkE00[5];  /* 0xE00..0xE40 is cleared when the object is bound */
     /* 0x0E14 */ s32 unkE14;     /* a timer: > 0 forbids lowHealthIdle */
@@ -164,7 +164,7 @@ typedef struct BtlMgrChr {
     /* 0x1324 */ s32 freezeNext; /* freeze to start once freezeDelay has run out */
     /* 0x1328 */ s32 freezeDelay;
     /* 0x132C */ s32 unk132C;
-    /* 0x1330 */ s32 unk1330;    /* non-zero: func_001D3568 releases a loaded resource */
+    /* 0x1330 */ s32 unk1330;    /* non-zero: BtlPartner_Release releases a loaded resource */
     /* 0x1334 */ u8 unk1334[0x1538 - 0x1334];
     /* 0x1538 */ u64 frameBits;  /* cleared each frame; BtlChar_SetFrameBits ORs bits in */
     /* 0x1540 */ u8 unk1540[0x1590 - 0x1540];

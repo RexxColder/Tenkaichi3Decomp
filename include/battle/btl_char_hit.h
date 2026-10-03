@@ -17,7 +17,7 @@
  *   BtlHit_ResolveTrades
  *   for each fighter: BtlHit_ApplyHit
  *
- * A hit is not an object. It is: the attacker's current attack id (func_0020C9F0, -1 = none), the attack record that
+ * A hit is not an object. It is: the attacker's current attack id (BtlAtk_GetId, -1 = none), the attack record that
  * id selects (0x30 bytes at fighter object + 0x920, read through the func_0020Dxxx accessors, not decompiled), the
  * pending target HitStatus.target of the attacker, and the HitReact block that BtlHit_ApplyHit fills on the defender.
  *
@@ -112,7 +112,7 @@ typedef struct HitReact {
     /* 0x38 */ s32 unk38;      /* 3 with reaction 2 */
     /* 0x3C */ s32 damage;     /* reactions 0x14, 0x16, 0x25: the damage, applied later by other code */
     /* 0x40 */ u8 unk40[0x48 - 0x40];
-    /* 0x48 */ s32 unk48;      /* grab: func_00212760(attacker, direction) */
+    /* 0x48 */ s32 unk48;      /* grab: BtlSkill_GetFrames(attacker, direction) */
 } HitReact;
 
 /* Partial view of a fighter (0x1600 bytes). */

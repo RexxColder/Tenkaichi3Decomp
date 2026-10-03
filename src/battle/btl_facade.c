@@ -36,38 +36,38 @@ extern void BtlAiMgr_SetType(s32 side, s32 value);
 extern void BtlAiMgr_SetLevel(s32 side, s32 value);
 
 /* script control of a fighter, 0x20A050..0x20B200; `side` is the BtlChar_Get index */
-extern void BtlCtrl_StartMove(s32 side, s32 type, s32 mode, f32 value);
+extern void BtlCtrl_PlayMotion(s32 side, s32 type, s32 mode, f32 value);
 extern void BtlCtrl_SetPos(s32 side, Vec4 *pos);
-extern void BtlCtrl_SetDir(s32 side, Vec4 *dir);
+extern void BtlCtrl_SetRot(s32 side, Vec4 *dir);
 extern s32 BtlCtrl_GetActiveMember(s32 side);
 extern s32 BtlCtrl_IsAction4(s32 side);
-extern s32 BtlCtrl_IsMoveDone(s32 side);
-extern void BtlCtrl_StopMove(s32 side);
-extern void func_0020A338(s32 side);
-extern void func_0020A390(s32 side);
-extern void func_0020A3E8(s32 side, s32 on);
-extern void func_0020A438(s32 side);
-extern void func_0020A470(s32 side);
-extern void func_0020A4A8(s32 side);
-extern void func_0020A4E0(s32 side, s32 member);
-extern void func_0020A530(s32 side, s32 member);
-extern void func_0020A580(s32 side);
-extern void func_0020A5B8(s32 side);
+extern s32 BtlCtrl_IsMotionPlaying(s32 side);
+extern void BtlCtrl_StopMotion(s32 side);
+extern void BtlCtrl_SetAuraOn(s32 side);
+extern void BtlCtrl_SetAuraOff(s32 side);
+extern void BtlCtrl_SetChargeFx(s32 side, s32 on);
+extern void BtlCtrl_BurstChargeFx(s32 side);
+extern void BtlCtrl_ClearHidden(s32 side);
+extern void BtlCtrl_SetHidden(s32 side);
+extern void BtlCtrl_ReloadMemberBonus(s32 side, s32 member);
+extern void BtlCtrl_ReloadMemberAbilities(s32 side, s32 member);
+extern void BtlCtrl_SetFlag10D(s32 side);
+extern void BtlCtrl_ClearFlag10D(s32 side);
 extern void BtlCtrl_AddHp(s32 side, s32 member, f32 ratio);
 extern void BtlCtrl_RaiseHp(s32 side, s32 member, f32 ratio);
 extern void BtlCtrl_LowerHp(s32 side, s32 member, f32 ratio);
-extern void func_0020A7E0(s32 side, s32 member, s32 value);
-extern void func_0020A890(s32 side, s32 member, s32 value);
-extern void func_0020A8F8(s32 side, s32 member, s32 value);
-extern void func_0020A960(s32 side, s32 member, s32 value);
-extern void func_0020AA18(s32 side, s32 member, s32 value);
-extern void func_0020AA80(s32 side, s32 member, s32 value);
-extern void BtlCtrl_SetPowerUp(s32 side, s32 on);
-extern s32 BtlCtrl_UseSkillA(s32 side, s32 id);
-extern s32 BtlCtrl_UseSkillB(s32 side, s32 id);
+extern void BtlCtrl_AddKi(s32 side, s32 member, s32 value);
+extern void BtlCtrl_RaiseKi(s32 side, s32 member, s32 value);
+extern void BtlCtrl_LowerKi(s32 side, s32 member, s32 value);
+extern void BtlCtrl_AddBlast(s32 side, s32 member, s32 value);
+extern void BtlCtrl_RaiseBlast(s32 side, s32 member, s32 value);
+extern void BtlCtrl_LowerBlast(s32 side, s32 member, s32 value);
+extern void BtlCtrl_SetMaxPower(s32 side, s32 on);
+extern s32 BtlCtrl_Transform(s32 side, s32 id);
+extern s32 BtlCtrl_Fuse(s32 side, s32 id);
 extern s32 BtlCtrl_ChangeMember(s32 side, s32 member);
 extern s32 BtlCtrl_ForceFlag11x(s32 side, s32 kind);
-extern s32 BtlCtrl_ForceAction(s32 side, s32 kind);
+extern s32 BtlCtrl_UseTechnique(s32 side, s32 kind);
 extern s32 BtlCtrl_ForceReaction(s32 side, s32 kind);
 extern s32 BtlCtrl_IsInterruptible(s32 side);
 extern s32 BtlCtrl_CanAct(s32 side);
@@ -127,19 +127,19 @@ void BtlFacade_SetCharPos(s32 side, Vec4 *pos) {
     BtlCtrl_SetPos(side, pos);
 }
 
-/* Requests the fighter's second vector, +0x1570 (BtlCtrl_SetDir). */
-void BtlFacade_SetCharDir(s32 side, Vec4 *dir) {
-    BtlCtrl_SetDir(side, dir);
+/* Requests the fighter's second vector, +0x1570 (BtlCtrl_SetRot). */
+void BtlFacade_SetCharRot(s32 side, Vec4 *dir) {
+    BtlCtrl_SetRot(side, dir);
 }
 
-/* Starts a scripted move of a fighter (BtlCtrl_StartMove). */
-void BtlFacade_StartCharMove(s32 side, s32 type, s32 mode, f32 value) {
-    BtlCtrl_StartMove(side, type, mode, value);
+/* Starts a scripted move of a fighter (BtlCtrl_PlayMotion). */
+void BtlFacade_PlayCharMotion(s32 side, s32 type, s32 mode, f32 value) {
+    BtlCtrl_PlayMotion(side, type, mode, value);
 }
 
 /* Returns 1 when the scripted move has ended. */
-s32 BtlFacade_IsCharMoveDone(s32 side) {
-    return BtlCtrl_IsMoveDone(side);
+s32 BtlFacade_IsCharMotionPlaying(s32 side) {
+    return BtlCtrl_IsMotionPlaying(side);
 }
 
 /* Returns 1 when the fighter's action id is 4 (no caller). */
@@ -148,53 +148,53 @@ s32 BtlFacade_IsCharAction4(s32 side) {
 }
 
 /* Cancels the scripted move. */
-void BtlFacade_StopCharMove(s32 side) {
-    BtlCtrl_StopMove(side);
+void BtlFacade_StopCharMotion(s32 side) {
+    BtlCtrl_StopMotion(side);
 }
 
 /* Sets control flag 0xFE and clears 0xFF. */
 void BtlFacade_SetCtrlFE(s32 side) {
-    func_0020A338(side);
+    BtlCtrl_SetAuraOn(side);
 }
 
 /* Clears control flag 0xFE and sets 0xFF. */
 void BtlFacade_SetCtrlFF(s32 side) {
-    func_0020A390(side);
+    BtlCtrl_SetAuraOff(side);
 }
 
 /* Sets control flag 0x101. */
 void BtlFacade_SetCtrl101(s32 side) {
-    func_0020A3E8(side, 1);
+    BtlCtrl_SetChargeFx(side, 1);
 }
 
 /* Clears control flag 0x101. */
 void BtlFacade_ClearCtrl101(s32 side) {
-    func_0020A3E8(side, 0);
+    BtlCtrl_SetChargeFx(side, 0);
 }
 
 /* Sets control flag 0x102. */
 void BtlFacade_SetCtrl102(s32 side) {
-    func_0020A438(side);
+    BtlCtrl_BurstChargeFx(side);
 }
 
 /* Clears control flag 0x100. */
 void BtlFacade_ClearCtrl100(s32 side) {
-    func_0020A470(side);
+    BtlCtrl_ClearHidden(side);
 }
 
 /* Sets control flag 0x100. */
 void BtlFacade_SetCtrl100(s32 side) {
-    func_0020A4A8(side);
+    BtlCtrl_SetHidden(side);
 }
 
 /* Sets control flag 0x10D. */
 void BtlFacade_SetCtrl10D(s32 side) {
-    func_0020A580(side);
+    BtlCtrl_SetFlag10D(side);
 }
 
 /* Clears control flag 0x10D. */
 void BtlFacade_ClearCtrl10D(s32 side) {
-    func_0020A5B8(side);
+    BtlCtrl_ClearFlag10D(side);
 }
 
 /* Returns the index of the side's team member that is fighting. */
@@ -204,8 +204,8 @@ s32 BtlFacade_GetActiveMember(s32 side) {
 
 /* Raises the two per-member control flags (0x103 + member, 0x108 + member). */
 void BtlFacade_NotifyMemberItems(s32 side, s32 member) {
-    func_0020A4E0(side, member);
-    func_0020A530(side, member);
+    BtlCtrl_ReloadMemberBonus(side, member);
+    BtlCtrl_ReloadMemberAbilities(side, member);
 }
 
 /* Stores a member's eight item ids (+1) in the setup and raises the per-member flags. */
@@ -264,72 +264,72 @@ void BtlFacade_LowerHp(s32 side, s32 member, f32 value) {
 /* Adds n * 20000 to a member's gauge +0xC. */
 void BtlFacade_AddGaugeC(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020A7E0(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_AddKi(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020A7E0(side, member, value);
+        BtlCtrl_AddKi(side, member, value);
     }
 }
 
 /* Raises a member's gauge +0xC to at least n * 20000. */
 void BtlFacade_RaiseGaugeC(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020A890(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_RaiseKi(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020A890(side, member, value);
+        BtlCtrl_RaiseKi(side, member, value);
     }
 }
 
 /* Lowers a member's gauge +0xC to at most n * 20000. */
 void BtlFacade_LowerGaugeC(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020A8F8(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_LowerKi(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020A8F8(side, member, value);
+        BtlCtrl_LowerKi(side, member, value);
     }
 }
 
 /* Adds n * 100000 to a member's gauge +0x14 (no caller). */
 void BtlFacade_AddGauge14(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020A960(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_AddBlast(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020A960(side, member, value);
+        BtlCtrl_AddBlast(side, member, value);
     }
 }
 
 /* Raises a member's gauge +0x14 to at least n * 100000. */
 void BtlFacade_RaiseGauge14(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020AA18(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_RaiseBlast(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020AA18(side, member, value);
+        BtlCtrl_RaiseBlast(side, member, value);
     }
 }
 
 /* Lowers a member's gauge +0x14 to at most n * 100000. */
 void BtlFacade_LowerGauge14(s32 side, s32 member, s32 value) {
     if (member == -1) {
-        func_0020AA80(side, BtlCtrl_GetActiveMember(side), value);
+        BtlCtrl_LowerBlast(side, BtlCtrl_GetActiveMember(side), value);
     } else {
-        func_0020AA80(side, member, value);
+        BtlCtrl_LowerBlast(side, member, value);
     }
 }
 
 /* Fills gauge +0xC, sets the 30000 timer and control flag 6, or clears flag 6. */
-void BtlFacade_SetPowerUp(s32 side, s32 on) {
-    BtlCtrl_SetPowerUp(side, on);
+void BtlFacade_SetMaxPower(s32 side, s32 on) {
+    BtlCtrl_SetMaxPower(side, on);
 }
 
 /* Makes the fighter use the technique with this id from its 4-slot list; BtlEvent_SetWaitOff(0) on success. */
-void BtlFacade_UseSkillA(s32 side, s32 id) {
-    if (BtlCtrl_UseSkillA(side, id)) {
+void BtlFacade_Transform(s32 side, s32 id) {
+    if (BtlCtrl_Transform(side, id)) {
         BtlEvent_SetWaitOff(0);
     }
 }
 
 /* Makes the fighter use the technique with this id from its 3-slot list; BtlEvent_SetWaitOff(0) on success. */
-void BtlFacade_UseSkillB(s32 side, s32 id) {
-    if (BtlCtrl_UseSkillB(side, id)) {
+void BtlFacade_Fuse(s32 side, s32 id) {
+    if (BtlCtrl_Fuse(side, id)) {
         BtlEvent_SetWaitOff(0);
     }
 }
@@ -363,19 +363,19 @@ s32 BtlFacade_CanCharAct(s32 side) {
 /* Forces action 0 or 1 on a side and the matching reaction on the other. */
 void BtlFacade_ForceAction01(s32 side, s32 arg) {
     BtlCtrl_ForceReaction(side == 0, 0);
-    BtlCtrl_ForceAction(side, arg != 0);
+    BtlCtrl_UseTechnique(side, arg != 0);
 }
 
 /* Forces action 2 or 3 on a side and the matching reaction on the other. */
 void BtlFacade_ForceAction23(s32 side, s32 arg) {
     BtlCtrl_ForceReaction(side == 0, 0);
-    BtlCtrl_ForceAction(side, arg == 0 ? 2 : 3);
+    BtlCtrl_UseTechnique(side, arg == 0 ? 2 : 3);
 }
 
 /* Forces action 4 on a side and the matching reaction on the other. */
 void BtlFacade_ForceAction4(s32 side) {
     BtlCtrl_ForceReaction(side == 0, 0);
-    BtlCtrl_ForceAction(side, 4);
+    BtlCtrl_UseTechnique(side, 4);
 }
 
 /* Empty. */
@@ -405,7 +405,7 @@ void BtlFacade_ForceActions(s32 arg0, s32 arg1) {
     s32 i;
 
     for (i = 0; i < 2; i++) {
-        BtlCtrl_ForceAction(i, i == 0 ? arg0 : arg1);
+        BtlCtrl_UseTechnique(i, i == 0 ? arg0 : arg1);
     }
 }
 

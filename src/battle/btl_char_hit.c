@@ -5,23 +5,23 @@
  *
  * Reading guide (everything below is what the matching C does; what the numbers mean in game terms is inferred):
  *
- * Attack record (0x30 bytes, fighter object + 0x920, indexed by the attack id func_0020C9F0; accessors at
+ * Attack record (0x30 bytes, fighter object + 0x920, indexed by the attack id BtlAtk_GetId; accessors at
  * 0x20D210..0x20DF60 are not decompiled, the offsets were read from their disassembly):
- *   +0x00 u32 flags (func_0020D970)      +0x04 u16 damage (func_0020D418)   +0x06 u16 guard damage (func_0020D4C8)
- *   +0x08 u16 ki the defender pays on guard result 1 (func_0020D6D0)        +0x0A u16 ki gain (func_0020D600)
- *   +0x10 u16 gain of fighter + 0xD80 (func_0020D768)
- *   +0x12 u8 push speed on hit (func_0020D990)    +0x13 u8 push speed on guard (func_0020D9D0)
- *   +0x15, +0x16 s8 launch angles (func_0020DA70, func_0020DB00)
- *   +0x17, +0x18 u8 shake power / time on hit (func_0020DB90, func_0020DBB8)
- *   +0x19, +0x1A u8 shake power / time on guard (func_0020DBE8, func_0020DC10)
- *   +0x1B..+0x1F, +0x21, +0x22 s8 reaction ids by defender state (func_0020D7E0..func_0020D938)
- *   +0x20 s8 -> HitReact.unk4 (func_0020D8E0)     +0x23 s8 -> effect bit 0x1D on the defender (func_0020DC40)
- *   +0x26 s8 priority for trades (func_0020D3F8)
- *   +0x27..+0x2A s8 guard results (func_0020DD38, func_0020DD98, func_0020DCE8, func_0020DF20; func_0020DE50 mixes)
- *   +0x2B s8 0 / 1 -> defender flag 0x66 / 0x67 on guard (func_0020DF40)
- *   +0x2C s8 armour levels the attack ignores (func_0020DF60)
+ *   +0x00 u32 flags (BtlAtk_GetFlags)      +0x04 u16 damage (BtlAtk_GetDamage)   +0x06 u16 guard damage (BtlAtk_GetGuardDamage)
+ *   +0x08 u16 ki the defender pays on guard result 1 (BtlAtk_GetGuardKiCost)        +0x0A u16 ki gain (BtlAtk_GetKiGain)
+ *   +0x10 u16 gain of fighter + 0xD80 (BtlAtk_GetUnk10)
+ *   +0x12 u8 push speed on hit (BtlAtk_GetPushOnHit)    +0x13 u8 push speed on guard (BtlAtk_GetPushOnGuard)
+ *   +0x15, +0x16 s8 launch angles (BtlAtk_GetLaunchAngleA, BtlAtk_GetLaunchAngleB)
+ *   +0x17, +0x18 u8 shake power / time on hit (BtlAtk_GetShakePower, BtlAtk_GetShakeTime)
+ *   +0x19, +0x1A u8 shake power / time on guard (BtlAtk_GetShakePowerB, BtlAtk_GetShakeTimeB)
+ *   +0x1B..+0x1F, +0x21, +0x22 s8 reaction ids by defender state (BtlAtk_GetReaction..BtlAtk_GetReactionG)
+ *   +0x20 s8 -> HitReact.unk4 (BtlAtk_GetReactionSub)     +0x23 s8 -> effect bit 0x1D on the defender (BtlAtk_GetHitFxKind)
+ *   +0x26 s8 priority for trades (BtlAtk_GetPriority)
+ *   +0x27..+0x2A s8 guard results (BtlAtk_GetGuardKindB, BtlAtk_GetGuardKindC, BtlAtk_GetGuardKindA, BtlAtk_GetGuardKindE; BtlAtk_GetBestGuardKind mixes)
+ *   +0x2B s8 0 / 1 -> defender flag 0x66 / 0x67 on guard (BtlAtk_GetGuardFlagSel)
+ *   +0x2C s8 armour levels the attack ignores (BtlAtk_GetUnk2C)
  *
- * Attack flags tested here (func_0020D970): 1 first hit can be evaded by level, 2 ignored by animation flag 0x200,
+ * Attack flags tested here (BtlAtk_GetFlags): 1 first hit can be evaded by level, 2 ignored by animation flag 0x200,
  * 4 can be absorbed by armour, 8 hits without facing the opponent, 0x10 can be timed-guarded, 0x20 BtlMove_AimVerticalAtOpponent,
  * 0x40 / 0x400000 defender held flags 0xE / 0x1E, 0x100 turns the defender, 0x200 attacker held flag 0x86,
  * 0x400 no hurt voice, 0x800 shakes the attacker's camera too, 0x1000 launch "back" value, 0x4000 throw that
@@ -85,51 +85,51 @@ extern void BtlMember_AddBlast(HitChr *chr, s32 amount);
 extern s32 BtlMember_HasAbility(HitChr *chr, s32 ability);
 
 /* The attacker's current attack and its record (see the table above). */
-extern s32 func_0020C9F0(HitChr *chr);
-extern s32 func_0020D970(HitChr *chr);
-extern s32 func_0020D3F8(HitChr *chr);
-extern s32 func_0020D418(HitChr *chr);
-extern s32 func_0020D4C8(HitChr *chr);
-extern s32 func_0020D600(HitChr *chr);
-extern s32 func_0020D6D0(HitChr *chr);
-extern s32 func_0020D768(HitChr *chr);
-extern s32 func_0020D7E0(HitChr *chr);
-extern s32 func_0020D800(HitChr *chr);
-extern s32 func_0020D838(HitChr *chr);
-extern s32 func_0020D870(HitChr *chr);
-extern s32 func_0020D8A8(HitChr *chr);
-extern s32 func_0020D8E0(HitChr *chr);
-extern s32 func_0020D900(HitChr *chr);
-extern s32 func_0020D938(HitChr *chr);
-extern f32 func_0020D990(HitChr *chr);
-extern f32 func_0020D9D0(HitChr *chr);
-extern f32 func_0020DA70(HitChr *chr);
-extern f32 func_0020DB00(HitChr *chr);
-extern f32 func_0020DB90(HitChr *chr);
-extern f32 func_0020DBB8(HitChr *chr);
-extern f32 func_0020DBE8(HitChr *chr);
-extern f32 func_0020DC10(HitChr *chr);
-extern s32 func_0020DC40(HitChr *chr);
-extern s32 func_0020DCE8(HitChr *chr);
-extern s32 func_0020DD38(HitChr *chr);
-extern s32 func_0020DD98(HitChr *chr);
-extern s32 func_0020DE50(HitChr *chr);
-extern s32 func_0020DF20(HitChr *chr);
-extern s32 func_0020DF40(HitChr *chr);
-extern s32 func_0020DF60(HitChr *chr);
+extern s32 BtlAtk_GetId(HitChr *chr);
+extern s32 BtlAtk_GetFlags(HitChr *chr);
+extern s32 BtlAtk_GetPriority(HitChr *chr);
+extern s32 BtlAtk_GetDamage(HitChr *chr);
+extern s32 BtlAtk_GetGuardDamage(HitChr *chr);
+extern s32 BtlAtk_GetKiGain(HitChr *chr);
+extern s32 BtlAtk_GetGuardKiCost(HitChr *chr);
+extern s32 BtlAtk_GetUnk10(HitChr *chr);
+extern s32 BtlAtk_GetReaction(HitChr *chr);
+extern s32 BtlAtk_GetReactionB(HitChr *chr);
+extern s32 BtlAtk_GetReactionC(HitChr *chr);
+extern s32 BtlAtk_GetReactionD(HitChr *chr);
+extern s32 BtlAtk_GetReactionE(HitChr *chr);
+extern s32 BtlAtk_GetReactionSub(HitChr *chr);
+extern s32 BtlAtk_GetReactionF(HitChr *chr);
+extern s32 BtlAtk_GetReactionG(HitChr *chr);
+extern f32 BtlAtk_GetPushOnHit(HitChr *chr);
+extern f32 BtlAtk_GetPushOnGuard(HitChr *chr);
+extern f32 BtlAtk_GetLaunchAngleA(HitChr *chr);
+extern f32 BtlAtk_GetLaunchAngleB(HitChr *chr);
+extern f32 BtlAtk_GetShakePower(HitChr *chr);
+extern f32 BtlAtk_GetShakeTime(HitChr *chr);
+extern f32 BtlAtk_GetShakePowerB(HitChr *chr);
+extern f32 BtlAtk_GetShakeTimeB(HitChr *chr);
+extern s32 BtlAtk_GetHitFxKind(HitChr *chr);
+extern s32 BtlAtk_GetGuardKindA(HitChr *chr);
+extern s32 BtlAtk_GetGuardKindB(HitChr *chr);
+extern s32 BtlAtk_GetGuardKindC(HitChr *chr);
+extern s32 BtlAtk_GetBestGuardKind(HitChr *chr);
+extern s32 BtlAtk_GetGuardKindE(HitChr *chr);
+extern s32 BtlAtk_GetGuardFlagSel(HitChr *chr);
+extern s32 BtlAtk_GetUnk2C(HitChr *chr);
 
 /* The fighter's parameter block (object + 0x91C). */
-extern s32 func_0020E090(HitChr *chr);                           /* flags, + 0x10 */
-extern u32 func_0020E0B8(HitChr *chr);                           /* flags, + 0x14 */
-extern s32 func_0020E130(HitChr *chr);                           /* byte + 2 */
-extern f32 func_0020F160(HitChr *chr);                           /* float + 0x60 */
-extern u32 func_00210D80(HitChr *chr, s32 tech);                 /* technique flags */
-extern s32 func_00212760(HitChr *chr, s32 dir);
+extern s32 BtlParam_GetFlags(HitChr *chr);                           /* flags, + 0x10 */
+extern u32 BtlParam_GetFlags2(HitChr *chr);                           /* flags, + 0x14 */
+extern s32 BtlParam_GetUnk2(HitChr *chr);                           /* byte + 2 */
+extern f32 BtlParam_GetHitReactScale(HitChr *chr);                           /* float + 0x60 */
+extern u32 BtlSuper_GetFlags(HitChr *chr, s32 tech);                 /* technique flags */
+extern s32 BtlSkill_GetFrames(HitChr *chr, s32 dir);
 
 /* Model objects and maths. */
-extern f32 func_00204EA0(s32 objId);                             /* body size, obj + 0xFF4 */
-extern f32 func_002062F0(s32 objId);                             /* body radius */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);       /* world position of a model node */
+extern f32 BtlCharApi_GetHeight(s32 objId);                             /* body size, obj + 0xFF4 */
+extern f32 BtlCharApi_GetRadius(s32 objId);                             /* body radius */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);       /* world position of a model node */
 extern s32 func_0024D610(HitObj *obj, s32 a, s32 b, s32 c);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
@@ -193,13 +193,13 @@ void BtlHit_ApplyGuard(HitChr *atk, HitChr *def, u32 result) {
     f32 time;
     HitPose *pose;
 
-    if (func_0020D970(atk) & 0x10000) {
+    if (BtlAtk_GetFlags(atk) & 0x10000) {
         BtlChar_SetFxBit(atk, 0x25);
     }
-    if (func_0020D970(atk) & 0x20000) {
+    if (BtlAtk_GetFlags(atk) & 0x20000) {
         BtlChar_SetFxBit(atk, 0x26);
     }
-    if (func_0020D970(atk) & 0x40000) {
+    if (BtlAtk_GetFlags(atk) & 0x40000) {
         BtlChar_SetFxBit(atk, 0x27);
     }
     BtlChar_ClearFlag(atk, 0x8A);
@@ -256,7 +256,7 @@ void BtlHit_ApplyGuard(HitChr *atk, HitChr *def, u32 result) {
     case 5:
         BtlChar_SetFxBit(def, 0x20);
         BtlChar_SetFlag(def, 0x6D);
-        BtlMember_SpendKi(def, func_0020D6D0(atk), 0);
+        BtlMember_SpendKi(def, BtlAtk_GetGuardKiCost(atk), 0);
         if (BtlMember_IsKiEmpty(def)) {
             BtlChar_SetHeldFlag(def, 0xBE);
         }
@@ -280,8 +280,8 @@ void BtlHit_ApplyGuard(HitChr *atk, HitChr *def, u32 result) {
         break;
     }
     pose = BtlChar_GetPos(atk);
-    BtlMove_SetImpulseYaw(def, pose->yaw, func_0020D9D0(atk) * scale);
-    switch (func_0020DF40(atk)) {
+    BtlMove_SetImpulseYaw(def, pose->yaw, BtlAtk_GetPushOnGuard(atk) * scale);
+    switch (BtlAtk_GetGuardFlagSel(atk)) {
     case 0:
         BtlChar_SetFlag(def, 0x66);
         break;
@@ -289,9 +289,9 @@ void BtlHit_ApplyGuard(HitChr *atk, HitChr *def, u32 result) {
         BtlChar_SetFlag(def, 0x67);
         break;
     }
-    power = func_0020DBE8(atk);
-    time = func_0020DC10(atk);
-    if (func_0020D970(atk) & 0x800) {
+    power = BtlAtk_GetShakePowerB(atk);
+    time = BtlAtk_GetShakeTimeB(atk);
+    if (BtlAtk_GetFlags(atk) & 0x800) {
         ChrCam_AddShake(atk, power, time);
     }
     ChrCam_AddShake(def, power, time);
@@ -311,9 +311,9 @@ s32 BtlHit_CheckNear(HitChr *a, HitChr *b) {
         return 0;
     }
     if (BtlChar_TestFlag(a, 0x4A)) {
-        range = func_00204EA0(a->objId) * 5.0f;
+        range = BtlCharApi_GetHeight(a->objId) * 5.0f;
     } else if (BtlChar_TestFlag(a, 0x4B)) {
-        range = func_00204EA0(a->objId) * 2.0f;
+        range = BtlCharApi_GetHeight(a->objId) * 2.0f;
     } else {
         return 0;
     }
@@ -323,8 +323,8 @@ s32 BtlHit_CheckNear(HitChr *a, HitChr *b) {
     if (150.0f < range) {
         range = 150.0f;
     }
-    func_002058E0(a->objId, 3, &pa);
-    func_002058E0(b->objId, 3, &pb);
+    BtlCharApi_GetNodePos(a->objId, 3, &pa);
+    BtlCharApi_GetNodePos(b->objId, 3, &pb);
     Vec4_Sub(&d, &pa, &pb);
     if (Vec3_Length(&d) < range) {
         BtlChar_SetFlag(a, 0x65);
@@ -372,15 +372,15 @@ s32 BtlHit_CheckGrab(HitChr *a, HitChr *b) {
     BtlChar_ClearFlag(a, 0x4D);
     n = BtlMember_GetActive(b)->costume;
     n = BtlHit_FormIndex(n, BtlMember_GetActiveGauge(b));
-    if (func_0020E090(b) & (0x1000000 << n)) {
+    if (BtlParam_GetFlags(b) & (0x1000000 << n)) {
         return 0;
     }
     if (BtlChar_TestFlag(b, 0x137)) {
         return 0;
     }
     range = 100.0f;
-    func_002058E0(a->objId, 3, &pa);
-    func_002058E0(b->objId, 3, &pb);
+    BtlCharApi_GetNodePos(a->objId, 3, &pa);
+    BtlCharApi_GetNodePos(b->objId, 3, &pb);
     Vec4_Sub(&d, &pa, &pb);
     if (range < Vec3_Length(&d)) {
         return 0;
@@ -395,7 +395,7 @@ s32 BtlHit_CheckGrab(HitChr *a, HitChr *b) {
         t = 0;
         goto end;
     }
-    t = func_00212760(a, dir);
+    t = BtlSkill_GetFrames(a, dir);
     b->react.back = 0;
     b->react.unk48 = t;
     b->react.yaw = BtlChar_GetPos(a)->yaw;
@@ -437,11 +437,11 @@ s32 BtlHit_CheckTouch(HitChr *a, HitChr *b) {
     pb = BtlChar_GetPos(b);
     Vec4_Sub(&d, &pb->pos, &BtlChar_GetPos(a)->pos);
     dist = BtlUtil_LengthXZ(&d);
-    dist -= func_002062F0(a->objId) * k;
-    dist -= func_002062F0(b->objId) * k;
+    dist -= BtlCharApi_GetRadius(a->objId) * k;
+    dist -= BtlCharApi_GetRadius(b->objId) * k;
     if (dist < 0.0f) {
-        h[0] = func_00204EA0(a->objId) * k;
-        h[1] = func_00204EA0(b->objId) * k;
+        h[0] = BtlCharApi_GetHeight(a->objId) * k;
+        h[1] = BtlCharApi_GetHeight(b->objId) * k;
         if (-h[0] < d.y && d.y < h[1]) {
             hit = 1;
         }
@@ -456,7 +456,7 @@ s32 BtlHit_CheckTouch(HitChr *a, HitChr *b) {
 /* 1 when the attack cannot touch the defender at all: attacker flag 0xBA, defender flag 0x42 (0x43 for attack 0x55),
  * or attack 0x56 from behind (or against animation flags 0x800 + 0x8000). */
 s32 BtlHit_IsVoid(HitChr *atk, HitChr *def) {
-    s32 k = func_0020C9F0(atk);
+    s32 k = BtlAtk_GetId(atk);
     s32 behind;
     u32 flags;
 
@@ -474,7 +474,7 @@ s32 BtlHit_IsVoid(HitChr *atk, HitChr *def) {
     }
     behind = BtlHit_IsFromBehind(atk, def);
     flags = BtlAnim_GetFlags(BtlAnim_GetId(def));
-    if (func_0020C9F0(atk) == 0x56) {
+    if (BtlAtk_GetId(atk) == 0x56) {
         if (flags & 0x800) {
             if (flags & 0x8000) {
                 return 1;
@@ -527,7 +527,7 @@ s32 BtlHit_CheckDodge(HitChr *atk, HitChr *def) {
         }
     }
     if (on) {
-        flags = func_0020D970(atk);
+        flags = BtlAtk_GetFlags(atk);
         done = 0;
         strike = 0;
         free = 0;
@@ -625,8 +625,8 @@ s32 BtlHit_CheckDodge(HitChr *atk, HitChr *def) {
             return 1;
         }
     }
-    if (BtlChar_TestFlag(def, 0x4E) && (func_0020E0B8(def) & 0x80) && func_0020E130(atk) != 4 &&
-        !BtlHit_IsFromBehind(atk, def) && (u32)func_0020C9F0(atk) < 0xB) {
+    if (BtlChar_TestFlag(def, 0x4E) && (BtlParam_GetFlags2(def) & 0x80) && BtlParam_GetUnk2(atk) != 4 &&
+        !BtlHit_IsFromBehind(atk, def) && (u32)BtlAtk_GetId(atk) < 0xB) {
         BtlChar_SetFlag(def, 0x7D);
         BtlChar_SetFlag(atk, 0x7E);
         if (BtlChar_GetObj(atk)->hitNo == 0) {
@@ -645,7 +645,7 @@ s32 BtlHit_CheckArmor(HitChr *atk, HitChr *def) {
         return 0;
     }
     ret = 0;
-    if (func_0020D970(atk) & 2) {
+    if (BtlAtk_GetFlags(atk) & 2) {
         ret = 1;
     }
     return ret;
@@ -681,27 +681,27 @@ s32 BtlHit_CheckGuard(HitChr *atk, HitChr *def, s32 *full) {
             return 0;
         }
     }
-    if (BtlChar_TestFlag(def, 0x40) && (u32)func_0020C9F0(atk) < 0xB) {
+    if (BtlChar_TestFlag(def, 0x40) && (u32)BtlAtk_GetId(atk) < 0xB) {
         BtlHit_ApplyGuard(atk, def, 1);
         return 1;
     }
-    if (BtlChar_TestFlag(def, 0x41) && (func_0020D970(atk) & 0x10) && BtlInput_IsCmdHeld(def, 0x10)) {
+    if (BtlChar_TestFlag(def, 0x41) && (BtlAtk_GetFlags(atk) & 0x10) && BtlInput_IsCmdHeld(def, 0x10)) {
         if (BtlInput_IsHeld(def, 0x10)) {
-            switch (func_0020DD38(atk)) {
+            switch (BtlAtk_GetGuardKindB(atk)) {
             case 0:
             case 2:
                 BtlHit_ApplyGuard(atk, def, 2);
                 return 1;
             }
         } else if (BtlInput_IsHeld(def, 0x20)) {
-            switch (func_0020DD98(atk)) {
+            switch (BtlAtk_GetGuardKindC(atk)) {
             case 0:
             case 2:
                 BtlHit_ApplyGuard(atk, def, 3);
                 return 1;
             }
         } else {
-            switch (func_0020DCE8(atk)) {
+            switch (BtlAtk_GetGuardKindA(atk)) {
             case 0:
             case 2:
                 BtlHit_ApplyGuard(atk, def, 4);
@@ -715,19 +715,19 @@ s32 BtlHit_CheckGuard(HitChr *atk, HitChr *def, s32 *full) {
     res = 0;
     switch (guard) {
     case 1:
-        res = func_0020DCE8(atk);
+        res = BtlAtk_GetGuardKindA(atk);
         break;
     case 2:
-        res = func_0020DD38(atk);
+        res = BtlAtk_GetGuardKindB(atk);
         break;
     case 3:
-        res = func_0020DD98(atk);
+        res = BtlAtk_GetGuardKindC(atk);
         break;
     case 5:
-        res = func_0020DF20(atk);
+        res = BtlAtk_GetGuardKindE(atk);
         break;
     case 4:
-        res = func_0020DE50(atk);
+        res = BtlAtk_GetBestGuardKind(atk);
         break;
     case 6:
         res = 0;
@@ -759,16 +759,16 @@ s32 BtlHit_CheckGuard(HitChr *atk, HitChr *def, s32 *full) {
 s32 BtlHit_CheckThrowBreak(HitChr *atk, HitChr *def) {
     u32 st;
 
-    if (func_0020C9F0(atk) != 0x55) {
+    if (BtlAtk_GetId(atk) != 0x55) {
         return 0;
     }
-    if (func_0020E130(def) == 4) {
+    if (BtlParam_GetUnk2(def) == 4) {
         BtlChar_SetFlag(atk, 0x7A);
         BtlCharSnd_PlayCommon(def, 0x44);
         BtlChar_PlayVoice(atk, 0);
         return 1;
     }
-    if ((func_0020E090(def) & 0x4000) && (func_0020D970(atk) & 0x4000)) {
+    if ((BtlParam_GetFlags(def) & 0x4000) && (BtlAtk_GetFlags(atk) & 0x4000)) {
         BtlChar_SetFlag(atk, 0x7A);
         BtlCharSnd_PlayCommon(def, 0x44);
         BtlChar_PlayVoice(atk, 0);
@@ -898,14 +898,14 @@ s32 BtlHit_CheckRush(void) {
         BtlAnim_GetFlags(BtlAnim_GetId(a));
         st = BtlAnim_GetFlags(BtlAnim_GetId(b));
         tech = BtlAct_GetCurrentClass(a);
-        tf = func_00210D80(a, tech);
+        tf = BtlSuper_GetFlags(a, tech);
         if (BtlChar_TestFlag(b, 0x42) || (st & 0x800)) {
             goto miss;
         }
         if (BtlChar_TestFlag(b, 0x49) && BtlChar_TestFlag(b, 0xA5) && !BtlChar_TestFlag(a, 0xA5)) {
             goto miss;
         }
-        if ((func_0020E130(b) == 4 && !(tf & 0x8000000)) || BtlChar_TestFlag(b, 0x59)) {
+        if ((BtlParam_GetUnk2(b) == 4 && !(tf & 0x8000000)) || BtlChar_TestFlag(b, 0x59)) {
             BtlChar_SetFlag(a, 0x64);
             BtlChar_SetFlag(a, 0x129);
             continue;
@@ -1034,7 +1034,7 @@ void BtlHit_TestHit(HitChr *chr) {
     if (BtlChar_TestFlag(chr, 0x60)) {
         return;
     }
-    if (func_0020C9F0(chr) == -1) {
+    if (BtlAtk_GetId(chr) == -1) {
         return;
     }
     if ((obj->work->unk18020 & 0xF000000) || BtlChar_TestFlag(chr, 0x65)) {
@@ -1045,7 +1045,7 @@ void BtlHit_TestHit(HitChr *chr) {
         if (__builtin_fabsf(BtlOpp_GetYawFromFacing(chr)) < 1.5707963f) {
             ok = 1;
         }
-        if (func_0020D970(chr) & 8) {
+        if (BtlAtk_GetFlags(chr) & 8) {
             ok = 1;
         }
         if (ok) {
@@ -1055,7 +1055,7 @@ void BtlHit_TestHit(HitChr *chr) {
                 BtlChar_SetHeldFlag(chr, 0x5C);
             } else if (BtlHit_CheckGuard(chr, opp, &full)) {
                 if (full) {
-                    BtlMember_Damage(opp, func_0020D4C8(chr), 0xC);
+                    BtlMember_Damage(opp, BtlAtk_GetGuardDamage(chr), 0xC);
                 }
             } else if (!BtlHit_CheckThrowBreak(chr, opp)) {
                 st->target = oppIdx;
@@ -1081,8 +1081,8 @@ void BtlHit_ResolveTrades(void) {
             HitStatus *sb = &b->status;
 
             if (sa->target == b->player && sb->target == a->player) {
-                s32 pa = func_0020D3F8(a);
-                s32 pb = func_0020D3F8(b);
+                s32 pa = BtlAtk_GetPriority(a);
+                s32 pb = BtlAtk_GetPriority(b);
 
                 if (pa > pb) {
                     sb->target = -1;
@@ -1131,8 +1131,8 @@ void BtlHit_ApplyHit(HitChr *atk) {
     }
     def = BtlChar_Get(atk->status.target);
     dobj = BtlChar_GetObj(def);
-    kind = func_0020C9F0(atk);
-    af = func_0020D970(atk);
+    kind = BtlAtk_GetId(atk);
+    af = BtlAtk_GetFlags(atk);
     state = BtlAnim_GetId(def);
     st = BtlAnim_GetFlags(state);
     if (af & 0x10000000) {
@@ -1142,26 +1142,26 @@ void BtlHit_ApplyHit(HitChr *atk) {
     }
     back = BtlHit_IsFromBehind(atk, def);
     if (st & 0x1000) {
-        react = func_0020D870(atk);
+        react = BtlAtk_GetReactionD(atk);
     } else if (st & 0x2000) {
-        react = func_0020D8A8(atk);
+        react = BtlAtk_GetReactionE(atk);
     } else if ((st & 0x4000) || BtlAct_GetCurrent(def) == 0xDF) {
-        react = func_0020D838(atk);
+        react = BtlAtk_GetReactionC(atk);
     } else if ((u32)(state - 0xAE) < 2 || (st & 0x200)) {
-        react = func_0020D938(atk);
+        react = BtlAtk_GetReactionG(atk);
     } else {
         s32 lvl = 0;
 
-        if (func_0020E090(def) & 4) {
+        if (BtlParam_GetFlags(def) & 4) {
             lvl = 1;
         }
-        if (func_0020E090(def) & 8) {
+        if (BtlParam_GetFlags(def) & 8) {
             lvl--;
         }
-        if (func_0020E090(atk) & 4) {
+        if (BtlParam_GetFlags(atk) & 4) {
             lvl--;
         }
-        if (func_0020E090(atk) & 8) {
+        if (BtlParam_GetFlags(atk) & 8) {
             lvl++;
         }
         if (BtlAct_TestPoweredSkill(def, 0x40)) {
@@ -1183,22 +1183,22 @@ void BtlHit_ApplyHit(HitChr *atk) {
                 lvl--;
             }
         }
-        lvl -= func_0020DF60(atk);
+        lvl -= BtlAtk_GetUnk2C(atk);
         if (lvl > 0 && (af & 4)) {
             react = 2;
-            if (func_0020E090(def) & 4) {
+            if (BtlParam_GetFlags(def) & 4) {
                 drain = 1;
             }
         } else if (st & 0x800) {
-            react = func_0020D800(atk);
+            react = BtlAtk_GetReactionB(atk);
         } else if (st & 0x100) {
             if (back || (func_0024D610(dobj, 1, 0, 3) && dobj->hitNo == ~dobj->unkCAC)) {
-                react = func_0020D7E0(atk);
+                react = BtlAtk_GetReaction(atk);
             } else {
-                react = func_0020D900(atk);
+                react = BtlAtk_GetReactionF(atk);
             }
         } else {
-            react = func_0020D7E0(atk);
+            react = BtlAtk_GetReaction(atk);
         }
     }
     if (react == 1) {
@@ -1206,7 +1206,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
         return;
     }
     if (react == 0x14) {
-        if (func_0020E090(atk) & 0x200) {
+        if (BtlParam_GetFlags(atk) & 0x200) {
             react = 0x25;
         }
     }
@@ -1226,7 +1226,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
     }
     def->react.reaction = react;
     if (react != 2) {
-        def->react.unk4 = func_0020D8E0(atk);
+        def->react.unk4 = BtlAtk_GetReactionSub(atk);
         if (BtlChar_TestMemberUnk70(atk)) {
             def->react.unk4 = 0x13;
         }
@@ -1236,7 +1236,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
         } else if (af & 0x2000000) {
             def->react.scale = atk->unkD78;
         } else {
-            def->react.scale = atk->unkD78 * func_0020F160(def);
+            def->react.scale = atk->unkD78 * BtlParam_GetHitReactScale(def);
         }
         if (af & 0x40) {
             BtlChar_SetHeldFlag(def, 0xE);
@@ -1253,11 +1253,11 @@ void BtlHit_ApplyHit(HitChr *atk) {
             BtlMember_SpendKi(def, 2000, 0);
         }
     }
-    if (func_0020DC40(atk)) {
+    if (BtlAtk_GetHitFxKind(atk)) {
         BtlChar_SetFxBit(def, 0x1D);
     }
-    power = func_0020DB90(atk);
-    time = func_0020DBB8(atk);
+    power = BtlAtk_GetShakePower(atk);
+    time = BtlAtk_GetShakeTime(atk);
     if (af & 0x800) {
         ChrCam_AddShake(atk, power, time);
     }
@@ -1292,8 +1292,8 @@ void BtlHit_ApplyHit(HitChr *atk) {
     }
     if (react != 2) {
         if (launch) {
-            f32 la = func_0020DA70(atk);
-            f32 lb = func_0020DB00(atk);
+            f32 la = BtlAtk_GetLaunchAngleA(atk);
+            f32 lb = BtlAtk_GetLaunchAngleB(atk);
 
             def->react.back = (af >> 12) & 1;
             if (BtlChar_TestMemberUnk70(atk) && kind == 0x55) {
@@ -1315,11 +1315,11 @@ void BtlHit_ApplyHit(HitChr *atk) {
         } else {
             def->react.back = back;
             def->react.yaw = yaw;
-            BtlMove_SetImpulseYaw(def, def->react.yaw, func_0020D990(atk));
+            BtlMove_SetImpulseYaw(def, def->react.yaw, BtlAtk_GetPushOnHit(atk));
             if (af & 0x100) {
                 BtlChar_SetFlag(def, 0x94);
-                a = func_0020DA70(atk);
-                b = func_0020DB00(atk);
+                a = BtlAtk_GetLaunchAngleA(atk);
+                b = BtlAtk_GetLaunchAngleB(atk);
                 if (af & 0x200000) {
                     a = 0.0f;
                     b = BtlChar_GetPos(atk)->unk90;
@@ -1337,7 +1337,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
         }
     }
     if (kind == 0x55) {
-        s32 v = (func_0020E090(atk) >> 19) & 1;
+        s32 v = (BtlParam_GetFlags(atk) >> 19) & 1;
 
         atk->react.unk10 = v;
         def->react.unk10 = v;
@@ -1349,11 +1349,11 @@ void BtlHit_ApplyHit(HitChr *atk) {
     case 0x14:
     case 0x16:
     case 0x25:
-        def->react.damage = func_0020D418(atk);
+        def->react.damage = BtlAtk_GetDamage(atk);
         break;
     default: {
         s32 type = 0;
-        s32 dmg = func_0020D418(atk);
+        s32 dmg = BtlAtk_GetDamage(atk);
 
         switch (kind) {
         case 0x75:
@@ -1386,14 +1386,14 @@ void BtlHit_ApplyHit(HitChr *atk) {
     }
     }
     if (!BtlChar_TestFlag(atk, 0x98)) {
-        BtlMember_AddKi(atk, func_0020D600(atk));
+        BtlMember_AddKi(atk, BtlAtk_GetKiGain(atk));
     }
-    atk->unkD80 += func_0020D768(atk);
+    atk->unkD80 += BtlAtk_GetUnk10(atk);
     if (atk->unkD80 > 100000) {
         atk->unkD80 = 100000;
     }
     BtlChar_RaiseFirstClash(atk);
-    BtlChar_AddStageTimer(func_0020DBB8(atk) * 2.0f);
+    BtlChar_AddStageTimer(BtlAtk_GetShakeTime(atk) * 2.0f);
 }
 
 /*

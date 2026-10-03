@@ -55,11 +55,11 @@ extern void BtlUtil_WrapAngles(Vec4 *dst, Vec4 *src);
 extern s32 BtlOpp_GetPlayer(BtlCtlChr *chr); /* player index of the other fighter */
 extern f32 BtlOpp_GetHeight(BtlCtlChr *chr); /* size of the other fighter */
 extern s32 BtlAct_GetCurrent(BtlCtlChr *chr); /* chr + 0x948: action id */
-extern f32 func_00204EA0(s32 objId);        /* obj + 0xFF4 (10.0 without an object): the fighter's size */
-extern f32 func_00204F00(s32 objId);
-extern f32 func_002062F0(s32 objId);
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);
-extern void func_00211E78(BtlCtlChr *target, s32 arg1, s32 arg2, Vec4 *pos, Vec4 *rot);
+extern f32 BtlCharApi_GetHeight(s32 objId);        /* obj + 0xFF4 (10.0 without an object): the fighter's size */
+extern f32 BtlCharApi_GetCenterHeight(s32 objId);
+extern f32 BtlCharApi_GetRadius(s32 objId);
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
+extern void BtlSuper_GetStagePlacement(BtlCtlChr *target, s32 arg1, s32 arg2, Vec4 *pos, Vec4 *rot);
 extern s32 func_0023FF78(s32 arg0, Vec4 *pos);
 extern f32 func_0023FEF8(void);
 extern BtlCtlPath *func_00241EC8(s32 arg0);
@@ -168,7 +168,7 @@ void BtlChar_Place(BtlCtlChr *chr, Vec4 *pos, Vec4 *rot, s32 area) {
     Vec4_Copy(&obj->rot, rot);
     obj->area = area;
     chr->camEye[0] = pos->x;
-    chr->camEye[1] = pos->y - func_00204EA0(chr->objId);
+    chr->camEye[1] = pos->y - BtlCharApi_GetHeight(chr->objId);
     chr->camEye[2] = pos->z;
     chr->camYaw = rot->y;
     pose->dir.x = Mathf_Sin(rot->y);
@@ -255,9 +255,9 @@ void BtlChar_PlaceOnPath(BtlCtlChr *chr) {
                 return;
             }
             margin = 30.0f;
-            Vec4_Scale(&side, &side, (func_002062F0(chr->objId) + margin) / len);
+            Vec4_Scale(&side, &side, (BtlCharApi_GetRadius(chr->objId) + margin) / len);
             pos.x = point->x;
-            pos.y = point->y + func_00204F00(chr->objId);
+            pos.y = point->y + BtlCharApi_GetCenterHeight(chr->objId);
             pos.z = point->z;
             pos.w = 1.0f;
             rot.x = 0.0f;
@@ -285,7 +285,7 @@ void BtlChar_PlaceCenterHigh(BtlCtlChr *chr) {
         s32 area = func_002428B8(&pos, &rot);
         f32 y = func_0023FEF8();
 
-        pos.y = y + func_00204EA0(chr->objId) * 0.5f;
+        pos.y = y + BtlCharApi_GetHeight(chr->objId) * 0.5f;
         BtlChar_Place(chr, &pos, &rot, area);
     }
 }
@@ -348,7 +348,7 @@ void BtlChar_PlaceWarp(BtlCtlChr *chr) {
 f32 BtlChar_GetSpacing(BtlCtlChr *chr, s32 mode) {
     f32 r = 0.0f;
 
-    r += func_00204EA0(chr->objId);
+    r += BtlCharApi_GetHeight(chr->objId);
     r += BtlOpp_GetHeight(chr);
     switch (mode) {
     case 0:
@@ -394,8 +394,8 @@ void BtlChars_UpdateHold(void) {
         BtlCtlObj *heldObj = BtlChar_GetObj(held);
         s32 node = heldObj->holdNode;
 
-        func_002058E0(holder->objId, 0x34, &holderPos);
-        func_002058E0(held->objId, node, &heldPos);
+        BtlCharApi_GetNodePos(holder->objId, 0x34, &holderPos);
+        BtlCharApi_GetNodePos(held->objId, node, &heldPos);
         if (BtlChar_TestFlag(holder, 0x9B)) {
             Vec4_Sub(&delta, &heldPos, &holderPos);
             if (BtlChar_TestFlag(held, 0x34)) {
@@ -461,7 +461,7 @@ void BtlChar_RequestPlaceRelative(BtlCtlChr *chr, s32 arg1, s32 arg2, s32 self) 
     if (!self) {
         target = BtlChar_Get(BtlOpp_GetPlayer(chr));
     }
-    func_00211E78(target, arg1, arg2, &chr->relPos, &chr->relRot);
+    BtlSuper_GetStagePlacement(target, arg1, arg2, &chr->relPos, &chr->relRot);
     BtlChar_SetFlag(chr, 0xF6);
 }
 

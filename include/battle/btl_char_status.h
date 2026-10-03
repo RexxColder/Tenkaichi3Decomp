@@ -22,7 +22,7 @@
 /* A character has two skill slots; every modifier is kept per slot. */
 #define BTL_STAT_SLOTS 2
 
-/* How long a skill's modifier lasts: the byte at (object +0x930) + 0x66 + slot (func_002123B0). */
+/* How long a skill's modifier lasts: the byte at (object +0x930) + 0x66 + slot (BtlSkill_GetStatKind). */
 #define BTL_STAT_KIND_KEEP   0 /* base[]: never removed */
 #define BTL_STAT_KIND_TIMED  1 /* timed[] with timer[]: removed when the timer runs out */
 #define BTL_STAT_KIND_ACTION 2 /* untilA[]: removed when the action leaves 0x105..0x132 (BtlStat_Update) */
@@ -135,7 +135,7 @@ typedef struct BtlStatChr {
     /* 0x0E34 */ s32 kind3On;     /* the same for kind 3 */
     /* 0x0E38 */ s32 slotOn[BTL_STAT_SLOTS]; /* 1 while the slot's (non-kept) modifier is active */
     /* 0x0E40 */ u8 unkE40[0xEE4 - 0xE40];
-    /* 0x0EE4 */ s32 unkEE4;      /* passed to func_0024D178 when func_00206C20(objId) is set */
+    /* 0x0EE4 */ s32 unkEE4;      /* passed to func_0024D178 when BtlCharApi_IsInRushSequence(objId) is set */
     /* 0x0EE8 */ u8 unkEE8[0xF50 - 0xEE8];
     /* 0x0F50 */ BtlStatMod stat[BTL_STAT_COUNT];
     /* 0x0FB0 */ u8 unkFB0[0x1600 - 0xFB0];
@@ -172,19 +172,19 @@ s32 BtlStat_GetLevel4(BtlStatChr *chr);
 s32 BtlStat_GetLevel5(BtlStatChr *chr);
 s32 BtlStat_GetLevel6(BtlStatChr *chr);
 f32 BtlStat_EvalCurve(s32 level, s32 row);
-s32 BtlStat_GetRate0(BtlStatChr *chr);
-s32 BtlStat_GetRate1(BtlStatChr *chr);
-s32 BtlStat_GetRate2(BtlStatChr *chr);
-s32 BtlStat_GetRate3(BtlStatChr *chr);
-f32 BtlStat_GetScale4(BtlStatChr *chr);
-f32 BtlStat_GetScale5(BtlStatChr *chr);
-f32 BtlStat_GetScale6(BtlStatChr *chr);
+s32 BtlStat_GetKiChargeBonus(BtlStatChr *chr);
+s32 BtlStat_GetKiRegenBonus(BtlStatChr *chr);
+s32 BtlStat_GetKiRecoverBonus(BtlStatChr *chr);
+s32 BtlStat_GetBlastGainBonus(BtlStatChr *chr);
+f32 BtlStat_GetMeleeDamageScale(BtlStatChr *chr);
+f32 BtlStat_GetGuardKiCostScale(BtlStatChr *chr);
+f32 BtlStat_GetKiBlastDamageScale(BtlStatChr *chr);
 f32 BtlStat_GetScale7(BtlStatChr *chr);
-f32 BtlStat_GetScale8(BtlStatChr *chr);
-f32 BtlStat_GetScale9(BtlStatChr *chr);
-f32 BtlStat_GetScale10(BtlStatChr *chr);
-f32 BtlStat_GetScale11(BtlStatChr *chr);
-f32 BtlStat_GetScale12(BtlStatChr *chr);
+f32 BtlStat_GetSpeedScale(BtlStatChr *chr);
+f32 BtlStat_GetBlast2DamageScale(BtlStatChr *chr);
+f32 BtlStat_GetUltimateDamageScale(BtlStatChr *chr);
+f32 BtlStat_GetMaxPowerChargeScale(BtlStatChr *chr);
+f32 BtlStat_GetMaxPowerExtraTime(BtlStatChr *chr);
 
 /* btl_char_status_anim.c */
 void BtlAnim_ApplyTableFlags(void *handle, s32 anim);
@@ -221,7 +221,7 @@ f32 BtlAnim_GetStep(BtlStatChr *chr);
 f32 BtlAnim_GetObjRate(BtlStatChr *chr);
 s32 BtlAnim_TestAttr(BtlStatChr *chr, u64 mask);
 s32 BtlAnim_Advance(BtlStatChr *chr, s32 flags);
-s32 BtlAnim_AdvanceThen(BtlStatChr *chr, s32 next, s32 flags, f32 blend);
+s32 BtlAnim_AdvanceThen(BtlStatChr *chr, s32 next, f32 blend, s32 flags);
 void BtlAnim_AdvanceLoop(BtlStatChr *chr, s32 flags);
 s32 BtlAnim_PassedRatio(BtlStatChr *chr, f32 ratio);
 s32 BtlAnim_PassedFrame(BtlStatChr *chr, f32 frame);

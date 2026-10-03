@@ -149,6 +149,11 @@ leave another module calling a symbol that no longer exists. It takes path subst
 (files other agents are writing). Caution: it reads EVERY file under `config/symbols/`, also the
 ones not yet listed in the yamls; applying those names to linked files breaks the link. While
 unlisted symbol files exist, apply only the listed ones (list the file in both yamls first).
+The skip arguments do not help with that: they name source files to leave alone, the symbol files are
+still all read. Run a copy of the script that ignores the unlisted symbol files instead.
+Renaming a function: replace the name on word boundaries over `config/`, `src/` and `include/`
+together (aliases of the form `extern T f_(void) __asm__("Name");` carry the name in a string and must
+follow), check first that the new name is not used anywhere, then reconfigure and rebuild.
 
 ## More matching lessons
 - A function whose early exits are all `return 0` and whose last statement is `return 1` keeps
@@ -166,6 +171,27 @@ unlisted symbol files exist, apply only the listed ones (list the file in both y
   keep each half's types and put cast macros between the halves
   (`#define gBtlAi ((AiThMgr *)gBtlAi)`, see the middle of `btl_ai_cond.c`); a cast through
   `*(T **)&global` changes register allocation, a plain cast does not.
+  A whole-file merge can be done mechanically: append the second file (minus `#include "common.h"`),
+  compile, and turn every `extern` of the second part that the compiler reports as `conflicting types`
+  into `#define Name ((ret (*)(args))Name)` (a cast of the function's address; the call stays a direct
+  `jal` and the code does not change). Point the `INCLUDE_ASM` folders at the merged file's stem,
+  remove the second file's `c` / `.rodata` / `.lit4` lines from the yaml (the merged file's sections
+  simply run on), re-run fdiff on the whole file. A deliberate non-libc `memset` prototype is reported as
+  a conflict with the built-in: that one is a warning, leave the `extern` alone. A header that carries
+  prototypes (not only types) cannot follow such macros: a third part needs `#undef`s first.
+  An `INCLUDE_ASM` function that ends up in the middle of a merged file needs its constants emitted in
+  place with `LIT4_WORD` (take the labels from its generated .s, the values from the original).
+- A `beqz` that comes out as `beqzl` (or the reverse) with everything else equal is the usual symptom of
+  a missing earlier definition in the file; five functions of the action-handler batch were fixed by
+  merges alone (`BtlFx_UpdateGroundFx`, `BtlAct_AttackDashHandler`, `BtlAct_SuperRushDashHandler`,
+  `BtlAct_SwitchArriveLand`, `BtlAct_KoSwitchFlyIn`). Try the merge with the neighbouring file before
+  giving such a function up, even when no particular callee is suspected.
+- A switch whose dispatch flips between `sll / lui / addu / lw table(reg) / jr` and
+  `lui / sll / addiu / addu / lw 0(reg) / jr` when nothing in the function changed is decided by what
+  the compiler has seen earlier in the file, not by the code (`BtlAct_SuperRushFollowHandler` in
+  `btl_act_f.c`): adding or removing one declaration anywhere above it flips it. A redundant prototype
+  directly in front of the function is the least intrusive fix; say so in a comment and re-check the
+  function after every change to the file or its headers.
 - A helper the compiler can see is `const` (static, no side effects) lets callers keep values
   in registers across the call; try `static` on a small helper.
 - Float literals: fdiff masks constant relocations, so compare each `.lit4` value with the

@@ -46,7 +46,7 @@ extern void func_0023A848(s32 x, s32 y, void *text);
 extern void func_0023AD48(void);
 extern void func_0023A2D0(s32 state);
 /* fighter / HUD side, not decompiled */
-extern s32 func_0020B840(s32 side);
+extern s32 BtlCtrl_IsActiveDead(s32 side);
 extern void func_0022D990(void);
 extern void func_0022D9B0(void);
 extern void func_0022DA00(s32 arg);
@@ -606,9 +606,9 @@ void BtlScript_StartPending(void) {
                 ready = BtlFacade_AreBothInterruptible();
             check:
                 if (ready) {
-                    if (func_0020B840(0)) {
+                    if (BtlCtrl_IsActiveDead(0)) {
                         ok = 1;
-                    } else if (func_0020B840(1)) {
+                    } else if (BtlCtrl_IsActiveDead(1)) {
                         ok = 1;
                     } else if (info->side) {
                         ok = 1;
@@ -621,7 +621,7 @@ void BtlScript_StartPending(void) {
             ready = BtlFacade_CanCharAct(info->side);
             goto check;
         } else {
-            if (func_0020B840(0) || func_0020B840(1)) {
+            if (BtlCtrl_IsActiveDead(0) || BtlCtrl_IsActiveDead(1)) {
                 if (BtlFacade_AreBothInterruptible()) {
                     ok = 1;
                 }
@@ -645,7 +645,7 @@ void BtlScript_UpdateHud(void) {
     BtlScriptWork *work = &gBtlScript;
 
     if (work->pending != NULL) {
-        if (!func_0020B840(0) && !func_0020B840(1)) {
+        if (!BtlCtrl_IsActiveDead(0) && !BtlCtrl_IsActiveDead(1)) {
             if (!work->pending->u.start.event->side) {
                 func_0022D990();
                 func_0022DA00(BtlFacade_CanCharAct(0));

@@ -31,20 +31,20 @@ extern void ChrCam_SetCut(BtlFlagChr *chr, Vec4 *vecA, Vec4 *vecADelta, Vec4 *ve
                           f32 valCDelta, s32 unk8C, s32 unk90, s32 unk94, s32 time, s32 flags);
 extern void ChrCam_RequestCut(BtlFlagChr *chr, s32 arg1, s32 arg2);
 extern void ChrCam_EndCut(BtlFlagChr *chr);
-extern s32 func_00206D68(s32 objId);                                  /* action id in 0x130..0x132 */
+extern s32 BtlCharApi_IsInClashA(s32 objId);                                  /* action id in 0x130..0x132 */
 extern s32 BtlAct_GetCurrent(BtlFlagChr *chr);                            /* action id */
 extern s32 BtlAct_GetCurrentClass(BtlFlagChr *chr);                            /* class of the technique in use (0..4), or -1 */
 extern void BtlAct_CountAndMarkOpponent(BtlFlagChr *chr);                           /* chr->clashCountB++, opponent +0xD4C = 1 */
-extern f32 func_00204EA0(s32 objId);                                  /* height */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);            /* world position of a model node */
+extern f32 BtlCharApi_GetHeight(s32 objId);                                  /* height */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);            /* world position of a model node */
 extern f32 func_00174F68(s32 side, s32 type);
 extern f32 func_00175048(void);
 extern void func_00174CE0(s32 objId);
 extern s32 func_00241EA0(void);                                       /* number of stage paths */
 extern BtlClashPath *func_00241EC8(s32 n);                            /* stage path n */
-extern s32 func_00211F60(BtlFlagChr *chr, s32 cls);
-extern s32 func_00210D80(BtlFlagChr *chr, s32 cls);                   /* attribute word of the technique */
-extern s32 func_00211AF0(BtlFlagChr *chr, s32 cls, s32 arg2, s32 arg3); /* damage of the technique */
+extern s32 BtlSuper_IsThrow(BtlFlagChr *chr, s32 cls);
+extern s32 BtlSuper_GetFlags(BtlFlagChr *chr, s32 cls);                   /* attribute word of the technique */
+extern s32 BtlSuper_GetDamage(BtlFlagChr *chr, s32 cls, s32 arg2, s32 arg3); /* damage of the technique */
 extern void BtlColl_StartThrow(BtlFlagChr *chr, BtlFlagChr *target, s32 cls, s32 attr);
 extern void BtlMember_Damage(BtlFlagChr *chr, s32 damage, s32 flags);    /* applies damage */
 
@@ -59,7 +59,7 @@ extern BtlClashProgress *gProgress;
 
 /* 1 while both fighters are in actions 0x130..0x132. */
 s32 BtlClash_BothInClashA(void) {
-    if (func_00206D68(0) && func_00206D68(1)) {
+    if (BtlCharApi_IsInClashA(0) && BtlCharApi_IsInClashA(1)) {
         return 1;
     }
     return 0;
@@ -67,7 +67,7 @@ s32 BtlClash_BothInClashA(void) {
 
 /* Raises held flag 0xC3 on a fighter that is in actions 0x130..0x132. */
 void BtlClash_HoldClashA(s32 player) {
-    if (func_00206D68(player)) {
+    if (BtlCharApi_IsInClashA(player)) {
         BtlChar_SetHeldFlag(BtlChar_Get(player), 0xC3);
     }
 }
@@ -145,7 +145,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         }
         pitch = 0.0f;
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
-        dist = func_00204EA0(chr->objId);
+        dist = BtlCharApi_GetHeight(chr->objId);
         dist += func_00174F68(player, type);
         break;
     case 1:
@@ -156,7 +156,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         }
         pitch = 0.0f;
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
-        dist = func_00204EA0(chr->objId);
+        dist = BtlCharApi_GetHeight(chr->objId);
         dist += func_00174F68(player, type);
         break;
     case 2:
@@ -165,7 +165,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         nodeB = 0x30;
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
         pitch = Mathf_Asin(d.y) - 0.2f;
-        dist = func_00204EA0(chr->objId) * 0.4f;
+        dist = BtlCharApi_GetHeight(chr->objId) * 0.4f;
         dist += func_00174F68(player, type);
         break;
     }
@@ -191,9 +191,9 @@ void BtlClash_SetMidCut(Vec4 *mid, f32 bias) {
     ang = bias * ang;
     base = 50.0f;
     Vec3_Normalize(&d, &d);
-    func_002058E0(0, 0x11, &a);
+    BtlCharApi_GetNodePos(0, 0x11, &a);
     ang = ang * half;
-    func_002058E0(1, 0x11, &b);
+    BtlCharApi_GetNodePos(1, 0x11, &b);
     func_00122168(&look, &b, &a, bias * 0.6f + half);
     ang = ang + -1.5707963f;
     yaw = BtlUtil_WrapAngle(atan2f(d.x, d.z) + ang);
@@ -341,13 +341,13 @@ s32 BtlClash_UpdateA(s32 state) {
             BtlChar_SetHeldFlag(winner, 0xC1);
             BtlChar_SetHeldFlag(winner, 0xC3);
             BtlChar_SetHeldFlag(loser, 0xC2);
-            if (func_00211F60(winner, cls)) {
-                BtlColl_StartThrow(winner, loser, cls, func_00210D80(winner, cls));
+            if (BtlSuper_IsThrow(winner, cls)) {
+                BtlColl_StartThrow(winner, loser, cls, BtlSuper_GetFlags(winner, cls));
                 BtlChar_SetHeldFlag(winner, 0xA0);
                 func_00174CE0(winner->objId);
             } else {
-                damage = func_00211AF0(winner, cls, 0, 1);
-                damage += func_00211AF0(loser, loserCls, 0, 1) / 2;
+                damage = BtlSuper_GetDamage(winner, cls, 0, 1);
+                damage += BtlSuper_GetDamage(loser, loserCls, 0, 1) / 2;
                 switch (cls) {
                 case 2:
                     flags = 0x800000;
@@ -377,8 +377,8 @@ s32 BtlClash_UpdateA(s32 state) {
         break;
     }
     c->bias = BtlClash_CalcBias(c->lead);
-    func_002058E0(0, 0x11, &a);
-    func_002058E0(1, 0x11, &b);
+    BtlCharApi_GetNodePos(0, 0x11, &a);
+    BtlCharApi_GetNodePos(1, 0x11, &b);
     func_00122168(&c->mid, &b, &a, c->bias * 0.5f + 0.5f);
     return state;
 }

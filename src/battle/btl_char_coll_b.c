@@ -70,73 +70,73 @@ extern f32 BtlOpp_GetYawFromFacing(BtlCollChr *chr);
 extern f32 BtlOpp_GetHalfHeightDiff(BtlCollChr *chr);
 extern void BtlMove_SetImpulseDir(BtlCollChr *chr, Vec4 *dir, f32 power); /* knock-back push */
 extern s32 BtlAct_GetCurrent(BtlCollChr *chr);            /* chr->action */
-extern s32 BtlAct_IsDamageId(s32 action);
+extern s32 BtlAct_IsTechniqueId(s32 action);
 extern s32 BtlAct_GetCurrentClass(BtlCollChr *chr);            /* class number of the action */
 extern s32 BtlAct_TestPoweredSkill(BtlCollChr *chr, s32 mask);
-extern f32 func_00204EA0(s32 objId);
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out); /* world position of a model node */
-extern s32 func_0020E090(BtlCollChr *chr);            /* parameter word +0x10 of the fighter's object */
-extern s32 func_0020E130(BtlCollChr *chr);
-extern f32 func_0020F318(BtlCollChr *chr);
+extern f32 BtlCharApi_GetHeight(s32 objId);
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out); /* world position of a model node */
+extern s32 BtlParam_GetFlags(BtlCollChr *chr);            /* parameter word +0x10 of the fighter's object */
+extern s32 BtlParam_GetUnk2(BtlCollChr *chr);
+extern f32 BtlParam_GetUnkC7Scale(BtlCollChr *chr);
 extern s32 func_0024D610(BtlCollObj *obj, s32 arg1, s32 arg2, s32 arg3);
 extern s32 func_00242668(f32 *height);
 extern s32 func_0012E750(BtlCollHit *hit);
 
 /* Blast parameter readers (hit record). */
-extern s32 func_0020FAD0(BtlCollHit *hit);            /* blast flag word */
-extern s32 func_0020FC08(BtlCollHit *hit);            /* damage */
-extern s32 func_0020FDB0(BtlCollHit *hit);            /* damage against a changing fighter */
-extern s32 func_0020FEF8(BtlCollHit *hit);
-extern s32 func_00210290(BtlCollHit *hit);            /* reaction ids */
-extern s32 func_00210348(BtlCollHit *hit);
-extern s32 func_00210410(BtlCollHit *hit);
-extern s32 func_002104B8(BtlCollHit *hit);
-extern s32 func_00210548(BtlCollHit *hit);            /* sound class */
-extern f32 func_00210788(BtlCollHit *hit);            /* push */
-extern f32 func_00210890(BtlCollHit *hit);
+extern s32 BtlKiBlast_GetFlagsOfHit(BtlCollHit *hit);            /* blast flag word */
+extern s32 BtlKiBlast_GetDamageOfHit(BtlCollHit *hit);            /* damage */
+extern s32 BtlKiBlast_GetGuardDamageOfHit(BtlCollHit *hit);            /* damage against a changing fighter */
+extern s32 BtlKiBlast_GetKiCostOfHit(BtlCollHit *hit);
+extern s32 BtlKiBlast_GetReactOfHit(BtlCollHit *hit);            /* reaction ids */
+extern s32 BtlKiBlast_GetReactS800OfHit(BtlCollHit *hit);
+extern s32 BtlKiBlast_GetReactS4000OfHit(BtlCollHit *hit);
+extern s32 BtlKiBlast_GetReactS200OfHit(BtlCollHit *hit);
+extern s32 BtlKiBlast_GetTypeOfHit(BtlCollHit *hit);            /* sound class */
+extern f32 BtlKiBlast_GetPushOfHit(BtlCollHit *hit);            /* push */
+extern f32 BtlKiBlast_GetGuardPushOfHit(BtlCollHit *hit);
 
 /* Rush-attack parameter readers (attacker, slot 2..4). */
-extern s32 func_00210D48(BtlCollChr *chr, s32 slot);
-extern u32 func_00210D80(BtlCollChr *chr, s32 slot);  /* technique flag word */
-extern s32 func_00210DB8(BtlCollChr *chr, s32 slot);  /* technique id */
-extern s32 func_00210DF0(BtlCollChr *chr, s32 slot);
-extern s32 func_00210F68(BtlCollChr *chr, s32 slot);
-extern s32 func_00210FA8(BtlCollChr *chr, s32 slot);
-extern s32 func_00211020(BtlCollChr *chr, s32 slot);
-extern s32 func_00211050(BtlCollChr *chr, s32 slot);
-extern s32 func_00211080(BtlCollChr *chr, s32 slot);  /* reaction ids */
-extern s32 func_002110B0(BtlCollChr *chr, s32 slot);
-extern s32 func_002110F8(BtlCollChr *chr, s32 slot);
-extern s32 func_00211128(BtlCollChr *chr, s32 slot);
-extern s32 func_00211170(BtlCollChr *chr, s32 slot);
-extern s32 func_002111A0(BtlCollChr *chr, s32 slot);
-extern s32 func_002111D0(BtlCollChr *chr, s32 slot, s32 alt); /* hit sound kind */
-extern s32 func_00211218(BtlCollChr *chr, s32 slot);
-extern f32 func_00211258(BtlCollChr *chr, s32 slot);
-extern f32 func_002112A0(BtlCollChr *chr, s32 slot);
-extern s32 func_00211498(BtlCollChr *chr, s32 slot);
-extern s32 func_002114F8(BtlCollChr *chr, s32 slot);  /* recoil damage to the attacker */
-extern f32 func_00211630(BtlCollChr *chr, s32 slot);
-extern f32 func_00211680(BtlCollChr *chr, s32 slot);
-extern s32 func_00211718(BtlCollChr *chr, s32 slot);
-extern s32 func_002117C0(BtlCollChr *chr, s32 slot);
-extern s32 func_00211858(BtlCollChr *chr, s32 slot);
-extern s32 func_002118D0(BtlCollChr *chr, s32 slot);
-extern s32 func_00211940(BtlCollChr *chr, s32 slot);
-extern s32 func_00211A08(BtlCollChr *chr, s32 slot);
-extern s32 func_00211AF0(BtlCollChr *chr, s32 slot, s32 arg2, s32 arg3); /* damage */
+extern s32 BtlSuper_GetFlagsA(BtlCollChr *chr, s32 slot);
+extern u32 BtlSuper_GetFlags(BtlCollChr *chr, s32 slot);  /* technique flag word */
+extern s32 BtlSuper_GetId(BtlCollChr *chr, s32 slot);  /* technique id */
+extern s32 BtlSuper_GetUnk1E(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetShots(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetHitsB(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetHitDirKind(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetType(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetReact(BtlCollChr *chr, s32 slot);  /* reaction ids */
+extern s32 BtlSuper_GetReactAlt(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetReactS800(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetReactAltS800(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetUnk14D(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetGuardKind(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetHitSound(BtlCollChr *chr, s32 slot, s32 alt); /* hit sound kind */
+extern s32 BtlSuper_GetStepCount(BtlCollChr *chr, s32 slot);
+extern f32 BtlSuper_GetPush(BtlCollChr *chr, s32 slot);
+extern f32 BtlSuper_GetGuardPush(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetKiCost(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetRecoilDamage(BtlCollChr *chr, s32 slot);  /* recoil damage to the attacker */
+extern f32 BtlSuper_GetThrowAngleA(BtlCollChr *chr, s32 slot);
+extern f32 BtlSuper_GetThrowAngleB(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetThrowChara(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetThrowCostume(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetThrowGauge20(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetUnk220(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetUnk226(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetLastStep(BtlCollChr *chr, s32 slot);
+extern s32 BtlSuper_GetDamage(BtlCollChr *chr, s32 slot, s32 arg2, s32 arg3); /* damage */
 
 /* Strike parameter readers (attacker, slot 0..1). */
-extern u32 func_00212080(BtlCollChr *chr, s32 slot);  /* flag word */
-extern s32 func_00212320(BtlCollChr *chr, s32 slot);
-extern s32 func_002123E0(BtlCollChr *chr, s32 slot);  /* reaction ids */
-extern s32 func_00212410(BtlCollChr *chr, s32 slot);
-extern s32 func_00212458(BtlCollChr *chr, s32 slot);  /* hit sound kind */
-extern f32 func_00212488(BtlCollChr *chr, s32 slot);  /* push */
-extern f32 func_002124E8(BtlCollChr *chr, s32 slot);
-extern s32 func_00212548(BtlCollChr *chr, s32 slot, s32 arg2); /* damage */
-extern s32 func_002125C0(BtlCollChr *chr, s32 slot, s32 arg2);
-extern s32 func_00212760(BtlCollChr *chr, s32 slot);  /* stun frames */
+extern u32 BtlSkill_GetFlags(BtlCollChr *chr, s32 slot);  /* flag word */
+extern s32 BtlSkill_GetHitDirKind(BtlCollChr *chr, s32 slot);
+extern s32 BtlSkill_GetReact(BtlCollChr *chr, s32 slot);  /* reaction ids */
+extern s32 BtlSkill_GetReactS800(BtlCollChr *chr, s32 slot);
+extern s32 BtlSkill_GetHitSound(BtlCollChr *chr, s32 slot);  /* hit sound kind */
+extern f32 BtlSkill_GetPush(BtlCollChr *chr, s32 slot);  /* push */
+extern f32 BtlSkill_GetGuardPush(BtlCollChr *chr, s32 slot);
+extern s32 BtlSkill_GetDamage(BtlCollChr *chr, s32 slot, s32 arg2); /* damage */
+extern s32 BtlSkill_GetGuardDamage(BtlCollChr *chr, s32 slot, s32 arg2);
+extern s32 BtlSkill_GetFrames(BtlCollChr *chr, s32 slot);  /* stun frames */
 
 /* Starts a throw: fills the attacker's throw block, copies it to the victim and marks both. */
 s32 BtlColl_StartThrow(BtlCollChr *atk, BtlCollChr *def, s32 slot, u32 techFlags) {
@@ -157,17 +157,17 @@ s32 BtlColl_StartThrow(BtlCollChr *atk, BtlCollChr *def, s32 slot, u32 techFlags
         return 0;
     }
     BtlChar_SetFlag(atk, 0x72);
-    atk->thr.tech = func_00210DB8(atk, slot);
+    atk->thr.tech = BtlSuper_GetId(atk, slot);
     atk->thr.atkSide = atk->side;
     atk->thr.defSide = def->side;
     atk->thr.slot = slot;
-    atk->thr.unk10 = func_00211218(atk, slot);
-    atk->thr.unk20 = func_00211718(atk, slot);
-    atk->thr.unk24 = func_002117C0(atk, slot);
-    atk->thr.unk28 = func_00211858(atk, slot);
-    atk->thr.unk2C = func_00211940(atk, slot);
-    atk->thr.unk18 = func_002118D0(atk, slot);
-    atk->thr.unk1C = func_00211A08(atk, slot);
+    atk->thr.unk10 = BtlSuper_GetStepCount(atk, slot);
+    atk->thr.unk20 = BtlSuper_GetThrowChara(atk, slot);
+    atk->thr.unk24 = BtlSuper_GetThrowCostume(atk, slot);
+    atk->thr.unk28 = BtlSuper_GetThrowGauge20(atk, slot);
+    atk->thr.unk2C = BtlSuper_GetUnk226(atk, slot);
+    atk->thr.unk18 = BtlSuper_GetUnk220(atk, slot);
+    atk->thr.unk1C = BtlSuper_GetLastStep(atk, slot);
     BtlChar_SetFlag(atk, 0x94);
     atk->react.faceYaw = BtlChar_GetPos(atk)->yaw;
     atk->react.unk24 = 0.0f;
@@ -179,18 +179,18 @@ s32 BtlColl_StartThrow(BtlCollChr *atk, BtlCollChr *def, s32 slot, u32 techFlags
         pick = BtlChar_FrameMod(2) != 0;
     }
     atk->thr.unk34 = pick;
-    atk->thr.unk14 = func_00211170(atk, slot);
+    atk->thr.unk14 = BtlSuper_GetUnk14D(atk, slot);
     if (techFlags & 0x400000) {
         atk->thr.unk30 = 1;
-        atk->thr.unk60 = func_00211630(atk, slot);
-        atk->thr.unk64 = func_00211680(atk, slot);
+        atk->thr.unk60 = BtlSuper_GetThrowAngleA(atk, slot);
+        atk->thr.unk64 = BtlSuper_GetThrowAngleB(atk, slot);
     } else {
         atk->thr.unk30 = 0;
         atk->thr.unk60 = 0.0f;
         atk->thr.unk64 = 0.0f;
     }
     atk->thr.unk40 = 0;
-    if (func_00210D48(atk, slot) & 0x2000000) {
+    if (BtlSuper_GetFlagsA(atk, slot) & 0x2000000) {
         atk->thr.unk40 = 1;
     }
     atk->thr.unk44 = 0;
@@ -306,7 +306,7 @@ f32 BtlColl_GetHitDir(BtlCollChr *chr, BtlCollHit *hit, Vec4 *outDir) {
             fromAtk = 1;
             break;
         case 2 ... 4:
-            if (func_00211020(atk, slot) == 3) {
+            if (BtlSuper_GetHitDirKind(atk, slot) == 3) {
                 fromPos = 0;
                 fromAtk = 1;
             }
@@ -314,7 +314,7 @@ f32 BtlColl_GetHitDir(BtlCollChr *chr, BtlCollHit *hit, Vec4 *outDir) {
         }
     }
     if (fromPos) {
-        func_002058E0(chr->objId, 3, &p);
+        BtlCharApi_GetNodePos(chr->objId, 3, &p);
         Vec4_Sub(&dir, &p, &hit->pos);
     } else if (fromAtk) {
         BtlOpp_GetDelta(chr, &dir);
@@ -396,14 +396,14 @@ s32 BtlColl_GuardBlast(BtlCollChr *chr, BtlCollHit *hit) {
     kind = BtlColl_GetGuardKind(chr);
     yaw = BtlColl_GetHitDir(chr, hit, &dir);
     if (kind != 6) {
-        if (func_0020FAD0(hit) & 1) {
+        if (BtlKiBlast_GetFlagsOfHit(hit) & 1) {
             return 0;
         }
         if (BtlColl_IsFacing(chr, yaw)) {
             return 0;
         }
     }
-    dmg = func_0020FDB0(hit);
+    dmg = BtlKiBlast_GetGuardDamageOfHit(hit);
     if (hit->atk->hits >= 2) {
         dmg /= hit->atk->hits;
     }
@@ -412,7 +412,7 @@ s32 BtlColl_GuardBlast(BtlCollChr *chr, BtlCollHit *hit) {
     }
     BtlChar_SetFlag(chr, 0x66);
     BtlMember_Damage(chr, dmg, 0xC);
-    switch (func_00210548(hit)) {
+    switch (BtlKiBlast_GetTypeOfHit(hit)) {
     case 2:
         BtlCharSnd_RequestAt(&hit->pos, 0, 0x42, 200.0f, 1500.0f);
         break;
@@ -424,7 +424,7 @@ s32 BtlColl_GuardBlast(BtlCollChr *chr, BtlCollHit *hit) {
         break;
     }
     time = 0.1f;
-    BtlMove_SetImpulseDir(chr, &dir, func_00210890(hit));
+    BtlMove_SetImpulseDir(chr, &dir, BtlKiBlast_GetGuardPushOfHit(hit));
     ChrCam_AddShake(chr, 3.0f, time);
     BtlChar_Vibrate(chr, 1.0f, time);
     return 1;
@@ -455,25 +455,25 @@ s32 BtlColl_GuardStrike(BtlCollChr *chr, BtlCollHit *hit) {
     }
     slot = hit->owner->slot;
     atk = BtlChar_Get(hit->owner->side);
-    if (func_00212080(atk, slot) & 0x200000) {
+    if (BtlSkill_GetFlags(atk, slot) & 0x200000) {
         return 0;
     }
-    dmg = func_002125C0(atk, slot, 0);
+    dmg = BtlSkill_GetGuardDamage(atk, slot, 0);
     if (kind == 0 || kind == 5) {
         return 0;
     }
     BtlChar_SetFlag(chr, 0x66);
     BtlMember_Damage(chr, dmg, 0xC);
     time = 0.2f;
-    BtlColl_PlayHitSound(NULL, hit, func_00212458(atk, slot));
-    BtlMove_SetImpulseDir(chr, &dir, func_002124E8(atk, slot));
+    BtlColl_PlayHitSound(NULL, hit, BtlSkill_GetHitSound(atk, slot));
+    BtlMove_SetImpulseDir(chr, &dir, BtlSkill_GetGuardPush(atk, slot));
     ChrCam_AddShake(chr, 3.0f, time);
     BtlChar_Vibrate(chr, 1.0f, time);
     return 1;
 }
 
 /* A rush attack (slot 2..4) hits a guarding fighter. Catch reactions (0x1D, 0x1E, 0x22) are swallowed with only a
- * sound when func_0020E130 is 4 and the technique lacks bit 0x8000000; unblockable techniques (bit 1) go through. */
+ * sound when BtlParam_GetUnk2 is 4 and the technique lacks bit 0x8000000; unblockable techniques (bit 1) go through. */
 s32 BtlColl_GuardRush(BtlCollChr *chr, BtlCollHit *hit) {
     Vec4 dir;
     s32 weak = 0;
@@ -495,20 +495,20 @@ s32 BtlColl_GuardRush(BtlCollChr *chr, BtlCollHit *hit) {
     atk = BtlChar_Get(hit->owner->side);
     kind = BtlColl_GetGuardKind(chr);
     alt = (hit->flags >> 4) & 1;
-    switch (func_00211080(atk, slot)) {
+    switch (BtlSuper_GetReact(atk, slot)) {
     case 0x1D:
     case 0x1E:
     case 0x22:
-        if (func_0020E130(chr) == 4 && !(func_00210D80(atk, slot) & 0x8000000)) {
-            BtlColl_PlayHitSound(NULL, hit, func_002111D0(atk, slot, alt));
+        if (BtlParam_GetUnk2(chr) == 4 && !(BtlSuper_GetFlags(atk, slot) & 0x8000000)) {
+            BtlColl_PlayHitSound(NULL, hit, BtlSuper_GetHitSound(atk, slot, alt));
             return 1;
         }
         weak = 1;
         break;
     }
-    if (func_00210DB8(atk, slot) == 0x2D5) {
-        if (func_0020F318(chr) < 0.001f) {
-            BtlColl_PlayHitSound(NULL, hit, func_002111D0(atk, slot, alt));
+    if (BtlSuper_GetId(atk, slot) == 0x2D5) {
+        if (BtlParam_GetUnkC7Scale(chr) < 0.001f) {
+            BtlColl_PlayHitSound(NULL, hit, BtlSuper_GetHitSound(atk, slot, alt));
             return 1;
         }
     }
@@ -518,12 +518,12 @@ s32 BtlColl_GuardRush(BtlCollChr *chr, BtlCollHit *hit) {
             return 0;
         }
     }
-    if (func_00210D80(atk, slot) & 1) {
+    if (BtlSuper_GetFlags(atk, slot) & 1) {
         if (weak || kind != 6) {
             return 0;
         }
     }
-    if ((func_00211050(atk, slot) & 2) && atk->unkE44 >= 0.9999f && (func_00210D80(atk, slot) & 2)) {
+    if ((BtlSuper_GetType(atk, slot) & 2) && atk->unkE44 >= 0.9999f && (BtlSuper_GetFlags(atk, slot) & 2)) {
         if (kind != 6) {
             return 0;
         }
@@ -531,7 +531,7 @@ s32 BtlColl_GuardRush(BtlCollChr *chr, BtlCollHit *hit) {
     if (kind == 0 || kind == 5) {
         return 0;
     }
-    switch (func_002111A0(atk, slot)) {
+    switch (BtlSuper_GetGuardKind(atk, slot)) {
     case 0:
         BtlChar_SetFlag(chr, 0x66);
         break;
@@ -539,15 +539,15 @@ s32 BtlColl_GuardRush(BtlCollChr *chr, BtlCollHit *hit) {
         BtlChar_SetFlag(chr, 0x67);
         break;
     }
-    BtlMember_Damage(chr, func_00211AF0(atk, slot, 1, 0), 0xC);
-    BtlColl_PlayHitSound(NULL, hit, func_002111D0(atk, slot, alt));
+    BtlMember_Damage(chr, BtlSuper_GetDamage(atk, slot, 1, 0), 0xC);
+    BtlColl_PlayHitSound(NULL, hit, BtlSuper_GetHitSound(atk, slot, alt));
     if (alt) {
-        BtlMove_SetImpulseDir(chr, &dir, func_002112A0(atk, slot));
+        BtlMove_SetImpulseDir(chr, &dir, BtlSuper_GetGuardPush(atk, slot));
     }
     time = 0.3f;
     ChrCam_AddShake(chr, 5.0f, time);
     BtlChar_Vibrate(chr, 1.0f, time);
-    n = func_002114F8(atk, slot);
+    n = BtlSuper_GetRecoilDamage(atk, slot);
     if (n > 0) {
         if (BtlMember_Damage(atk, n, 0x42B)) {
             BtlChar_SetFlag(atk, 0x95);
@@ -588,7 +588,7 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
     if (BtlChar_TestFlag(chr, 0x44)) {
         return 0;
     }
-    if (BtlAct_IsDamageId(BtlAct_GetCurrent(chr))) {
+    if (BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr))) {
         return 1;
     }
     atk = BtlChar_Get(hit->atk->side);
@@ -597,23 +597,23 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
     if (chr->noFlinch > 0) {
         react = BTL_REACT_NOFLINCH;
     } else if ((stFlags & 0x4000) || BtlAct_GetCurrent(chr) == 0xDF) {
-        react = func_00210410(hit);
+        react = BtlKiBlast_GetReactS4000OfHit(hit);
     } else if (stFlags & 0x800) {
-        react = func_00210348(hit);
+        react = BtlKiBlast_GetReactS800OfHit(hit);
     } else if (stFlags & 0x200) {
-        react = func_002104B8(hit);
+        react = BtlKiBlast_GetReactS200OfHit(hit);
     } else {
         n = 0;
-        if (func_0020E090(chr) & 4) {
+        if (BtlParam_GetFlags(chr) & 4) {
             n = 1;
         }
-        if (func_0020E090(chr) & 8) {
+        if (BtlParam_GetFlags(chr) & 8) {
             n--;
         }
-        if (func_0020E090(atk) & 4) {
+        if (BtlParam_GetFlags(atk) & 4) {
             n--;
         }
-        if (func_0020E090(atk) & 8) {
+        if (BtlParam_GetFlags(atk) & 8) {
             n++;
         }
         if (BtlAct_TestPoweredSkill(chr, 0x40)) {
@@ -635,18 +635,18 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
                 n--;
             }
         }
-        if (n > 0 && (func_0020FAD0(hit) & 0x10)) {
+        if (n > 0 && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {
             react = BTL_REACT_NOFLINCH;
-        } else if ((stFlags & 0x100) && (func_0020FAD0(hit) & 0x10)) {
+        } else if ((stFlags & 0x100) && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {
             if (func_0024D610(obj, 1, 0, 3) == 0) {
                 react = BTL_REACT_NOFLINCH;
             } else if (obj->unkCAD != ~obj->unkCAC) {
                 react = BTL_REACT_NOFLINCH;
             } else {
-                react = func_00210290(hit);
+                react = BtlKiBlast_GetReactOfHit(hit);
             }
         } else {
-            react = func_00210290(hit);
+            react = BtlKiBlast_GetReactOfHit(hit);
         }
     }
     if (react == BTL_REACT_NOFLINCH) {
@@ -663,16 +663,16 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
         chr->react.unk24 = 0.0f;
         r->dirYaw = yaw;
         r->back = front;
-        BtlMove_SetImpulseDir(chr, &dir, func_00210788(hit));
+        BtlMove_SetImpulseDir(chr, &dir, BtlKiBlast_GetPushOfHit(hit));
         BtlChar_PlayVoice(chr, 0);
     }
     BtlChar_SetFxBit(chr, 0x1D);
-    if (func_00210548(hit) == 2) {
+    if (BtlKiBlast_GetTypeOfHit(hit) == 2) {
         BtlCharSnd_RequestAt(&hit->pos, 0, 0x42, 200.0f, 1500.0f);
     } else {
         BtlCharSnd_RequestAt(&hit->pos, 0, BtlChar_FrameMod(2) ? 0x1B : 0x11, 200.0f, 1500.0f);
     }
-    dmg = func_0020FC08(hit);
+    dmg = BtlKiBlast_GetDamageOfHit(hit);
     if (hit->atk->hits >= 2) {
         dmg /= hit->atk->hits;
     }
@@ -714,15 +714,15 @@ s32 BtlColl_HitByStrike(BtlCollChr *chr, BtlCollHit *hit) {
     front = BtlColl_IsFacing(chr, yaw);
     slot = hit->owner->slot;
     atk = BtlChar_Get(hit->owner->side);
-    if (func_00212320(atk, slot) != 4) {
+    if (BtlSkill_GetHitDirKind(atk, slot) != 4) {
         if (__builtin_fabsf(BtlOpp_GetYawFromFacing(atk)) > 1.5707963f) {
             return 0;
         }
     }
     if (BtlAnim_GetFlags(BtlAnim_GetId(chr)) & 0x800) {
-        react = func_00212410(atk, slot);
+        react = BtlSkill_GetReactS800(atk, slot);
     } else {
-        react = func_002123E0(atk, slot);
+        react = BtlSkill_GetReact(atk, slot);
     }
     if (react == 0) {
         react = 3;
@@ -749,10 +749,10 @@ s32 BtlColl_HitByStrike(BtlCollChr *chr, BtlCollHit *hit) {
             chr->react.faceYaw = BtlUtil_WrapAngle(yaw + 3.1415927f);
             chr->react.unk24 = 0.0f;
         }
-        BtlMove_SetImpulseDir(chr, &dir, func_00212488(atk, slot));
+        BtlMove_SetImpulseDir(chr, &dir, BtlSkill_GetPush(atk, slot));
         switch (react) {
         case 0x17 ... 0x1C:
-            chr->react.stun = func_00212760(atk, slot);
+            chr->react.stun = BtlSkill_GetFrames(atk, slot);
             if (BtlMember_HasAbility(chr, 0x3A)) {
                 chr->react.stun /= 2;
             }
@@ -764,8 +764,8 @@ s32 BtlColl_HitByStrike(BtlCollChr *chr, BtlCollHit *hit) {
     }
     BtlChar_SetFxBit(chr, 0x1D);
     fl = 0;
-    BtlColl_PlayHitSound(chr, hit, func_00212458(atk, slot));
-    dmg = func_00212548(atk, slot, 0);
+    BtlColl_PlayHitSound(chr, hit, BtlSkill_GetHitSound(atk, slot));
+    dmg = BtlSkill_GetDamage(atk, slot, 0);
     switch (slot) {
     case 0:
         fl = 0x200000;
@@ -812,12 +812,12 @@ void BtlColl_ApplyRushHit(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit, s32
     r->dirYaw = yaw;
     r->back = front;
     if (alt) {
-        BtlMove_SetImpulseDir(chr, dir, func_00211258(atk, slot));
+        BtlMove_SetImpulseDir(chr, dir, BtlSuper_GetPush(atk, slot));
     }
     BtlChar_SetFxBit(chr, 0x1D);
-    BtlColl_PlayHitSound(chr, hit, func_002111D0(atk, slot, alt));
+    BtlColl_PlayHitSound(chr, hit, BtlSuper_GetHitSound(atk, slot, alt));
     fl = 0x100;
-    dmg = func_00211AF0(atk, slot, 0, 0);
+    dmg = BtlSuper_GetDamage(atk, slot, 0, 0);
     switch (slot) {
     case 2:
         fl = 0x800100;
@@ -834,11 +834,11 @@ void BtlColl_ApplyRushHit(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit, s32
     BtlCharApi_RumbleNear(&hit->pos, 100.0f, 1000.0f, 1.0f, 0.3f);
     BtlChar_SetHeldFlag(chr, 0x1D);
     BtlChar_SetHeldFlag(chr, 0x1E);
-    if (func_00211050(atk, slot) == 7) {
+    if (BtlSuper_GetType(atk, slot) == 7) {
         BtlChar_SetFlag(atk, 0x73);
     }
-    if (func_00211050(atk, slot) == 8) {
-        n = func_002114F8(atk, slot);
+    if (BtlSuper_GetType(atk, slot) == 8) {
+        n = BtlSuper_GetRecoilDamage(atk, slot);
         if (n > 0) {
             if (BtlMember_Damage(atk, n, 0x42B)) {
                 BtlChar_SetFlag(atk, 0x95);
@@ -880,8 +880,8 @@ void BtlColl_ApplyRushNoFlinch(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit
     r->id = BTL_REACT_NOFLINCH;
     alt = (hit->flags >> 4) & 1;
     BtlChar_SetFxBit(chr, 0x1D);
-    BtlColl_PlayHitSound(chr, hit, func_002111D0(atk, slot, alt));
-    dmg = func_00211AF0(atk, slot, 0, 0);
+    BtlColl_PlayHitSound(chr, hit, BtlSuper_GetHitSound(atk, slot, alt));
+    dmg = BtlSuper_GetDamage(atk, slot, 0, 0);
     switch (slot) {
     case 2:
         fl = 0x800100;
@@ -894,7 +894,7 @@ void BtlColl_ApplyRushNoFlinch(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit
         break;
     }
     BtlMember_Damage(chr, dmg, fl);
-    n = func_002114F8(atk, slot);
+    n = BtlSuper_GetRecoilDamage(atk, slot);
     if (n > 0) {
         if (BtlMember_Damage(atk, n, 0x42B)) {
             BtlChar_SetFlag(atk, 0x95);
@@ -929,20 +929,20 @@ s32 BtlColl_StartRushCatch(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit, s3
     r->unk18 = 0;
     chr->react.faceYaw = 0.0f;
     chr->react.unk24 = 0.0f;
-    atk->thr.tech = func_00210DB8(atk, slot);
+    atk->thr.tech = BtlSuper_GetId(atk, slot);
     atk->thr.atkSide = atk->side;
     atk->thr.defSide = chr->side;
     atk->thr.slot = slot;
-    atk->thr.unk14 = func_00211170(atk, slot);
-    tf = func_00210D80(atk, slot);
+    atk->thr.unk14 = BtlSuper_GetUnk14D(atk, slot);
+    tf = BtlSuper_GetFlags(atk, slot);
     back = 0;
     if (tf & 0x10000000) {
         back = 1;
     }
     if (tf & 0x400000) {
         atk->thr.unk30 = 1;
-        atk->thr.unk60 = func_00211630(atk, slot);
-        atk->thr.unk64 = func_00211680(atk, slot);
+        atk->thr.unk60 = BtlSuper_GetThrowAngleA(atk, slot);
+        atk->thr.unk64 = BtlSuper_GetThrowAngleB(atk, slot);
     } else {
         atk->thr.unk30 = 0;
         atk->thr.unk60 = 0.0f;
@@ -998,7 +998,7 @@ s32 BtlColl_StartRushCatch(BtlCollChr *chr, BtlCollChr *atk, BtlCollHit *hit, s3
     chr->thr.unk54 = atk->thr.unk54;
     chr->thr.unk58 = atk->thr.unk58;
     chr->thr.unk5C = atk->thr.unk5C;
-    BtlColl_PlayHitSound(NULL, hit, func_002111D0(atk, slot, alt));
+    BtlColl_PlayHitSound(NULL, hit, BtlSuper_GetHitSound(atk, slot, alt));
     return 1;
 }
 
@@ -1021,7 +1021,7 @@ s32 BtlColl_HitByRush(BtlCollChr *chr, BtlCollHit *hit) {
     front = BtlColl_IsFacing(chr, yaw);
     slot = hit->owner->slot;
     atk = BtlChar_Get(hit->owner->side);
-    switch (func_00211020(atk, slot)) {
+    switch (BtlSuper_GetHitDirKind(atk, slot)) {
     case 0:
     case 2:
         if (__builtin_fabsf(BtlOpp_GetYawFromFacing(atk)) > 1.5707963f) {
@@ -1031,15 +1031,15 @@ s32 BtlColl_HitByRush(BtlCollChr *chr, BtlCollHit *hit) {
     }
     if (BtlAnim_GetFlags(BtlAnim_GetId(chr)) & 0x800) {
         if (hit->flags & 0x10) {
-            react = func_00211128(atk, slot);
+            react = BtlSuper_GetReactAltS800(atk, slot);
         } else {
-            react = func_002110F8(atk, slot);
+            react = BtlSuper_GetReactS800(atk, slot);
         }
     } else {
         if (hit->flags & 0x10) {
-            react = func_002110B0(atk, slot);
+            react = BtlSuper_GetReactAlt(atk, slot);
         } else {
-            react = func_00211080(atk, slot);
+            react = BtlSuper_GetReact(atk, slot);
         }
     }
     if (react == 0) {
@@ -1055,7 +1055,7 @@ s32 BtlColl_HitByRush(BtlCollChr *chr, BtlCollHit *hit) {
             return 0;
         }
     } else if (react == BTL_REACT_CAUGHT) {
-        if (!BtlColl_StartThrow(atk, chr, slot, func_00210D80(atk, slot))) {
+        if (!BtlColl_StartThrow(atk, chr, slot, BtlSuper_GetFlags(atk, slot))) {
             return 0;
         }
     } else if (chr->noFlinch > 0) {
@@ -1101,11 +1101,11 @@ s32 BtlColl_TryDodge(s32 objId, BtlCollHit *hit) {
     if (BtlChar_TestFlag(chr, 0x5A)) {
         return 0;
     }
-    if (BtlAct_IsDamageId(BtlAct_GetCurrent(chr))) {
+    if (BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr))) {
         slot = BtlAct_GetCurrentClass(chr);
         if (slot >= 2 && slot < 5) {
-            if (func_00211050(chr, slot) == 8) {
-                if (func_00210DF0(chr, slot) >= hit->unk8) {
+            if (BtlSuper_GetType(chr, slot) == 8) {
+                if (BtlSuper_GetUnk1E(chr, slot) >= hit->unk8) {
                     return 1;
                 }
             }
@@ -1127,7 +1127,7 @@ s32 BtlColl_TryDodge(s32 objId, BtlCollHit *hit) {
             if (BtlChar_TestFlag(chr, 0x45)) {
                 return 1;
             }
-            if (func_00212080(atk, slot) & 0x400000) {
+            if (BtlSkill_GetFlags(atk, slot) & 0x400000) {
                 canDodge = 1;
             }
             break;
@@ -1235,14 +1235,14 @@ s32 BtlColl_TryDeflect(s32 objId, BtlCollHit *hit) {
     if (hit->atk == NULL) {
         return 0;
     }
-    if (func_0020FAD0(hit) & 2) {
+    if (BtlKiBlast_GetFlagsOfHit(hit) & 2) {
         return 0;
     }
     if (!BtlChar_IsFree(chr)) {
         return 0;
     }
     if (!BtlChar_TestFlag(chr, 0x52) && !BtlChar_TestFlag(chr, 0x54) && BtlAct_TestPoweredSkill(chr, 0x80)) {
-        switch (func_00210548(hit)) {
+        switch (BtlKiBlast_GetTypeOfHit(hit)) {
         case 2 ... 3:
             BtlCharSnd_PlayCommon(chr, BtlChar_FrameMod(2) ? 0xC : 0xD);
             break;
@@ -1257,7 +1257,7 @@ s32 BtlColl_TryDeflect(s32 objId, BtlCollHit *hit) {
     }
     if (BtlChar_TestFlag(chr, 0x41)) {
         if (chr->unk1074 > 0) {
-            if (!(func_0020E090(chr) & 2)) {
+            if (!(BtlParam_GetFlags(chr) & 2)) {
                 perfect = 1;
             }
         }
@@ -1278,7 +1278,7 @@ s32 BtlColl_TryDeflect(s32 objId, BtlCollHit *hit) {
             break;
         }
     }
-    switch (func_00210548(hit)) {
+    switch (BtlKiBlast_GetTypeOfHit(hit)) {
     case 2 ... 3:
         BtlCharSnd_PlayCommon(chr, BtlChar_FrameMod(2) ? 0xC : 0xD);
         break;
@@ -1322,7 +1322,7 @@ s32 BtlColl_TryReflect(s32 objId, BtlCollHit *hit) {
     if (hit->atk == NULL) {
         return 0;
     }
-    if (func_0020FAD0(hit) & 2) {
+    if (BtlKiBlast_GetFlagsOfHit(hit) & 2) {
         return 0;
     }
     if (!BtlChar_TestFlag(chr, 0x52)) {
@@ -1334,7 +1334,7 @@ s32 BtlColl_TryReflect(s32 objId, BtlCollHit *hit) {
     if (BtlColl_IsFacing(chr, BtlColl_GetHitDir(chr, hit, NULL))) {
         return 0;
     }
-    switch (func_00210548(hit)) {
+    switch (BtlKiBlast_GetTypeOfHit(hit)) {
     case 2 ... 3:
         BtlCharSnd_PlayCommon(chr, BtlChar_FrameMod(2) ? 0xC : 0xD);
         break;
@@ -1374,7 +1374,7 @@ s32 BtlColl_TryAbsorb(s32 objId, BtlCollHit *hit) {
     if (!BtlChar_TestFlag(chr, 0x54)) {
         if (BtlChar_TestFlag(chr, 0x41)) {
             if (chr->unk1074 > 0) {
-                if (func_0020E090(chr) & 2) {
+                if (BtlParam_GetFlags(chr) & 2) {
                     alt = hit->type == BTL_HIT_BLAST;
                 }
             }
@@ -1390,14 +1390,14 @@ s32 BtlColl_TryAbsorb(s32 objId, BtlCollHit *hit) {
         return 0;
     }
     if (hit->type == BTL_HIT_BLAST) {
-        if (func_0020FAD0(hit) & 2) {
+        if (BtlKiBlast_GetFlagsOfHit(hit) & 2) {
             return 0;
         }
-        switch (func_00210548(hit)) {
+        switch (BtlKiBlast_GetTypeOfHit(hit)) {
         case 2 ... 3:
             return 0;
         }
-        amount = func_0020FEF8(hit) * 3;
+        amount = BtlKiBlast_GetKiCostOfHit(hit) * 3;
     } else {
         if (hit->owner == NULL) {
             return 0;
@@ -1408,12 +1408,12 @@ s32 BtlColl_TryAbsorb(s32 objId, BtlCollHit *hit) {
         case 0 ... 1:
             return 0;
         case 2 ... 4:
-            if (!(func_00210D80(atk, slot) & 4)) {
+            if (!(BtlSuper_GetFlags(atk, slot) & 4)) {
                 return 0;
             }
-            amount = func_00211498(atk, slot);
-            n = func_00210F68(atk, slot);
-            n *= func_00210FA8(atk, slot);
+            amount = BtlSuper_GetKiCost(atk, slot);
+            n = BtlSuper_GetShots(atk, slot);
+            n *= BtlSuper_GetHitsB(atk, slot);
             if (n >= 2) {
                 amount /= n;
             }
@@ -1521,7 +1521,7 @@ void BtlColl_PlayContactSound(BtlCollHit *hit) {
 
     switch (hit->type) {
     case BTL_HIT_BLAST:
-        switch (func_00210548(hit)) {
+        switch (BtlKiBlast_GetTypeOfHit(hit)) {
         case 2:
             sound = 0x42;
             break;
@@ -1542,10 +1542,10 @@ void BtlColl_PlayContactSound(BtlCollHit *hit) {
             slot = hit->owner->slot;
             switch (slot) {
             case 0 ... 1:
-                BtlColl_PlayHitSound(NULL, hit, func_00212458(atk, slot));
+                BtlColl_PlayHitSound(NULL, hit, BtlSkill_GetHitSound(atk, slot));
                 break;
             case 2 ... 4:
-                BtlColl_PlayHitSound(NULL, hit, func_002111D0(atk, slot, 1));
+                BtlColl_PlayHitSound(NULL, hit, BtlSuper_GetHitSound(atk, slot, 1));
                 break;
             }
         }
@@ -1628,7 +1628,7 @@ void BtlColl_UpdateGround(BtlCollChr *chr) {
     BtlChar_ClearFlag(chr, 0x12);
     if (func_00242668(&water)) {
         if (water < g->pos.y) {
-            size = func_00204EA0(chr->objId);
+            size = BtlCharApi_GetHeight(chr->objId);
             if (water < pose->pos.y - size * 0.5f) {
                 BtlChar_SetHeldFlag(chr, 0x11);
             }

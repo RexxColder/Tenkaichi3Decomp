@@ -67,11 +67,11 @@ void BtlFacade_SetCpuParam4(s32 value);
 
 /* scripted movement and control flags */
 void BtlFacade_SetCharPos(s32 side, struct Vec4 *pos);
-void BtlFacade_SetCharDir(s32 side, struct Vec4 *dir);
-void BtlFacade_StartCharMove(s32 side, s32 type, s32 mode, f32 value);
-s32 BtlFacade_IsCharMoveDone(s32 side);
+void BtlFacade_SetCharRot(s32 side, struct Vec4 *dir);
+void BtlFacade_PlayCharMotion(s32 side, s32 type, s32 mode, f32 value);
+s32 BtlFacade_IsCharMotionPlaying(s32 side);
 s32 BtlFacade_IsCharAction4(s32 side);
-void BtlFacade_StopCharMove(s32 side);
+void BtlFacade_StopCharMotion(s32 side);
 void BtlFacade_SetCtrlFE(s32 side);
 void BtlFacade_SetCtrlFF(s32 side);
 void BtlFacade_SetCtrl101(s32 side);
@@ -95,11 +95,11 @@ void BtlFacade_LowerGaugeC(s32 side, s32 member, s32 value);
 void BtlFacade_AddGauge14(s32 side, s32 member, s32 value);
 void BtlFacade_RaiseGauge14(s32 side, s32 member, s32 value);
 void BtlFacade_LowerGauge14(s32 side, s32 member, s32 value);
-void BtlFacade_SetPowerUp(s32 side, s32 on);
+void BtlFacade_SetMaxPower(s32 side, s32 on);
 
 /* forced actions */
-void BtlFacade_UseSkillA(s32 side, s32 id);
-void BtlFacade_UseSkillB(s32 side, s32 id);
+void BtlFacade_Transform(s32 side, s32 id);
+void BtlFacade_Fuse(s32 side, s32 id);
 void BtlFacade_ChangeMember(s32 side, s32 member);
 void BtlFacade_PulseCtrl10D(s32 side);
 s32 BtlFacade_AreBothInterruptible(void);

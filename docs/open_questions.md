@@ -24,6 +24,18 @@
   `btl_char_coll_b.c` starts somewhere in 0x1CA6D0..0x1CAEF0; `BtlColl_NextPoolMember` (0x1CDCA8)
   is in the same object as `BtlMember_Damage`, and the file split at 0x1CDCA8 is only the latest
   place the boundary can be (coll_b and member may be one object); `btl_input.c` runs to 0x1D60A0.
+- More boundaries from the same evidence (action-handler batch): the effect request-bit helpers at
+  0x1CF578 are in one object with the effect requests up to 0x1D3B40 at least (`BtlFx_UpdateGroundFx`
+  needs `BtlChar_IsFxBitNew` above it), and the read-only data says that object does not start later than
+  the member code's tables end, so `btl_char_member.c` and `btl_char_fx.c` may be one object;
+  0x1E3158..0x1EA5F8 is one object (`BtlAct_AttackDashHandler` needs `BtlAct_RequestAttackEnd`), and
+  continues `btl_char_action.c` by its data; 0x1F5460..0x1FC2B0 is one object
+  (`BtlAct_SuperRushDashHandler` only matches in a file with the functions before it; which one it needs
+  is not known); 0x1FC598..0x203168 is one object (`BtlAct_SwitchArriveLand`, `BtlAct_KoSwitchFlyIn` need
+  `BtlActChange_SetFlags` / `BtlActChange_Finish`), and `BtlAct_Request` (0x1E0290) is not in it.
+- `BtlAct_SuperRushFollowHandler` (btl_act_f.c): whether its jump-table dispatch comes out in the
+  original form depends on unrelated declarations earlier in the translation unit; it matches with a
+  redundant prototype in front of it. What state of the compiler decides it is not understood.
 - The 42 functions at 0x2BD230..0x2BF6B0, after the libraries, are game code (memory-card menu
   UI) that never uses `$gp`. Why they sit there, and whether they were built with different
   flags, is unknown.
@@ -61,6 +73,12 @@ Still pulled from assembly inside linked files:
 | `AiThink_EvalRules` | `btl_ai_cond.c` | 83 of 270: register choices that follow from one (a1 kept free) |
 | `AiThink_GetBlastStep` | `btl_ai_cond.c` | 11 of 32: registers only |
 | `BtlAiSense_IsBusy` | `btl_ai_act.c` | 8 of 48: a delay-slot fill |
+| `BtlFx_SpawnSpeedLines` | `btl_char_fx.c` | 35 of 112: the store order and constant registers of the block that fills the 0x60-byte parameter structure |
+| `BtlFx_SpawnDamageSparks` | `btl_char_fx.c` | register allocation only (two saved registers swapped, one value spilled); owns the jump table at 0x2EF020 |
+| `BtlActB_TickMemberChange` | `btl_act_a.c` | 14 of 42: the last test compiles to slti / sltiu and the branch layout follows from it |
+| `BtlAct_GuardHandler` | `btl_act_c.c` | 2 of 298: the order of two argument loads in front of one call |
+| `BtlAct_GrabDash` | `btl_act_h.c` | 18 of 146: the original keeps a branch where this compiler makes a conditional move |
+| `BtlCharApi_HasKiBlastType2`, `BtlCharApi_HasKiBlastType3` | `btl_capi_a.c` | same instructions, different block layout of the search loop |
 
 ## Game structure
 
@@ -74,7 +92,6 @@ Still pulled from assembly inside linked files:
 
 ## Not started
 
-- The fighter code: actions, state machine, hit detection, AI.
 - The stage, effects, HUD and camera internals.
 - The 3D renderer, the model/texture/animation formats and the nine VU1 microprograms.
 - The VU0 vector library (about 223 functions).

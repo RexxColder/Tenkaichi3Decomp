@@ -20,7 +20,7 @@ extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y 
 extern void func_00121408(Mtx44 *m);
 
 extern void *BtlObj_Get(s32 id);
-extern void *func_00205230(void *arg);
+extern void *BtlCharApi_GetPlayer(void *arg);
 extern s32 BtlCharApi_HasMemberUnk70(void *arg);
 extern void BtlCharApi_GetCamUnk460(void *arg, Vec4 *out);
 extern s32 BtlStage_IsReady(void);
@@ -244,7 +244,7 @@ s32 DemoCam_Update(void) {
         } else {
             owner = gDemoCam->chr;
         }
-        if (owner != NULL && BtlCharApi_HasMemberUnk70(func_00205230(*(void **)((u8 *)owner + 0x10))) != 0 &&
+        if (owner != NULL && BtlCharApi_HasMemberUnk70(BtlCharApi_GetPlayer(*(void **)((u8 *)owner + 0x10))) != 0 &&
             gDemoCam->scaleHeight != 0) {
             f32 scale = (*(f32 **)((u8 *)owner + 0x91C))[1] / 1.1f;
 

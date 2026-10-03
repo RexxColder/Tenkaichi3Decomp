@@ -8,7 +8,7 @@
 
 extern BtlFlagChr *BtlChar_Get(s32 i);
 extern f32 BtlChar_GetSpacing(BtlFlagChr *chr, s32 arg);          /* lock-on range */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);   /* world position of a model node */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);   /* world position of a model node */
 extern void func_002398F0(void *seg, Vec4 *a, Vec4 *b);      /* builds a segment from two points */
 extern s32 func_001B2DF0(void *seg);                         /* segment against the stage */
 
@@ -180,8 +180,8 @@ void BtlChars_UpdateSightFlag(void) {
 
     BtlChar_ClearFlag(chr0, 0xBA);
     BtlChar_ClearFlag(chr1, 0xBA);
-    func_002058E0(chr0->objId, 0x2F, &a);
-    func_002058E0(chr1->objId, 0x2F, &b);
+    BtlCharApi_GetNodePos(chr0->objId, 0x2F, &a);
+    BtlCharApi_GetNodePos(chr1->objId, 0x2F, &b);
     func_002398F0(seg, &a, &b);
     if (func_001B2DF0(seg)) {
         BtlChar_SetHeldFlag(chr0, 0xBA);

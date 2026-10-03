@@ -11,14 +11,14 @@ extern BtlAi *gBtlAi;
 extern BtlAiStateFunc gBtlAiStateFuncs[4];
 extern s32 D_002EDA70[]; /* rule condition id -> index of the condition function */
 
-/* Part of the fighter data that func_00208B98 returns. */
+/* Part of the fighter data that BtlCharApi_GetMoveTable returns. */
 typedef struct BtlAiChrMoves {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ s16 unk10[0x47];
     /* 0x9E */ s8 unk9E[2];
 } BtlAiChrMoves;
 
-/* Part of the fighter data that func_00208B58 returns. */
+/* Part of the fighter data that BtlCharApi_GetSkillTable returns. */
 typedef struct BtlAiChrSkills {
     /* 0x000 */ u8 unk0[0x13E];
     /* 0x13E */ s8 unk13E[0x27];
@@ -44,32 +44,32 @@ extern void BtlAiMove_Dispatch(BtlAiWork *ai);
 extern void BtlAiCombo_Dispatch(BtlAiWork *ai);
 extern void BtlAiFollow_Dispatch(BtlAiWork *ai);
 extern void BtlAiAct36_Dispatch(BtlAiWork *ai);
-extern s32 func_00206D68(s32 objId);
-extern s32 func_002086C0(s32 objId, s32 arg);
-extern void func_00208A28(s32 objId);
-extern BtlAiChrSkills *func_00208B58(s32 objId);
-extern BtlAiChrMoves *func_00208B98(s32 objId);
-extern s32 func_00208550(s32 objId);
-extern s32 func_00208C30(s32 objId);
-extern s32 func_00208D48(s32 objId); /* member entry + 0x1C */
-extern s32 func_00209378(s32 objId);
-extern s32 func_002093B0(s32 objId);
-extern s32 func_002095E8(s32 objId);
-extern s32 func_00209670(s32 objId);
-extern s32 func_002096E8(s32 objId);
-extern s32 func_002098C0(s32 objId);
-extern s32 func_002098E8(s32 objId);
-extern s32 func_00209910(s32 objId);
-extern s32 func_002099C0(s32 objId);
-extern s32 func_002099E8(s32 objId);
-extern s32 func_00209AC0(s32 objId);
-extern f32 func_00209CE0(s32 objId);
-extern s32 func_00209D98(s32 objId, s32 arg);
-extern s32 func_00209E38(s32 objId);
-extern s32 func_00209EA0(s32 objId, s32 arg);
-extern s32 func_0020B4E0(s32 objId); /* member entry + 0xC */
-extern s32 func_0020B518(s32 objId); /* member entry + 0x14 */
-extern s32 func_0020B7C0(s32 objId); /* fighter flag 6 */
+extern s32 BtlCharApi_IsInClashA(s32 objId);
+extern s32 BtlCharApi_FindIncomingBlast(s32 objId, s32 arg);
+extern void BtlCharApi_MarkIncomingBlast(s32 objId);
+extern BtlAiChrSkills *BtlCharApi_GetSkillTable(s32 objId);
+extern BtlAiChrMoves *BtlCharApi_GetMoveTable(s32 objId);
+extern s32 BtlCharApi_HasBlastLimit(s32 objId);
+extern s32 BtlCharApi_GetHp(s32 objId);
+extern s32 BtlCharApi_GetMaxPower(s32 objId); /* member entry + 0x1C */
+extern s32 BtlCharApi_GetParamUnk14(s32 objId);
+extern s32 BtlCharApi_GetParamFlags(s32 objId);
+extern s32 BtlCharApi_GetOppSkillKind(s32 objId);
+extern s32 BtlCharApi_IsOppSkillFlag4(s32 objId);
+extern s32 BtlCharApi_TestOppSkillFlags(s32 objId);
+extern s32 BtlCharApi_GetClashCountB(s32 objId);
+extern s32 BtlCharApi_GetClashCountA(s32 objId);
+extern s32 BtlCharApi_IsMoveSlotActive(s32 objId);
+extern s32 BtlCharApi_GetStunTimer(s32 objId);
+extern s32 BtlCharApi_GetPromptButtons(s32 objId);
+extern s32 BtlCharApi_GetUnk1290(s32 objId);
+extern f32 BtlCharApi_GetUnkE44B(s32 objId);
+extern s32 BtlCharApi_TestPoseBit80(s32 objId, s32 arg);
+extern s32 BtlCharApi_TestFlagBE(s32 objId);
+extern s32 BtlCharApi_GetParamByte8F(s32 objId, s32 arg);
+extern s32 BtlSide_GetKi(s32 objId); /* member entry + 0xC */
+extern s32 BtlSide_GetBlast(s32 objId); /* member entry + 0x14 */
+extern s32 BtlSide_IsPoweredUp(s32 objId); /* fighter flag 6 */
 
 s32 BtlAiCond_GuardRoll(BtlAiWork *ai);
 void BtlAi_ScaleByGauge(BtlAiWork *ai, s32 *lo, s32 *hi);

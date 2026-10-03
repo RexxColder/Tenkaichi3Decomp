@@ -77,43 +77,43 @@ extern s32 BtlCharApi_GetParamByte84(s32 objId, u32 n);
 extern s32 BtlCharApi_GetParamByte8A(s32 objId);
 extern s32 BtlCharApi_GetParamByte8D(s32 objId);
 extern s32 BtlCharApi_TestFlag05(s32 objId);
-extern void func_002053F0(s32 objId, AiActVec *out);   /* position */
-extern void func_00205528(s32 objId, AiActVec *out);   /* rotation (fighter +0x20) */
-extern f32 func_00205800(s32 objId);                   /* fighter +0xA8 (a speed) */
-extern f32 func_00205F90(s32 objId);                   /* max(0, fighter +0xD78, fighter +0xDEC) */
-extern f32 func_002062F0(s32 objId);                   /* body radius */
-extern s32 func_00206D68(s32 objId);                   /* action id in 0x130..0x132 */
-extern s32 func_00208430(s32 objId);
-extern s32 func_00208480(s32 objId);                   /* action id (fighter +0x948) */
-extern s32 func_002084B8(s32 objId);                   /* fighter +0xDE0 */
-extern s32 func_002084E0(s32 objId);
-extern s32 func_00208588(s32 objId);
-extern s32 func_002085F8(s32 objId);                   /* fighter flag 0x66 */
-extern s32 func_002086C0(s32 objId, s32 mode);         /* index of an incoming projectile, -1 none */
-extern f32 func_00208A90(s32 objId);                   /* progress of the technique in use, -1 none */
-extern u32 func_00208BD8(s32 objId);                   /* attribute word of the technique in use */
-extern s32 func_00208C30(s32 objId);                   /* health */
-extern s32 func_00208C68(s32 objId);                   /* health maximum */
-extern s32 func_00208E18(s32 objId);
-extern s32 func_00208E78(s32 objId);
-extern s32 func_00208EF0(s32 objId);
-extern s32 func_00208FA0(s32 objId);                   /* fighter +0x1070 != -30 */
-extern s32 func_00208FD8(s32 objId);                   /* gauge cost: parameter byte * 100000 */
-extern s32 func_00209328(s32 objId);                   /* action id in 0xEC..0xF2 (changing form) */
-extern s32 func_002093B0(s32 objId);                   /* parameter word +0x10 */
-extern s32 func_002095E8(s32 objId);                   /* kind byte of the opponent's technique, -1 none */
-extern s32 func_00209670(s32 objId);
-extern s32 func_00209838(s32 objId);
-extern s32 func_002099C0(s32 objId);                   /* fighter +0xFE0 */
-extern s32 func_002099E8(s32 objId);                   /* buttons a switch prompt accepts, 0 none */
-extern s32 func_00209AC0(s32 objId);
-extern s32 func_00209B08(s32 objId);                   /* fighter +0x106C < -29 */
-extern s32 func_00209B38(s32 objId);
-extern s32 func_00209CA8(s32 objId);                   /* parameter byte +2 */
-extern s32 func_00209E38(s32 objId);                   /* fighter flag 0xBE */
-extern s32 func_0020B4E0(s32 side);                    /* gauge block +0xC */
-extern s32 func_0020B518(s32 side);                    /* gauge block +0x14 */
-extern s32 func_0020B7C0(s32 side);                    /* fighter flag 6 */
+extern void BtlCharApi_GetPos(s32 objId, AiActVec *out);   /* position */
+extern void BtlCharApi_GetRot(s32 objId, AiActVec *out);   /* rotation (fighter +0x20) */
+extern f32 BtlCharApi_GetSpeed(s32 objId);                   /* fighter +0xA8 (a speed) */
+extern f32 BtlCharApi_GetChargeRate(s32 objId);                   /* max(0, fighter +0xD78, fighter +0xDEC) */
+extern f32 BtlCharApi_GetRadius(s32 objId);                   /* body radius */
+extern s32 BtlCharApi_IsInClashA(s32 objId);                   /* action id in 0x130..0x132 */
+extern s32 BtlCharApi_IsUnkCACPaired(s32 objId);
+extern s32 BtlCharApi_GetAction(s32 objId);                   /* action id (fighter +0x948) */
+extern s32 BtlCharApi_GetBlastShots(s32 objId);                   /* fighter +0xDE0 */
+extern s32 BtlCharApi_GetBlastRoom(s32 objId);
+extern s32 BtlCharApi_GetBlastRoomB(s32 objId);
+extern s32 BtlCharApi_TestFlag66(s32 objId);                   /* fighter flag 0x66 */
+extern s32 BtlCharApi_FindIncomingBlast(s32 objId, s32 mode);         /* index of an incoming projectile, -1 none */
+extern f32 BtlCharApi_GetTechniqueProgress(s32 objId);                   /* progress of the technique in use, -1 none */
+extern u32 BtlCharApi_GetAttackAttr(s32 objId);                   /* attribute word of the technique in use */
+extern s32 BtlCharApi_GetHp(s32 objId);                   /* health */
+extern s32 BtlCharApi_GetHpMax(s32 objId);                   /* health maximum */
+extern s32 BtlCharApi_CanTransform(s32 objId);
+extern s32 BtlCharApi_CanFuse(s32 objId);
+extern s32 BtlCharApi_CanSwitch(s32 objId);
+extern s32 BtlCharApi_IsUnk1070Set(s32 objId);                   /* fighter +0x1070 != -30 */
+extern s32 BtlCharApi_GetTransformCost(s32 objId);                   /* gauge cost: parameter byte * 100000 */
+extern s32 BtlCharApi_IsChangingForm(s32 objId);                   /* action id in 0xEC..0xF2 (changing form) */
+extern s32 BtlCharApi_GetParamFlags(s32 objId);                   /* parameter word +0x10 */
+extern s32 BtlCharApi_GetOppSkillKind(s32 objId);                   /* kind byte of the opponent's technique, -1 none */
+extern s32 BtlCharApi_IsOppSkillFlag4(s32 objId);
+extern s32 BtlCharApi_GetOppMoveKind(s32 objId);
+extern s32 BtlCharApi_GetStunTimer(s32 objId);                   /* fighter +0xFE0 */
+extern s32 BtlCharApi_GetPromptButtons(s32 objId);                   /* buttons a switch prompt accepts, 0 none */
+extern s32 BtlCharApi_GetUnk1290(s32 objId);
+extern s32 BtlCharApi_IsUnk106CLow(s32 objId);                   /* fighter +0x106C < -29 */
+extern s32 BtlCharApi_GetArmorBreakLevel(s32 objId);
+extern s32 BtlCharApi_GetParamByte2(s32 objId);                   /* parameter byte +2 */
+extern s32 BtlCharApi_TestFlagBE(s32 objId);                   /* fighter flag 0xBE */
+extern s32 BtlSide_GetKi(s32 side);                    /* gauge block +0xC */
+extern s32 BtlSide_GetBlast(s32 side);                    /* gauge block +0x14 */
+extern s32 BtlSide_IsPoweredUp(s32 side);                    /* fighter flag 6 */
 
 /* The running entry of the action stack. */
 #define AIACT_TOP(act) ((AiActEntry *)((u8 *)(act) + ((act)->depth << 3) + 0xC))
@@ -207,10 +207,10 @@ void BtlAiPad_TrackStill(AiActSide *s) {
     f32 len;
 
     if (s->pad.buttons & 0x1802) {
-        func_002053F0(s->side, &pos);
+        BtlCharApi_GetPos(s->side, &pos);
         Vec3_Sub(&d, &pos, &m->lastPos);
         len = Vec3_Length(&d);
-        if (len < func_002062F0(s->side)) {
+        if (len < BtlCharApi_GetRadius(s->side)) {
             if (++m->stillTimer > 30) {
                 m->flags |= 1;
             }
@@ -338,7 +338,7 @@ f32 BtlAiAtk_RollCharge(AiActSide *s, s8 base, s8 range) {
    rush step (state 0x37..0x3A, 0x3C..0x3F) or in state 0x1B. */
 void BtlAiAtk_SetInput(AiActSide *s, u32 kind) {
     AiActAtk *atk = &s->atk;
-    s32 action = func_00208480(s->side);
+    s32 action = BtlCharApi_GetAction(s->side);
     s32 state = BtlCharApi_GetUnk974(s->side);
     s32 row = 0;
     u8 bit = s->param[0] & 1;
@@ -585,14 +585,14 @@ void BtlAiCombo_Start(AiActSide *s) {
 }
 
 /* Phase 2 of the three attack actions: sends the chosen input until the fighter's state id changes (15 frames
-   at most), keeps a held RUSH / BLAST down until func_00205F90 reaches atk->charge, then goes back to phase 1
+   at most), keeps a held RUSH / BLAST down until BtlCharApi_GetChargeRate reaches atk->charge, then goes back to phase 1
    (action 0x1A: to phase 3). */
 void BtlAiAtk_Run(AiActSide *s) {
     AiActSeq *act = &s->act;
     AiActAtk *atk = &s->atk;
     AiActTables *tbl = gBtlAi->data->tables;
     s32 state = BtlCharApi_GetUnk974(s->side);
-    f32 held = func_00205F90(s->side);
+    f32 held = BtlCharApi_GetChargeRate(s->side);
     AiActEntry *e = AIACT_TOP(act);
     s32 cls = tbl->stateClass[state];
 
@@ -669,7 +669,7 @@ void BtlAiFollow_Start(AiActSide *s) {
     AiActSeq *act = &s->act;
     AiActAtk *atk = &s->atk;
     s32 roll = Rand_Range(100) + 1;
-    s32 action = func_00208480(s->side);
+    s32 action = BtlCharApi_GetAction(s->side);
     s32 dir = Rand_Range(3);
     s8 *hi;
     s8 *lo;
@@ -774,8 +774,8 @@ void BtlAiAct36_Init(AiActSide *s) {
 }
 
 /* Action 0x36, phase 1: one Rand_Range(100) against two level-scaled bytes of the row picked by fighter
-   +0xDE0. Outcomes: hold BLAST for a rolled time (needs func_00208588 and bit 0x2000 of fighter +0x1288),
-   press BLAST (needs func_002084E0 and bit 0x1000), or end. */
+   +0xDE0. Outcomes: hold BLAST for a rolled time (needs BtlCharApi_GetBlastRoomB and bit 0x2000 of fighter +0x1288),
+   press BLAST (needs BtlCharApi_GetBlastRoom and bit 0x1000), or end. */
 void BtlAiAct36_Start(AiActSide *s) {
     AiActSeq *act = &s->act;
     AiActAtk *atk = &s->atk;
@@ -789,11 +789,11 @@ void BtlAiAct36_Start(AiActSide *s) {
     s8 *hi;
     u64 w;
 
-    row = (s8 *)param + func_002084B8(s->side) * 2;
+    row = (s8 *)param + BtlCharApi_GetBlastShots(s->side) * 2;
     lo = row + 0xE6;
     hi = row + 0x1DE;
-    canPress = func_002084E0(s->side);
-    canHold = func_00208588(s->side);
+    canPress = BtlCharApi_GetBlastRoom(s->side);
+    canHold = BtlCharApi_GetBlastRoomB(s->side);
     w = BtlCharApi_GetUnk1288(s->side);
     BtlAiAtk_Reset(s->side, atk);
     act->phase = 2;
@@ -836,19 +836,19 @@ s32 BtlAiSense_GetRange(AiActSide *s) {
     return -1;
 }
 
-/* Situation bit 56: a technique with a gauge cost (func_00208FD8) can be used. Outside mode 1's
-   func_00209AC0: not for 600 frames after a form change, and only when health is at or below a level-scaled
+/* Situation bit 56: a technique with a gauge cost (BtlCharApi_GetTransformCost) can be used. Outside mode 1's
+   BtlCharApi_GetUnk1290: not for 600 frames after a form change, and only when health is at or below a level-scaled
    percentage (parameter bytes 0xF / 0x107). */
 s32 BtlAiSense_CheckBit56(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 cost = func_00208FD8(s->side);
-    s32 gauge = func_0020B518(s->side);
-    s32 hp = func_00208C30(s->side);
-    f32 ratio = (f32)hp / (f32)func_00208C68(s->side);
+    s32 cost = BtlCharApi_GetTransformCost(s->side);
+    s32 gauge = BtlSide_GetBlast(s->side);
+    s32 hp = BtlCharApi_GetHp(s->side);
+    f32 ratio = (f32)hp / (f32)BtlCharApi_GetHpMax(s->side);
     s32 limit = BtlAi_ScaleByLevel(s->cpuLevel, (s8)s->param[0xF], (s8)s->param[0x107]);
 
-    if (!func_00209AC0(s->side)) {
-        if (func_00209328(s->side)) {
+    if (!BtlCharApi_GetUnk1290(s->side)) {
+        if (BtlCharApi_IsChangingForm(s->side)) {
             st->timer18 = 600;
             return 0;
         }
@@ -860,7 +860,7 @@ s32 BtlAiSense_CheckBit56(AiActSide *s) {
             return 0;
         }
     }
-    if (!func_00208E18(s->side)) {
+    if (!BtlCharApi_CanTransform(s->side)) {
         return 0;
     }
     if (cost == 0) {
@@ -872,18 +872,18 @@ s32 BtlAiSense_CheckBit56(AiActSide *s) {
     return 1;
 }
 
-/* Situation bit 57: the same kind of test for func_00208E78, with the health limit 20 points higher. */
+/* Situation bit 57: the same kind of test for BtlCharApi_CanFuse, with the health limit 20 points higher. */
 s32 BtlAiSense_CheckBit57(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 hp = func_00208C30(s->side);
-    f32 ratio = (f32)hp / (f32)func_00208C68(s->side);
+    s32 hp = BtlCharApi_GetHp(s->side);
+    f32 ratio = (f32)hp / (f32)BtlCharApi_GetHpMax(s->side);
     s32 limit = BtlAi_ScaleByLevel(s->cpuLevel, (s8)s->param[0xF], (s8)s->param[0x107]) + 20;
 
-    if (func_00209328(s->side)) {
+    if (BtlCharApi_IsChangingForm(s->side)) {
         st->timer1C = 600;
         return 0;
     }
-    if (!func_00208E78(s->side)) {
+    if (!BtlCharApi_CanFuse(s->side)) {
         return 0;
     }
     if (--st->timer1C > 0) {
@@ -896,29 +896,29 @@ s32 BtlAiSense_CheckBit57(AiActSide *s) {
     return 1;
 }
 
-/* Situation bit 58: func_00208EF0 is possible, flag 6 is clear, and a score of lost health (70 points) plus
+/* Situation bit 58: BtlCharApi_CanSwitch is possible, flag 6 is clear, and a score of lost health (70 points) plus
    missing gauge +0xC (30 points) reaches an aiType-and-level threshold. */
 s32 BtlAiSense_CheckBit58(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 hp = func_00208C30(s->side);
-    s32 gauge = func_0020B4E0(s->side);
+    s32 hp = BtlCharApi_GetHp(s->side);
+    s32 gauge = BtlSide_GetKi(s->side);
     u8 *type = gBtlAi->data->typeTbl[s->aiType];
     s32 limit = BtlAi_ScaleByLevel(s->cpuLevel, type[0x2AD], type[0x56D]);
     s32 max;
     s32 score;
     f32 r;
 
-    if (func_0020B7C0(s->side)) {
+    if (BtlSide_IsPoweredUp(s->side)) {
         return 0;
     }
-    if (!func_00208EF0(s->side)) {
+    if (!BtlCharApi_CanSwitch(s->side)) {
         return 0;
     }
     if (--st->timer20 > 0) {
         return 0;
     }
     st->timer20 = -1;
-    max = func_00208C68(s->side);
+    max = BtlCharApi_GetHpMax(s->side);
     r = (f32)hp / (f32)max;
     score = (s32)((1.0f - r) * 70.0f);
     r = (f32)gauge / 100000.0f;
@@ -929,9 +929,9 @@ s32 BtlAiSense_CheckBit58(AiActSide *s) {
     return 1;
 }
 
-/* Situation bit 60: func_00209B38 gives 4 or more. */
+/* Situation bit 60: BtlCharApi_GetArmorBreakLevel gives 4 or more. */
 s32 BtlAiSense_CheckBit60(AiActSide *s) {
-    if (func_00209B38(s->side) < 4) {
+    if (BtlCharApi_GetArmorBreakLevel(s->side) < 4) {
         return 0;
     }
     return 1;
@@ -939,7 +939,7 @@ s32 BtlAiSense_CheckBit60(AiActSide *s) {
 
 /* Situation bit 61: the opponent's parameter byte +2 is 4. */
 s32 BtlAiSense_CheckBit61(AiActSide *s) {
-    return func_00209CA8(s->side ^ 1) == 4;
+    return BtlCharApi_GetParamByte2(s->side ^ 1) == 4;
 }
 
 /* 1 when the opponent's facing direction and the direction from this fighter to the opponent agree: this
@@ -951,14 +951,14 @@ s32 BtlAiSense_IsBehindOpponent(AiActSide *s) {
     AiActVec opp;
     AiActVec dir;
 
-    func_00205528(s->side ^ 1, &v);
+    BtlCharApi_GetRot(s->side ^ 1, &v);
     face.x = sinf(v.y);
     face.y = 0.0f;
     face.z = cosf(v.y);
     face.w = 0.0f;
     Vec3_Normalize(&face, &face);
-    func_002053F0(s->side, &pos);
-    func_002053F0(s->side ^ 1, &opp);
+    BtlCharApi_GetPos(s->side, &pos);
+    BtlCharApi_GetPos(s->side ^ 1, &opp);
     Vec3_Sub(&v, &opp, &pos);
     v.y = 0.0f;
     Vec3_Normalize(&dir, &v);
@@ -970,17 +970,17 @@ s32 BtlAiSense_IsBehindOpponent(AiActSide *s) {
 
 /* Situation bit 32: the opponent's technique can be answered now. By its kind byte: 1, 2, 5 within reach
    (own radius + the opponent's speed), 3, 4, 6 a projectile of mode 2 is coming, other kinds with
-   func_00209838 == 0 a projectile of mode 3, otherwise attribute bit 0 and progress in 1..3. Needs fighter
+   BtlCharApi_GetOppMoveKind == 0 a projectile of mode 3, otherwise attribute bit 0 and progress in 1..3. Needs fighter
    +0x106C < -29 and react bit 0x40 clear. */
 s32 BtlAiSense_CheckBit32(AiActSide *s) {
     AiActStatus *st = &s->st;
-    f32 progress = func_00208A90(s->side ^ 1);
-    u32 attr = func_00208BD8(s->side ^ 1);
-    s32 kind = func_002095E8(s->side);
-    s32 sub = func_00209838(s->side);
-    f32 radius = func_002062F0(s->side);
-    f32 speed = func_00205800(s->side ^ 1);
-    s32 ready = func_00209B08(s->side);
+    f32 progress = BtlCharApi_GetTechniqueProgress(s->side ^ 1);
+    u32 attr = BtlCharApi_GetAttackAttr(s->side ^ 1);
+    s32 kind = BtlCharApi_GetOppSkillKind(s->side);
+    s32 sub = BtlCharApi_GetOppMoveKind(s->side);
+    f32 radius = BtlCharApi_GetRadius(s->side);
+    f32 speed = BtlCharApi_GetSpeed(s->side ^ 1);
+    s32 ready = BtlCharApi_IsUnk106CLow(s->side);
     s32 ret;
 
     if ((u32)(kind - 1) < 2 || kind == 5) {
@@ -988,11 +988,11 @@ s32 BtlAiSense_CheckBit32(AiActSide *s) {
             return 0;
         }
     } else if ((u32)(kind - 3) < 2 || kind == 6) {
-        if (func_002086C0(s->side, 2) == -1) {
+        if (BtlCharApi_FindIncomingBlast(s->side, 2) == -1) {
             return 0;
         }
     } else if (sub == 0) {
-        if (func_002086C0(s->side, 3) == -1) {
+        if (BtlCharApi_FindIncomingBlast(s->side, 3) == -1) {
             return 0;
         }
     } else {
@@ -1010,9 +1010,9 @@ s32 BtlAiSense_CheckBit32(AiActSide *s) {
     return ret;
 }
 
-/* Situation bit 27: func_002099E8 is non-zero and react bit 0x10000 is clear. */
+/* Situation bit 27: BtlCharApi_GetPromptButtons is non-zero and react bit 0x10000 is clear. */
 s32 BtlAiSense_CheckSwitch(AiActSide *s) {
-    s32 ret = func_002099E8(s->side) != 0;
+    s32 ret = BtlCharApi_GetPromptButtons(s->side) != 0;
 
     if (s->st.react & 0x10000) {
         ret = 0;
@@ -1044,7 +1044,7 @@ s32 BtlAiSense_Basic(AiActSide *s) {
     AiActMove *m = &s->move;
     AiActSeq *act = &s->act;
     s32 seq = BtlSeq_GetState();
-    f32 ratio = (f32)func_0020B4E0(s->side) / 100000.0f;
+    f32 ratio = (f32)BtlSide_GetKi(s->side) / 100000.0f;
     AiActTables *tbl = gBtlAi->data->tables;
     s32 cls = tbl->stateClass[BtlCharApi_GetUnk974(s->side)];
     s32 r;
@@ -1057,9 +1057,9 @@ s32 BtlAiSense_Basic(AiActSide *s) {
     if (!BtlCharApi_TestFlag05(s->side)) {
         st->flags |= 8;
     }
-    if (m->dist[1] + func_002062F0(s->side) * 2.0f > gBtlAi->dist) {
+    if (m->dist[1] + BtlCharApi_GetRadius(s->side) * 2.0f > gBtlAi->dist) {
         st->flags |= 0x10;
-    } else if (m->dist[2] + func_002062F0(s->side) * 2.0f > gBtlAi->dist) {
+    } else if (m->dist[2] + BtlCharApi_GetRadius(s->side) * 2.0f > gBtlAi->dist) {
         st->flags |= 0x20;
     } else {
         st->flags |= 0x40;
@@ -1095,7 +1095,7 @@ s32 BtlAiSense_Basic(AiActSide *s) {
     if (cls == 0x20) {
         st->flags |= 0x200000;
     }
-    if (func_00206D68(s->side)) {
+    if (BtlCharApi_IsInClashA(s->side)) {
         st->flags |= 0x400000;
     }
     if (act->flags & 0x80) {
@@ -1183,7 +1183,7 @@ s32 BtlAiSense_CheckBit49(AiActSide *s) {
 s32 BtlAiSense_CheckBit50(AiActSide *s) {
     AiActEntry *e = &s->act.stack[0];
 
-    if (func_002099C0(s->side)) {
+    if (BtlCharApi_GetStunTimer(s->side)) {
         return e->id == 0x51 ? 1 : 2;
     }
     return 0;
@@ -1193,7 +1193,7 @@ s32 BtlAiSense_CheckBit50(AiActSide *s) {
 s32 BtlAiSense_CheckBit51(AiActSide *s) {
     AiActEntry *e = &s->act.stack[0];
 
-    if (func_00209E38(s->side)) {
+    if (BtlCharApi_TestFlagBE(s->side)) {
         return e->id == 0x52 ? 1 : 2;
     }
     return 0;
@@ -1231,7 +1231,7 @@ s32 BtlAiSense_CheckBit40(AiActSide *s) {
     s32 cls = tbl->stateClass[oppState];
     u64 w = BtlCharApi_GetUnk1288(s->side);
 
-    if (!func_0020B7C0(opp->side)) {
+    if (!BtlSide_IsPoweredUp(opp->side)) {
         st->react &= ~0x10;
         return 0;
     }
@@ -1289,7 +1289,7 @@ s32 BtlAiSense_CheckBit41(AiActSide *s) {
 }
 
 /* Situation bit 28: close range, own state class not 13..23, the opponent in class 13..17 and not turned
-   away from this fighter, func_00208430, react bit 0x20 clear. */
+   away from this fighter, BtlCharApi_IsUnkCACPaired, react bit 0x20 clear. */
 s32 BtlAiSense_CheckBit28(AiActSide *s) {
     AiActTables *tbl = gBtlAi->data->tables;
     s32 state[2];
@@ -1309,7 +1309,7 @@ s32 BtlAiSense_CheckBit28(AiActSide *s) {
     if (!((u32)((u8)cls[1] - 13) < 5)) {
         return 0;
     }
-    if (!func_00208430(s->side)) {
+    if (!BtlCharApi_IsUnkCACPaired(s->side)) {
         return 0;
     }
     if (st->react & 0x20) {
@@ -1339,9 +1339,9 @@ s32 BtlAiSense_CheckBit29(AiActSide *s) {
    1, fighter +0x1070 is -30, react bit 0x400 clear. */
 s32 BtlAiSense_CheckBit35(AiActSide *s) {
     AiActStatus *st = &s->st;
-    f32 progress = func_00208A90(s->side ^ 1);
+    f32 progress = BtlCharApi_GetTechniqueProgress(s->side ^ 1);
 
-    if (!func_002095E8(s->side)) {
+    if (!BtlCharApi_GetOppSkillKind(s->side)) {
         return 0;
     }
     if (st->react & 0x400) {
@@ -1350,7 +1350,7 @@ s32 BtlAiSense_CheckBit35(AiActSide *s) {
     if (progress == -1.0f) {
         return 0;
     }
-    if (func_00208FA0(s->side)) {
+    if (BtlCharApi_IsUnk1070Set(s->side)) {
         return 0;
     }
     if (1.0f < progress) {
@@ -1363,11 +1363,11 @@ s32 BtlAiSense_CheckBit35(AiActSide *s) {
    with the opponent in state class 0x18 and progress 1..3; react bit 0x80 clear. */
 s32 BtlAiSense_CheckBit31(AiActSide *s) {
     AiActStatus *st = &s->st;
-    f32 progress = func_00208A90(s->side ^ 1);
+    f32 progress = BtlCharApi_GetTechniqueProgress(s->side ^ 1);
     AiActTables *tbl = gBtlAi->data->tables;
     s32 cls = tbl->stateClass[BtlCharApi_GetUnk974(s->side ^ 1)];
 
-    if (!func_002095E8(s->side)) {
+    if (!BtlCharApi_GetOppSkillKind(s->side)) {
         if (progress < 0.0f) {
             return 0;
         }
@@ -1419,7 +1419,7 @@ s32 BtlAiSense_CheckBit34(AiActSide *s) {
         if (act->depth != 0 && AIACT_TOP(act)->id == 0x47) {
             return 0;
         }
-        return func_002085F8(s->side);
+        return BtlCharApi_TestFlag66(s->side);
     }
     return 0;
 }
@@ -1427,7 +1427,7 @@ s32 BtlAiSense_CheckBit34(AiActSide *s) {
 /* Situation bit 36: the opponent's technique kind byte is 1 or 2, react bit 0x800 clear. */
 s32 BtlAiSense_CheckBit36(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 kind = func_002095E8(s->side);
+    s32 kind = BtlCharApi_GetOppSkillKind(s->side);
 
     if (kind == -1) {
         return 0;
@@ -1444,7 +1444,7 @@ s32 BtlAiSense_CheckBit36(AiActSide *s) {
 /* Situation bit 37: the kind byte is 3, react bit 0x1000 clear. */
 s32 BtlAiSense_CheckBit37(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 kind = func_002095E8(s->side);
+    s32 kind = BtlCharApi_GetOppSkillKind(s->side);
 
     if (kind == -1) {
         return 0;
@@ -1461,7 +1461,7 @@ s32 BtlAiSense_CheckBit37(AiActSide *s) {
 /* Situation bit 38: the kind byte is 0, react bit 0x2000 clear. */
 s32 BtlAiSense_CheckBit38(AiActSide *s) {
     AiActStatus *st = &s->st;
-    s32 kind = func_002095E8(s->side);
+    s32 kind = BtlCharApi_GetOppSkillKind(s->side);
 
     if (kind == -1) {
         return 0;
@@ -1475,10 +1475,10 @@ s32 BtlAiSense_CheckBit38(AiActSide *s) {
     return 0;
 }
 
-/* Situation bit 39: func_00209670 and bit 1 of the own parameter word +0x10. */
+/* Situation bit 39: BtlCharApi_IsOppSkillFlag4 and bit 1 of the own parameter word +0x10. */
 s32 BtlAiSense_CheckBit39(AiActSide *s) {
-    s32 a = func_00209670(s->side);
-    s32 b = func_002093B0(s->side);
+    s32 a = BtlCharApi_IsOppSkillFlag4(s->side);
+    s32 b = BtlCharApi_GetParamFlags(s->side);
     s32 ret = a != 0;
 
     if (!(b & 2)) {
@@ -1546,7 +1546,7 @@ void BtlAiSense_Reactions(AiActSide *s) {
         st->react |= 0x200;
         st->oppClass = cls[1];
     }
-    if (func_002086C0(s->side, 0) != -1) {
+    if (BtlCharApi_FindIncomingBlast(s->side, 0) != -1) {
         st->flags |= 0x40000000;
     }
     if (BtlAiSense_CheckBit35(s) == 1) {
@@ -1607,8 +1607,8 @@ s32 BtlAiSense_IsSteep(AiActSide *s) {
     AiActVec opp;
     f32 a;
 
-    func_002053F0(s->side, &pos);
-    func_002053F0(s->side ^ 1, &opp);
+    BtlCharApi_GetPos(s->side, &pos);
+    BtlCharApi_GetPos(s->side ^ 1, &opp);
     if (func_00122200(&opp, &pos) < 30.0f) {
         return 0;
     }
@@ -1632,7 +1632,7 @@ void BtlAiSense_Derived(AiActSide *s) {
     s8 cls[2];
     AiActStatus *st = &s->st;
     u64 w = BtlCharApi_GetUnk1288(s->side);
-    s32 oppBusy = func_002099C0(s->side ^ 1);
+    s32 oppBusy = BtlCharApi_GetStunTimer(s->side ^ 1);
 
     AIACT_GET_STATES(s, tbl, state, cls);
     if (st->react & 1) {
@@ -1640,7 +1640,7 @@ void BtlAiSense_Derived(AiActSide *s) {
     } else {
         st->flags |= 0x4000;
     }
-    if (func_0020B7C0(s->side)) {
+    if (BtlSide_IsPoweredUp(s->side)) {
         st->flags |= 0x8000;
     }
     if (st->flags & 0x10) {

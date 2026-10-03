@@ -66,9 +66,9 @@ extern f32 BtlInput_GetStickX(ChrCamChr *chr);                       /* smoothed
 extern s32 BtlInput_TestAction(ChrCamChr *chr, s32 action, s32 arg);  /* action input test, built on BtlInput_* */
 
 /* Model objects and stage. */
-extern f32 func_00204EA0(s32 objId);                            /* body scale, obj + 0xFF4 (10 when no object) */
-extern f32 func_00204F30(s32 objId);                            /* obj + 0x1000 (5 when no object) */
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);      /* world position of a model node (obj + 0x970 when the node is missing) */
+extern f32 BtlCharApi_GetHeight(s32 objId);                            /* body scale, obj + 0xFF4 (10 when no object) */
+extern f32 BtlCharApi_GetBodyUnk1000(s32 objId);                            /* obj + 0x1000 (5 when no object) */
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);      /* world position of a model node (obj + 0x970 when the node is missing) */
 extern f32 func_0023FE70(void);                                 /* stage: first float of the stage's limit block (horizontal radius, inferred) */
 extern f32 func_0023FF38(void);                                 /* stage: third float of the same block (a height, inferred) */
 extern s32 Battle_IsSplitScreen(void);

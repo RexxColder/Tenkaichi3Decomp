@@ -9,10 +9,10 @@
  *   - the same accessor style (BtlObj_Get / BtlChar_FindByObjId on the first argument, 0 for a non-fighter) starts at
  *     0x204E78, right after the last fighter state handler (0x204E28, which takes the fighter pointer), and runs to
  *     0x209EE8, where the script-control functions keyed by side (BtlCtrl_*, BtlChar_Get(side)) begin;
- *   - the float pool is one run: 0x2FE07C (func_00206240) .. 0x2FE0D4 (func_002096E8); 0x2FE078 belongs to
- *     func_00204748 before it and 0x2FE0E4 to func_0020C9F0 after it;
- *   - calls inside it are compiled as same-file calls (BtlCharApi_IsCamShown -> func_00206D68 / func_00206DB8 here,
- *     func_00208A90 -> 0x207C60 / 0x207C88 / 0x207CB0, func_002086C0 -> func_002053F0).
+ *   - the float pool is one run: 0x2FE07C (BtlCharApi_ObjPushDir) .. 0x2FE0D4 (BtlCharApi_TestOppSkillFlags); 0x2FE078 belongs to
+ *     BtlAct_CheckRecoveryInput before it and 0x2FE0E4 to BtlAtk_GetId after it;
+ *   - calls inside it are compiled as same-file calls (BtlCharApi_IsCamShown -> BtlCharApi_IsInClashA / BtlCharApi_IsInClashBC here,
+ *     BtlCharApi_GetTechniqueProgress -> 0x207C60 / 0x207C88 / 0x207CB0, BtlCharApi_FindIncomingBlast -> BtlCharApi_GetPos).
  * So the object starts at 0x204E78 and ends at 0x209EE8 or later (0x20B4A8 if the BtlCtrl functions are part of it).
  * The slice decompiled here uses no float pool entry, string or jump table, so it can be linked as its own file.
  *
@@ -56,16 +56,16 @@ extern s32 BtlChar_TestMemberUnk70(BtlCharApiChr *chr);            /* vitals->un
 extern void BtlChar_SetVibration(BtlCharApiChr *chr, f32 power, f32 time);
 extern void BtlChar_SetSmallVibration(BtlCharApiChr *chr, f32 time);
 extern s32 BtlAct_GetCurrent(BtlCharApiChr *chr);            /* chr->action */
-extern s32 BtlAct_IsDamageId(s32 action);                    /* action == 0x105 or in 0x106..0x132 */
+extern s32 BtlAct_IsTechniqueId(s32 action);                    /* action == 0x105 or in 0x106..0x132 */
 extern s32 BtlAct_GetCurrentClass(BtlCharApiChr *chr);            /* technique slot of the current action, or -1 */
 extern s32 BtlAct_GetMotionLevel(BtlCharApiChr *chr, s32 action);
-extern s32 func_00206C20(s32 objId);                     /* action id in 0x12D..0x12F or 0x139..0x13B */
-extern s32 func_00206D68(s32 objId);                     /* action id in 0x130..0x132 */
-extern s32 func_00206DB8(s32 objId);                     /* action id 0xFA or 0xFC */
-extern s32 func_0020E9F0(BtlCharApiChr *chr, u32 n);
-extern s32 func_0020EA60(BtlCharApiChr *chr, u32 n);
-extern s32 func_00210D80(BtlCharApiChr *chr, s32 slot);  /* attribute word of technique `slot` */
-extern s32 func_00211F60(BtlCharApiChr *chr, s32 slot);
+extern s32 BtlCharApi_IsInRushSequence(s32 objId);                     /* action id in 0x12D..0x12F or 0x139..0x13B */
+extern s32 BtlCharApi_IsInClashA(s32 objId);                     /* action id in 0x130..0x132 */
+extern s32 BtlCharApi_IsInClashBC(s32 objId);                     /* action id 0xFA or 0xFC */
+extern s32 BtlParam_GetUnk84(BtlCharApiChr *chr, u32 n);
+extern s32 BtlParam_GetUnk8A(BtlCharApiChr *chr, u32 n);
+extern s32 BtlSuper_GetFlags(BtlCharApiChr *chr, s32 slot);  /* attribute word of technique `slot` */
+extern s32 BtlSuper_IsThrow(BtlCharApiChr *chr, s32 slot);
 extern s32 func_0024D498(BtlCharApiObj *obj, u64 mask);
 extern s32 func_0024D4D0(BtlCharApiObj *obj, u64 mask);
 extern s32 func_0024D518(s32 bits);
@@ -399,7 +399,7 @@ s32 BtlCharApi_IsTargetBelowHalfHp(s32 objId, s32 targetId) {
     return result;
 }
 
-/* Whether the fighter's current technique has attribute 0x80000, passes func_00211F60 and the target's member word +0x60 is 0. */
+/* Whether the fighter's current technique has attribute 0x80000, passes BtlSuper_IsThrow and the target's member word +0x60 is 0. */
 s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
     BtlCharApiChr *target = BtlChar_FindByObjId(targetId);
@@ -407,14 +407,14 @@ s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId) {
     s32 result = 0;
 
     if (chr != NULL && target != NULL) {
-        if (!BtlAct_IsDamageId(BtlAct_GetCurrent(chr))) {
+        if (!BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr))) {
             return 0;
         }
         slot = BtlAct_GetCurrentClass(chr);
-        if (!(func_00210D80(chr, slot) & 0x80000)) {
+        if (!(BtlSuper_GetFlags(chr, slot) & 0x80000)) {
             return 0;
         }
-        if (func_00211F60(chr, slot)) {
+        if (BtlSuper_IsThrow(chr, slot)) {
             return 0;
         }
         return BtlMember_GetActiveGauge(target)->unk20 == 0;
@@ -512,7 +512,7 @@ f32 BtlCharApi_GetChargedUnkC78(s32 objId) {
         return 0.0f;
     }
     value = BtlAnim_GetFrame(chr);
-    if (func_00206C20(objId)) {
+    if (BtlCharApi_IsInRushSequence(objId)) {
         n = BtlAct_GetMotionLevel(chr, BtlAnim_GetId(chr));
         for (i = 0; i < n; i++) {
             value += chr->unkEFC[i] + 1.0f;
@@ -647,10 +647,10 @@ s32 BtlCharApi_IsCamShown(s32 objId) {
     if (chr == NULL) {
         return 0;
     }
-    if (func_00206D68(objId)) {
+    if (BtlCharApi_IsInClashA(objId)) {
         return 0;
     }
-    if (func_00206DB8(objId)) {
+    if (BtlCharApi_IsInClashBC(objId)) {
         return 0;
     }
     if (DemoCam_IsActive()) {
@@ -749,7 +749,7 @@ s32 BtlCharApi_GetParamByte84(s32 objId, u32 n) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_0020E9F0(chr, n);
+        return BtlParam_GetUnk84(chr, n);
     }
     return 0;
 }
@@ -759,7 +759,7 @@ s32 BtlCharApi_GetParamByte8A(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_0020EA60(chr, 0);
+        return BtlParam_GetUnk8A(chr, 0);
     }
     return 0;
 }
@@ -769,7 +769,7 @@ s32 BtlCharApi_GetParamByte8D(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
-        return func_0020EA60(chr, 3);
+        return BtlParam_GetUnk8A(chr, 3);
     }
     return 0;
 }

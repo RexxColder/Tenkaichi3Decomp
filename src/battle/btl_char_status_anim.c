@@ -25,7 +25,7 @@ extern void BtlChar_ClearFlag(BtlStatChr *chr, s32 flag);
 extern s32 BtlChar_TestPrevFlag(BtlStatChr *chr, s32 flag);              /* the flag in the second pair of flag arrays */
 extern void BtlChar_ClearFlagRange(BtlStatChr *chr, s32 first, s32 last);  /* BtlChar_ClearFlag for first..last */
 extern s32 BtlOpp_GetObj(BtlStatChr *chr);                        /* the opponent's battle object (inferred) */
-extern s32 func_00206C20(s32 objId);
+extern s32 BtlCharApi_IsInRushSequence(s32 objId);
 extern void BtlObj_SetSubState(BtlStatObj *obj, s32 state, s32 arg);
 extern void func_0024C668(BtlStatObj *obj, f32 blend);            /* starts a blend of `blend` seconds */
 extern void func_0024C728(void *handle, s32 a, s32 b, s32 c);
@@ -102,7 +102,7 @@ void BtlAnim_Play(BtlStatChr *chr, s32 anim, f32 blend) {
         s32 arg = 0;
         BtlStatObj *obj2;
 
-        if (func_00206C20(chr->objId)) {
+        if (BtlCharApi_IsInRushSequence(chr->objId)) {
             arg = chr->unkEE4;
         }
         obj2 = BtlChar_GetObj(chr);
@@ -400,7 +400,7 @@ s32 BtlAnim_Advance(BtlStatChr *chr, s32 flags) {
 }
 
 /* BtlAnim_Advance, and at the end requests the animation `next`. */
-s32 BtlAnim_AdvanceThen(BtlStatChr *chr, s32 next, s32 flags, f32 blend) {
+s32 BtlAnim_AdvanceThen(BtlStatChr *chr, s32 next, f32 blend, s32 flags) {
     s32 done = BtlAnim_Advance(chr, flags);
 
     if (done) {

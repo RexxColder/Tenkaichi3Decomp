@@ -12,7 +12,7 @@
  * - The whole controller state the simulation sees for one fighter and one frame is BtlInputRecord:
  *   {buttons, stickX, stickY} plus the command word, which is a pure function of buttons, the previous record's
  *   buttons, the recCount frame counters and three pieces of fighter state (BtlInput_BuildCommands,
- *   BtlInput_TestSwitch: chr->unk1594, fighter flags 0xA2 / 0xA3, the entry of func_002119A0).
+ *   BtlInput_TestSwitch: chr->unk1594, fighter flags 0xA2 / 0xA3, the entry of BtlSuper_GetPromptRow).
  *   The game's own replay feature stores only {buttons, stickX, stickY} per fighter per frame
  *   (BtlReplay_Record writes, BtlReplay_Play reads; gBattleReplay data at 0x301810: per player 9000 x u8[2] stick,
  *   9000 x u32 buttons, s32 count, s32 position = 0xD2F8 bytes, then a flag word whose bit 0 means "ran out")
@@ -198,11 +198,11 @@ typedef struct BtlInputChr {
     /* 0x1280 */ f32 injectStickX;  /* -1..1 */
     /* 0x1284 */ f32 injectStickY;
     /* 0x1288 */ u8 unk1288[0x1594 - 0x1288];
-    /* 0x1594 */ s32 unk1594;       /* >= 2 enables BTLC_SWITCH; passed to func_002119A0 */
+    /* 0x1594 */ s32 unk1594;       /* >= 2 enables BTLC_SWITCH; passed to BtlSuper_GetPromptRow */
     /* 0x1598 */ u8 unk1598[0x1600 - 0x1598];
 } BtlInputChr; /* 0x1600 */
 
-/* Entry returned by func_002119A0 (0x14 bytes; only the field read here). */
+/* Entry returned by BtlSuper_GetPromptRow (0x14 bytes; only the field read here). */
 typedef struct BtlInputSwitchEntry {
     /* 0x00 */ u8 unk0[2];
     /* 0x02 */ s8 dir; /* 0 up, 1 down, 2 left, 3 right: direction to hold with RUSH for BTLC_SWITCH */

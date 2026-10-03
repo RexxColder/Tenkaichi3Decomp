@@ -32,7 +32,7 @@ void ChrCam_CalcFixed(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     f32 k;
     f32 base;
 
-    scale = func_00204EA0(chr->objId);
+    scale = BtlCharApi_GetHeight(chr->objId);
     Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
     BtlOpp_GetTargetPos(chr, &opp);
     Vec4_Sub(&toOpp, &opp, &pos);
@@ -49,7 +49,7 @@ void ChrCam_CalcFixed(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     base = -0.1f;
     Vec4_Set(target, 0.0f, y, 0.0f, 1.0f);
     ofs.x = 0.0f;
-    ofs.y = -func_00204EA0(chr->objId) * k - 10.0f;
+    ofs.y = -BtlCharApi_GetHeight(chr->objId) * k - 10.0f;
     ofs.z = -35.0f;
     Vec4_Sub(&ofs, &ofs, target);
     yaw = cam->yaw;
@@ -150,7 +150,7 @@ void ChrCam_CalcLockOn(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     f32 d;
     f32 m;
 
-    scale = func_00204EA0(chr->objId);
+    scale = BtlCharApi_GetHeight(chr->objId);
     Vec4_Copy(&pos, &BtlChar_GetPos(chr)->pos);
     floorY = func_0023FF38() + scale * 0.5f;
     if (floorY < pos.y) {
@@ -279,7 +279,7 @@ void ChrCam_CalcFree(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
 
     body = BtlChar_GetPos(chr);
     one = 1.0f;
-    scale = func_00204EA0(chr->objId);
+    scale = BtlCharApi_GetHeight(chr->objId);
     Vec4_Copy(&pos, &body->pos);
     scale *= 0.7f;
     look.w = one;
@@ -316,8 +316,8 @@ void ChrCam_KeepBehindHead(ChrCamChr *chr, Vec4 *eye, Vec4 *rot) {
     f32 d;
 
     one = 1.0f;
-    func_002058E0(chr->objId, 0x30, &node);
-    margin = func_00204EA0(chr->objId) * 0.15f;
+    BtlCharApi_GetNodePos(chr->objId, 0x30, &node);
+    margin = BtlCharApi_GetHeight(chr->objId) * 0.15f;
     dir.x = Mathf_Sin(rot->y);
     dir.y = 0.0f;
     dir.z = Mathf_Cos(rot->y);
@@ -554,7 +554,7 @@ shake:
 f32 ChrCam_GetSideLimit(ChrCamChr *chr) {
     f32 a;
 
-    a = Mathf_Atan(func_00204F30(chr->objId));
+    a = Mathf_Atan(BtlCharApi_GetBodyUnk1000(chr->objId));
     if (a < 0.785398163f) {
         a = 0.785398163f;
     }
@@ -756,16 +756,16 @@ void ChrCam_StartCut(ChrCamChr *chr) {
         Vec4_Copy(&vecB, *(Vec4 **)((u8 *)BtlOpp_GetObj(chr) + 0xFA0));
     } else if (flags & CHRCUTDEF_MID) {
         yaw = BtlChar_GetPos(chr)->yaw;
-        scales[0] = func_00204EA0(chr->objId);
+        scales[0] = BtlCharApi_GetHeight(chr->objId);
         scales[1] = BtlOpp_GetHeight(chr);
         scale = (scales[1] < scales[0]) ? scales[0] : scales[1];
         unk88 = -1;
-        func_002058E0(chr->objId, def->nodeA, &own);
+        BtlCharApi_GetNodePos(chr->objId, def->nodeA, &own);
         half = 0.5f;
         BtlOpp_GetNodePos(chr, def->nodeA, &opp);
         func_00122168(&vecA, &own, &opp, half);
         unk8C = -1;
-        func_002058E0(chr->objId, def->nodeA2, &own);
+        BtlCharApi_GetNodePos(chr->objId, def->nodeA2, &own);
         BtlOpp_GetNodePos(chr, def->nodeA2, &opp);
         func_00122168(&mid, &own, &opp, half);
         Vec4_Sub(&vecADelta, &mid, &vecA);
@@ -778,7 +778,7 @@ void ChrCam_StartCut(ChrCamChr *chr) {
         }
     } else {
         yaw = BtlChar_GetPos(chr)->yaw;
-        scale = func_00204EA0(chr->objId);
+        scale = BtlCharApi_GetHeight(chr->objId);
         if (flags & CHRCUTDEF_A_TRACK) {
             func_00121E18(&vecA);
             func_00121E18(&vecADelta);
@@ -786,9 +786,9 @@ void ChrCam_StartCut(ChrCamChr *chr) {
             unk8C = def->nodeA2;
         } else {
             unk88 = -1;
-            func_002058E0(chr->objId, def->nodeA, &vecA);
+            BtlCharApi_GetNodePos(chr->objId, def->nodeA, &vecA);
             unk8C = -1;
-            func_002058E0(chr->objId, def->nodeA2, &tmpB);
+            BtlCharApi_GetNodePos(chr->objId, def->nodeA2, &tmpB);
             Vec4_Sub(&vecADelta, &tmpB, &vecA);
         }
         Vec4_Copy(&vecB, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
@@ -806,7 +806,7 @@ void ChrCam_StartCut(ChrCamChr *chr) {
             func_00121E18(&vecC);
             unk90 = def->nodeC | CHRCUT_NODE_MID;
         } else {
-            func_002058E0(chr->objId, 3, &own2);
+            BtlCharApi_GetNodePos(chr->objId, 3, &own2);
             BtlOpp_GetNodePos(chr, 3, &opp2);
             unk90 = -1;
             func_00122168(&vecC, &own2, &opp2, 0.5f);
@@ -816,7 +816,7 @@ void ChrCam_StartCut(ChrCamChr *chr) {
             func_00121E18(&vecC);
             unk90 = def->nodeC;
         } else {
-            func_002058E0(chr->objId, def->nodeC, &vecC);
+            BtlCharApi_GetNodePos(chr->objId, def->nodeC, &vecC);
             unk90 = -1;
         }
     }
@@ -834,7 +834,7 @@ void ChrCam_StartCut(ChrCamChr *chr) {
             func_00121E18(&vecCDelta);
             unk94 = def->nodeC2 | CHRCUT_NODE_MID;
         } else {
-            func_002058E0(chr->objId, 3, &own2);
+            BtlCharApi_GetNodePos(chr->objId, 3, &own2);
             BtlOpp_GetNodePos(chr, 3, &opp2);
             unk94 = -1;
             func_00122168(&mid2, &own2, &opp2, 0.5f);
@@ -845,7 +845,7 @@ void ChrCam_StartCut(ChrCamChr *chr) {
             func_00121E18(&vecCDelta);
             unk94 = def->nodeC2;
         } else {
-            func_002058E0(chr->objId, def->nodeC2, &own2);
+            BtlCharApi_GetNodePos(chr->objId, def->nodeC2, &own2);
             unk94 = -1;
             Vec4_Sub(&vecCDelta, &own2, &vecC);
         }

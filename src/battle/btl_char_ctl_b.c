@@ -10,9 +10,9 @@
  *
  *   state 0  idle
  *   state 1  BtlChange_Update (end of every frame, also while paused) popped the request: it is now `cur`
- *   state 2  BtlChange_SetTaken   the loader created its job (through func_0020B338)
- *   state 3  BtlChange_SetLoaded  the files are in memory (through func_0020B350); `loaded` = 1
- *   state 4  BtlChange_SetReady   the owning fighter allows the swap (the loader waits for this, func_0020B368)
+ *   state 2  BtlChange_SetTaken   the loader created its job (through BtlChange_NotifyTaken)
+ *   state 3  BtlChange_SetLoaded  the files are in memory (through BtlChange_NotifyLoaded); `loaded` = 1
+ *   state 4  BtlChange_SetReady   the owning fighter allows the swap (the loader waits for this, BtlChange_IsReady)
  *   state 5  BtlChange_SetDone    the owning fighter is finished; the next BtlChange_Update clears `cur`
  *
  * roster + 0x274 (`timeStop`, BtlChars_IsTimeStopped) is written only by BtlChange_Update and BtlChange_Reset:

@@ -23,11 +23,11 @@ BtlFacade_SetCpuParam4 = 0x0012BE90; // type:func // guess
 // Scripted movement of a fighter and its control flags: forwards to 0x20A050..0x20A5B8 (see BtlCtrl_* below).
 // The SetCtrl / ClearCtrl names carry the flag number that the target sets or clears.
 BtlFacade_SetCharPos = 0x0012BEC8; // type:func
-BtlFacade_SetCharDir = 0x0012BEE0; // type:func // guess
-BtlFacade_StartCharMove = 0x0012BEF8; // type:func // guess
-BtlFacade_IsCharMoveDone = 0x0012BF10; // type:func // guess
+BtlFacade_SetCharRot = 0x0012BEE0; // type:func // guess
+BtlFacade_PlayCharMotion = 0x0012BEF8; // type:func // guess
+BtlFacade_IsCharMotionPlaying = 0x0012BF10; // type:func // guess
 BtlFacade_IsCharAction4 = 0x0012BF28; // type:func // guess
-BtlFacade_StopCharMove = 0x0012BF40; // type:func // guess
+BtlFacade_StopCharMotion = 0x0012BF40; // type:func // guess
 BtlFacade_SetCtrlFE = 0x0012BF58; // type:func // guess
 BtlFacade_SetCtrlFF = 0x0012BF70; // type:func // guess
 BtlFacade_SetCtrl101 = 0x0012BF88; // type:func // guess
@@ -53,10 +53,10 @@ BtlFacade_LowerGaugeC = 0x0012C370; // type:func // guess
 BtlFacade_AddGauge14 = 0x0012C3D0; // type:func // guess
 BtlFacade_RaiseGauge14 = 0x0012C430; // type:func // guess
 BtlFacade_LowerGauge14 = 0x0012C490; // type:func // guess
-BtlFacade_SetPowerUp = 0x0012C4F0; // type:func // guess
+BtlFacade_SetMaxPower = 0x0012C4F0; // type:func // guess
 // Forced actions (targets 0x20AB60..0x20B110 raise the fighter's held flags 0x110..0x124).
-BtlFacade_UseSkillA = 0x0012C508; // type:func // guess
-BtlFacade_UseSkillB = 0x0012C540; // type:func // guess
+BtlFacade_Transform = 0x0012C508; // type:func // guess
+BtlFacade_Fuse = 0x0012C540; // type:func // guess
 BtlFacade_ChangeMember = 0x0012C578; // type:func // guess
 BtlFacade_PulseCtrl10D = 0x0012C5B0; // type:func // guess
 BtlFacade_AreBothInterruptible = 0x0012C5D8; // type:func // guess
@@ -175,22 +175,22 @@ BtlChar_FindByObjId = 0x001DC1A0; // type:func // guess
 // the id in the fighter's 4 / 3 slot list, flag 0x116 / 0x11A + slot. ChangeMember: flag 0x11D or 0x10E. ForceFlag11x:
 // flag 0x110 / 0x111. ForceAction(side, 0..4): flag 0x120 + kind and 0x11E. ForceReaction: flag 0x112 + kind.
 // IsInterruptible / CanAct: tests on the action id and flags.
-BtlCtrl_StartMove = 0x0020A050; // type:func // guess
+BtlCtrl_PlayMotion = 0x0020A050; // type:func // guess
 BtlCtrl_SetPos = 0x0020A0C0; // type:func // guess
-BtlCtrl_SetDir = 0x0020A178; // type:func // guess
+BtlCtrl_SetRot = 0x0020A178; // type:func // guess
 BtlCtrl_GetActiveMember = 0x0020A230; // type:func // guess
 BtlCtrl_IsAction4 = 0x0020A268; // type:func // guess
-BtlCtrl_IsMoveDone = 0x0020A2A0; // type:func // guess
-BtlCtrl_StopMove = 0x0020A2E0; // type:func // guess
+BtlCtrl_IsMotionPlaying = 0x0020A2A0; // type:func // guess
+BtlCtrl_StopMotion = 0x0020A2E0; // type:func // guess
 BtlCtrl_AddHp = 0x0020A5F0; // type:func // guess
 BtlCtrl_RaiseHp = 0x0020A6C8; // type:func // guess
 BtlCtrl_LowerHp = 0x0020A758; // type:func // guess
-BtlCtrl_SetPowerUp = 0x0020AAE8; // type:func // guess
-BtlCtrl_UseSkillA = 0x0020AB60; // type:func // guess
-BtlCtrl_UseSkillB = 0x0020AC40; // type:func // guess
+BtlCtrl_SetMaxPower = 0x0020AAE8; // type:func // guess
+BtlCtrl_Transform = 0x0020AB60; // type:func // guess
+BtlCtrl_Fuse = 0x0020AC40; // type:func // guess
 BtlCtrl_ChangeMember = 0x0020AD50; // type:func // guess
 BtlCtrl_ForceFlag11x = 0x0020AE18; // type:func // guess
-BtlCtrl_ForceAction = 0x0020AE88; // type:func // guess
+BtlCtrl_UseTechnique = 0x0020AE88; // type:func // guess
 BtlCtrl_ForceReaction = 0x0020AFD0; // type:func // guess
 BtlCtrl_IsInterruptible = 0x0020B030; // type:func // guess
 BtlCtrl_CanAct = 0x0020B110; // type:func // guess

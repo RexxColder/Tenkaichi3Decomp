@@ -76,14 +76,14 @@ s32 BtlAiStep_Unk14(BtlAiWork *ai) {
     case 1:
         a = BtlAi_ScaleByLevel(ai->level, lo[4], hi[4]);
         b = BtlAi_ScaleByLevel(ai->level, lo[3], hi[3]);
-        val[0] = func_002098C0(ai->objId);
-        val[1] = func_002098C0(ai->objId ^ 1);
+        val[0] = BtlCharApi_GetClashCountB(ai->objId);
+        val[1] = BtlCharApi_GetClashCountB(ai->objId ^ 1);
         break;
     case 2:
         a = BtlAi_ScaleByLevel(ai->level, lo[6], hi[6]);
         b = BtlAi_ScaleByLevel(ai->level, lo[5], hi[5]);
-        val[0] = func_002098E8(ai->objId);
-        val[1] = func_002098E8(ai->objId ^ 1);
+        val[0] = BtlCharApi_GetClashCountA(ai->objId);
+        val[1] = BtlCharApi_GetClashCountA(ai->objId ^ 1);
         break;
     default:
         return 1;
@@ -101,7 +101,7 @@ s32 BtlAiStep_Unk14(BtlAiWork *ai) {
         }
         return 1;
     case 2:
-        if (func_00206D68(ai->objId)) {
+        if (BtlCharApi_IsInClashA(ai->objId)) {
             break;
         }
         return 1;
@@ -115,7 +115,7 @@ s32 BtlAiStep_Unk14(BtlAiWork *ai) {
 s32 BtlAiStep_Unk15(BtlAiWork *ai) {
     BtlAiPlan *plan = &ai->plan;
     s32 busy = func_001B5838(ai);
-    BtlAiChrMoves *p = func_00208B98(ai->objId);
+    BtlAiChrMoves *p = BtlCharApi_GetMoveTable(ai->objId);
     s32 step;
     BtlAiSeq *seq;
 
@@ -134,7 +134,7 @@ s32 BtlAiStep_Unk15(BtlAiWork *ai) {
     case 0xC:
     case 0x33:
     case 0x37:
-        if (func_00209910(ai->objId) != 0) {
+        if (BtlCharApi_IsMoveSlotActive(ai->objId) != 0) {
             return 1;
         }
         break;
@@ -164,10 +164,10 @@ s32 BtlAiStep_WaitNear2(BtlAiWork *ai) {
 s32 BtlAiStep_Unk17(BtlAiWork *ai) {
     BtlAiSeq *seq = &ai->seq;
     BtlAiPlan *plan = &ai->plan;
-    BtlAiChrSkills *p = func_00208B58(ai->objId);
+    BtlAiChrSkills *p = BtlCharApi_GetSkillTable(ai->objId);
     BtlAiActTable *act = gBtlAi->data->act;
     s32 busy = func_001B5838(ai);
-    f32 rate = func_00209CE0(ai->objId);
+    f32 rate = BtlCharApi_GetUnkE44B(ai->objId);
     u32 *top = &SEQ_TOP(seq).id;
     s32 action[2];
     s8 cls[2];
@@ -186,7 +186,7 @@ s32 BtlAiStep_Unk17(BtlAiWork *ai) {
         if (!(seq->flags & 0x40)) {
             return 0;
         }
-        if (p->cost[plan->unk8] > func_0020B4E0(ai->objId)) {
+        if (p->cost[plan->unk8] > BtlSide_GetKi(ai->objId)) {
             return 1;
         }
         seq->flags = (seq->flags ^ 0x800) & ~0x40;
@@ -201,7 +201,7 @@ s32 BtlAiStep_Unk17(BtlAiWork *ai) {
                 return 1;
             }
             seq->step = 3;
-            if (func_00209D98(ai->objId, 1) != 0) {
+            if (BtlCharApi_TestPoseBit80(ai->objId, 1) != 0) {
                 return 0;
             }
             seq->step = 2;
@@ -250,7 +250,7 @@ s32 BtlAiStep_Unk18(BtlAiWork *ai) {
     s32 near[5] = { 15, 7, 5, 3, 3 };
     s32 far[5] = { 15, 10, 7, 5, 3 };
     BtlAiSeq *seq = &ai->seq;
-    s32 dist = func_00208C30(ai->objId);
+    s32 dist = BtlCharApi_GetHp(ai->objId);
     s32 t = seq->timer;
 
     seq->step = 1;
@@ -266,12 +266,12 @@ s32 BtlAiStep_Unk18(BtlAiWork *ai) {
     return func_001B5B78(ai);
 }
 
-/* Step handler 19: same countdown, done when func_002099C0 is not positive. */
+/* Step handler 19: same countdown, done when BtlCharApi_GetStunTimer is not positive. */
 s32 BtlAiStep_Unk19(BtlAiWork *ai) {
     s32 near[5] = { 15, 7, 5, 3, 3 };
     s32 far[5] = { 15, 10, 7, 5, 3 };
     BtlAiSeq *seq = &ai->seq;
-    s32 dist = func_00208C30(ai->objId);
+    s32 dist = BtlCharApi_GetHp(ai->objId);
     s32 t = seq->timer;
 
     seq->step = 1;
@@ -284,20 +284,20 @@ s32 BtlAiStep_Unk19(BtlAiWork *ai) {
         }
         seq->step = 0;
     }
-    return func_002099C0(ai->objId) < 1;
+    return BtlCharApi_GetStunTimer(ai->objId) < 1;
 }
 
-/* Step handler 20: done when func_00209670 is zero. */
+/* Step handler 20: done when BtlCharApi_IsOppSkillFlag4 is zero. */
 s32 BtlAiStep_Unk20(BtlAiWork *ai) {
-    return func_00209670(ai->objId) == 0;
+    return BtlCharApi_IsOppSkillFlag4(ai->objId) == 0;
 }
 
-/* Step handler 21: same countdown, done when func_00209E38 is zero. */
+/* Step handler 21: same countdown, done when BtlCharApi_TestFlagBE is zero. */
 s32 BtlAiStep_Unk21(BtlAiWork *ai) {
     s32 near[5] = { 15, 7, 5, 3, 3 };
     s32 far[5] = { 15, 10, 7, 5, 3 };
     BtlAiSeq *seq = &ai->seq;
-    s32 dist = func_00208C30(ai->objId);
+    s32 dist = BtlCharApi_GetHp(ai->objId);
     s32 t = seq->timer;
 
     seq->step = 1;
@@ -310,7 +310,7 @@ s32 BtlAiStep_Unk21(BtlAiWork *ai) {
         }
         seq->step = 0;
     }
-    return func_00209E38(ai->objId) == 0;
+    return BtlCharApi_TestFlagBE(ai->objId) == 0;
 }
 
 /* Step handler 22: like 16 with three times the range, then func_001B5838. */
@@ -332,7 +332,7 @@ s32 BtlAiStep_WaitNear3(BtlAiWork *ai) {
 s32 BtlAiStep_Unk23(BtlAiWork *ai) {
     BtlAiSeq *seq = &ai->seq;
     s32 busy = func_001B5838(ai);
-    BtlAiChrSkills *p = func_00208B58(ai->objId);
+    BtlAiChrSkills *p = BtlCharApi_GetSkillTable(ai->objId);
     s8 cls = gBtlAi->data->act->actClass[BtlCharApi_GetUnk974(ai->objId)];
     s32 n;
 
@@ -374,11 +374,11 @@ s32 BtlAiStep_Unk23(BtlAiWork *ai) {
     default:
         return 0;
     }
-    if (p->unk165[func_00209EA0(ai->objId, n)] != 5) {
+    if (p->unk165[BtlCharApi_GetParamByte8F(ai->objId, n)] != 5) {
         return 1;
     }
     seq->step = 0;
-    if (func_00209D98(ai->objId, 1) == 0) {
+    if (BtlCharApi_TestPoseBit80(ai->objId, 1) == 0) {
         seq->step = 1;
     }
     return cls == 0;
@@ -392,7 +392,7 @@ void BtlAi_RunInstant(BtlAiWork *ai) {
 
     switch (SEQ_TOP(seq).arg) {
     case 0:
-        func_00208A28(ai->objId);
+        BtlCharApi_MarkIncomingBlast(ai->objId);
         break;
     case 1:
         seq->flags |= 0x80;

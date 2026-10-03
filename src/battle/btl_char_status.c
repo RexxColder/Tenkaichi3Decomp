@@ -11,7 +11,7 @@
  *   untilB / untilC   until the action code calls BtlStat_EndKind3 / BtlStat_EndKind4
  *   penalty  ignored while the fighter has flag 6        frame    lasts one frame
  * The only writer of the per-slot fields is the skill routine 0x2004C8(chr, slot): it reads the skill's kind
- * (func_002123B0) and four levels from the character's parameter block and calls one setter per stat.
+ * (BtlSkill_GetStatKind) and four levels from the character's parameter block and calls one setter per stat.
  *
  * BtlStat_GetMod(chr, stat) adds the levels up, adds the ability-driven extras and clamps to -20..20. The
  * seven BtlStat_GetLevelN add one of the active member's seven bonus values (BattleMember.bonus[1..7]) and
@@ -20,10 +20,10 @@
  * BtlStat_GetRateN / BtlStat_GetScaleN are what the gauge, damage and movement code call.
  */
 
-extern s32 func_002123B0(BtlStatChr *chr, s32 slot);    /* the slot's skill kind: (obj + 0x930)[0x66 + slot] */
+extern s32 BtlSkill_GetStatKind(BtlStatChr *chr, s32 slot);    /* the slot's skill kind: (obj + 0x930)[0x66 + slot] */
 extern s32 BtlAct_GetCurrent(BtlStatChr *chr);              /* current action */
 extern s32 BtlAct_GetPrev(BtlStatChr *chr);              /* previous action */
-extern s32 BtlAct_IsDamageId(s32 action);                   /* action is 0x105..0x132 */
+extern s32 BtlAct_IsTechniqueId(s32 action);                   /* action is 0x105..0x132 */
 extern s32 BtlChar_TestPrevFlag(BtlStatChr *chr, s32 flag);    /* the flag in the second pair of flag arrays */
 extern s32 BtlChar_TestFlag(BtlStatChr *chr, s32 flag);
 extern BtlStatMember *BtlMember_GetActive(BtlStatChr *chr);   /* the active member */
@@ -38,7 +38,7 @@ extern f32 gBtlStatCurve[BTL_STAT_CURVE_ROWS][3]; /* 0x2EE7C0, in this file's .r
 void BtlStat_ClearSlotOn(BtlStatChr *chr, s32 slot, s32 kind) {
     s32 i = slot != 0;
 
-    if (func_002123B0(chr, slot) == kind) {
+    if (BtlSkill_GetStatKind(chr, slot) == kind) {
         chr->slotOn[i] = 0;
     }
 }
@@ -134,7 +134,7 @@ void BtlStat_Update(BtlStatChr *chr) {
             }
         }
     }
-    if (!BtlAct_IsDamageId(BtlAct_GetCurrent(chr)) && BtlAct_IsDamageId(BtlAct_GetPrev(chr)) && !BtlChar_TestPrevFlag(chr, 0xA4)) {
+    if (!BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr)) && BtlAct_IsTechniqueId(BtlAct_GetPrev(chr)) && !BtlChar_TestPrevFlag(chr, 0xA4)) {
         BtlStat_EndKind2(chr);
     }
 }
@@ -330,37 +330,37 @@ f32 BtlStat_EvalCurve(s32 level, s32 row) {
 }
 
 /* Curve row 0 at level 0, per frame (per-second value / 30). */
-s32 BtlStat_GetRate0(BtlStatChr *chr) {
+s32 BtlStat_GetKiChargeBonus(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel0(chr), 0) / 30.0f;
 }
 
 /* Curve row 1 at level 0, per frame. */
-s32 BtlStat_GetRate1(BtlStatChr *chr) {
+s32 BtlStat_GetKiRegenBonus(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel0(chr), 1) / 30.0f;
 }
 
 /* Curve row 2 at level 0, per frame. */
-s32 BtlStat_GetRate2(BtlStatChr *chr) {
+s32 BtlStat_GetKiRecoverBonus(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel0(chr), 2) / 30.0f;
 }
 
 /* Curve row 3 at level 4, per frame. */
-s32 BtlStat_GetRate3(BtlStatChr *chr) {
+s32 BtlStat_GetBlastGainBonus(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel4(chr), 3) / 30.0f;
 }
 
 /* Curve row 4 at level 1. */
-f32 BtlStat_GetScale4(BtlStatChr *chr) {
+f32 BtlStat_GetMeleeDamageScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel1(chr), 4);
 }
 
 /* Curve row 5 at level 1. */
-f32 BtlStat_GetScale5(BtlStatChr *chr) {
+f32 BtlStat_GetGuardKiCostScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel1(chr), 5);
 }
 
 /* Curve row 6 at level 1. */
-f32 BtlStat_GetScale6(BtlStatChr *chr) {
+f32 BtlStat_GetKiBlastDamageScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel1(chr), 6);
 }
 
@@ -370,26 +370,26 @@ f32 BtlStat_GetScale7(BtlStatChr *chr) {
 }
 
 /* Curve row 8 at level 3. */
-f32 BtlStat_GetScale8(BtlStatChr *chr) {
+f32 BtlStat_GetSpeedScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel3(chr), 8);
 }
 
 /* Curve row 9 at level 5. */
-f32 BtlStat_GetScale9(BtlStatChr *chr) {
+f32 BtlStat_GetBlast2DamageScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel5(chr), 9);
 }
 
 /* Curve row 10 at level 6. */
-f32 BtlStat_GetScale10(BtlStatChr *chr) {
+f32 BtlStat_GetUltimateDamageScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel6(chr), 10);
 }
 
 /* Curve row 11 at level 0. */
-f32 BtlStat_GetScale11(BtlStatChr *chr) {
+f32 BtlStat_GetMaxPowerChargeScale(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel0(chr), 11);
 }
 
 /* Curve row 12 at level 0. */
-f32 BtlStat_GetScale12(BtlStatChr *chr) {
+f32 BtlStat_GetMaxPowerExtraTime(BtlStatChr *chr) {
     return BtlStat_EvalCurve(BtlStat_GetLevel0(chr), 12);
 }

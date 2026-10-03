@@ -58,8 +58,8 @@ extern void BtlAnim_SetStep(BtlMoveChr *chr, f32 v);
 extern void BtlAnim_ApplyBlend(BtlMoveChr *chr);
 extern void BtlAct_Update(BtlMoveChr *chr);
 extern BtlMoveBlastList *func_0012E0A0(void);
-extern s32 func_0020E920(BtlMoveChr *chr);
-extern s32 func_0020E9C8(BtlMoveChr *chr);
+extern s32 BtlParam_GetCount80(BtlMoveChr *chr);
+extern s32 BtlParam_GetUnk82(BtlMoveChr *chr);
 extern f32 BtlInput_GetStickX(BtlMoveChr *chr);
 extern f32 BtlInput_GetStickY(BtlMoveChr *chr);
 extern f32 BtlOpp_GetYaw(BtlMoveChr *chr);
@@ -68,16 +68,16 @@ extern void BtlOpp_GetDelta(BtlMoveChr *chr, Vec4 *out);
 extern void BtlOpp_GetPoseVec30(BtlMoveChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetHalfHeightDiff(BtlMoveChr *chr);
 extern f32 BtlOpp_GetRadius(BtlMoveChr *chr);
-extern f32 func_002062F0(s32 objId);
+extern f32 BtlCharApi_GetRadius(s32 objId);
 extern void BtlOpp_GetTargetPos(BtlMoveChr *chr, Vec4 *out);
 extern void BtlOpp_GetVelocity(BtlMoveChr *chr, Vec4 *out);
 extern void BtlOpp_GetObjVecFA0(BtlMoveChr *chr, Vec4 *out);
-extern void func_00206350(s32 objId, Vec4 *out);
+extern void BtlCharApi_GetBodyPos(s32 objId, Vec4 *out);
 extern void BtlChar_SetUnk1310(BtlMoveChr *chr, Vec4 *v);
 extern f32 func_0023FEB0(void);
 extern f32 func_0023FEF8(void);
 extern f32 func_0023FF38(void);
-extern f32 func_00204EA0(s32 objId);
+extern f32 BtlCharApi_GetHeight(s32 objId);
 extern f32 BtlOpp_GetHeight(BtlMoveChr *chr);
 extern void BtlChar_GetSnapPos(BtlMoveChr *chr, Vec4 *out, s32 slot);
 extern void BtlOpp_GetSnapPos(BtlMoveChr *chr, Vec4 *out, s32 slot);
@@ -86,7 +86,7 @@ extern s32 BtlChars_IsTimeStopped(void);
 extern s32 BtlInput_TestAction(BtlMoveChr *chr, s32 id, s32 arg);
 extern f32 BtlMember_GetHealthRatio(BtlMoveChr *chr);
 extern s32 BtlMember_HasAbility(BtlMoveChr *chr, s32 ability);
-extern s32 func_0020E0B8(BtlMoveChr *chr);
+extern s32 BtlParam_GetFlags2(BtlMoveChr *chr);
 extern s32 BtlChar_IsDead(BtlMoveChr *chr);
 extern s32 BtlChar_IsFree(BtlMoveChr *chr);
 extern s32 BtlChar_IsStage4Or27(void);
@@ -217,7 +217,7 @@ s32 BtlMove_IsHeadingIntoWall(BtlMoveChr *chr, f32 angle) {
 }
 
 /* Counts the fighter's live blasts of one class (0: definition kinds 0, 4, 8; 1: the others), stores the count and
-   returns 1 while it is below the character's limit for the class (func_0020E920 / func_0020E9C8). */
+   returns 1 while it is below the character's limit for the class (BtlParam_GetCount80 / BtlParam_GetUnk82). */
 s32 BtlMove_CanFireBlast(BtlMoveChr *chr, s32 mode, s32 *outCount) {
     s32 n = 0;
     BtlMoveBlastList *list = func_0012E0A0();
@@ -260,12 +260,12 @@ s32 BtlMove_CanFireBlast(BtlMoveChr *chr, s32 mode, s32 *outCount) {
     }
     switch (mode) {
     case 0:
-        if (n < func_0020E920(chr)) {
+        if (n < BtlParam_GetCount80(chr)) {
             return 1;
         }
         break;
     case 1:
-        if (n < func_0020E9C8(chr)) {
+        if (n < BtlParam_GetUnk82(chr)) {
             return 1;
         }
         break;
@@ -501,7 +501,7 @@ void BtlMove_TurnPitch(BtlMoveChr *chr, s32 mode, f32 maxStep) {
                 Vec3_Normalize(&nOpp, &oppVel);
                 Vec3_Normalize(&nTo, &to);
                 dist = Vec3_Length(&to);
-                dist -= (1.0f - __builtin_fabsf(nTo.y)) * func_002062F0(chr->objId);
+                dist -= (1.0f - __builtin_fabsf(nTo.y)) * BtlCharApi_GetRadius(chr->objId);
                 dist -= (1.0f - __builtin_fabsf(nTo.y)) * BtlOpp_GetRadius(chr);
                 if (dist < 0.0f) {
                     dist = 0.0f;
@@ -577,7 +577,7 @@ void BtlMove_SteerAtOpponent(BtlMoveChr *chr, f32 closeSpeed, f32 yawAccel, f32 
     BtlOpp_GetDelta(chr, &to);
     to.y += BtlOpp_GetHalfHeightDiff(chr);
     dist = Vec3_Length(&to);
-    dist -= func_002062F0(chr->objId) * 0.5f;
+    dist -= BtlCharApi_GetRadius(chr->objId) * 0.5f;
     dist -= BtlOpp_GetRadius(chr) * 0.5f;
     if (dist < 0.0f) {
         dist = 0.0f;
@@ -826,7 +826,7 @@ void BtlMove_WarpAheadOfOpponent(BtlMoveChr *chr, f32 lead) {
         Vec4_Scale(&ofs, &oppVel, lead);
         Vec4_Add(&opp, &opp, &ofs);
         Vec4_Copy(&ofs, &oppVel);
-        rad = func_002062F0(chr->objId) + BtlOpp_GetRadius(chr);
+        rad = BtlCharApi_GetRadius(chr->objId) + BtlOpp_GetRadius(chr);
         len = BtlUtil_LengthXZ(&ofs);
         if (0.0001f < len) {
             len = rad / len;
@@ -857,7 +857,7 @@ void BtlMove_WarpBehindOpponent(BtlMoveChr *chr, f32 gap) {
         BtlOpp_GetTargetRot(chr, &rot);
         BtlOpp_GetPoseVec30(chr, &vel);
         Vec4_Add(&opp, &opp, &vel);
-        d = func_002062F0(chr->objId) + BtlOpp_GetRadius(chr);
+        d = BtlCharApi_GetRadius(chr->objId) + BtlOpp_GetRadius(chr);
         d += gap;
         ofs.x = -Mathf_Sin(rot.y) * d;
         ofs.y = 0.0f;
@@ -881,7 +881,7 @@ void BtlMove_WarpInFrontOfOpponent(BtlMoveChr *chr, f32 gap) {
         BtlOpp_GetTargetRot(chr, &rot);
         BtlOpp_GetPoseVec30(chr, &vel);
         Vec4_Add(&opp, &opp, &vel);
-        d = func_002062F0(chr->objId) + BtlOpp_GetRadius(chr);
+        d = BtlCharApi_GetRadius(chr->objId) + BtlOpp_GetRadius(chr);
         d += gap;
         ofs.x = Mathf_Sin(rot.y) * d;
         ofs.y = 0.0f;
@@ -899,7 +899,7 @@ void BtlMove_SnapToOpponent(BtlMoveChr *chr) {
     Vec4 d;
     BtlMovePose *pose = BtlChar_GetPos(chr);
 
-    func_00206350(chr->objId, &own);
+    BtlCharApi_GetBodyPos(chr->objId, &own);
     BtlOpp_GetObjVecFA0(chr, &opp);
     Vec4_Sub(&d, &opp, &own);
     Vec4_Add(&pose->pos, &pose->pos, &d);
@@ -1004,7 +1004,7 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
     BtlOpp_GetVelocity(chr, &vel);
     Vec4_Scale(&vel, &vel, lead);
     Vec4_Add(&tgt, &opp, &vel);
-    scale = func_00204EA0(chr->objId);
+    scale = BtlCharApi_GetHeight(chr->objId);
     oppScale = BtlOpp_GetHeight(chr);
     tgt.y += BtlOpp_GetHalfHeightDiff(chr);
     func_002398F0(&seg, &opp, &tgt);
@@ -1066,7 +1066,7 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
     }
     if (out != NULL) {
         len = distScale * dist;
-        len += func_002062F0(chr->objId);
+        len += BtlCharApi_GetRadius(chr->objId);
         Vec4_Scale(&d, &d, len + BtlOpp_GetRadius(chr));
         Vec4_Sub(out, &tgt, &d);
         top = func_0023FEF8() + scale * 0.5f;
@@ -1158,7 +1158,7 @@ s32 BtlMove_IsBlockedByOpponent(BtlMoveChr *chr) {
                 return 1;
             }
         } else {
-            if (-to.y < func_00204EA0(chr->objId) * 0.5f) {
+            if (-to.y < BtlCharApi_GetHeight(chr->objId) * 0.5f) {
                 return 1;
             }
         }
@@ -1186,7 +1186,7 @@ void BtlMove_ClampToStage(BtlMoveChr *chr) {
     if (!BtlChar_TestFlag(chr, 0x18)) {
         f32 top = func_0023FEF8();
 
-        top += func_00204EA0(chr->objId) * 0.5f;
+        top += BtlCharApi_GetHeight(chr->objId) * 0.5f;
         if (pose->pos.y < top) {
             pose->pos.y = top;
             BtlChar_SetHeldFlag(chr, 0x15);
@@ -1197,7 +1197,7 @@ void BtlMove_ClampToStage(BtlMoveChr *chr) {
     if (!BtlChar_IsDead(chr)) {
         f32 bottom = func_0023FF38();
 
-        bottom += func_00204EA0(chr->objId) * 0.5f;
+        bottom += BtlCharApi_GetHeight(chr->objId) * 0.5f;
         if (bottom < pose->pos.y) {
             pose->pos.y = bottom;
             BtlChar_SetHeldFlag(chr, 0x16);
@@ -1343,7 +1343,7 @@ s32 BtlMove_PushOut(BtlMoveChr *chr) {
     BtlOpp_GetSnapPos(chr, &opp0, 0);
     Vec4_Sub(&d, &opp0, &own0);
     if (checkHeight) {
-        h[0] = func_00204EA0(chr->objId);
+        h[0] = BtlCharApi_GetHeight(chr->objId);
         h[1] = BtlOpp_GetHeight(chr);
         if (d.y < -h[0] || h[1] < d.y) {
             return 0;
@@ -1371,7 +1371,7 @@ s32 BtlMove_PushOut(BtlMoveChr *chr) {
     plane.y = 0.0f;
     plane.z = -n.z;
     plane.w = -Vec3_Dot(&plane, &base);
-    plane.w -= func_002062F0(chr->objId);
+    plane.w -= BtlCharApi_GetRadius(chr->objId);
     plane.w -= BtlOpp_GetRadius(chr);
     BtlChar_GetSnapDelta(chr, &move, 0, 1);
     BtlOpp_GetSnapPos(chr, &oppC, 1);
@@ -1678,7 +1678,7 @@ void BtlMove_UpdateDefenseTimers(BtlMoveChr *chr) {
     chr->unk1074--;
     if (chr->unk1074 < -15) {
         chr->unk1074 = -15;
-        if (BtlInput_TestAction(chr, 0x2B, 1) && (func_0020E0B8(chr) & 0x20)) {
+        if (BtlInput_TestAction(chr, 0x2B, 1) && (BtlParam_GetFlags2(chr) & 0x20)) {
             chr->unk1074 = 5;
         }
     }
@@ -1704,7 +1704,7 @@ void BtlMove_UpdateDefenseTimers(BtlMoveChr *chr) {
             chr->unk107C = -1;
         }
     }
-    if (func_0020E0B8(chr) & 8) {
+    if (BtlParam_GetFlags2(chr) & 8) {
         chr->unk1080++;
         if (chr->unk1080 >= 2) {
             chr->unk1080 = 1;

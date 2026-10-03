@@ -29,7 +29,7 @@ extern PadWatchCommonRes *gCommonRes;
 extern PadWatchBattleWork *Battle_GetWork(void);
 extern s32 Battle_IsSplitScreen(void);
 extern s32 Battle_GetMode(void);
-extern s32 func_00212A08(void);  /* returns the word at D_002FEB28 */
+extern s32 func_00212A08(void);  /* returns the word at gBtlGameReplayActive */
 extern void Gfx_AddDefaultEnv(void);
 extern s32 func_0023A458(void);          /* current font */
 extern void func_0023A2D0(s32 font);     /* select a font */

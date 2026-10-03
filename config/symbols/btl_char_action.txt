@@ -20,7 +20,7 @@ BtlAct_GetQueued = 0x001E0370; // type:func // guess
 BtlAct_PopQueue = 0x001E0378; // type:func // guess
 
 // (id): id == 0x105 or 0x106..0x132: the hit-reaction actions.
-BtlAct_IsDamageId = 0x001E03A8; // type:func // guess
+BtlAct_IsTechniqueId = 0x001E03A8; // type:func // guess
 // (chr, id): 0x105 -> 4; 0xFD..0x102 -> (id - 0xFD) % 2; 0x106..0x13B -> (id - 0x106) % 3 + 2; else -1.
 BtlAct_GetIdClass = 0x001E03C8; // type:func // guess
 BtlAct_GetCurrentClass = 0x001E0430; // type:func // guess

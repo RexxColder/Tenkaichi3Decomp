@@ -51,21 +51,21 @@ BtlStat_GetLevel6 = 0x001C3938; // type:func // guess
 BtlStat_EvalCurve = 0x001C3980; // type:func // guess
 // 0x1C3A20..0x1C3AF8(chr): (int)(EvalCurve(level, row) / 30) for (level, row) = (0, 0) (0, 1) (0, 2) (4, 3).
 // Callers: 0x20EC00 / 0x20EC88, 0x20ED10, 0x20ED60, 0x20EF20.
-BtlStat_GetRate0 = 0x001C3A20; // type:func // guess
-BtlStat_GetRate1 = 0x001C3A68; // type:func // guess
-BtlStat_GetRate2 = 0x001C3AB0; // type:func // guess
-BtlStat_GetRate3 = 0x001C3AF8; // type:func // guess
+BtlStat_GetKiChargeBonus = 0x001C3A20; // type:func // guess
+BtlStat_GetKiRegenBonus = 0x001C3A68; // type:func // guess
+BtlStat_GetKiRecoverBonus = 0x001C3AB0; // type:func // guess
+BtlStat_GetBlastGainBonus = 0x001C3AF8; // type:func // guess
 // 0x1C3B40..0x1C3C80(chr): EvalCurve(level, row) for (level, row) = (1, 4) (1, 5) (1, 6) (2, 7) (3, 8) (5, 9) (6, 10)
 // (0, 11) (0, 12). Row 7 is called by 0x1CE630 (the health-loss routine); rows 4..6 by 0x20D418.., 0x20D6D0, 0x20FB78..
-BtlStat_GetScale4 = 0x001C3B40; // type:func // guess
-BtlStat_GetScale5 = 0x001C3B68; // type:func // guess
-BtlStat_GetScale6 = 0x001C3B90; // type:func // guess
+BtlStat_GetMeleeDamageScale = 0x001C3B40; // type:func // guess
+BtlStat_GetGuardKiCostScale = 0x001C3B68; // type:func // guess
+BtlStat_GetKiBlastDamageScale = 0x001C3B90; // type:func // guess
 BtlStat_GetScale7 = 0x001C3BB8; // type:func // guess
-BtlStat_GetScale8 = 0x001C3BE0; // type:func // guess
-BtlStat_GetScale9 = 0x001C3C08; // type:func // guess
-BtlStat_GetScale10 = 0x001C3C30; // type:func // guess
-BtlStat_GetScale11 = 0x001C3C58; // type:func // guess
-BtlStat_GetScale12 = 0x001C3C80; // type:func // guess
+BtlStat_GetSpeedScale = 0x001C3BE0; // type:func // guess
+BtlStat_GetBlast2DamageScale = 0x001C3C08; // type:func // guess
+BtlStat_GetUltimateDamageScale = 0x001C3C30; // type:func // guess
+BtlStat_GetMaxPowerChargeScale = 0x001C3C58; // type:func // guess
+BtlStat_GetMaxPowerExtraTime = 0x001C3C80; // type:func // guess
 // f32[13][3] in the .rodata of btl_char_status.c: {value at level 80, at 0, at -20} per row.
 gBtlStatCurve = 0x002EE7C0; // size:0x9C // guess
 

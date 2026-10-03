@@ -220,7 +220,7 @@ Script units (verified): health in percent of the member's maximum; ki in units 
 blast in stocks of 100000. "Raise" means at least, "Lower" at most. Every forced action clears
 flag 0xBE and zeroes the stun countdown.
 
-`BtlCtrl_IsMoveDone` is confirmed inverted: it returns 1 while a one-shot motion is still
+`BtlCtrl_IsMotionPlaying` is confirmed inverted: it returns 1 while a one-shot motion is still
 playing. A list of proposed renames for the `BtlCtrl_*` and `BtlFacade_*` placeholders
 (PlayMotion, Transform, Fuse, UseTechnique, SetMaxPower, aura and charge effects, Ki / Blast
 gauge names) is in the agent's symbol file comments and docs/status.md follow-ups.

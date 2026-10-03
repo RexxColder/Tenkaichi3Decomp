@@ -70,7 +70,7 @@ typedef struct BtlActAttackRec {
     /* 0x01 */ u8 unk1;
     /* 0x02 */ u8 unk2[2];
     /* 0x04 */ s8 parts;
-    /* 0x05 */ s8 kind;        /* 0..8, switched on by the queue builder func_00202DB8 */
+    /* 0x05 */ s8 kind;        /* 0..8, switched on by the queue builder BtlDecide_QueueAttack */
     /* 0x06 */ u16 motion;
     /* 0x08 */ f32 unk8;
     /* 0x0C */ s8 unkC;
@@ -254,7 +254,7 @@ s32 BtlAct_GetRequested(BtlActChr *chr);
 s32 BtlAct_GetPrev(BtlActChr *chr);
 s32 BtlAct_GetQueued(BtlActChr *chr);
 void BtlAct_PopQueue(BtlActChr *chr);
-s32 BtlAct_IsDamageId(s32 id);
+s32 BtlAct_IsTechniqueId(s32 id);
 s32 BtlAct_GetIdClass(BtlActChr *chr, s32 id);
 s32 BtlAct_GetCurrentClass(BtlActChr *chr);
 s32 BtlAct_GetPrevClass(BtlActChr *chr);

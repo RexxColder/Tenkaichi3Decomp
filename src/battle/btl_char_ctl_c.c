@@ -51,8 +51,8 @@ extern f32 BtlUtil_WrapAngle(f32 angle);
 extern s32 *BtlMember_GetActive(BtlCtlChr *chr);
 extern void BtlOpp_GetDelta(BtlCtlChr *chr, Vec4 *out);
 extern void BtlOpp_GetUnk15A0(BtlCtlChr *chr, Vec4 *out);
-extern f32 func_00204EA0(s32 objId);
-extern s32 func_0020E090(BtlCtlChr *chr);
+extern f32 BtlCharApi_GetHeight(s32 objId);
+extern s32 BtlParam_GetFlags(BtlCtlChr *chr);
 extern BtlCtlNode *func_002505A8(BtlCtlObj *obj, s32 node);
 
 /* Clears the head tracking: identity rotations, zero weights, and the height offset. */
@@ -64,7 +64,7 @@ void BtlChar_ResetLook(BtlCtlChr *chr) {
     Quat_SetIdentity(&obj->neckRot);
     obj->headBlend = 0.0f;
     obj->neckBlend = 0.0f;
-    look->height = func_00204EA0(chr->objId) * 0.7f;
+    look->height = BtlCharApi_GetHeight(chr->objId) * 0.7f;
 }
 
 /* Per frame: eases the look offset towards the head node's offset from the body (reset while time is stopped). */
@@ -367,9 +367,9 @@ void BtlChar_UpdateLookAlt(BtlCtlChr *chr) {
     }
 }
 
-/* Runs the head tracking unless func_0020E090 has bit 0x20; action 0x99 uses the second variant. */
+/* Runs the head tracking unless BtlParam_GetFlags has bit 0x20; action 0x99 uses the second variant. */
 s32 BtlChar_UpdateHead(BtlCtlChr *chr) {
-    if (!(func_0020E090(chr) & 0x20)) {
+    if (!(BtlParam_GetFlags(chr) & 0x20)) {
         if (*BtlMember_GetActive(chr) == 0x99) {
             BtlChar_UpdateLookAlt(chr);
         } else {

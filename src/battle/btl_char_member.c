@@ -2,12 +2,13 @@
 #include "battle/btl_char_member.h"
 
 /*
- * Team members, parameters and gauges of a fighter: 0x1CDCA8..0x1D00D8.
+ * Team members, parameters and gauges of a fighter: 0x1CDCA8..0x1CF578.
  *
  *   0x1CDD40..0x1CE630  member entries: parameter load, lookups, the active member, the switch candidate
  *   0x1CE630..0x1CF220  health, ki, blast stock and the +0x1C gauge of the active member; abilities
  *   0x1CF220            per-frame queued damage and drain
- *   0x1CF578..0x1D00D8  the one-frame effect request bits and the effects / sounds they spawn
+ *   (0x1CF578..0x1D00D8, the one-frame effect request bits and the effects / sounds they spawn, is the first part
+ *   of src/battle/btl_char_fx.c: BtlFx_UpdateGroundFx needs the request-bit helpers in its translation unit)
  *
  * Units: health 10000 per bar; ki 0..100000; blast stock 100000 per stock; the +0x1C gauge 0..30000.
  * Nothing here regenerates a gauge over time: this module only offers the add / spend calls. The per-frame
@@ -22,7 +23,7 @@
  *                                         is the window in which queued drain runs
  *   BtlAnim_TestAttr(chr, 1 << 33)        the animation's "deal the queued hit now" event
  *   BtlOpp_HasAbility(chr, n)              BtlMember_HasAbility(the opponent, n)
- *   func_0020F258(chr)                    float at (object + 0x91C) + 0x7C: the character's damage-taken multiplier
+ *   BtlParam_GetDamageTakenScale(chr)                    float at (object + 0x91C) + 0x7C: the character's damage-taken multiplier
  *   BtlStat_GetScale7(chr)                second damage-taken multiplier, from the member's bonus level
  *   BtlColl_NextPoolMember(chr)                    side 1 in mode 3: brings in the next opponent of the pool (BtlMember_Replace)
  *   func_0014AB90 / func_001A0D78 / func_001A0DD8 / func_001A0E10 / func_00187B00   effect spawners
@@ -54,35 +55,35 @@ extern s32 BtlAnim_TestAttr(BtlMemberChr *chr, u64 mask);
 extern f32 BtlStat_GetScale7(BtlMemberChr *chr);
 extern s32 BtlOpp_GetPlayer(BtlMemberChr *chr);
 extern s32 BtlOpp_HasAbility(BtlMemberChr *chr, s32 n);
-extern f32 func_0020F258(BtlMemberChr *chr);
-extern s32 func_00206B28(s32 objId);
-extern s32 func_00206C20(s32 objId);
+extern f32 BtlParam_GetDamageTakenScale(BtlMemberChr *chr);
+extern s32 BtlCharApi_IsInTechnique(s32 objId);
+extern s32 BtlCharApi_IsInRushSequence(s32 objId);
 
-extern f32 func_00212200(BtlMemberChr *chr, s32 kind);
-extern f32 func_00212128(BtlMemberChr *chr, s32 kind);
-extern f32 func_00212160(BtlMemberChr *chr, s32 kind);
-extern f32 func_002121A8(BtlMemberChr *chr, s32 kind);
-extern f32 func_00210F00(BtlMemberChr *chr, s32 kind);
-extern f32 func_00210E28(BtlMemberChr *chr, s32 kind);
-extern f32 func_00210E60(BtlMemberChr *chr, s32 kind);
-extern f32 func_00210EA8(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSkill_GetShotUnk30(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSkill_GetShotTime(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSkill_GetShotSpeed(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSkill_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSuper_GetShotUnk6C(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSuper_GetShotTime(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSuper_GetShotSpeed(BtlMemberChr *chr, s32 kind);
+extern f32 BtlSuper_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
 extern void func_0014AB90(BtlMemberAuraReq *req);
 extern void func_001A0D78(BtlMemberFx0Req *req);
 extern void func_001A0DD8(void);
 extern void func_001A0E10(void);
-extern s32 func_0020DC40(BtlMemberChr *chr);
-extern s32 func_0020DC60(BtlMemberChr *chr);
-extern s32 func_00206FA8(s32 objId);
-extern s32 func_0020D970(BtlMemberChr *chr);
-extern f32 func_0020DA70(BtlMemberChr *chr);
-extern f32 func_0020DB00(BtlMemberChr *chr);
+extern s32 BtlAtk_GetHitFxKind(BtlMemberChr *chr);
+extern s32 BtlAtk_GetHitSoundLevel(BtlMemberChr *chr);
+extern s32 BtlCharApi_HasWeaponOut(s32 objId);
+extern s32 BtlAtk_GetFlags(BtlMemberChr *chr);
+extern f32 BtlAtk_GetLaunchAngleA(BtlMemberChr *chr);
+extern f32 BtlAtk_GetLaunchAngleB(BtlMemberChr *chr);
 extern void BtlOpp_GetTargetPos(BtlMemberChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetRadius(BtlMemberChr *chr);
 extern void func_00187B00(BtlMemberHitFxReq *req);
-extern f32 func_00204EA0(s32 objId);
+extern f32 BtlCharApi_GetHeight(s32 objId);
 extern u32 func_0024D610(BtlMemberObj *obj, s32 a, s32 b, s32 c);
 extern s32 func_0024D518(u32 mask);
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlCharSnd_PlayCommon(BtlMemberChr *chr, s32 line);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
@@ -374,7 +375,7 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
     }
     if (!(flags & BTL_DMG_NO_DEFENSE)) {
         s32 second = 1;
-        s32 v = amount * func_0020F258(chr);
+        s32 v = amount * BtlParam_GetDamageTakenScale(chr);
 
         if (v <= 0 && amount > 0) {
             amount = 1;
@@ -789,7 +790,7 @@ void BtlMembers_UpdateQueuedDamage(void) {
             active = 1;
             frame = BtlAnim_GetFrame(chr);
         }
-        if (func_00206B28(chr->objId) && func_00206C20(chr->objId)) {
+        if (BtlCharApi_IsInTechnique(chr->objId) && BtlCharApi_IsInRushSequence(chr->objId)) {
             active = 1;
             frame = BtlCharApi_GetChargedUnkC78(chr->objId);
         }
@@ -853,403 +854,5 @@ void BtlMembers_UpdateQueuedDamage(void) {
             chr->queue.drainKiStep = 0;
             chr->queue.drainFrom = 0;
         }
-    }
-}
-
-/* Sets a one-frame effect request bit. */
-void BtlChar_SetFxBit(BtlMemberChr *chr, s32 n) {
-    chr->fxBits[n >> 3] |= 1 << (n & 7);
-}
-
-/* Clears a one-frame effect request bit. */
-void BtlChar_ClearFxBit(BtlMemberChr *chr, s32 n) {
-    u8 mask = 1 << (n & 7);
-
-    chr->fxBits[n >> 3] &= ~mask;
-}
-
-/* Tests an effect request bit of this frame. */
-s32 BtlChar_TestFxBit(BtlMemberChr *chr, s32 n) {
-    u8 mask = 1 << (n & 7);
-
-    return (chr->fxBits[n >> 3] & mask) != 0;
-}
-
-/* Tests an effect request bit of the frame before. */
-s32 BtlChar_TestPrevFxBit(BtlMemberChr *chr, s32 n) {
-    u8 mask = 1 << (n & 7);
-
-    return (chr->prevFxBits[n >> 3] & mask) != 0;
-}
-
-/* Whether the bit is set now and was not last frame. */
-s32 BtlChar_IsFxBitNew(BtlMemberChr *chr, s32 n) {
-    s32 r = 0;
-
-    if (BtlChar_TestFxBit(chr, n)) {
-        r = BtlChar_TestPrevFxBit(chr, n) == 0;
-    }
-    return r;
-}
-
-/* Whether the bit was set last frame and is not now. */
-s32 BtlChar_IsFxBitEnded(BtlMemberChr *chr, s32 n) {
-    s32 r = 0;
-
-    if (!BtlChar_TestFxBit(chr, n)) {
-        r = BtlChar_TestPrevFxBit(chr, n) != 0;
-    }
-    return r;
-}
-
-/* Returns the sound line for a hit of the given kind, or -1. */
-s32 BtlChar_GetHitSoundLine(s32 kind) {
-    switch (kind) {
-    case 0:
-        break;
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-        return BtlChar_FrameMod(2);
-    case 5:
-    case 9:
-    case 10:
-    case 11:
-    case 12:
-        return BtlChar_FrameMod(3) + 6;
-    case 6:
-        return 0x28;
-    case 7:
-        return 0x29;
-    case 8:
-        return 0x2A;
-    }
-    return -1;
-}
-
-/* Spawns the effect requested by fx bits 0x3C..0x40 (the highest set bit picks the kind 0..4). */
-void BtlChar_SpawnFxBits3C(BtlMemberChr *chr) {
-    BtlMemberAuraReq req;
-    s32 kind = -1;
-
-    if (BtlChar_TestFxBit(chr, 0x3C)) {
-        kind = 0;
-    }
-    if (BtlChar_TestFxBit(chr, 0x3D)) {
-        kind = 1;
-    }
-    if (BtlChar_TestFxBit(chr, 0x3E)) {
-        kind = 2;
-    }
-    if (BtlChar_TestFxBit(chr, 0x3F)) {
-        kind = 3;
-    }
-    if (BtlChar_TestFxBit(chr, 0x40)) {
-        kind = 4;
-    }
-    if (kind >= 0) {
-        s32 unkA24;
-
-        req.objId = chr->objId;
-        unkA24 = BtlChar_GetObj(chr)->unkA24;
-        req.kind = kind;
-        req.unk8 = unkA24;
-        switch (kind) {
-        case 0:
-        case 1:
-            req.unkC = func_00212200(chr, kind);
-            req.unk10 = func_00212128(chr, kind);
-            req.unk14 = func_00212160(chr, kind);
-            req.unk18 = func_002121A8(chr, kind);
-            break;
-        case 2:
-        case 3:
-        case 4:
-            req.unkC = func_00210F00(chr, kind);
-            req.unk10 = func_00210E28(chr, kind);
-            req.unk14 = func_00210E60(chr, kind);
-            req.unk18 = func_00210EA8(chr, kind);
-            break;
-        }
-        func_0014AB90(&req);
-    }
-}
-
-/* Spawns the effects requested by fx bits 0..2, by the kind in chr->unk12DC. */
-void BtlChar_SpawnFxBits0(BtlMemberChr *chr) {
-    BtlMemberFx0Req req;
-
-    if (BtlChar_TestFxBit(chr, 0)) {
-        req.objId = chr->objId;
-        req.kind = -1;
-        switch (chr->unk12DC) {
-        case 0:
-            req.kind = -1;
-            break;
-        case 1:
-            req.kind = 1;
-            break;
-        case 2:
-            req.kind = 0;
-            break;
-        case 3:
-            req.kind = 5;
-            break;
-        case 4:
-            req.kind = 6;
-            break;
-        case 5:
-            req.kind = 2;
-            break;
-        case 6:
-            req.kind = 3;
-            break;
-        case 7:
-            req.kind = 4;
-            break;
-        case 8:
-            req.kind = 7;
-            break;
-        case 9:
-            req.kind = 8;
-            break;
-        case 10:
-            req.kind = 9;
-            break;
-        case 11:
-            req.kind = 10;
-            break;
-        }
-        if (req.kind >= 0) {
-            func_001A0D78(&req);
-        }
-    }
-    if (BtlChar_TestFxBit(chr, 1) && chr->unk12DC != 0) {
-        func_001A0DD8();
-    }
-    if (BtlChar_TestFxBit(chr, 2) && chr->unk12DC != 0) {
-        func_001A0E10();
-    }
-}
-
-/* Spawns the hit effect and plays the hit sound requested by fx bits 0x1B..0x27. */
-void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
-    BtlMemberHitFxReq req;
-    s32 sound = -1;
-    BtlMemberPose *pose = BtlChar_GetPos(chr);
-    BtlMemberObj *obj = BtlChar_GetObj(chr);
-
-    req.kind = -1;
-    req.objId = chr->objId;
-    req.unk28 = 0;
-    if (BtlChar_TestFxBit(chr, 0x1B)) {
-        s32 guarded = 0;
-        s32 level;
-
-        switch (func_0020DC40(chr)) {
-        case 1:
-            req.kind = 0;
-            break;
-        case 2:
-            req.kind = 2;
-            break;
-        case 3:
-            req.kind = 2;
-            break;
-        case 4:
-            req.kind = 1;
-            break;
-        case 5:
-            req.kind = 2;
-            break;
-        case 6:
-            req.kind = 3;
-            break;
-        case 7:
-            req.kind = 0xC;
-            break;
-        case 8:
-            req.kind = 7;
-            break;
-        case 9:
-            req.kind = 8;
-            break;
-        case 10:
-            req.kind = 0xD;
-            break;
-        }
-        level = func_0020DC60(chr);
-        if (func_00206FA8(chr->objId) && !(func_0020D970(chr) & 0x2000)) {
-            guarded = 1;
-        }
-        if (guarded) {
-            if (req.kind < 3) {
-                req.kind = 9;
-            } else {
-                req.kind = 10;
-            }
-            sound = level < 5 ? 0x4D : 0x36;
-        } else {
-            switch (level) {
-            case 1:
-                sound = BtlChar_FrameMod(2) + 2;
-                break;
-            case 2:
-                sound = 0x19;
-                break;
-            case 3:
-                sound = 0x22;
-                break;
-            case 4:
-                sound = 0x45;
-                break;
-            case 5:
-                sound = BtlChar_FrameMod(2) + 9;
-                break;
-            case 6:
-                sound = 0x25;
-                break;
-            case 7:
-                sound = 0x26;
-                break;
-            case 8:
-                sound = 0x27;
-                break;
-            case 9:
-                sound = 0x49;
-                break;
-            case 10:
-                sound = 0x4E;
-                break;
-            case 11:
-                sound = 0x50;
-                break;
-            case 12:
-                sound = 0x4F;
-                break;
-            case 13:
-                sound = 0x4B;
-                break;
-            case 14:
-                sound = 0xE;
-                break;
-            }
-        }
-    }
-    if (BtlChar_TestFxBit(chr, 0x1C)) {
-        req.kind = 6;
-        if (func_0020DC60(chr) < 5) {
-            sound = BtlChar_FrameMod(2) + 4;
-        } else {
-            sound = BtlChar_FrameMod(2) + 0xC;
-        }
-    }
-    if (BtlChar_TestFxBit(chr, 0x21)) {
-        sound = 0x24;
-        req.kind = 6;
-    }
-    if (BtlChar_TestFxBit(chr, 0x24)) {
-        sound = 0x42;
-        req.kind = 6;
-    }
-    if (BtlChar_TestFxBit(chr, 0x22)) {
-        if (func_0020DC40(chr) < 4) {
-            req.kind = 4;
-            sound = BtlChar_FrameMod(2) + 0xC;
-        } else {
-            sound = 0x24;
-            req.kind = 5;
-        }
-    }
-    if (req.kind >= 0) {
-        f32 yaw = BtlUtil_WrapAngle(pose->yaw + func_0020DA70(chr));
-        f32 pitch = func_0020DB00(chr);
-        f32 sinYaw = Mathf_Sin(yaw);
-        f32 cosYaw = Mathf_Cos(yaw);
-        f32 sinPitch = Mathf_Sin(pitch);
-        f32 cosPitch = Mathf_Cos(pitch);
-
-        req.dir.x = cosPitch * sinYaw;
-        req.dir.y = -sinPitch;
-        req.dir.z = cosPitch * cosYaw;
-        req.dir.w = 0.0f;
-        if (BtlChar_TestFxBit(chr, 0x25)) {
-            Vec4 target;
-
-            BtlOpp_GetTargetPos(chr, &target);
-            req.pos.x = target.x - Mathf_Sin(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.y = BtlChar_GetPos(chr)->pos.y;
-            req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.w = 1.0f;
-            func_00187B00(&req);
-        } else if (BtlChar_TestFxBit(chr, 0x26)) {
-            Vec4 target;
-
-            BtlOpp_GetTargetPos(chr, &target);
-            req.pos.x = target.x - Mathf_Sin(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.y = BtlChar_GetPos(chr)->pos.y;
-            req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.w = 1.0f;
-            req.pos.y -= func_00204EA0(chr->objId) * 0.5f;
-            func_00187B00(&req);
-        } else if (BtlChar_TestFxBit(chr, 0x27)) {
-            Vec4 target;
-
-            BtlOpp_GetTargetPos(chr, &target);
-            req.pos.x = target.x - Mathf_Sin(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.y = BtlChar_GetPos(chr)->pos.y;
-            req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
-            req.pos.w = 1.0f;
-            req.pos.y -= func_00204EA0(chr->objId);
-            func_00187B00(&req);
-        } else {
-            s32 masks[9] = { 0x40000, 0x800, 0x100, 0x400, 0x80, 0x20, 8, 0x10, 4 };
-            u32 bits = obj->unkC9C;
-            u32 hit;
-            s32 i;
-            Vec4 fwd;
-            Vec4 point;
-            Vec4 tmp;
-
-            if (bits == 0) {
-                bits = func_0024D610(obj, 1, 0, 6);
-            }
-            for (i = 0; i < 9; i++) {
-                hit = bits & masks[i];
-                if (hit != 0) {
-                    break;
-                }
-            }
-            if (hit == 0) {
-                for (i = 0; i < 0x13; i++) {
-                    hit = bits & (1 << i);
-                    if (hit != 0) {
-                        break;
-                    }
-                }
-            }
-            if (hit != 0) {
-                f32 d;
-
-                func_002058E0(chr->objId, func_0024D518(hit), &req.pos);
-                fwd.x = Mathf_Sin(pose->unk14);
-                fwd.y = 0.0f;
-                fwd.z = Mathf_Cos(pose->unk14);
-                Vec4_Scale(&tmp, &fwd, 5.0f);
-                Vec4_Add(&point, &pose->pos, &tmp);
-                fwd.w = -Vec3_Dot(&fwd, &point);
-                d = Vec3_Dot(&fwd, &req.pos) + fwd.w;
-                if (d < 0.0f) {
-                    Vec4_Scale(&tmp, &fwd, -d);
-                    Vec4_Add(&req.pos, &req.pos, &tmp);
-                }
-                req.pos.w = 1.0f;
-                func_00187B00(&req);
-            }
-        }
-    }
-    if (sound >= 0) {
-        BtlCharSnd_PlayCommon(chr, sound);
     }
 }

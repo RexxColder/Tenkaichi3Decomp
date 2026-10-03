@@ -12,7 +12,7 @@
  * AiTh prefix. Offsets marked (m) are used by matching code in btl_ai_cond.c.
  */
 
-/* A position as func_002053F0 writes it. */
+/* A position as BtlCharApi_GetPos writes it. */
 typedef struct AiThVec {
     /* 0x00 */ f32 x;
     /* 0x04 */ f32 y;
@@ -121,7 +121,7 @@ typedef struct AiThWork {
 
 #define AITH_KIT_MOVE6 1 /* one of the two move slots has kind 6 */
 #define AITH_KIT_MOVE7 2 /* one has kind 7 (cleared when both are present) */
-#define AITH_KIT_UNK4 4  /* func_00208DE0(side) is non-zero */
+#define AITH_KIT_UNK4 4  /* BtlCharApi_HasParamBit80(side) is non-zero */
 
 /*
  * A rule. (m) for every field listed; the rest of the record is read by the action starter func_001B3FC8.
@@ -205,7 +205,7 @@ typedef struct AiThMgr {
     /* 0xA58 */ s32 unkA58[2];
 } AiThMgr; /* size 0xA60 */
 
-/* Part of the fighter data func_00208B98 returns: the two "move" slots. */
+/* Part of the fighter data BtlCharApi_GetMoveTable returns: the two "move" slots. */
 typedef struct AiThChrMoves {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ s16 id[2];      /* (m) */
@@ -215,7 +215,7 @@ typedef struct AiThChrMoves {
     /* 0x9E */ s8 kind[2];     /* (m) */
 } AiThChrMoves;
 
-/* Part of the fighter data func_00208B58 returns: the three skill slots (the third only with fighter flag 6). */
+/* Part of the fighter data BtlCharApi_GetSkillTable returns: the three skill slots (the third only with fighter flag 6). */
 typedef struct AiThChrSkills {
     /* 0x000 */ u32 state[3];  /* bit 0x100 */
     /* 0x00C */ u32 flags[3];  /* (m) bits 0x2000, 0x8000000 */

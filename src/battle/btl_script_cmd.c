@@ -31,7 +31,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 
 /* btl_facade.h declares (side, type, mode, value); the call here sets up the float before the mode, which is
    the order (side, type, value, mode). Same registers either way. */
-extern void BtlFacade_StartCharMoveF(s32 side, s32 type, f32 value, s32 mode) __asm__("BtlFacade_StartCharMove");
+extern void BtlFacade_StartCharMoveF(s32 side, s32 type, f32 value, s32 mode) __asm__("BtlFacade_PlayCharMotion");
 
 /* the text module's default window (0x23AC50, not decompiled) */
 extern BtlScriptCmdWindow *func_0023AC50(void);
@@ -210,7 +210,7 @@ s32 BtlScriptCmd_PlaceChar(u32 phase, void *taskWork) {
         rot.z = DEG2RAD(Gsc_GetFloat());
         rot.w = 1.0f;
         BtlFacade_SetCharPos(side, &pos);
-        BtlFacade_SetCharDir(side, &rot);
+        BtlFacade_SetCharRot(side, &rot);
     }
     return 1;
 }
@@ -240,7 +240,7 @@ s32 BtlScriptCmd_SetCharDir(u32 phase, void *taskWork) {
         rot.y = DEG2RAD(Gsc_GetFloat());
         rot.z = DEG2RAD(Gsc_GetFloat());
         rot.w = 1.0f;
-        BtlFacade_SetCharDir(side, &rot);
+        BtlFacade_SetCharRot(side, &rot);
     }
     return 1;
 }
@@ -302,7 +302,7 @@ s32 BtlScriptCmd_SetCtrl102(u32 phase, void *taskWork) {
 }
 
 /* Command 901 "move": who type [-t value] [-l] [-w]. Starts scripted move `type` (-l: looping). It waits only
-   when -w is given without -l, and then until BtlFacade_IsCharMoveDone() returns 0: despite its name that
+   when -w is given without -l, and then until BtlFacade_IsCharMotionPlaying() returns 0: despite its name that
    function returns 1 while a one-shot move is still playing (fighter flag 0x31 clear) and always 1 for a looping
    move, so the wait ends when the move has played to its end. */
 s32 BtlScriptCmd_MoveChar(u32 phase, void *taskWork) {
@@ -338,7 +338,7 @@ s32 BtlScriptCmd_MoveChar(u32 phase, void *taskWork) {
         }
         break;
     case GSC_PHASE_UPDATE:
-        ret = BtlFacade_IsCharMoveDone(work[0]) == 0;
+        ret = BtlFacade_IsCharMotionPlaying(work[0]) == 0;
         break;
     case GSC_PHASE_END:
     case GSC_PHASE_NOTIFY:
@@ -350,8 +350,8 @@ s32 BtlScriptCmd_MoveChar(u32 phase, void *taskWork) {
 /* Command 902 "stop moves": ends the scripted move of both fighters. */
 s32 BtlScriptCmd_StopCharMoves(u32 phase, void *taskWork) {
     if (phase == GSC_PHASE_BEGIN || phase == GSC_PHASE_BEGIN_ABORT) {
-        BtlFacade_StopCharMove(0);
-        BtlFacade_StopCharMove(1);
+        BtlFacade_StopCharMotion(0);
+        BtlFacade_StopCharMotion(1);
     }
     return 1;
 }
@@ -741,8 +741,8 @@ s32 BtlScriptCmd_EndEvent(u32 phase, void *taskWork) {
 
     if (phase == GSC_PHASE_BEGIN || phase == GSC_PHASE_BEGIN_ABORT) {
         if (event == NULL || event->group == 0 || !event->cmd4B1) {
-            BtlFacade_StopCharMove(0);
-            BtlFacade_StopCharMove(1);
+            BtlFacade_StopCharMotion(0);
+            BtlFacade_StopCharMotion(1);
             BtlFacade_ClearFixedCamera();
         }
     }
@@ -767,9 +767,9 @@ s32 BtlScriptCmd_BeginScene(u32 phase, void *taskWork) {
             func_002427A0(0, &pos0, &rot0, 0);
             func_002427A0(1, &pos1, &rot1, 0);
             BtlFacade_SetCharPos(0, &pos0);
-            BtlFacade_SetCharDir(0, &rot0);
+            BtlFacade_SetCharRot(0, &rot0);
             BtlFacade_SetCharPos(1, &pos1);
-            BtlFacade_SetCharDir(1, &rot1);
+            BtlFacade_SetCharRot(1, &rot1);
             BtlFacade_StartCharMoveF(0, 0, 0.0f, 1);
             BtlFacade_StartCharMoveF(1, 0, 0.0f, 1);
         }
@@ -777,9 +777,9 @@ s32 BtlScriptCmd_BeginScene(u32 phase, void *taskWork) {
             func_002427A0(0, &pos0, &rot0, 0);
             func_002427A0(1, &pos1, &rot1, 0);
             BtlFacade_SetCharPos(0, &pos0);
-            BtlFacade_SetCharDir(0, &rot0);
+            BtlFacade_SetCharRot(0, &rot0);
             BtlFacade_SetCharPos(1, &pos1);
-            BtlFacade_SetCharDir(1, &rot1);
+            BtlFacade_SetCharRot(1, &rot1);
             BtlFacade_StartCharMoveF(0, 0, 0.0f, 1);
             BtlFacade_StartCharMoveF(1, 0, 0.0f, 1);
         }
@@ -879,13 +879,13 @@ s32 BtlScriptCmd_Battle(u32 phase, void *taskWork) {
             break;
         case 21:
         case 22:
-            BtlFacade_UseSkillA(side, arg);
+            BtlFacade_Transform(side, arg);
             break;
         case 23:
-            BtlFacade_UseSkillB(side, arg);
+            BtlFacade_Fuse(side, arg);
             break;
         case 24:
-            BtlFacade_SetPowerUp(side, 1);
+            BtlFacade_SetMaxPower(side, 1);
             break;
         case 25:
             BtlFacade_ForceAction01(side, 0);

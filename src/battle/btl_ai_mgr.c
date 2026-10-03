@@ -49,13 +49,13 @@ extern BtlAiMgrChr *BtlChar_Get(s32 side);
 extern s32 BtlChar_IsStage4Or27(void);                        /* Battle_GetStage() is 4 or 27 */
 
 /* Fighter accessors by object id (0x204xxx..0x208xxx, not decompiled). */
-extern void func_002053F0(s32 objId, BtlAiVec *out);       /* position: transform +0 plus +0x20, or object +0x970 */
-extern f32 func_00204EA0(s32 objId);                   /* object +0xFF4 (height), 10.0 without object */
-extern f32 func_00205870(s32 objId);                   /* fighter transform +0xB4 */
-extern f32 func_00205800(s32 objId);                   /* fighter transform +0x98 */
-extern f32 func_002062F0(s32 objId);                   /* body radius: object +0x91C->+0xC, or +0xFF0 * constant */
-extern void func_002056F8(s32 objId, BtlAiVec *out);       /* fighter transform +0x30 */
-extern s32 func_00205CC8(s32 objId);                   /* BtlChar_TestFlag(chr, 0x13) */
+extern void BtlCharApi_GetPos(s32 objId, BtlAiVec *out);       /* position: transform +0 plus +0x20, or object +0x970 */
+extern f32 BtlCharApi_GetHeight(s32 objId);                   /* object +0xFF4 (height), 10.0 without object */
+extern f32 BtlCharApi_GetGroundY(s32 objId);                   /* fighter transform +0xB4 */
+extern f32 BtlCharApi_GetSpeed(s32 objId);                   /* fighter transform +0x98 */
+extern f32 BtlCharApi_GetRadius(s32 objId);                   /* body radius: object +0x91C->+0xC, or +0xFF0 * constant */
+extern void BtlCharApi_GetVelocity(s32 objId, BtlAiVec *out);       /* fighter transform +0x30 */
+extern s32 BtlCharApi_IsClose(s32 objId);                   /* BtlChar_TestFlag(chr, 0x13) */
 extern s32 BtlCharApi_TestFlag0F(s32 objId);                   /* BtlChar_TestFlag(chr, 0xF) */
 extern s32 BtlCharApi_GetUnk974(s32 objId);                   /* fighter +0x974: current state id */
 extern s32 BtlCharApi_IsInputInjected(s32 objId);                   /* fighter +0x1278: input comes from the AI */
@@ -223,10 +223,10 @@ void BtlAiMgr_UpdateSight(void) {
     BtlAiVec d;
     BtlAiSegment seg;
 
-    func_002053F0(0, &a);
-    a.y -= func_00204EA0(0) * 0.5f;
-    func_002053F0(1, &b);
-    b.y -= func_00204EA0(1) * 0.5f;
+    BtlCharApi_GetPos(0, &a);
+    a.y -= BtlCharApi_GetHeight(0) * 0.5f;
+    BtlCharApi_GetPos(1, &b);
+    b.y -= BtlCharApi_GetHeight(1) * 0.5f;
     Vec3_Sub(&d, &a, &b);
     gBtlAi->dist = Vec3_Length(&d);
     seg.from = a;
@@ -295,8 +295,8 @@ s32 BtlAiMove_PickDir(BtlAiWork *s, s32 mode) {
     f32 top = func_0023FEF8() + 20.0f;
     f32 rad = func_0023FEB0() - 100.0f;
 
-    func_002053F0(s->objId, &pos);
-    func_002053F0(s->objId ^ 1, &opp);
+    BtlCharApi_GetPos(s->objId, &pos);
+    BtlCharApi_GetPos(s->objId ^ 1, &opp);
     list = &cand;
     list->v[0] = 0;
     if (mode == 2) {
@@ -304,7 +304,7 @@ s32 BtlAiMove_PickDir(BtlAiWork *s, s32 mode) {
             cand.v[1] = 1;
             n = 2;
         }
-        if (pos.y < func_00205870(s->objId) - 20.0f || opp.y < func_00205870(s->objId ^ 1) - 20.0f) {
+        if (pos.y < BtlCharApi_GetGroundY(s->objId) - 20.0f || opp.y < BtlCharApi_GetGroundY(s->objId ^ 1) - 20.0f) {
             list->v[n++] = 2;
         }
     }
@@ -352,9 +352,9 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     s32 special = BtlChar_IsStage4Or27();
     f32 reach;
 
-    func_002053F0(s->objId, &pos);
+    BtlCharApi_GetPos(s->objId, &pos);
     a = pos;
-    func_002053F0(s->objId ^ 1, &opp);
+    BtlCharApi_GetPos(s->objId ^ 1, &opp);
     a.y = pos.y;
     Vec3_Sub(&dir, &a, &opp);
     Vec3_Normalize(&dir, &dir);
@@ -370,7 +370,7 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     } else {
         Vec3_Add(&m->target, &opp, &a);
     }
-    pos.y -= func_00204EA0(s->objId) * 0.5f;
+    pos.y -= BtlCharApi_GetHeight(s->objId) * 0.5f;
     act->flags &= ~(BTLAI_ACT_BLOCKED | BTLAI_ACT_BLOCKED_ID);
     if (rad < Vec3_Length(&m->target)) {
         Vec4_Scale(&a, &dir, rad - Vec3_Length(&pos));
@@ -384,9 +384,9 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
             act->flags |= BTLAI_ACT_BLOCKED_ID;
         }
     }
-    reach = func_002062F0(s->objId);
-    reach += func_00205800(s->objId) * 3.0f;
-    func_002056F8(s->objId, &dir);
+    reach = BtlCharApi_GetRadius(s->objId);
+    reach += BtlCharApi_GetSpeed(s->objId) * 3.0f;
+    BtlCharApi_GetVelocity(s->objId, &dir);
     Vec3_Normalize(&dir, &dir);
     Vec4_Scale(&a, &dir, reach);
     Vec3_Add(&ahead, &pos, &a);
@@ -411,7 +411,7 @@ s32 BtlAiMove_IsNear(BtlAiWork *s, BtlAiVec *p, s32 flat) {
     BtlAiMoveWork *m = &s->move;
     f32 len;
 
-    func_002053F0(s->objId, &pos);
+    BtlCharApi_GetPos(s->objId, &pos);
     Vec3_Sub(&d, &pos, p);
     if (m->type != 1 || flat != 0) {
         d.y = 0.0f;
@@ -420,7 +420,7 @@ s32 BtlAiMove_IsNear(BtlAiWork *s, BtlAiVec *p, s32 flat) {
     if (len < 20.0f) {
         return 1;
     }
-    if (len < func_00205800(s->objId) * 5.0f) {
+    if (len < BtlCharApi_GetSpeed(s->objId) * 5.0f) {
         return 1;
     }
     return 0;
@@ -433,7 +433,7 @@ s32 BtlAiMove_BuildPath(BtlAiWork *s) {
     BtlAiMovePath *path = &s->move.path;
     BtlAiMoveWork *m = &s->move;
 
-    func_002053F0(s->objId, &pos);
+    BtlCharApi_GetPos(s->objId, &pos);
     func_001B3A50(&pos, &s->move.target, path);
     m->pathTimer = 60;
     if (path->count > 0) {
@@ -468,7 +468,7 @@ s32 BtlAiMove_Check(BtlAiWork *s) {
         if (path->count == 0) {
             return 0;
         }
-        func_002053F0(s->objId, &pos);
+        BtlCharApi_GetPos(s->objId, &pos);
         if (path->count >= 2) {
             seg.from = pos;
             *(BtlAiMovePoint *)&seg.to = path->pts[path->count - 2];
@@ -487,7 +487,7 @@ s32 BtlAiMove_Check(BtlAiWork *s) {
             m->remain = Vec3_Length(&d);
         }
         if (m->pathTimer == 0) {
-            func_002053F0(s->objId ^ 1, &opp);
+            BtlCharApi_GetPos(s->objId ^ 1, &opp);
             Vec3_Sub(&d, &opp, (BtlAiVec *)path);
             if (50.0f < Vec3_Length(&d)) {
                 if (BtlAiMove_BuildPath(s)) {
@@ -541,14 +541,14 @@ void BtlAiMove_Steer(BtlAiWork *s, BtlAiVec *to, s32 kind) {
     tbl = mgr->data->act;
     cls = tbl->actClass[BtlCharApi_GetUnk974(side)];
     fly = BtlCharApi_TestFlag0F(s->objId);
-    func_002053F0(s->objId, &pos);
-    func_002053F0(s->objId ^ 1, &opp);
+    BtlCharApi_GetPos(s->objId, &pos);
+    BtlCharApi_GetPos(s->objId ^ 1, &opp);
     dy = to->y - pos.y;
     Vec3_Sub(&d, to, &pos);
     d.y = d.w = 0.0f;
     len = Vec3_Length(&d);
-    if (len < func_002062F0(s->objId)) {
-        len = func_002062F0(s->objId);
+    if (len < BtlCharApi_GetRadius(s->objId)) {
+        len = BtlCharApi_GetRadius(s->objId);
     }
     Vec3_Normalize(&d, &d);
     yaw = chr->yaw;
@@ -564,7 +564,7 @@ void BtlAiMove_Steer(BtlAiWork *s, BtlAiVec *to, s32 kind) {
     } else if (y < -1.0f) {
         y = -1.0f;
     }
-    if (func_00205CC8(s->objId) || fly != 0) {
+    if (BtlCharApi_IsClose(s->objId) || fly != 0) {
         press = BTLAI_BTN_DASH;
     } else {
         hold = BTLAI_BTN_DASH;
@@ -596,7 +596,7 @@ void BtlAiMove_Steer(BtlAiWork *s, BtlAiVec *to, s32 kind) {
         hold |= BTLAI_BTN_UP;
         x = y;
     }
-    if (func_00205CC8(s->objId)) {
+    if (BtlCharApi_IsClose(s->objId)) {
         if (!(hold & BTLAI_BTN_ASCEND)) {
             if ((u32)m->type >= 2) {
                 hold |= BTLAI_BTN_CHARGE;

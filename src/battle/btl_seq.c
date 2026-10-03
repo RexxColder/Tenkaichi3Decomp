@@ -28,7 +28,7 @@ extern u16 *func_00214FF0(void);
 extern u16 *func_002153E0(u16 *line);        /* start of the next line */
 extern void func_00215350(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1); /* GS scissor */
 extern void func_00215140(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u, s32 v, s32 w, s32 h, u32 color, s32 part);
-extern s32 func_0020C9B8(s32 side);
+extern s32 BtlCtrl_TestMemberUnk70(s32 side);
 extern s32 func_0023A458(void);
 extern void func_0023A2D0(s32 font);
 extern s32 func_0023A488(void);
@@ -149,7 +149,7 @@ s32 BtlText_CheckUnlock(u16 **cursor) {
 
         p += 4;
         if (id == 0x56) {
-            if (func_0020C9B8(work->side) != 0) {
+            if (BtlCtrl_TestMemberUnk70(work->side) != 0) {
                 ret = 0;
             }
         } else {
@@ -554,11 +554,11 @@ typedef struct BtlSeqObj {
 extern void BtlFacade_SetCtrl10D(s32 side);
 extern BtlSeqObj *BtlObj_Get(s32 idx);
 extern void BtlObj_SetSubState(BtlSeqObj *obj, s32 a, s32 line); /* mouth / talk animation */
-extern void func_00209EE8(s32 side);        /* character flag 0xEF: entrance pose */
-extern void func_00209F20(s32 side);        /* character flag 0xF0: end of entrance */
-extern void func_00209F58(s32 side);        /* character flag 0xF1: win pose */
-extern void func_00209F90(s32 side);        /* character flag 0xF2: lose pose */
-extern s32 func_00209FC8(s32 side);         /* pose reached */
+extern void BtlCtrl_StartEntrance(s32 side);        /* character flag 0xEF: entrance pose */
+extern void BtlCtrl_EndEntrance(s32 side);        /* character flag 0xF0: end of entrance */
+extern void BtlCtrl_StartWinPose(s32 side);        /* character flag 0xF1: win pose */
+extern void BtlCtrl_StartLosePose(s32 side);        /* character flag 0xF2: lose pose */
+extern s32 BtlCtrl_IsPoseReached(s32 side);         /* pose reached */
 extern void DemoCam_PlayObjAnim(s32 side, s32 cut); /* fighter camera cut */
 extern void DemoCam_SetScaleHeight(s32 a);
 extern s32 DemoCam_PlayStageAnim(s32 cut);          /* stage camera cut */
@@ -573,8 +573,8 @@ extern u8 *BtlScript_GetCurrentEvent(void);
 extern void func_0022AB50(s32 id);          /* HUD announcement */
 extern s32 BtlCharApi_AnyHasFlag128(void);             /* any character has flag 0x128 */
 extern s32 BtlCharApi_HasMemberUnk70(s32 side);
-extern s32 func_0020B8F0(s32 side);         /* character flag 7 */
-extern s32 func_0020B878(s32 side);         /* every character of the side has no health */
+extern s32 BtlCtrl_TestFlag7(s32 side);         /* character flag 7 */
+extern s32 BtlCtrl_IsTeamDead(s32 side);         /* every character of the side has no health */
 extern s32 func_0022FB90(void);
 extern void func_0022FBB0(s32 pad);
 extern s32 func_0022FBD8(void);
@@ -868,7 +868,7 @@ s32 BtlSeqIntroTalk_Enter(BtlSeqTalkCtx *ctx) {
 s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
-        func_00209EE8(ctx->side[0]);
+        BtlCtrl_StartEntrance(ctx->side[0]);
         Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
         DemoCam_PlayObjAnim(ctx->side[0], 0);
         Voice_PlayChara(ctx->side[0], ctx->chara[0], ctx->line[0]);
@@ -876,7 +876,7 @@ s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
         ctx->step++;
         break;
     case 2:
-        func_00209EE8(ctx->side[1]);
+        BtlCtrl_StartEntrance(ctx->side[1]);
         Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
         DemoCam_PlayObjAnim(ctx->side[1], 0);
         Voice_PlayChara(ctx->side[1], ctx->chara[1], ctx->line[1]);
@@ -894,7 +894,7 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
     case 1:
-        if (func_00209FC8(ctx->side[0])) {
+        if (BtlCtrl_IsPoseReached(ctx->side[0])) {
             if (Voice_IsStopped(ctx->side[0])) {
                 func_00244870();
                 func_00244830(1, 1.0f);
@@ -908,7 +908,7 @@ s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
         break;
     case 2:
     case 3:
-        if (func_00209FC8(ctx->side[1])) {
+        if (BtlCtrl_IsPoseReached(ctx->side[1])) {
             if (Voice_IsStopped(ctx->side[1]) || Ramp_Step(&ctx->timer)) {
                 func_00244870();
                 func_00244830(1, 1.0f);
@@ -947,8 +947,8 @@ done:
 s32 BtlSeqIntroTalk_Exit(BtlSeqTalkCtx *ctx) {
     if (Battle_GetMode() != 1) {
         DemoCam_Stop();
-        func_00209F20(ctx->side[0]);
-        func_00209F20(ctx->side[1]);
+        BtlCtrl_EndEntrance(ctx->side[0]);
+        BtlCtrl_EndEntrance(ctx->side[1]);
     }
     return 1;
 }
@@ -1043,11 +1043,11 @@ s32 BtlSeqWinTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
         if (BattleResult_IsPlayerWin()) {
-            func_00209F58(ctx->side[0]);
+            BtlCtrl_StartWinPose(ctx->side[0]);
             DemoCam_PlayObjAnim(ctx->side[0], 1);
             DemoCam_SetScaleHeight(1);
         } else {
-            func_00209F90(ctx->side[0]);
+            BtlCtrl_StartLosePose(ctx->side[0]);
             DemoCam_PlayObjAnim(ctx->side[0], 2);
         }
         Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
@@ -1070,7 +1070,7 @@ s32 BtlSeqWinTalk_Update(BtlSeqTalkCtx *ctx) {
     switch (ctx->step) {
     case 0:
     case 1:
-        if (func_00209FC8(ctx->side[0])) {
+        if (BtlCtrl_IsPoseReached(ctx->side[0])) {
             if (Voice_IsStopped(ctx->side[0]) || Ramp_Step(&ctx->timer)) {
                 ctx->step = 2;
             }
@@ -1262,32 +1262,32 @@ s32 BtlSeq_CheckBattleEnd(void) {
         BtlSeq_JudgeByHealth(result);
         return 1;
     }
-    if (func_0020B8F0(0) && func_0020B8F0(1)) {
+    if (BtlCtrl_TestFlag7(0) && BtlCtrl_TestFlag7(1)) {
         result->reason = BTL_REASON_FLAG7;
         BtlSeq_JudgeByHealth(result);
         return 1;
     }
-    if (func_0020B8F0(1)) {
+    if (BtlCtrl_TestFlag7(1)) {
         result->winner = BTL_RESULT_WIN_P1;
         result->reason = BTL_REASON_FLAG7;
         return 1;
     }
-    if (func_0020B8F0(0)) {
+    if (BtlCtrl_TestFlag7(0)) {
         result->winner = BTL_RESULT_WIN_P2;
         result->reason = BTL_REASON_FLAG7;
         return 1;
     }
-    if (func_0020B878(0) && func_0020B878(1)) {
+    if (BtlCtrl_IsTeamDead(0) && BtlCtrl_IsTeamDead(1)) {
         result->reason = BTL_REASON_KO;
         BtlSeq_JudgeByHealth(result);
         return 1;
     }
-    if (func_0020B878(1)) {
+    if (BtlCtrl_IsTeamDead(1)) {
         result->winner = BTL_RESULT_WIN_P1;
         result->reason = BTL_REASON_KO;
         return 1;
     }
-    if (func_0020B878(0)) {
+    if (BtlCtrl_IsTeamDead(0)) {
         result->winner = BTL_RESULT_WIN_P2;
         result->reason = BTL_REASON_KO;
         return 1;

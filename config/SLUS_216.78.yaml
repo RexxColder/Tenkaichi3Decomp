@@ -74,6 +74,21 @@ options:
     - config/symbols/btl_char_action.txt
     - config/symbols/btl_ai_act.txt
     - config/symbols/btl_ai_think.txt
+    - config/symbols/btl_char_fx.txt
+    - config/symbols/btl_act_a.txt
+    - config/symbols/btl_act_b.txt
+    - config/symbols/btl_act_c.txt
+    - config/symbols/btl_act_d.txt
+    - config/symbols/btl_act_e.txt
+    - config/symbols/btl_act_f.txt
+    - config/symbols/btl_act_g.txt
+    - config/symbols/btl_act_h.txt
+    - config/symbols/btl_act_i.txt
+    - config/symbols/btl_act_j.txt
+    - config/symbols/btl_capi_a.txt
+    - config/symbols/btl_capi_b.txt
+    - config/symbols/btl_tech_a.txt
+    - config/symbols/btl_tech_b.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -171,7 +186,8 @@ segments:
       - [0x0C7B30, c, battle/btl_char_hit]
       - [0x0CA6D0, c, battle/btl_char_coll_b]
       - [0x0CDCA8, c, battle/btl_char_member]
-      - [0x0D00D8, asm, cod/0D00D8]
+      - [0x0CF578, c, battle/btl_char_fx]
+      - [0x0D1EC8, c, battle/btl_char_fx_c]
       - [0x0D3B40, c, battle/btl_input]
       - [0x0D60A0, c, battle/btl_char_ctl_b]
       - [0x0D6438, c, battle/btl_char_ctl_c]
@@ -184,9 +200,20 @@ segments:
       - [0x0DBF20, c, battle/btl_char_get]
       - [0x0DC9A0, c, battle/btl_char_move]
       - [0x0E0290, c, battle/btl_char_action]
-      - [0x0E3158, asm, cod/0E3158]
+      - [0x0E3158, c, battle/btl_act_a]
+      - [0x0EA5F8, c, battle/btl_act_c]
+      - [0x0EE058, c, battle/btl_act_d]
+      - [0x0F1930, c, battle/btl_act_e]
+      - [0x0F5460, c, battle/btl_act_f]
+      - [0x0FC2B0, c, battle/btl_act_h]
+      - [0x0FC598, c, battle/btl_act_h_b]
+      - [0x103168, c, battle/btl_act_j]
+      - [0x104E78, c, battle/btl_capi_a]
       - [0x107020, c, battle/btl_char_api]
-      - [0x108430, asm, cod/108430]
+      - [0x108430, c, battle/btl_capi_b]
+      - [0x10BA80, c, battle/btl_tech_a]
+      - [0x10F0E8, c, battle/btl_tech_b]
+      - [0x1129C8, asm, cod/1129C8]
       - [0x115420, c, battle/btl_seq]
       - [0x1187E0, asm, cod/1187E0]
       - [0x13D1E8, c, battle/btl_demo_cam]
@@ -249,13 +276,23 @@ segments:
       - [0x1EE8F0, .rodata, battle/btl_char_hit]
       - [0x1EEB10, .rodata, battle/btl_char_coll_b]
       - [0x1EEEE0, .rodata, battle/btl_char_member]
-      - [0x1EF018, rodata, cod/1EF018]
+      - [0x1EEF10, .rodata, battle/btl_char_fx]
       - [0x1EF050, .rodata, battle/btl_input]
       - [0x1EF240, .rodata, battle/btl_char_flag_clash]
       - [0x1EF290, .rodata, battle/btl_char_flag_snd]
       - [0x1EF2D0, .rodata, battle/btl_char_move]
       - [0x1EF340, .rodata, battle/btl_char_action]
-      - [0x1EF370, rodata, cod/1EF370]
+      - [0x1EF370, .rodata, battle/btl_act_a]
+      - [0x1EF920, .rodata, battle/btl_act_c]
+      - [0x1EFA40, .rodata, battle/btl_act_d]
+      - [0x1EFB20, .rodata, battle/btl_act_e]
+      - [0x1EFC80, .rodata, battle/btl_act_f]
+      - [0x1F0FD0, .rodata, battle/btl_act_h_b]
+      - [0x1F11D0, .rodata, battle/btl_act_j]
+      - [0x1F1600, .rodata, battle/btl_capi_b]
+      - [0x1F1620, .rodata, battle/btl_tech_a]
+      - [0x1F18F0, .rodata, battle/btl_tech_b]
+      - [0x1F19D0, rodata, cod/1F19D0]
       - [0x1F1A50, .rodata, battle/btl_seq]
       - [0x1F1B30, rodata, cod/1F1B30]
       - [0x1F23F0, .rodata, battle/btl_obj]
@@ -287,7 +324,9 @@ segments:
       - [0x1FD120, .lit4, battle/btl_char_hit]
       - [0x1FD140, .lit4, battle/btl_char_coll_b]
       - [0x1FD1C8, .lit4, battle/btl_char_member]
-      - [0x1FD1D8, lit4, cod/1FD1D8]
+      - [0x1FD1D8, .lit4, battle/btl_char_fx]
+      - [0x1FD200, lit4, cod/1FD200]
+      - [0x1FD214, .lit4, battle/btl_char_fx_c]
       - [0x1FD290, .lit4, battle/btl_input]
       - [0x1FD2A8, .lit4, battle/btl_char_ctl_c]
       - [0x1FD304, .lit4, battle/btl_char_ctl_d]
@@ -297,7 +336,19 @@ segments:
       - [0x1FD37C, .lit4, battle/btl_char_get]
       - [0x1FD3A4, .lit4, battle/btl_char_move]
       - [0x1FD48C, .lit4, battle/btl_char_action]
-      - [0x1FD4DC, lit4, cod/1FD4DC]
+      - [0x1FD4DC, .lit4, battle/btl_act_a]
+      - [0x1FD7C8, .lit4, battle/btl_act_c]
+      - [0x1FD988, .lit4, battle/btl_act_d]
+      - [0x1FDB44, .lit4, battle/btl_act_e]
+      - [0x1FDD08, .lit4, battle/btl_act_f]
+      - [0x1FDEB0, .lit4, battle/btl_act_h]
+      - [0x1FDEB4, lit4, cod/1FDEB4]
+      - [0x1FDEBC, .lit4, battle/btl_act_h_b]
+      - [0x1FE070, .lit4, battle/btl_act_j]
+      - [0x1FE07C, .lit4, battle/btl_capi_a]
+      - [0x1FE0CC, .lit4, battle/btl_capi_b]
+      - [0x1FE0E4, .lit4, battle/btl_tech_a]
+      - [0x1FE114, .lit4, battle/btl_tech_b]
       - [0x1FE1C0, .lit4, battle/btl_seq]
       - [0x1FE1D8, lit4, cod/1FE1D8]
       - [0x1FE4CC, .lit4, battle/btl_cam]
@@ -315,6 +366,8 @@ segments:
       - [0x1FE81C, .lit4, sys/ramp]
       - [0x1FE820, lit4, cod/1FE820]
       - [0x1FE880, sdata, cod/1FE880] # .sdata
+      - [0x1FEB20, .sdata, battle/btl_act_a]
+      - [0x1FEB28, sdata, cod/1FEB28]
       - [0x1FF0B8, .sdata, sys/gsc]
       - [0x1FF0D0, sdata, cod/1FF0D0]
       - { type: sbss, vram: 0x002FF180, name: cod/002FF180 } # .sbss

@@ -71,15 +71,15 @@ extern void func_002473D8(void);
 extern void BtlAiMgr_ResetSide(s32 side);
 extern void BtlChars_OnModelLoaded(s32 side);
 extern void BtlChars_OnStageLoaded(void);
-extern s32 func_0020B200(s32 side); /* pending request of type 0 for this side */
-extern s32 func_0020B248(s32 side); /* pending request of type 1 for this side */
-extern void func_0020B290(s32 *a, s32 *b, s32 *c, s32 *d, s32 *e, s32 *f, s32 *g); /* request words +8..+0x20 */
-extern void func_0020B338(void);    /* request taken */
-extern void func_0020B350(void);    /* request's files are in */
-extern s32 func_0020B368(void);     /* request state == 4 and not paused */
-extern void func_0020B3C0(s32 side, s32 handle, s32 obj);
-extern s32 func_0020B5E8(s32 side); /* member index */
-extern s32 func_0020BEC8(s32 side);
+extern s32 BtlChange_IsPendingType0(s32 side); /* pending request of type 0 for this side */
+extern s32 BtlChange_IsPendingType1(s32 side); /* pending request of type 1 for this side */
+extern void BtlChange_GetArgs(s32 *a, s32 *b, s32 *c, s32 *d, s32 *e, s32 *f, s32 *g); /* request words +8..+0x20 */
+extern void BtlChange_NotifyTaken(void);    /* request taken */
+extern void BtlChange_NotifyLoaded(void);    /* request's files are in */
+extern s32 BtlChange_IsReady(void);     /* request state == 4 and not paused */
+extern void BtlCtrl_AttachPartner(s32 side, s32 handle, s32 obj);
+extern s32 BtlSide_GetActiveMember(s32 side); /* member index */
+extern s32 BtlCtrl_IsSwitching(s32 side);
 
 /* Battle objects / models. */
 extern s32 BtlObj_Create(s32 slot, s32 model, s32 arg);
@@ -320,7 +320,7 @@ s32 BtlLoad_StepObject(BtlJob *job) {
         case 0:
             break;
         case BTL_JOB_KIND_OBJECT:
-            func_0020B350();
+            BtlChange_NotifyLoaded();
             break;
         }
         job->state++;
@@ -334,7 +334,7 @@ s32 BtlLoad_StepObject(BtlJob *job) {
         case 0:
             break;
         case BTL_JOB_KIND_OBJECT:
-            ready = func_0020B368();
+            ready = BtlChange_IsReady();
             break;
         }
         if (!ready) {
@@ -347,7 +347,7 @@ s32 BtlLoad_StepObject(BtlJob *job) {
             break;
         case BTL_JOB_KIND_OBJECT:
             gBtlLoadObj = BtlObj_Create(job->costume, BtlRes_GetSlot(gBtlLoadHandle), 1);
-            func_0020B3C0(job->side, gBtlLoadHandle, gBtlLoadObj);
+            BtlCtrl_AttachPartner(job->side, gBtlLoadHandle, gBtlLoadObj);
             break;
         }
         Battle_GetWork()->flags &= ~BATTLE_FLAG_LOAD_OBJECT;
@@ -383,12 +383,12 @@ s32 BtlLoad_StepChara(BtlJob *job) {
             voice = job->voiceChara + ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE);
             BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, file8, file9);
             res->bank = File_Request3(voice, res->bank, res->bankSize);
-            if (!func_0020BEC8(job->side)) {
+            if (!BtlCtrl_IsSwitching(job->side)) {
                 BattleMember *next;
 
                 member = 0;
                 if (job->initial == 0) {
-                    member = func_0020B5E8(job->side);
+                    member = BtlSide_GetActiveMember(job->side);
                 }
                 next = BattleSide_GetMember(job->side, member);
                 next->buf[1] = File_Request3(job->chara * 2 + job->side + BTL_FILE_CHARA_DATA, next->buf[1], BTL_MEMBER_BUF_SIZE);
@@ -407,7 +407,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         case 0:
             break;
         case BTL_JOB_KIND_CHANGE:
-            func_0020B350();
+            BtlChange_NotifyLoaded();
             break;
         }
         job->state++;
@@ -418,7 +418,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         case 0:
             break;
         case BTL_JOB_KIND_CHANGE:
-            ready = func_0020B368();
+            ready = BtlChange_IsReady();
             break;
         }
         if (!ready) {
@@ -445,8 +445,8 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         if (job->modelOnly == 0) {
             BtlAiMgr_ResetSide(job->side);
             BtlScene_CreateChar(job->side);
-            if (!func_0020BEC8(job->side)) {
-                m = BattleSide_GetMember(job->side, func_0020B5E8(job->side));
+            if (!BtlCtrl_IsSwitching(job->side)) {
+                m = BattleSide_GetMember(job->side, BtlSide_GetActiveMember(job->side));
                 if (m != NULL) {
                     Res_RelocateOffsets(&m->buf[1], m->buf[1], m->buf[1]);
                     m->data = m->buf[1];
@@ -626,8 +626,8 @@ void BtlLoad_PollObjectRequest(void) {
     BtlJob *job;
 
     for (side = 0; side < 2; side++) {
-        if (func_0020B248(side)) {
-            func_0020B290(&id, &costume, &variant, NULL, NULL, NULL, &slot);
+        if (BtlChange_IsPendingType1(side)) {
+            BtlChange_GetArgs(&id, &costume, &variant, NULL, NULL, NULL, &slot);
             job = BtlJob_Alloc();
             memset(job, 0, sizeof(BtlJob));
             job->step = BtlLoad_StepObject;
@@ -638,7 +638,7 @@ void BtlLoad_PollObjectRequest(void) {
             job->animChara = costume;
             job->unk1C = variant;
             Job_Push((Job *)job);
-            func_0020B338();
+            BtlChange_NotifyTaken();
         }
     }
 }
@@ -656,8 +656,8 @@ void BtlLoad_PollCharaRequest(void) {
     BtlJob *job;
 
     for (side = 0; side < 2; side++) {
-        if (func_0020B200(side)) {
-            func_0020B290(&chara, &costume, &variant, &animChara, &unk1C, &voiceChara, NULL);
+        if (BtlChange_IsPendingType0(side)) {
+            BtlChange_GetArgs(&chara, &costume, &variant, &animChara, &unk1C, &voiceChara, NULL);
             if (animChara < 0 && unk1C < 0 && voiceChara < 0) {
                 modelOnly = 1;
             } else {
@@ -681,7 +681,7 @@ void BtlLoad_PollCharaRequest(void) {
             }
             BattleSide_SetForm(job->side, job->chara, job->costume, job->variant);
             Job_Push((Job *)job);
-            func_0020B338();
+            BtlChange_NotifyTaken();
         }
     }
 }

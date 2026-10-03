@@ -31,14 +31,14 @@
  *     layer 2 and in layer 1
  *   func_00140ED0, func_00133478   per-record update
  *   fighter queries, 0x204EA0..0x2080E0 (they take an object id and look the fighter up):
- *     func_00204EA0(i)   BtlObj_Get(i)->0xFF4 as float, 10.0 when there is no object
- *     func_002051D8(id)  1 when a fighter has this object id
- *     func_00205260(id)  object id of that fighter's opponent
- *     func_002053B0(i)   pack pointer of fighter i (0x1DC280 -> +0x58)
- *     func_00205DC8(id)  bit 1 of object +0xA40, inverted
- *     func_00205E00(id)  the fighter is in hit-stop (+0x1320 > 0); func_00205E38() any fighter is
- *     func_00206C20(id)  action id in 0x12D..0x12F or 0x139..0x13B
- *     func_00206E88(id)  action id in 0xEC..0xF8 or 0x103..0x104
+ *     BtlCharApi_GetHeight(i)   BtlObj_Get(i)->0xFF4 as float, 10.0 when there is no object
+ *     BtlCharApi_IsFighter(id)  1 when a fighter has this object id
+ *     BtlCharApi_GetOpponentObjId(id)  object id of that fighter's opponent
+ *     BtlCharApi_GetPlayerObjUnk58(i)   pack pointer of fighter i (0x1DC280 -> +0x58)
+ *     BtlCharApi_IsHidden(id)  bit 1 of object +0xA40, inverted
+ *     BtlCharApi_IsFrozen(id)  the fighter is in hit-stop (+0x1320 > 0); BtlCharApi_AnyFrozen() any fighter is
+ *     BtlCharApi_IsInRushSequence(id)  action id in 0x12D..0x12F or 0x139..0x13B
+ *     BtlCharApi_IsChanging(id)  action id in 0xEC..0xF8 or 0x103..0x104
  *     BtlCharApi_SetHeldFlagAB(id)  sets held flag 0xAB on the fighter
  *     BtlCharApi_IsTargetBelowHalfHp(a, b)  both alive and b's HP below half of its maximum
  *     BtlCharApi_CanTechniqueFinish(a, b)  a second test on a's current technique (0x80000 bit of 0x210D80)
@@ -103,15 +103,15 @@ extern void func_001ADC00(void);
 extern void func_001AE0A0(void);
 extern void func_001AE118(void);
 extern s32 BtlChars_IsTimeStopped(void);
-extern f32 func_00204EA0(s32 objId);
-extern s32 func_002051D8(s32 objId);
-extern s32 func_00205260(s32 objId);
-extern s32 *func_002053B0(s32 side);
-extern s32 func_00205DC8(s32 objId);
-extern s32 func_00205E00(s32 objId);
-extern s32 func_00205E38(void);
-extern s32 func_00206C20(s32 objId);
-extern s32 func_00206E88(s32 objId);
+extern f32 BtlCharApi_GetHeight(s32 objId);
+extern s32 BtlCharApi_IsFighter(s32 objId);
+extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
+extern s32 *BtlCharApi_GetPlayerObjUnk58(s32 side);
+extern s32 BtlCharApi_IsHidden(s32 objId);
+extern s32 BtlCharApi_IsFrozen(s32 objId);
+extern s32 BtlCharApi_AnyFrozen(void);
+extern s32 BtlCharApi_IsInRushSequence(s32 objId);
+extern s32 BtlCharApi_IsChanging(s32 objId);
 extern void BtlCharApi_SetHeldFlagAB(s32 objId);
 extern s32 BtlCharApi_IsTargetBelowHalfHp(s32 objId, s32 targetId);
 extern s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId);
@@ -253,7 +253,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/btl_scene", BtlScene_TestCharPackBit);
 
 /* Returns entry idx of a character's pack (0x2053B0), or NULL when the character has none. */
 s32 *BtlScene_GetCharPackEntry(s32 side, s32 idx) {
-    s32 *base = func_002053B0(side);
+    s32 *base = BtlCharApi_GetPlayerObjUnk58(side);
 
     if (base != NULL) {
         return (s32 *)((u8 *)base + ((u32)base[idx] >> 2 << 2));
@@ -285,7 +285,7 @@ s32 BtlScene_IsTimeStopped(void) {
 /* Returns 1 when the battle is paused or the fighter with this object id is in hit-stop (+0x1320 > 0). */
 s32 BtlScene_IsCharStopped(s32 objId) {
     s32 paused = 1;
-    s32 result = func_00205E00(objId) != 0;
+    s32 result = BtlCharApi_IsFrozen(objId) != 0;
 
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         result = paused;
@@ -295,14 +295,14 @@ s32 BtlScene_IsCharStopped(s32 objId) {
 
 /* Returns 1 when paused, when any fighter is in hit-stop or when fighter 0 or 1 is in actions 0x12D..0x12F / 0x139..0x13B. */
 s32 BtlScene_IsAnyCharStopped(void) {
-    s32 result = func_00205E38() != 0;
+    s32 result = BtlCharApi_AnyFrozen() != 0;
 
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         result = 1;
     }
-    if (func_00206C20(0)) {
+    if (BtlCharApi_IsInRushSequence(0)) {
         result = 1;
-    } else if (func_00206C20(1)) {
+    } else if (BtlCharApi_IsInRushSequence(1)) {
         result = 1;
     }
     return result;
@@ -452,7 +452,7 @@ s32 BtlScene_IsEffectStopped(s32 objId, s32 kind) {
     case 4:
         if (BtlScene_IsTimeStopped()) {
             result = 1;
-        } else if (func_00206C20(objId)) {
+        } else if (BtlCharApi_IsInRushSequence(objId)) {
             result = 1;
         }
         break;
@@ -474,15 +474,15 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
     s32 result = 0;
     s32 one;
 
-    if (func_00205DC8(objId)) {
+    if (BtlCharApi_IsHidden(objId)) {
         switch (kind) {
         case 0:
-            if (func_00205E38()) {
+            if (BtlCharApi_AnyFrozen()) {
                 result = 1;
             }
             break;
         case 1:
-            if (!func_00206C20(objId)) {
+            if (!BtlCharApi_IsInRushSequence(objId)) {
                 result = 1;
             }
             break;
@@ -492,7 +492,7 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
             break;
         default:
             one = 1;
-            result = func_00205E00(objId) != 0;
+            result = BtlCharApi_IsFrozen(objId) != 0;
             if (!BtlStage_IsReady()) {
                 result = one;
             }
@@ -500,13 +500,13 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
         }
     }
     if (kind == 4) {
-        if (func_00205DC8(objId)) {
+        if (BtlCharApi_IsHidden(objId)) {
             result = 1;
-        } else if (func_00206C20(objId)) {
+        } else if (BtlCharApi_IsInRushSequence(objId)) {
             result = 1;
         }
     }
-    if (func_00206E88(objId)) {
+    if (BtlCharApi_IsChanging(objId)) {
         switch (kind) {
         case 5:
         case 6:
@@ -519,9 +519,9 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
     if (kind == 0) {
         if (BtlCharApi_AnyCamPriority()) {
             result = 1;
-        } else if (func_00206C20(0)) {
+        } else if (BtlCharApi_IsInRushSequence(0)) {
             result = 1;
-        } else if (func_00206C20(1)) {
+        } else if (BtlCharApi_IsInRushSequence(1)) {
             result = 1;
         }
     }
@@ -585,7 +585,7 @@ void BtlScene_CheckStageChange(void) {
     for (i = 0; i < list->count; i++) {
         rec = &list->rec[i];
         hit = 0;
-        target = func_00205260(rec->objId);
+        target = BtlCharApi_GetOpponentObjId(rec->objId);
         attr = func_0012E0A8(i);
         if (rec->active != 0) {
             if (Battle_GetRuleUnk10() && func_0012E910(rec) && BtlCharApi_IsTargetBelowHalfHp(rec->objId, target)) {
@@ -683,7 +683,7 @@ void BtlScene_UpdateAllCharScales(void) {
 
     for (i = 0; i < gBtlSceneCharCount; i++) {
         rate = &gBtlScene->rates[i];
-        rate->scale = func_00204EA0(i) / 19.35f;
+        rate->scale = BtlCharApi_GetHeight(i) / 19.35f;
     }
 }
 
@@ -694,9 +694,9 @@ void BtlScene_UpdateCharScales(void) {
 
     if (gBtlScene->layerMask != 8) {
         for (i = 0; i < gBtlSceneCharCount; i++) {
-            if (func_002051D8(i) && !func_00206E88(i)) {
+            if (BtlCharApi_IsFighter(i) && !BtlCharApi_IsChanging(i)) {
                 rate = &gBtlScene->rates[i];
-                rate->scale = func_00204EA0(i) / 19.35f;
+                rate->scale = BtlCharApi_GetHeight(i) / 19.35f;
             }
         }
     }

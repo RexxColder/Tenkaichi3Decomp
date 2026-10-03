@@ -53,7 +53,7 @@ typedef struct AiActMove {
 typedef struct AiActAtk {
     /* 0x00 */ s32 hold;    /* (m) AI button bits sent as "hold" every frame of the run phase */
     /* 0x04 */ s32 press;   /* (m) AI button bits sent as "press" (every other frame) */
-    /* 0x08 */ f32 charge;  /* (m) how long RUSH / BLAST stay held: compared with func_00205F90(side) */
+    /* 0x08 */ f32 charge;  /* (m) how long RUSH / BLAST stay held: compared with BtlCharApi_GetChargeRate(side) */
     /* 0x0C */ s32 state;   /* (m) the fighter's state id when the input was chosen */
     /* 0x10 */ s32 flags;   /* (m) AIACT_ATK_* */
     /* 0x14 */ s32 waitTimer;  /* (m) 15: frames to wait for the fighter's state to change */

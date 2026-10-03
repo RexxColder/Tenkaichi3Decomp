@@ -115,30 +115,30 @@ extern void BtlMove_ApplyImpulse(BtlActChr *chr);
 extern void BtlMove_UpdateHoverOffset(BtlActChr *chr);
 extern void BtlMove_UpdateDefenseTimers(BtlActChr *chr);
 
-extern void func_00200AA0(BtlActChr *chr);
-extern void func_00202DB8(BtlActChr *chr, s32 attack);          /* queue an attack */
-extern s32 func_00204200(BtlActChr *chr, s32 arg);
-extern s32 func_00204918(BtlActChr *chr);
-extern s32 func_00204C50(BtlActChr *chr);
-extern f32 func_00204EA0(s32 objId);
-extern f32 func_00205870(s32 objId);
-extern void func_002058E0(s32 objId, s32 node, Vec4 *out);
-extern s32 func_00206B28(s32 objId);
-extern u32 func_0020E090(BtlActChr *chr);
-extern u32 func_0020E0B8(BtlActChr *chr);                       /* obj->unk91C->unk14 */
-extern u32 func_0020E0E0(BtlActChr *chr);                       /* obj->unk91C->unk18 */
-extern s32 func_0020E130(BtlActChr *chr);
-extern s32 func_0020EB10(BtlActChr *chr);
-extern s32 func_0020EBB0(BtlActChr *chr);
-extern s32 func_0020ED10(BtlActChr *chr);
-extern s32 func_0020ED60(BtlActChr *chr);
-extern s32 func_0020EF20(BtlActChr *chr);
-extern s32 func_0020F070(BtlActChr *chr);
-extern f32 func_0020F280(BtlActChr *chr);
-extern s32 func_0020F3F8(BtlActChr *chr);
-extern s32 func_0020F468(BtlActChr *chr);
-extern s32 func_0020F4A8(BtlActChr *chr);
-extern f32 func_00210940(BtlActChr *chr, s32 arg);
+extern void BtlSkill_UpdateTimers(BtlActChr *chr);
+extern void BtlDecide_QueueAttack(BtlActChr *chr, s32 attack);          /* queue an attack */
+extern s32 BtlAct_QueueReaction(BtlActChr *chr, s32 arg);
+extern s32 BtlAct_CheckStoryForced(BtlActChr *chr);
+extern s32 BtlAct_GetEvasionAttack(BtlActChr *chr);
+extern f32 BtlCharApi_GetHeight(s32 objId);
+extern f32 BtlCharApi_GetGroundY(s32 objId);
+extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
+extern s32 BtlCharApi_IsInTechnique(s32 objId);
+extern u32 BtlParam_GetFlags(BtlActChr *chr);
+extern u32 BtlParam_GetFlags2(BtlActChr *chr);                       /* obj->unk91C->unk14 */
+extern u32 BtlParam_GetFlags3(BtlActChr *chr);                       /* obj->unk91C->unk18 */
+extern s32 BtlParam_GetUnk2(BtlActChr *chr);
+extern s32 BtlParam_GetKiRegenLimit(BtlActChr *chr);
+extern s32 BtlParam_GetGaugeB(BtlActChr *chr);
+extern s32 BtlParam_GetKiRegenRate(BtlActChr *chr);
+extern s32 BtlParam_GetKiRecoverRate(BtlActChr *chr);
+extern s32 BtlParam_GetBlastGainRate(BtlActChr *chr);
+extern s32 BtlParam_GetMaxPowerDrain(BtlActChr *chr);
+extern f32 BtlParam_GetGauge99CTime(BtlActChr *chr);
+extern s32 BtlParam_GetDashSound(BtlActChr *chr);
+extern s32 BtlParam_GetChargeLoopSound(BtlActChr *chr);
+extern s32 BtlParam_GetMaxPowerSound(BtlActChr *chr);
+extern f32 BtlMoveParam_GetSpeed(BtlActChr *chr, s32 arg);
 extern f32 func_0023FEF8(void);
 extern f32 func_0023FF38(void);
 extern s32 func_0024D610(void *obj, s32 a, s32 b, s32 c);
@@ -213,7 +213,7 @@ void BtlAct_PopQueue(BtlActChr *chr) {
 }
 
 /* Whether an action id is a hit reaction (0x105..0x132). */
-s32 BtlAct_IsDamageId(s32 id) {
+s32 BtlAct_IsTechniqueId(s32 id) {
     if ((u32)(id - 0x106) < 0x2D) {
         return 1;
     }
@@ -289,7 +289,7 @@ f32 BtlAct_GetHeightRatio(BtlActChr *chr) {
     BtlActPose *pose;
     f32 y;
 
-    half = func_00204EA0(chr->objId);
+    half = BtlCharApi_GetHeight(chr->objId);
     top = func_0023FEF8() + half * 0.5f;
     bottom = func_0023FF38() + half * 0.5f;
     ground = BtlAct_GetGroundY(chr);
@@ -393,7 +393,7 @@ void BtlAct_SetPitchMotion(BtlActChr *chr, s32 motionUp, s32 motionDown, s32 rec
         return;
     }
     if (recalc) {
-        func_002058E0(chr->objId, 0x11, &own);
+        BtlCharApi_GetNodePos(chr->objId, 0x11, &own);
         BtlOpp_GetNodePos(chr, 0x11, &other);
         Vec4_Sub(&dir, &other, &own);
         len = Vec3_Length(&dir);
@@ -493,11 +493,11 @@ static inline BtlActAttackRec *BtlAct_GetAttackRec(s32 attack) {
 }
 
 static inline s32 BtlAct_TestSkillLo(BtlActChr *chr, s32 bit) {
-    return func_0020E0B8(chr) & (1 << bit);
+    return BtlParam_GetFlags2(chr) & (1 << bit);
 }
 
 static inline s32 BtlAct_TestSkillHi(BtlActChr *chr, s32 bit) {
-    return func_0020E0E0(chr) & (1 << bit);
+    return BtlParam_GetFlags3(chr) & (1 << bit);
 }
 
 s32 BtlAct_TestAttackSkill(BtlActChr *chr, s32 attack) {
@@ -605,7 +605,7 @@ void BtlAct_LatchAttack(BtlActChr *chr) {
 /* In the powered-up mode (flag 6): whether any of the given skill bits is set in the object's second mask. */
 s32 BtlAct_TestPoweredSkill(BtlActChr *chr, u32 mask) {
     if (BtlChar_TestFlag(chr, 6)) {
-        return (func_0020E0E0(chr) & mask) != 0;
+        return (BtlParam_GetFlags3(chr) & mask) != 0;
     }
     return 0;
 }
@@ -681,7 +681,7 @@ extern s32 BtlAct_GetRequested_(BtlActChr *chr) __asm__("BtlAct_GetRequested");
 extern s32 BtlAct_GetPrev_(BtlActChr *chr) __asm__("BtlAct_GetPrev");
 extern s32 BtlAct_GetQueued_(BtlActChr *chr) __asm__("BtlAct_GetQueued");
 extern void BtlAct_PopQueue_(BtlActChr *chr) __asm__("BtlAct_PopQueue");
-extern s32 BtlAct_IsDamageId_(s32 id) __asm__("BtlAct_IsDamageId");
+extern s32 BtlAct_IsTechniqueId_(s32 id) __asm__("BtlAct_IsTechniqueId");
 extern s32 BtlAct_GetCurrentClass_(BtlActChr *chr) __asm__("BtlAct_GetCurrentClass");
 extern f32 BtlAct_GetHeight_(BtlActChr *chr) __asm__("BtlAct_GetHeight");
 /* BtlAct_Action04 ends on a tail call to BtlChar_SetFlag, which an int function only gets from `return f();`. */
@@ -713,12 +713,12 @@ void BtlAct_CheckForced(BtlActChr *chr) {
             BtlAct_Request(chr, 0x20);
         }
         if (BtlChar_TestFlag(chr, 0x77)) {
-            func_00202DB8(chr, BtlChar_IsStage4Or27() ? 0x7A : 0x79);
+            BtlDecide_QueueAttack(chr, BtlChar_IsStage4Or27() ? 0x7A : 0x79);
             BtlAct_Request(chr, BtlAct_GetQueued_(chr));
         }
     }
     if (BtlChar_TestFlag(chr, 0x7C)) {
-        func_00202DB8(chr, func_00204C50(chr));
+        BtlDecide_QueueAttack(chr, BtlAct_GetEvasionAttack(chr));
         BtlAct_Request(chr, BtlAct_GetQueued_(chr));
     }
     if (BtlChar_TestFlag(chr, 0x6D)) {
@@ -734,7 +734,7 @@ void BtlAct_CheckForced(BtlActChr *chr) {
         BtlAct_Request(chr, 0x39);
     }
     if (BtlChar_TestFlag(chr, 0x6B)) {
-        if (func_0020E090(chr) & 2) {
+        if (BtlParam_GetFlags(chr) & 2) {
             BtlAct_Request(chr, 0x3D);
         } else {
             BtlAct_Request(chr, 0x3B);
@@ -743,7 +743,7 @@ void BtlAct_CheckForced(BtlActChr *chr) {
     if (BtlChar_TestFlag(chr, 0x79)) {
         BtlAct_Request(chr, 0xBD);
     }
-    if (func_00204200(chr, chr->unkFB0)) {
+    if (BtlAct_QueueReaction(chr, chr->unkFB0)) {
         BtlAct_Request(chr, BtlAct_GetQueued_(chr));
     }
     if (BtlChar_TestFlag(chr, 0x7F)) {
@@ -785,7 +785,7 @@ void BtlAct_CheckForced(BtlActChr *chr) {
     if (BtlChar_TestFlag(chr, 0xF2)) {
         BtlAct_Request(chr, 3);
     }
-    if (func_00204918(chr)) {
+    if (BtlAct_CheckStoryForced(chr)) {
         BtlAct_Request(chr, BtlAct_GetQueued_(chr));
     }
 }
@@ -827,7 +827,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
         return;
     }
     if (!BtlChar_TestFlag(chr, 0xBB)) {
-        amount = func_0020F070(chr);
+        amount = BtlParam_GetMaxPowerDrain(chr);
         if (BtlChar_TestFlag(chr, 0xBC)) {
             amount *= 3;
         } else if (BtlChar_TestFlag(chr, 0xBD)) {
@@ -843,7 +843,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
             BtlStat_EndKind3(chr);
         }
     }
-    if (BtlChar_TestFlag(chr, 0x98) && !BtlChar_TestFlag(chr, 0x99) && !func_00206B28(chr->objId)) {
+    if (BtlChar_TestFlag(chr, 0x98) && !BtlChar_TestFlag(chr, 0x99) && !BtlCharApi_IsInTechnique(chr->objId)) {
         BtlMember_SpendKi(chr, chr->unkE10, 0);
         if (BtlMember_IsKiEmpty(chr)) {
             BtlAct_EndFlag98(chr);
@@ -858,18 +858,18 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
     }
     if (mflags & 0x10000) {
         if (BtlChar_TestFlag(chr, 0xBE)) {
-            amount = func_0020ED60(chr);
+            amount = BtlParam_GetKiRecoverRate(chr);
             BtlChar_SetFlag(chr, 0xE7);
             if (BtlInput_IsPressed(chr, 0x100000)) {
                 amount *= 4;
             }
             BtlMember_AddKi(chr, amount);
-            if (BtlMember_HasKi(chr, func_0020EBB0(chr))) {
+            if (BtlMember_HasKi(chr, BtlParam_GetGaugeB(chr))) {
                 BtlChar_ClearFlag(chr, 0xBE);
             }
         } else if (!BtlChar_TestFlag(chr, 0x98)) {
-            if (!BtlMember_HasKi(chr, func_0020EB10(chr))) {
-                BtlMember_AddKi(chr, func_0020ED10(chr));
+            if (!BtlMember_HasKi(chr, BtlParam_GetKiRegenLimit(chr))) {
+                BtlMember_AddKi(chr, BtlParam_GetKiRegenRate(chr));
             }
             if (Battle_GetMode() == 5 || Battle_GetMode() == 6) {
                 BtlMember_AddKi(chr, 1000);
@@ -892,13 +892,13 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
         }
     }
     if (mflags & 0x20000) {
-        BtlMember_AddBlast(chr, func_0020EF20(chr));
+        BtlMember_AddBlast(chr, BtlParam_GetBlastGainRate(chr));
         if (Battle_GetMode() == 5 || Battle_GetMode() == 6) {
             BtlMember_AddBlast(chr, 0xD05);
         }
     }
     BtlStat_Update(chr);
-    func_00200AA0(chr);
+    BtlSkill_UpdateTimers(chr);
     chr->unkD80 -= 400;
     floor = BtlAct_TestPoweredSkill(chr, 1) ? 50000 : 0;
     if (chr->unkE20 > 0) {
@@ -910,7 +910,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
         chr->unkD80 = floor;
     }
     if (BattleSide_GetUnk200(chr->player)) {
-        chr->unk99C += (s32)(100000.0f / (func_0020F280(chr) * 30.0f));
+        chr->unk99C += (s32)(100000.0f / (BtlParam_GetGauge99CTime(chr) * 30.0f));
         if (Battle_GetMode() == 5 || Battle_GetMode() == 6) {
             chr->unk99C += 0x457;
         }
@@ -1051,7 +1051,7 @@ void BtlAct_UpdateTimers(BtlActChr *chr) {
     } else {
         chr->unkDE0 = 0;
     }
-    if (!func_00206B28(chr->objId)) {
+    if (!BtlCharApi_IsInTechnique(chr->objId)) {
         if (chr->unkE40 > 0) {
             chr->unkE40--;
         }
@@ -1110,13 +1110,13 @@ void BtlAct_UpdateTimers(BtlActChr *chr) {
     }
     kind = BtlOpp_GetParamByte2(chr);
     if (kind == 4) {
-        if (func_0020E130(chr) == kind) {
+        if (BtlParam_GetUnk2(chr) == kind) {
             BtlAnim_SetObjRate(chr, BtlAnim_GetObjRate(chr) * 2.0f);
         } else {
             BtlAnim_SetObjRate(chr, BtlAnim_GetObjRate(chr) * 3.0f);
         }
     }
-    if (!BtlAct_IsDamageId_(BtlAct_GetCurrent_(chr))) {
+    if (!BtlAct_IsTechniqueId_(BtlAct_GetCurrent_(chr))) {
         dir = -1;
         if (!BtlInput_IsHeld(chr, 0x10000)) {
             if (BtlInput_IsHeld(chr, 0x40000)) {
@@ -1238,12 +1238,12 @@ s32 BtlAct_Action01(BtlActChr *chr, s32 phase) {
         frame = BtlAnim_GetFrame(chr);
         if (0.0f <= frameA && frameA < frame && (frameB < 0.0f || frame < frameB)) {
             BtlChar_SetFxBit(chr, 7);
-            BtlCharSnd_PlayCommon(chr, func_0020F468(chr));
+            BtlCharSnd_PlayCommon(chr, BtlParam_GetChargeLoopSound(chr));
         }
         if (0.0f <= frameB && BtlAnim_PassedFrame(chr, frameB)) {
             BtlChar_SetFxBit(chr, 7);
             BtlChar_SetFxBit(chr, 0x41);
-            BtlCharSnd_PlayCommon(chr, func_0020F4A8(chr));
+            BtlCharSnd_PlayCommon(chr, BtlParam_GetMaxPowerSound(chr));
         }
     }
     if (phase == BTLACT_PHASE_DECIDE) {
@@ -1375,14 +1375,14 @@ s32 BtlAct_Action04(BtlActChr *chr, s32 phase) {
         }
         if (BtlChar_TestFlag(chr, 0x101)) {
             BtlChar_SetFxBit(chr, 7);
-            BtlCharSnd_PlayCommon(chr, func_0020F468(chr));
+            BtlCharSnd_PlayCommon(chr, BtlParam_GetChargeLoopSound(chr));
         }
         if (BtlChar_TestFlag(chr, 0x102)) {
             BtlChar_ClearFlag(chr, 0x102);
             BtlChar_ClearFlag(chr, 0x101);
             BtlChar_SetFxBit(chr, 7);
             BtlChar_SetFxBit(chr, 8);
-            BtlCharSnd_PlayCommon(chr, func_0020F4A8(chr));
+            BtlCharSnd_PlayCommon(chr, BtlParam_GetMaxPowerSound(chr));
         }
         if (5.0f < BtlAct_GetHeight_(chr)) {
             BtlChar_SetFxBit(chr, 0x3A);
@@ -1401,7 +1401,7 @@ s32 BtlAct_Action04(BtlActChr *chr, s32 phase) {
             } else {
                 BtlAct_Request(chr, 0xB);
             }
-            if (func_00204918(chr)) {
+            if (BtlAct_CheckStoryForced(chr)) {
                 BtlAct_Request(chr, BtlAct_GetQueued_(chr));
             }
         }
@@ -1411,7 +1411,7 @@ s32 BtlAct_Action04(BtlActChr *chr, s32 phase) {
             if (BtlAct_GetHeight_(chr) < 5.0f) {
                 BtlChar_SetHeldFlag(chr, 0xF);
                 pose = BtlChar_GetPos(chr);
-                pose->pos.y = func_00205870(chr->objId);
+                pose->pos.y = BtlCharApi_GetGroundY(chr->objId);
                 BtlChar_ClearFlag(chr, 0xE);
             } else {
                 BtlChar_SetHeldFlag(chr, 0xE);
@@ -1450,7 +1450,7 @@ s32 BtlAct_Action05(BtlActChr *chr, s32 phase) {
             case 0x19:
                 BtlAnim_AdvanceLoop(chr, 0);
                 if (BtlAnim_IsNew(chr)) {
-                    BtlCharSnd_PlayCommon(chr, func_0020F3F8(chr));
+                    BtlCharSnd_PlayCommon(chr, BtlParam_GetDashSound(chr));
                     BtlChar_SetFlag(chr, 0xD1);
                     if (BtlAct_GetHeight_(chr) < 20.0f) {
                         BtlChar_SetFxBit(chr, 0x35);
@@ -1470,7 +1470,7 @@ s32 BtlAct_Action05(BtlActChr *chr, s32 phase) {
                 break;
         }
         if (moving) {
-            BtlMove_Step(chr, 2, 1, 3, func_00210940(chr, 6), 10000.0f);
+            BtlMove_Step(chr, 2, 1, 3, BtlMoveParam_GetSpeed(chr, 6), 10000.0f);
             BtlMove_ApplyGravity(chr);
             BtlChar_SetFlag(chr, 9);
             BtlChar_SetFlag(chr, 0x50);

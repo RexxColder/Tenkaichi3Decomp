@@ -20,7 +20,7 @@ f32 ChrCam_GetOffset(ChrCamChr *chr, Vec4 *out, s32 mode) {
     f32 dist;
     f32 pitch;
 
-    scale = func_00204EA0(chr->objId);
+    scale = BtlCharApi_GetHeight(chr->objId);
     pitch = 0.0f;
     dist = scale * 0.5f + 1.0f;
     if (dist < 10.0f) {
@@ -58,7 +58,7 @@ f32 ChrCam_CalcRate(ChrCamChr *chr, Vec4 *eye, Vec4 *target) {
 
     Vec4_Sub(&d, target, eye);
     len = Vec3_Length(&d);
-    rate = len / func_00204EA0(chr->objId) * 0.2f + 0.2f;
+    rate = len / BtlCharApi_GetHeight(chr->objId) * 0.2f + 0.2f;
     if (1.0f < rate) {
         rate = 1.0f;
     }

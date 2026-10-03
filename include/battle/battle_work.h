@@ -61,12 +61,12 @@
  * --- BtlLoad_StepChara (flag BATTLE_FLAG_LOAD_CHARA while it runs) -----------------------------------
  *   0  model file = 0x590 + chara * 10 + costume (+4 when `variant` is non-zero).
  *      Full load (modelOnly == 0): BtlRes_Reload(side->modelSlot, model, 0x598 + animChara * 10, 0x599 + unk1C * 10);
- *        voice bank 0xBDA / 0xC7B + voiceChara into res->bank; unless func_0020BEC8(side), file
+ *        voice bank 0xBDA / 0xC7B + voiceChara into res->bank; unless BtlCtrl_IsSwitching(side), file
  *        8 + chara * 2 + side into the member's second buffer (member = 0 for the initial load, else
- *        func_0020B5E8(side)).
+ *        BtlSide_GetActiveMember(side)).
  *      Model only: BtlRes_Reload(side->modelSlot, model, -1, -1).
- *   1  wait; for kind 1 (in-battle change) func_0020B350().
- *   2  kind 1 waits for func_0020B368() (fighter manager request state 4, not paused); then
+ *   1  wait; for kind 1 (in-battle change) BtlChange_NotifyLoaded().
+ *   2  kind 1 waits for BtlChange_IsReady() (fighter manager request state 4, not paused); then
  *      BtlRes_CommitReload2(); Snd bank 0x10 (side 0) / 0x20 (side 1) reloaded from res->bank through Snd_ReloadBank;
  *      BtlObj_Rebind(side->objId, side->modelSlot); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
  *      BtlChars_OnModelLoaded(side); full load: BtlAiMgr_ResetSide(side), BtlScene_CreateChar(side), relocate the member's
@@ -75,10 +75,10 @@
  * --- BtlLoad_StepObject (flag BATTLE_FLAG_LOAD_OBJECT) ------------------------------------------------
  *   0  file = id + 0xC1C when id >= 0x100, else the character model file as above;
  *      gBtlLoadHandle = BtlRes_Request(0, file, -1, -1)
- *   1  wait; kind 2: func_0020B350()
- *   2  not while paused; kind 2 waits for func_0020B368() (fighter manager request state 4);
+ *   1  wait; kind 2: BtlChange_NotifyLoaded()
+ *   2  not while paused; kind 2 waits for BtlChange_IsReady() (fighter manager request state 4);
  *      kind 0: gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(handle), 1), func_0024D390(BtlObj_Get(obj), 0, 2)
- *      kind 2: gBtlLoadObj = BtlObj_Create(job->costume [request word +0x20], BtlRes_GetSlot(handle), 1), func_0020B3C0(side, handle, obj)
+ *      kind 2: gBtlLoadObj = BtlObj_Create(job->costume [request word +0x20], BtlRes_GetSlot(handle), 1), BtlCtrl_AttachPartner(side, handle, obj)
  *
  * --- Stage jobs (flag BATTLE_FLAG_LOADING) ---------------------------------------------------------
  *   BtlLoad_StepStageReload: 0 set flag; 1 BtlLoad_BeginStageSwap(), request 0x171/0x198 + rule.curStage into
