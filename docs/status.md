@@ -129,13 +129,18 @@ stg_a..stg_c, and nineteen decomp agents:
 | eft_ab | 0x19E0C0..0x1A21A8 |
 | eft_ac | 0x1A21A8..0x1A62C8 |
 
-NOT launched yet (no free slot): eft_ad 0x1A62C8..0x1AA7E8 (part kind 12 module 0x1A6598, kill /
-alive 0x1A65E8 / 0x1A6B40; 0x1A6C58 shock wave; 0x1A6FD0 fighter request 6; model object helpers
-0x1A7608.., `BtlObj_Create` wrapper 0x1A8C40; rotated sprite 0x1AA188), eft_ae 0x1AA7E8..0x1AE200
-(task helpers 0x1ADA58 / 0x1ADB78 / 0x1ADB98, texture set 0x1ADC68 / 0x1ADF20 / 0x1AE148 /
-0x1AE1F8), and the animation player in the battle object (functions around 0x24D498, 0x24D518,
-0x24D610, 0x2500E8, 0x250570, 0x2505A8, 0x250940, 0x250B88; see docs/roadmap.md), plus the
-unassigned first half of the AI sequence file (0x1B4140..0x1B6008).
+Reported, re-diffed and documented so far (not linked): stg_d, eft_det_b (three files), eft_s,
+eft_u (two files).
+
+Launched later, as slots freed: eft_ad 0x1A62C8..0x1AA7E8; bobj_a 0x24BBE8..0x24F1F0 and
+bobj_b 0x24F1F0..0x2527B0 (battle object: animation player, model nodes; continues btl_obj.c);
+col_a 0x230B38..0x236190 and col_b 0x236190..0x239EA0 (collision primitive library).
+
+NOT launched yet: eft_ae 0x1AA7E8..0x1AE200 (task helpers 0x1ADA58 / 0x1ADB78 / 0x1ADB98,
+texture sets 0x1ADC68 / 0x1ADF20 / 0x1AE148 / 0x1AE1F8); col_c 0x239EA0..0x23D1E8 (rest of the
+assembly before btl_demo_cam.c); the AI sequence file's first half 0x1B4140..0x1B6008 (its
+object really starts at 0x1B3F78, in eft_det_b_c.c); 0x22FC40..0x22FD10 (two stage rigid list
+helpers).
 
 ## Known follow-ups
 
