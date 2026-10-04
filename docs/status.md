@@ -145,7 +145,10 @@ bobj_b (2 files, 0x24F1F0..0x2527B0) has reported: 43/49; merge bobj_b.c behind 
 col_b (0x236190..0x239BB0, 42/42) and col_b_b (0x239BB0..0x239EA0, 5/5) have reported; yaml
 lines are in its agent notes (c at 0x136190 / 0x139BB0, .lit4 0x1FE48C, .sdata 0x1FEBAC).
 
-Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), bobj_a,
+eft_ae (0x1AA7E8..0x1AE2A8) has reported: 86/89. In eft_det_a.c rename the extern
+`func_001AE140` to `EftTexSet_CheckCount` when eft_ae is listed.
+
+Still running: bobj_a,
 btl_ai_seq_a (0x1B4140..0x1B6008, new file to merge into btl_ai_seq.c).
 The user asked (2026-10-04) for at most 10 subagents at a time.
 

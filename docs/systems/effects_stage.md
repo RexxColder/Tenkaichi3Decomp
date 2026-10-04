@@ -134,6 +134,9 @@ and the stage update at 0x243568).
 | 0x1A62C8..0x1A7018 | eft_ad.c | part kind 12 handle entries `EftZap_*` (module starts in eft_ac); fighter request 6 `EftShock_*` | no | VU0 through one shock wave (20) | 29/29 |
 | 0x1A7608..0x1A9D90 | eft_ad_b.c | effect mesh renderer `EftMesh_*`; **effect model objects `EftObj_*` (wrappers of `BtlObj_Create`)** | no (draw state of battle objects) | none | 32/36 |
 | 0x1A9D90..0x1AA7E8 | eft_ad_c.c | sprites `EftSpr_DrawFlat / DrawRot` | no | none | 0/2 |
+| 0x1AA7E8..0x1AD138 | eft_ae.c | keyframed sprite animations `EftSprAnim_*` and their "V000" packs (played by part kind 14) | no | libc `rand()`: 2 per layer per step | (eft_ae 86/89) |
+| 0x1AD138..0x1ADBA8 | eft_ae.c | **task tree `BtlTask*`** | **core: decides the update order of every effect task** | none | |
+| 0x1ADBA8..0x1AE2A8 | eft_ae.c | per-frame VRAM allocation for effect textures, texture set loaders | no | none | |
 | 0x1AE2A8..0x1AE5F8 | eft_det_a.c | texture set loaders, VRAM upload | no | none | (eft_det_a 40/40) |
 | 0x1AE5F8..0x1AF508 | eft_det_a.c | **volley aim `EftVolleyAim_*`**: spread and steering of volley shots | **yes** | **`BtlScene_Rand*`: 0..3 per shot at fire (direction), 3..4 on one scripted frame per lobbed shot (target offset)** | |
 | 0x1AF508..0x1AF7B8 | eft_det_a.c | **fighter strike volumes against the other fighter's body `BtlBodyHit_*`** | **yes** | none | |
@@ -699,3 +702,23 @@ compute some dot products in plain FPU instead: which path each sum takes is fix
 matching C. `sqrtf` is the inline FPU instruction.
 
 0x239BB0..0x239EA0 (`col_b_b.c`, 5/5) is the head of the text printer (see graphics.md).
+
+## The effect task tree (verified, eft_ae)
+
+- A task is 0x40 bytes: flag byte (bit 0 dead, bit 1 updated), index, tag word (+4), position
+  (+0x10), list, child list, class, links, work pointer. A class is
+  `{update, init(task, arg), term, postUpdate, reset, draw}`. Lists have a fixed task count and
+  work size, allocated from the current battle pool.
+- **Update order is list order, depth first; `AddTail` appends, so creation order is update
+  order.** A task added after the current one during an update is updated in the same pass.
+  Dead tasks are removed by Update and Reset only.
+- A task is drawn only after it has been updated once.
+- `BtlTaskList_Reset(list, mask)`: 0 resets every task; 0x800 tasks of object id 0; 0x1000
+  tasks of any other object; 0x2000 a third group. The bits are in the task's tag word, which
+  also receives the hit pass's result bits.
+- (inferred hazard) `BtlTaskList_Update` saves the next pointer before updating a task's
+  children; if a child kills its parent's next sibling the saved pointer is stale.
+- Effect textures get VRAM per frame, in call order, from two cursors (128 textures at most);
+  `BtlScene_Draw` uploads them and rewinds. Visual only.
+
+With this file the whole effect range 0x12DD80..0x1B4140 has been decompiled.
