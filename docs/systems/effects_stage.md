@@ -88,6 +88,8 @@ and the stage update at 0x243568).
 | 0x1699D0..0x16AE78 | eft_o_b.c | **blast object `EftBlastObj*`** (60 per battle; fired by volley, shots and ring-shot techniques) | **yes** | none | 30/32 |
 | 0x16AE78..0x16B4E0 | eft_o_c.c | body effect `EftBodyFx*` (fighter request 0x1A, common effect pack 0x23F) | no | none | (eft_o_c 17/18) |
 | 0x16B4E0..0x16C2E0 | eft_o_c.c | **disc `EftDisc*`, first part** (ki blast discs and technique pieces; rest in eft_p) | **yes** | libc `rand()` once at creation (spin, appearance) | |
+| 0x16C2E0..0x16DCA0 | eft_p.c | **disc `EftDisc*`, rest** (ki blast types 4 / 5 and the pieces of the multi-piece technique) | **yes**: hit record per flying frame; dies on a hit result | none here | 28/29 |
+| 0x16DCA0..0x170A50 | eft_p_b.c | power-up glow particles `EftGlow*`, first part (fighter requests 4 / 5) | no | libc `rand()`: 34 sites, up to 14 spawns per fighter per frame | 18/22 |
 | 0x174AB8..0x175660 | eft_r.c | **beam struggle `EftStruggle_*`** | **yes**: writes both beams' hit position; on its end resets the loser's effect tasks | none | (eft_r 104/105) |
 | 0x175660..0x175CA0 | eft_r.c | spark at the struggle point | no | none | |
 | 0x175CA0..0x1763E8 | eft_r.c | charge aura (fighter requests 7 / 8) | no | VU0 through a shock wave (20) | |
@@ -587,3 +589,16 @@ with a world matrix, shown or hidden with one flag, and can play model animation
   file).
 - (verified hazard, eft_z) The dust module's per-fighter emitter slots are indexed by object id
   without a range check and hold two entries each.
+
+## Discs (simulation; eft_o_c.c + eft_p.c, verified unless marked)
+
+A spinning model projectile: ki blast types 4 / 5 (held in the hand, then thrown) and the
+pieces of the multi-piece technique. One hit record per flying frame (two spheres). Ki blast
+disc: radius = scale x 4.5. Technique piece: radius = the pack's trail width x 3.
+
+- (inferred, from the update's disassembly) The libc `rand()` value drawn for a piece of
+  technique 0x202, and at disc creation, only sets the model's roll: appearance.
+- Hazards: held discs are kept in per-fighter lists indexed by object id 0 / 1; the term
+  callback pops the list head whichever disc ends; ki blast parameters are copied into the
+  fighter's first listed disc. (inferred) A second disc created while an older one lives keeps
+  zeroed attack parameters: a possible original bug for overlapping disc blasts.
