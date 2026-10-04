@@ -291,3 +291,73 @@ follow), check first that the new name is not used anywhere, then reconfigure an
 Each agent uses its own subfolder for scratch scripts. Run Python scratch files with
 `python3 file.py`, never as `./file.py` or `sh file.py` (a shell runs `import` as ImageMagick's
 screenshot tool, which hangs). Never use `pkill` by name.
+
+## Matching lessons from the near-miss cleanup and the eighth batch (2026-10-04)
+
+Registers and allocation
+- "Runs out of saved registers / keeps the index on the stack", or an element pointer swapped
+  with another saved register: the original indexed the array at every use (`objs[i].f`,
+  `&objs[i]`), no element pointer. Conversely a search loop that reads `0x10(base)` once and
+  walks a pointer came from `f = table; f[i].field`, not `f++`.
+- A value reloaded from memory at every use through a pointer recomputed once per iteration is
+  an inlined helper (`static inline f32 Key_GetFrame(Key *k)` called with `b - 1`, `b`).
+- Copies of `&local` in saved registers in each arm: write `&local` at every use, no pointer
+  variables.
+- A constant kept in a saved register and reloaded as a literal in one place is a variable set
+  once to that constant; "reloaded in one arm only" means every arm assigned it. A variable
+  set twice is not hoisted or strength-reduced by the loop pass.
+- A function-wide temporary reused for one more clamp gets the low register; when the original
+  uses a higher one, give that site a block-local variable. Variables declared inside each arm
+  of an if / else do not share registers the way function-scope ones do.
+- Declaration order of spilled variables = stack-slot order; among equal priorities the lower
+  pseudo (declared first) wins.
+- Swapping two adjacent independent stores, a dead store (`r = 0.0f;` before the real
+  assignment) or reusing a variable for an unrelated value changes which register a neighbour
+  gets. A run of plain stores is emitted rotated by one (last source statement first).
+- This compiler splits a member offset into a multiple of 16 (added to the index) and a rest
+  (added to the base). A base like `(p + 0x20) + 0x90`, or `work + 0x2F1`, is evidence of
+  struct nesting (`plan = &ai->plan; plan->total[k][i]`, `w->pair.b[i]`); choose nesting whose
+  rests sum to the base constant.
+
+Control flow
+- An if / else with identical arms is merged after register allocation: put the whole
+  duplicated block (with its own block-local variables) in both arms when a compare result is
+  unused or a common `p += 2` / `jal` sits in both paths. Same for switch cases that each end
+  in the same stores.
+- A shared `return 0` block stops if-conversion to slt / sltiu; two `return t;` statements
+  keep a float in `$f1` with one copy to `$f0`; explicit `return;` after each arm can be
+  needed for tail calls. A missing tail call: non-void function with no return statement,
+  `if (p == NULL) return NULL; return p;`, or a one-iteration loop.
+- A constant load placed before a branch although used only after it: wrap the body in
+  `do { } while (0)`. A loop entered by a jump into its middle is `for (;;) { step; if (a)
+  break; if (b) return; }`.
+- `lbu` + `sltiu N` then `sll / sra` + compare on an `s8` field is `x >= 0 && x <= N-1 ||
+  x == K` in its own `if`, not a `u8` local. `andi; sltu` on one bit is `if (x & 1) return 1;
+  return 0;`. `bgez; move; negu` is `__builtin_abs`.
+- A switch with redundant cases (`case A: =2; default: break; case B: =6; case C: =6;`) avoids
+  a conditional move; unsimplified `xori reg,0` before `movz` means several statements in the
+  `if` (`flags |= 2; flags |= 4;`).
+- Bit fields for stores, masks for tests, can coexist on the same word (anonymous union).
+
+Attributes and prototypes
+- `__attribute__((const))` on a pure arithmetic helper, or `pure` on a memory-reading one,
+  declared locally, stands in for a definition the original compiler had seen (changes
+  scheduling around calls and delay-slot annulling).
+- A float argument's position in a prototype changes the caller's set-up order: check
+  prototypes against every caller (found `StgRigid_Create(pos, radius, user)` this way).
+
+Data
+- Decimal float literals are truncated: write enough digits (0.52359875f, not 0.5235988f) and
+  ALWAYS compare .lit4 bits; fdiff cannot see them.
+- `u32 pkt[N] = {...}` reproduces "build at sp+X, copy to sp"; `memset(&h, 0, 8);
+  memcpy(&h, p, 8)` gives `ldl / ldr` after `sd zero`; memcpy of a 16-byte row gives the block
+  move with a shared base.
+- A dead division (`li v0,32 / beql / break 7`) is `s32 w = 32; s32 n = 512 / w;` with the
+  divisor a variable of its own.
+
+Tools
+- For near-misses that will not match, a differential interpreter (original bytes against the
+  compiled attempt on random memory, comparing final memory and outgoing calls) gives a
+  behavioural check: build/scratch_cleanup_eft/emu*.py.
+- fdiff cannot assemble an unlinked file that contains INCLUDE_ASM: check a copy with the
+  INCLUDE_ASM / INCLUDE_RODATA / LIT4_WORD lines removed. Use `.venv/bin/python configure.py`.
