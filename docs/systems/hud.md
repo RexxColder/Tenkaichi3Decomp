@@ -56,3 +56,37 @@ health divides by the maximum with no zero check.
 "notice" as the meaning of the fourth part; the caption textures' wording; that the other
 parts slide like the team panel; 0x21FA38 being a gauge shake. Guessed names are marked in the
 symbol file.
+
+## Gauge part (0x21CA60..0x222400; src/battle/hud_b.c, continues hud_a_d.c; names in config/symbols/hud_b.txt)
+
+31 of 32 functions match; `HudGauge_UpdateAura` is INCLUDE_ASM with a behaviourally exact
+attempt (loop shape). Work `gHudGauge` (0x288 bytes; field table in include/battle/hud_b.h),
+12 nodes over 76 sprites built by `HudGauge_Init`. Final file: hud_gauge.c merged with
+hud_a_d.c.
+
+Verified by matching C:
+- Units: health 10000 per bar; ki 20000 per bar, five bars; powered-up timer 6000 per bar,
+  five bars; blast 100000 per stock, digit clamped to 7.
+- Trailing health falls 100 per frame (at least 120 / 150 / 200 once the gap exceeds 5000 /
+  10000 / 20000); trailing ki 400 per frame (606 / 800 for gaps over 20000 / 40000).
+- Low health flash while health <= 10000; all five ki lamps pulse at ki > 99999; the blast
+  digit pulses while blast >= `BtlSide_GetBlastMax`.
+- Status icons: four, 24 px apart, 0.2 s fade-out, 0.3 s slide (1 - (1 - t)^3), 0.2 s fade-in.
+- **Correction to hud_a.h**: `gHudGauge + 0x30` is health now and `+0x28` the trailing value
+  (hud_a.h has them reversed); 0x21FA38 / 0x21FA88 are `HudGauge_ShakeHp` / `ShakeKi(u16
+  count, u16 amp)`.
+
+**Random draws (netplay hazard)**: the HUD draws from libc `rand()` through `Rand_IntRange`:
+two per frame per shaking node (`HudGauge_UpdateHpTrail`), and at least 30 per side per frame
+in `HudGauge_UpdateAura`, whether or not the aura is visible, none while paused. These are
+visual, but libc `rand()` also reaches the simulation (docs/netplay_notes.md), so the HUD
+advances a stream the fight reads. The earlier statement "the HUD draws no random numbers"
+holds only for 0x2187E0..0x21CA60. A port must give the HUD its own generator, and a faithful
+replay of a PS2 recording must reproduce these draws.
+
+Original quirks: sprite 62 is both the tenth aura spark and the blue "powered up" flash, so
+only nine sparks show; `kiReserve / 20000` is computed and discarded; the ki reserve ramp
+steps while paused; the bar-count update runs from a draw callback.
+
+Inferred: status icon bits 0..3 = stat modifiers 0, 3, 1, 2; `kiReserve` is a pulsing red
+layer under the ki bars of unknown meaning; node 10 is the powered-up aura.

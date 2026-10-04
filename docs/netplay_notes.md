@@ -206,3 +206,11 @@ tasks in story battles; and the state of every generator in the table above.
   simulation), and the effect tasks that call `rand()`.
 - The Wii build has online play; its game-side netcode has not been examined and would show
   what the developers themselves synchronised.
+
+## HUD consumes libc rand() (found 2026-10-04)
+
+The gauge part of the HUD (`HudGauge_UpdateHpTrail`, `HudGauge_UpdateAura`; src/battle/hud_b.c)
+draws from libc `rand()` every unpaused frame: at least 30 draws per side for the aura sparks
+plus 2 per shaking node. It runs from `Hud_Draw`. Since libc `rand()` also reaches simulation
+code, the HUD is one more visual consumer that shifts a simulation stream; see
+docs/systems/hud.md.
