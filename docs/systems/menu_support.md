@@ -83,3 +83,32 @@ Verified by matching C:
   dragon; models 0xD3C / 0xD3D / 0xD45). Step contents come from the attempt.
 - Original quirks: `TextBox_DrawClip` accumulates position and tint in place (a line must be
   re-attached before every draw); `ItemSet_GetStats` ORs the ability words four times.
+
+## Dragon wish screen (0x2BD230..0x2BF6B0; src/sys/late_a.c, late_a_b.c, late_a_c.c, not linked yet; names in config/symbols/late_a.txt)
+
+40 of 42 functions match; `Shen_DrawList` (38 of 229) and `Shen_BuildList` (4 of 121,
+registers) are INCLUDE_ASM with attempts (not run through the differential interpreter).
+**Built with -G0** like src/cri/ and the overlay (scripts/fdiff.py handles `src/sys/late_a*`;
+configure.py's G_FLAGS needs the same for linking). This is game code linked after the SDK
+libraries: the wish screen (`gProgress->mode` 70) and its save screen (mode 71), not
+"memory-card menu UI" as older notes say. Final names menu/shenron.c, shenron_confirm.c,
+shenron_save.c.
+
+Verified by matching C:
+- `Shen_Main` (0x2BD230) runs mode 70 (`Shen_Run`, loop at 0x2BEA48, `Gfx_EndFrame(2)`) then
+  mode 71 (`ShenSave_Run`, loop at 0x2BF588, `Gfx_EndFrame(1)`, `McFlow_Start(0)` after the
+  fade-in), then sets mode 4.
+- Wishes: a circular list, 4 rows visible; kinds item (`Save_AddItem`), stage (`stageBits`),
+  character (`charaBits`; character 0xA0 shows a second reward window), money
+  (`Save_AddMoney`). `Shen_Init` clears `gSaveData->unlockFlags` bits 0..6 (the seven dragon
+  balls). `GetWin_Setup` kinds seen here: 0 character, 1 stage, 2 item, 6 money.
+- Pack sections: messages, wish file (`ShenWishFile` 0x78: lists of 4, 7 and 4 eight-byte
+  entries), movie, textures, confirmation pack, item table, IconWin, MsgWin, Dialog, GetWin,
+  row text. Debug strings in the read-only data give original file names
+  (`shenron_list_PS2_.dat`, `zitem_parameter_PS2_.dat`, ...).
+- Random draws: `Rand_Range` only (greeting line, grant line).
+
+From the non-matching `Shen_BuildList` attempt: one `Rand_Range(100)` picks the dragon: with
+`slot[8].flags & 1`, r < 40 dragon 0, 40..59 dragon 1, else dragon 2; without it, r < 50
+dragon 0, else dragon 1. Dragon 1 lists 7 wishes and grants 3; the others list 4 and grant 1.
+(inferred) dragon 1 is Porunga.

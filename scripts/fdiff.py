@@ -36,7 +36,7 @@ def sh(*cmd):
 
 
 def gflag(src):
-    return "-G0" if any(d in str(src) for d in ("src/cri/", "src/menu/")) else "-G8"
+    return "-G0" if any(d in str(src) for d in ("src/cri/", "src/menu/", "src/sys/late_a")) else "-G8"
 
 
 def scratch(src):
