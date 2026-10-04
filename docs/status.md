@@ -228,3 +228,16 @@ chunks, the menu overlay, any port work.
 lib_a reported (2026-10-04): 0x268248..0x269228 is game code (confirmation dialog, 18 of 19
 match, committed unlinked); 0x269228..0x273CA0 is the CRI ADX library, so the queued chunks
 lib_b / lib_c are NOT needed (naming only, if ever).
+
+## Update (2026-10-04, later): what is left before stopping
+
+User: "you can link it after this subagent finishes then stop for now" (session budget low).
+All agents have reported except the fighter / AI cleanup. Committed unlinked: vu0_a / vu0_b,
+lib_a (dialog), hud_a*, hud_b, gfxm_a, gfxm_b*, view_a*. Uncommitted in the working tree: the
+cleanup edits (bobj_a, bobj_b_b, eft_a / h / i / j / o_b / o_c / p / r, stg_a, stg_a_b,
+eft_det_b, eft_det_b_b, stg_d.c / .h prototype fix) and the yaml .lit4 moves for eft_h, stg_a,
+stg_a_b. A trial link showed text in place and ONE data shift: btl_act_h now emits 8 more
+bytes of .lit4 (the fighter agent matched something), so `[0x1FDEB4, lit4, cod/1FDEB4]` must
+go (btl_act_h's pool then runs 0x1FDEB0..0x1FDEBC) once that agent reports; check its report
+for other pools. Then: `.venv/bin/python configure.py && ninja`, gate, fdiff sweep, commit,
+stop. Linking the new-range files is the next session's first job (one integrator).
