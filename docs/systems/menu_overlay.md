@@ -412,3 +412,35 @@ Verified by matching C:
   (cell until a real character, item set of 4, form, costume).
 - Original bug: the training idle-line end test compares against a NEW random draw instead
   of the line that was said.
+
+## Sim sub-mode (modes 20..23): day screen and battle hand-off; score sheet tail (chunk 17, 0x37F430..0x3840E0; src/menu/menu_q.c, menu_q_b.c; all 33 functions match)
+
+menu_q.c = tail of the `UbScore` object (score sheet shared by the result screens of modes
+16, 19, 23, 27 / 30; starts in chunk 16). menu_q_b.c = head of `SimDay` (mode 22; work
+`gSimDay` 0x3B7384, 0xBBC bytes; continues in chunk 18). (inferred) the family is "Ultimate
+Battle" and modes 20..23 its "Sim Dragon": 20 top, 21 character select, 22 day screen, 23
+result.
+
+Verified by matching C:
+- **Sim state** is a nested struct at `gProgress + 0x64C`: level 0..6; `stat[4]` = attack,
+  defence, health %, points / 100 (names from clip names); `item[3]` ring of carried item
+  ids; `turn` (+0x674; / 10 = round, % 10 = turn, turn 9 is the fight); `wait`; `off` (greyed
+  board buttons).
+- The day screen: board buttons run event scripts chosen by `Rand_Range(256)` (training row,
+  or a weighted draw over 32 event rows); stat changes are queued and animated (attack /
+  defence in steps of `Rand_Range(2) + 1`; health floored at 20, capped at 100; points give
+  level-ups against a table); items are drawn with `Rand_Range(ownCount)`.
+- **Battle hand-off (`SimDay_SetupBattle`, 0x37F978)**, tables from the mode's pack (section
+  25 rounds, 26 enemies, 27 pools; 998 = random, 999 = none): announcer `Rand_Range(8)`, stage
+  `Rand_Range(0x23)` when random (music "random" is passed on as id 0x18 unresolved);
+  `Battle_ClearWork()`; `BattleSetup_SetRule(0, 2, bgm, rd->timeLimit, announcer, stage,
+  flag)` (battle mode 2); opponent from the enemy record or `Rand_Range` over a pool; **the
+  player's attack and defence are passed as item ids 0xC4 + attack and 0x110 + defence**,
+  plus the carried items; `BattleSetup_SetSide(0, 0, 0, ...)` / `(1, 2, 1, ...)`;
+  `BattleSetup_SetMember(0, 0, chara, costume, 0, 0, (f32)health%, items)` (the player starts
+  at the board's health per cent); `BattleSetup_SetMember(1, 0, enemy, color, 0,
+  en->cpuLevel, 100.0f, enemyItems)`; `BattleSetup_FinishEx(1)`. Draw order: announcer,
+  stage, opponent. Back from the battle, health = `BattleResult->health[0]`, at least 1.
+- Save records written by the score code: `gSaveData + 0x210` ranking of 10 {chara, score,
+  cleared}; `+0x28C` `mission[100]` (0xC bytes: cleared, rank, h, m, s, total); `+0x73C` and
+  `+0x780` two more best-record tables.
