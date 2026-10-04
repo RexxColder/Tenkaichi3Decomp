@@ -119,3 +119,29 @@ update, drawn as one blended 512x448 sprite. Used only by the trailing memory-ca
 pads is debounced (about 7 frames) and a dimmed screen with a message from the boot file is
 drawn when a required pad is missing. Loading screens disable it. It also pauses the battle;
 see netplay_notes.md.
+
+## Text printer and button icons (`col_c.c`, `col_c_b.c`, 0x239EA0..0x23D1E8; verified unless marked)
+
+122 of 124 functions match per function; not linked yet. The source file really starts at
+0x239BB0 (five helpers at the end of the neighbouring col_b file). Drawing only: no random
+draws, no pad, camera or sound input.
+
+- **Queue model**: `Font_Print*` only queue a 0x54-byte command with a copy of the current
+  style (120 commands at most, no bound check). `Font_Flush(first)` draws commands
+  `first..count` as one GS packet and truncates the queue; `Font_FlushAll` is `Font_Flush(0)`.
+  Strings are stored by pointer, so they must stay valid until the flush. Caller idiom:
+  `n = Font_GetCmdCount(); Font_PushStyle(); ...; Font_PrintAt(...); Font_PopStyle();
+  Font_Flush(n);`.
+- **Command kinds**: 16-bit string, 8-bit string, single character, decimal number with a fixed
+  digit count. Only 16-bit strings expand tags.
+- **Style** (0x48 bytes, five-deep stack): scales, colour, icon colour, spacing, alignment per
+  line, flags, shadow mode (1 one copy, 2 eight copies, 3 four copies), clip box, callbacks.
+- **Fonts**: seven slots; the boot file's two fonts go to slots 0 and 1. Glyph lookup is a
+  binary search over 6-byte records; glyph cells are at most 31 x 31 texels.
+- **Tags in text**: `<PAD=names>` draws controller button icons, `<PADS=a,b,c,d>` one list per
+  controller type (animated), `<COL=RRGGBBAA>` / `<COL=DEF>` changes or restores the colour,
+  `<UB0>` a special character. The icon animation clock (`FontIcon_Tick`) is advanced from
+  `Gfx_EndFrame`, once per 30 Hz frame.
+- Corrections: `func_0023A458` / `func_0023A2D0` (used in pad_watch.c, btl_seq.c) are
+  `Font_GetCmdCount` / `Font_Flush`; the "unidentified inits" at boot, `func_00239FF0` and
+  `func_0023D0E0`, are `Font_Init` and `FontIcon_Init`; `func_0023D160` is `FontIcon_Tick`.

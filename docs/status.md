@@ -135,7 +135,11 @@ eft_det_a, eft_det_b (3), eft_n, eft_o (3), eft_p (2), eft_q, eft_r, eft_s, eft_
 eft_u (2), eft_v (3), eft_w, eft_x (3), eft_y, eft_z (3), eft_aa, eft_ab (3), eft_ac, eft_ad (3),
 col_a.
 
-Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), col_b, col_c, bobj_a, bobj_b,
+col_c (2 files: the text printer, 0x239EA0..0x23D1E8) has reported: 122/124; merge col_b_b.c
+(0x239BB0..0x239EA0) into the top of col_c.c so `Font_Flush` matches. An integrator is linking
+the wave listed above (eft_n..eft_ad, eft_det_*, stg_d, col_a).
+
+Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), col_b, bobj_a, bobj_b,
 btl_ai_seq_a (0x1B4140..0x1B6008, new file to merge into btl_ai_seq.c).
 The user asked (2026-10-04) for at most 10 subagents at a time.
 
