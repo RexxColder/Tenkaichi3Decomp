@@ -92,6 +92,7 @@ and the stage update at 0x243568).
 | 0x18D618..0x190CC8 | eft_x.c | ring particles `EftPart10*`, second half | no | VU0: 18 per particle; libc `rand()`: up to 3 | 29/34 |
 | 0x190CC8..0x190DA8 | eft_x_b.c | **scene layer 3 root**: creates the 31 common effect managers of table 0x2C3FB0 | no | none | 4/4 |
 | 0x190DA8..0x191D28 | eft_x_c.c | quad emitter `EftQuad*`, first half (part kind 9; 200 quads) | no | VU0: 28 per quad; libc `rand()`: up to 5 | 11/11 |
+| 0x199F28..0x19E0C0 | eft_aa.c | ground dust helpers; delayed sounds `EftDelaySe*`; per-fighter effect slots; weapon trail `EftBlade*` (eight character ids); **blinding overlay `EftBlind*`**; part kind 14 `EftAnimPart*` | no | VU0 and libc `rand()` in dust; 6 libc `rand()` at every scene init | 73/79 |
 | 0x1AE2A8..0x1AE5F8 | eft_det_a.c | texture set loaders, VRAM upload | no | none | (eft_det_a 40/40) |
 | 0x1AE5F8..0x1AF508 | eft_det_a.c | **volley aim `EftVolleyAim_*`**: spread and steering of volley shots | **yes** | **`BtlScene_Rand*`: 0..3 per shot at fire (direction), 3..4 on one scripted frame per lobbed shot (target offset)** | |
 | 0x1AF508..0x1AF7B8 | eft_det_a.c | **fighter strike volumes against the other fighter's body `BtlBodyHit_*`** | **yes** | none | |
@@ -466,3 +467,9 @@ lobbed shots draw 3 or 4 more on one scripted frame for their target offset. The
 depends on the distance between fighters 0 and 1 (by literal id) and on the shooter's
 altitude. Steering leads the target with the opponent's frame movement, so it depends on
 whether the opponent has already moved this frame.
+- (verified, eft_aa) The blinding overlay is display only: fighter +0xFFC / 90 becomes the alpha
+  of a grey sprite; its getter has no other caller. It is keyed on object id 0: in single
+  screen an object-1 blind is never shown, so a port where the local player is not object 0
+  must change it. Not drawn in replays.
+- (verified, eft_aa) 0x19B7F8 starts delayed sound tasks, not sparks (correcting eft_j / eft_l
+  comments). Part kind 14's timers run in the update and feed `EftEmit_UpdateAlive`.
