@@ -356,3 +356,18 @@ now use -G0 for src/menu/); chunks 2..8 running (stems menu_b..menu_h). Chunks 9
 launch as slots free (table in docs/briefs_menu_overlay.md; give each a lead from the mode
 table in docs/systems/menu_overlay.md). When the three main-executable agents report: one
 integrator for all the unlinked main-executable files (it will take a slot).
+
+## State 2026-10-04 (every main-executable game range attempted)
+
+All main-executable agents have reported (last: view_b*, late_a* = the -G0 wish screen at
+0x2BD230..0x2BF6B0). Tenth-step integrator RUNNING: linking gfxm_c / d* / e*, stgm_a*,
+mcflow_a, hud_0*, hud_c* / d* / e*, misc_a*, view_b*, late_a* (it may not touch src/menu).
+Commit its work only after re-running the gate here; add only tracked changes plus the files
+it creates (the overlay agents' new files are committed per report).
+Overlay: chunks 1..7 reported and committed (menu_a .. menu_g; 131 functions, 130 match;
+`CharSel_Input` 3 instructions off). Running: chunks 8..16 (menu_h .. menu_p). To launch as
+slots free: 17..27 (menu_q .. menu_za). fdiff.py uses -G0 for paths containing src/menu/,
+src/cri/ or src/sys/late_a. Overlay linking (DBZP.yaml: src_path, per-file .rodata, grouped
+.data, G_FLAGS already set) is a later integrator job, after all chunks report.
+Overlay facts so far are in docs/systems/menu_overlay.md (mode table, story mode, duel mode,
+the versus and team battle hand-offs).
