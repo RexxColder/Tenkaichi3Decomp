@@ -480,3 +480,29 @@ Verified by matching C:
 - Original bugs: in a course battle side 1's member 0 gets costume 0 and no items while pool
   entry 0 (the same opponent) gets the table's; the course guide's line plays with a NULL
   subtitle table.
+
+## Sim mode continued: board input, result screen, top screen head (chunk 18, 0x3840E0..0x388618; src/menu/menu_r*.c; all 18 functions match)
+
+Files: menu_r.c = `SimDay` tail (appends to menu_q_b.c; carries stand-ins for six head
+functions; `SimDay_PickEvent` must be declared with one unused parameter at the merge),
+menu_r_b.c = `SimEvent_Run` (runs one of 37 event scripts from the `.data` table 0x3B7388),
+menu_r_c.c = `SimResult` (mode 23, a whole object), menu_r_d.c = head of `SimTop` (mode 20;
+continues in chunk 19).
+
+Verified by matching C:
+- The ladder is seven rounds of ten turns: nine turns of training / events, a fight on the
+  tenth. `SimTop_Init` resets the run (level 0, attack 0, defence 0, health 100, points 0,
+  no items, turn 0).
+- `SimDay_Input` calls `SimDay_SetupBattle()` on the frame the fight turn's event script
+  finishes, BEFORE the player confirms the versus picture: the battle setup's random draws
+  happen then; one more `Rand_Range(3)` (closing line) is drawn at the confirm.
+- Result screen: outcome from `UbScore_Fill(0, ...)` (0 won, 1 lost, 2 aborted); "continue"
+  writes the total back to `gProgress + 0x65C` and returns to the board; otherwise the total
+  goes into the ranking (`UbScore_AddRanking`) and into `gSaveData->money` (+0x3028, capped at
+  9999999). `cleared` = turn >= 69.
+- Random: `Rand_Range` (lines) and libc `rand()` (blink timer, two result lines).
+- **Original bug**: on the result screen of the last fight (turn >= 69) the clear flag
+  (`gSaveData + 0x288`) and the reward item are given with no test of the fight's outcome: a
+  lost or aborted last fight still grants the item.
+(from disassembly) mode 22 result 1 -> mode 23 and the battle; 0 -> mode 13; mode 23 result
+0 -> turn += 1 and mode 22; 1 -> mode 20.
