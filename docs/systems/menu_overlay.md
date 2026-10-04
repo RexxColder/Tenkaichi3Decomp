@@ -619,3 +619,34 @@ Verified by matching C:
   2 and 4). So the simulation's outputs that the menus consume are: winner, abort flag,
   health, three counters, the event summary bits and the battle clock.
 - `Snd_PlaySe` is non-void in the original (several pad handlers depend on it).
+
+## Evolution Z (modes 48..50): customising screen second file, item help, shop head (chunk 22, 0x395E30..0x39A978; src/menu/menu_v*.c; all 28 functions match)
+
+Files: menu_v.c = `EvoZ_Load`, last function of the customising screen's first source file
+(0x392F10..0x396838, rest in chunk 21); menu_v_b.c = its second file (input, dialog, status,
+item-set edits); menu_v_c.c = `ItemHelp` (the item details page used by every character
+select and the wish screen: `ItemHelp_Init` 0x399240, `_Term` 0x399430, `_Draw(item)`
+0x399478, `_Open` 0x399730, `_Close` 0x399760; replaces the `func_00399...` placeholders,
+also in config/linker_script_extra.ld); menu_v_d.c = head of `Shop` (continues in chunk 23).
+
+(from disassembly, handler `EvoZ_Main` 0x39E940 in chunk 23) mode 48 top menu -> 49
+`EvoZ_Run(3)` (customising) or 50 `Shop_Run(2)`; archive 7 = file baseFile + 4; never starts
+a battle.
+
+Verified by matching C:
+- **Customising screen save writes** (cell = col + row * 7 of the character grid):
+  `custom[cell].set[set].id[slot] = item + 1` on equip; remove / remove-all zero ids;
+  paying Z-points does `money -= zp`, `custom[cell].exp += zp`, then `custom[cell].level++`
+  while `exp >= ChrTbl_GetExp`; opening an item's details clears its "new" bit
+  (`item[i] &= ~2`). Each edit sets `gProgress->flags |= 1` (inferred: "save data changed",
+  which triggers a save flow on leaving).
+- **Equip rule (`EvoZ_CanEquip`)**: owned, `ItemTbl_CanEquip`, fits the character's slot
+  capacity (`ChrTbl_GetLevel`), and no other slot holds an item with the same type and group.
+- Item table entry additions: +1 group, +2 picture, +8 stockLevel; flags 1|4 hidden, 0x20
+  sold by the shop, 0x40 listed, 0x100 not counted for the collection percentage.
+- Shop: sells items with flag 0x20 whose `stockLevel <= gSaveData->unk100C` (the shop's stock
+  level, 0..5); `Shop_CheckStockLevel` raises it when exactly ONE countable item is missing
+  (an original off-by-one) and sets `unk1008 |= 3`. Guide = `Rand_Range(2)` (clip names:
+  Launch and Oolong).
+- `SaveCustom.unk30` is the character's experience.
+- Here both save views are needed in one file (nested for most accesses, flat for three).
