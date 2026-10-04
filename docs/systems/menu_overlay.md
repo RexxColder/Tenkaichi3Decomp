@@ -315,3 +315,30 @@ Verified by matching C:
   shared Mersenne Twister immediately before a battle hand-off; `rand() & 1` (libc) for a
   round-announcement line; `FlashAnim_*` every frame.
 - Pad 0 only; `gameHeld` scrolls the tree.
+
+## Dragon World Tour: handler, entrant select, tournament menu (chunk 10, 0x35F650..0x364358; src/menu/menu_j.c, menu_j_b.c; all 14 functions match)
+
+menu_j.c is the second half of the `EntrySel` object (0x35E0F8..0x3623A8; merge behind
+menu_i_d.c, recipe in the agent's notes at the top of the file); menu_j_b.c is the head of
+the `TourMenu` object (continues in menu_k.c).
+
+Verified by matching C:
+- `Tour_Main` (0x362160): mode 33 `TourMenu_Run(1)` (BGM 0x10B19; zero -> mode 4), 34
+  `EntrySel_Run(2)` (BGM 0x10B1B; zero -> 33), 35 `Bracket_Run(0)` (non-zero = leave for the
+  battle; zero -> 33 and the tournament clock `gSaveData->unkA0C` advances by one, wrapping
+  at 24). Archive 4 = file baseFile + 2.
+- **Tournament clock**: `unkA0C` is shown as an hour ("mc_timer"); `TourMenu_CheckInvite`
+  opens tournament 0 at hours 7..12, 1 at 13..18, 2 at 19..23, 3 at 0..4, 4 at 5..6 (one of
+  `unkA08` bits 0..4) with a level `unkA10 = Rand_Range(3)`. The same counter is bumped by
+  every main-menu confirm (chunk 1), so it is the game's shared "time of day".
+- `gProgress + 0x7C` is the tournament session block (0x3C4 bytes, what
+  `Progress_ClearSession` clears): +0x80 entry, +0x84 tournament, +0x88 level, +0x8C entrant
+  count, +0x90 round, +0x94 match, +0x98 `TourEntrant[17]` (0x28 each: +0 u16 flags 1 player
+  / 0x10 saved custom character / 0x20 has items; +4 chara; +8 costume; +0xC index; +0x18
+  u16 item[8]), +0x340 match table.
+- Entrant select (`gEntrySel`, 0x1C48 bytes): per entrant grid -> form -> item set -> item
+  panel / help -> costume; in the Yamcha Game the entrants are drawn at random by Init and
+  the player only confirms. Random cell: `Rand_Range(gridCount)` until a real character, then
+  `Rand_Range(formCount)`, at costume confirm.
+- Original oddity: a saved custom character entered with the "no items" plate loses its
+  custom flag as well as its items.
