@@ -83,6 +83,8 @@ and the stage update at 0x243568).
 | 0x15C728..0x15E5D0 | eft_l_b.c | type 4 `EftRingShot*`: up to 20 blast objects placed on rings around a fighter, or fired as a volley | **yes**: creates, places, aims and delays blast objects; hit records; flags 0xA8 / 0xA9; restarts the technique timer | **`BtlScene_RandF`: one per shot, reaching the shot's launch position (rings) or direction (volley)** | 20/20 |
 | 0x15E5D0..0x15EF18 | eft_l_c.c | `EftAbsorb*`: glow for drain and absorb (fighter requests 0x38 / 0x37) | no | none | 13/13 |
 | 0x15EF18..0x15F728 | eft_l_d.c | speed-line spawners (head of eft_m's module) | no | libc `rand()`: 33+ per call on every frame a fighter has request 0xB; 90 per part burst | 2/2 |
+| 0x1637A0..0x1655C8 (approx.) | eft_n.c | aura, second half: task, manager, commands (`EftAura_Command`: start, stop, burst, fade, kill) | no | none | (eft_n 41/47) |
+| ..0x167E68 | eft_n.c | body lightning `EftBolt_*`, first half | no | libc `rand()` every unpaused frame per lightning task | |
 | 0x167E68..0x168600 | eft_o.c | body lightning `EftBolt*`, second half (first half in eft_n) | no | none here | (eft_o.c 35/39) |
 | 0x168600..0x1699D0 | eft_o.c | rays `EftRays*` (effect pack part kind 2) | no | libc `rand()`: 2 per ray at creation and per flicker period | |
 | 0x1699D0..0x16AE78 | eft_o_b.c | **blast object `EftBlastObj*`** (60 per battle; fired by volley, shots and ring-shot techniques) | **yes** | none | 30/32 |
@@ -602,3 +604,6 @@ disc: radius = scale x 4.5. Technique piece: radius = the pack's trail width x 3
   callback pops the list head whichever disc ends; ki blast parameters are copied into the
   fighter's first listed disc. (inferred) A second disc created while an older one lives keeps
   zeroed attack parameters: a possible original bug for overlapping disc blasts.
+- (inferred by search, eft_n) The aura's sparks are spawned and stepped (consuming `rand()`) but
+  their draw function has no caller, so they are never shown. Original bug in the lightning
+  draw: one depth term uses the wrong vertex component.
