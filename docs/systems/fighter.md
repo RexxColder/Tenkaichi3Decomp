@@ -293,3 +293,46 @@ disassembly only. Layouts are in `include/battle/bobj_b.h`.
   flags, node velocity since the last snapshot, push and sway with a 0.85 decay.
 - State to save for rollback: face state, chain links, push / sway, node snapshots, the noise
   value.
+
+## Battle object: the animation player (`bobj_a.c`, 0x24BBE8..0x24F1F0)
+
+58 of 62 functions match per function; not linked yet. The four misses include the two pose
+sampling functions (`BtlObjAnim_SamplePosRot`, `BtlObjAnim_SamplePose`), so the pose rules below
+are read from disassembly; events, playback, hit volumes and the matrix walk are verified.
+Layouts and the full object field table are in `include/battle/bobj_a.h`.
+
+**Animation file** (verified): header with an event count, a length in frames, and one track
+offset per model node (71 nodes). A track is rotation-only (packed quaternions and frame
+numbers) or full keys of 0x18 bytes `{x, y, z, frame, quaternion}`. Between two keys:
+translation linear, rotation slerp. Events are 0x10 bytes: a 64-bit attribute word, a frame, a
+volume offset and an argument.
+
+**Decoded motions are edited in place** (verified): fighter motions are BPE-compressed and
+decoded into a per-fighter buffer (0xC000 bytes per layer), then retargeted to the character
+(translations rescaled by height against a built-in reference skeleton), with optional
+root-axis zeroing and root rebasing. The decoded buffers are simulation state.
+
+**Playback** (verified): fighters are owner-stepped (the fighter code advances the frame; see
+combat.md "Animation"); effect models step themselves by 2.0 per update, once or looping. Two
+layers; layer 1 can be promoted to layer 0. A blend stores every node's pose and fades from it.
+
+**Events in an interval** (verified): with `cur = (int)(frame + 1/60)` and
+`prev = (int)(prevFrame + 1/60)` (forced to `cur - 1` when equal), an event fires when
+`prev < f <= cur`. So a paused animation re-raises the events of its current frame every
+update, and frame-0 events fire on the first update. At most 8 distinct attribute words per
+frame. `BtlObjAnim_QueryEvent(obj, mask, layer, what)`: first frame, next frame, last frame,
+count, counts ahead / reached, or the argument, for the events matching a 64-bit mask.
+
+**Hit windows** (verified): event bit 0 opens a window (argument = mask of attack nodes 0..18;
+bit 32 = spheres, else oriented boxes), bit 1 closes it. The open window supplies the volume
+(offset, radius or half sizes) and the object's hit counters at +0xCAC / +0xCAD.
+`BtlObjHit_BuildVolumes` then builds one sphere or box per attack node from the node matrices,
+and the body part boxes; the body sphere sits on node 0 at node 0x11's height.
+
+**Node matrices** (verified): `BtlObjPose_CalcMatrices` walks the skeleton parents first on
+the VU0 matrix stack, world = local x parent. **No visibility, camera or draw dependence.** On
+fighters the jaw node takes the face's rotation while the jaw is active, so a face animation
+that draws libc `rand()` reaches one node matrix.
+
+**Random draws** (verified): libc `rand()` only, all in the face code (jaw key choice, two per
+blink, talk patterns).
