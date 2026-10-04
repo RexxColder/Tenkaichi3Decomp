@@ -182,3 +182,32 @@ lays out correctly merged behind menu_c_e.c (one object 0x342190..0x348D78).
 - (from the attempt) Item sets come from `gSaveData->custom[col + row * 7].item[set - 1]`
   (97 entries of 0x38 bytes, per base character, 3 sets of 8 u16) or `gSaveData->rec[n]`.
 - Original oddities: cancelling the stage phase returns a custom-list side to the wrong state.
+
+## Team select input and hand-off (chunk 6, 0x34D368..0x351C38; src/menu/menu_f.c; all 3 functions match)
+
+`TeamSel_Update`, `TeamSel_Input` (16.5 KB) and `TeamSel_Run`. menu_e_b.c + menu_f.c are ONE
+source file (the TeamSel object 0x348D78..0x351C38: `TeamSel_Input` only matches with three
+of its callees defined above it; menu_f.c carries stand-ins until merged). CharSel and TeamSel
+are separate files (duplicate strings), contrary to the note above.
+
+- (verified) Mode 40 = `TeamSel_Run(2)`, called by `Duel_Main` (0x352CB8, modes 38..41): mode
+  38 is the duel menu, which picks 39 (`CharSel_Run`, single characters) or 40 (teams) by
+  `gProgress + 0x624`.
+- (verified) **Team battle hand-off**: as `CharSel_Run` (random stage / music resolved with
+  `Rand_Range`, rules from `gSaveData->rule[]`, battle mode 0, split screen only with two
+  pads), but `BattleSetup_SetSide(side, control, pad, memberCount, ...)` and one
+  `BattleSetup_SetMember(side, j, chara, color, 0, cpuLevel, 100.0f, items)` per member of
+  each team.
+- (verified) Per-side states: 0 character grid, 1 form reel, 2 item-set plates, 3 item panel,
+  4 help window, 5 costume plates, 6 member list, 7 saved-custom list, 8 done; then the stage
+  grid (9) and music list (10) on pad 0. Item sets: plate 0 = none; a saved custom character's
+  set is the first 16 bytes of its `SaveRec` (`gSaveData + 0x2D40 + idx * 0x1C`); otherwise
+  `gSaveData + 0x1808 + cell * 0x38 + (plate - 1) * 16`.
+- (verified) Grid cell 0xA1 = random, 0xA3 = saved custom characters (view_a.h, menu_d.h
+  defines, menu_e.h comments and menu_support.md have them swapped: fix at integration).
+- (verified) Random member: `Rand_Range(masterCount)` until a real character, then
+  `Rand_Range(formCount)`, repeated until `TeamSel_IsCharaFree`.
+- Original bugs: a random member is never checked against the DP limit, so a DP team can
+  exceed it through the random cell; the random stage draw uses `Rand_Range(stageCount - 1)`,
+  so the last stage in the list can never be drawn; the CPU level is given to pad-controlled
+  members too.
