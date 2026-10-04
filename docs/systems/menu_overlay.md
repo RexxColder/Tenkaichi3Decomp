@@ -650,3 +650,22 @@ Verified by matching C:
   Launch and Oolong).
 - `SaveCustom.unk30` is the character's experience.
 - Here both save views are needed in one file (nested for most accesses, flat for three).
+
+## Sim day events 3..30 (chunk 20, 0x38CB38..0x3911A8; src/menu/menu_t.c, menu_t_b.c; 31 of 32 match)
+
+28 of the 37 day-event handlers (`gSimEvent[3..30]`); menu_t.c appends to menu_s_d.c.
+`SimEv28` (the card game) is INCLUDE_ASM for a TOOLCHAIN reason, not a source one: its
+compiler output is right, but the modern assembler under -G0 moves the `lw %lo(sym)(reg)` of
+a `symbol(reg)` load into the `jal`'s delay slot where the original assembler kept a `nop`
+(3 of 546 instructions). The same output assembled with -G8 is byte-identical. It is the only
+such site in the overlay; the fix is a rule in include/gcc_prelude.inc or a per-file
+exception (the file has no floats), to be decided at integration.
+
+Verified by matching C: every event is a `switch (day->seq)` script, one step per frame;
+effects go through `SimDay_AddChange` (stats 0 attack, 1 defence, 2 health %, 3 points); the
+per-event table is in the source header (e.g. event 4 health to 100; 13..17 deals for 10000
+points; 23 / 24 force the next training's outcome; 27 attack and defence +15 for half the
+health). The card game shuffles with ten libc `rand() % 10` swaps; every other amount is
+`Rand_Range`. Only event 17 writes the save (`gSaveData + 0x20C` += 1, no upper bound).
+Six card-game globals sit in the main executable's `.bss` (0x31EAA0..0x31EAF9): common
+symbols of overlay source again.
