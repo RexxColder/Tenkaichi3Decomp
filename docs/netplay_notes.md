@@ -86,6 +86,11 @@ Consequences:
   during a fight, or the AI needs its own stream.
 - The roster's "time stopped" word (+0x274) freezes the two fighter sources, the scene
   generator and input. Its writer is `BtlChange_Update` (see the load-completion row below).
+- Generators that reach projectile paths (verified, eft_r / eft_det_a / eft_l_b): the fighter
+  generator (ki blast launch jitter, 3 per shot; deflect and reflect direction, 2 each), the
+  VU0 register (bomb throw direction, 3 per bomb), and the scene generator (volley spread,
+  ring-shot placement). **The VU0 register is therefore simulation state**, and it is also
+  drawn by purely visual particle modules at pool-dependent rates: a port must separate them.
 - Effect modules draw from the fighter generator too: `BtlCharApi_GetDeflectDir` (two
   `BtlChar_RandF` per call, callers 0x1764E8 and 0x178630). So its sequence depends on effect
   update order. (verified)

@@ -88,6 +88,13 @@ and the stage update at 0x243568).
 | 0x1699D0..0x16AE78 | eft_o_b.c | **blast object `EftBlastObj*`** (60 per battle; fired by volley, shots and ring-shot techniques) | **yes** | none | 30/32 |
 | 0x16AE78..0x16B4E0 | eft_o_c.c | body effect `EftBodyFx*` (fighter request 0x1A, common effect pack 0x23F) | no | none | (eft_o_c 17/18) |
 | 0x16B4E0..0x16C2E0 | eft_o_c.c | **disc `EftDisc*`, first part** (ki blast discs and technique pieces; rest in eft_p) | **yes** | libc `rand()` once at creation (spin, appearance) | |
+| 0x174AB8..0x175660 | eft_r.c | **beam struggle `EftStruggle_*`** | **yes**: writes both beams' hit position; on its end resets the loser's effect tasks | none | (eft_r 104/105) |
+| 0x175660..0x175CA0 | eft_r.c | spark at the struggle point | no | none | |
+| 0x175CA0..0x1763E8 | eft_r.c | charge aura (fighter requests 7 / 8) | no | VU0 through a shock wave (20) | |
+| 0x1763E8..0x176F10 | eft_r.c | **ki blast `EftKiBlast_*`** | **yes** | fighter generator on deflect / reflect (2) | |
+| 0x176F10..0x177548 | eft_r.c | glow while charging a blast | no | none | |
+| 0x177548..0x178530 | eft_r.c | **ki blast type 3 `EftKiBomb_*`: thrown bouncing bomb** | **yes** | **VU0: 3 per bomb at launch (throw direction)**; libc `rand()` for spin and sound | |
+| 0x178530..0x178AB0 | eft_r.c | ki blast type 2 `EftKiObj_*`, first half | **yes** | fighter generator on deflect / reflect; libc `rand()` for spin | |
 | 0x178AB0..0x1793A8 | eft_s.c | ki blast type 2 `EftKiObj_*`, second half: a thrown model with gravity (first half in eft_r) | **yes**: motion, reacts to hit results (break, deflect / reflect), dies 15 frames after a hit | libc `rand()`: 20 per break (fragments, appearance) | (eft_s 27/31) |
 | 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
 | 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
@@ -507,3 +514,37 @@ fighters. Its creators (volley, shots, ring shot) keep the task pointer as a han
   validated by task class only, so a stale handle to a reused slot passes.
 - No random draws. Records are appended in task list order (creation order across both
   fighters).
+
+## Ki blasts (simulation; `eft_r.c`, verified unless marked)
+
+- **Launch**: `BtlFx_SpawnDamageSparks` in btl_char_fx.c is the ki blast launcher (its name is
+  wrong). On animation event 4 it fires the blast kind's shot count in one frame. In spread
+  mode 0 it draws three values from the fighter generator per shot to jitter the direction.
+  By blast type: plain blast, type 2 thrown object, type 3 bomb, types 4 / 5 discs.
+- **The 0x50-byte launch block** (the same block the hit record's `atk` points at): direction,
+  firer id (never changes), owner id, muzzle node, kind 0..12, type, lifetime in frames, speed
+  per frame, homing turn per frame, radius, charge level 0..3 (= the clash level).
+- **Plain blast**: starts at the muzzle node with "previous position" at the owner's node 0x11.
+  Homing is enabled only if the owner is locked on at launch. Per frame: homing turn, move,
+  lifetime, hit record (two spheres). Lists hold 20 plain blasts and 10 of the other types per
+  character; (inferred) a full list drops the shot silently.
+- **Freeze**: blast updates stop while paused, while any fighter is in hit-stop, or while
+  either fighter is in a rush sequence.
+- **Hit results**: hit, guarded, stage, lost a clash, left the stage, absorbed: the blast snaps
+  to the reported position, stops and dies. **Deflected**: new direction from
+  `BtlCharApi_GetDeflectDir` (two fighter-generator draws), owner flips, homing off; it can
+  never hit again after a second deflection. **Reflected**: the same, but the lifetime
+  restarts and homing now steers at the original firer; it can be reflected again.
+- **Bomb (type 3)**: one shot creates two bombs, thrown with jitter from the VU0 generator,
+  gravity 0.5 per frame, up to three bounces with speed halved; it explodes after 300 frames,
+  near the opponent, on a hit, or once at rest; the explosion is a radius-28 hit record for 15
+  frames.
+- **Live blast count** (`BtlMove_CanFireBlast`): counts type 0 records whose original firer is
+  the fighter, so a deflected blast still counts against its firer. (inferred hazard) Only
+  blasts that published a record this frame count, so during hit-stop the count reads 0.
+- **Beam struggle**: each unpaused frame the struggle point is placed between the two beams by
+  the clash bias and written into both beam tasks' hit position. When it ends, the loser's
+  technique timers expire and all of the loser's effect tasks are reset, live ki blasts
+  included.
+- Order dependence: owner flip is `id ^ 1`; when several blasts are deflected in one frame the
+  fighter generator's sequence follows hit-list order.
