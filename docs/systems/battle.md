@@ -288,3 +288,29 @@ The individual action handlers and technique code (0x1E3158..0x2129C8, in progre
 tasks (0x12DD80..0x1AE200), the stage, and HUD internals. The fighter core is described in
 fighter.md and combat.md. About 50 functions called from the frame loop are still unnamed, with a
 first-read description in the header comment of `battle.c`.
+
+## Pause / result menu (0x2129C8..0x215420; src/battle/hud_0.c, hud_0_b.c, hud_0_c.c, not linked yet; names in config/symbols/hud_0.txt)
+
+63 of 64 functions match; `BtlText_PutSprite` (0x215140) is INCLUDE_ASM, registers only. The
+stem is a misnomer: nothing here is HUD. Final names: the first three functions join the
+`BtlGame_*` group (`BtlGame_IsFighting` 0x2129F0, `BtlGame_IsReplay` 0x212A08); pause_menu.c
+(`PauseMenu_*`, 0x212A10..0x213238: the battle's menu trees and callbacks); btl_menu.c
+(`BtlMenu_*`, 0x213238..0x215010: a generic menu engine); 0x215010.. is the head of btl_seq.c's
+`BtlText_*` part. Layouts in include/battle/hud_0.h.
+
+Verified by matching C:
+- Called from `BtlSeqFight_Update` (`PauseMenu_Update(pad, 0)` while `BATTLE_FLAG_PAUSE_MENU`)
+  and `BtlSeqEnd_Update` (`PauseMenu_Update(pad, 1)`, the result menu); drawn from
+  `BtlGame_Draw` after `Hud_Draw`.
+- Menu trees are static data at 0x2C4E70..0x2C6070, chosen by battle mode and, in mode 0, by
+  replay state; only modes 0 and 1 have a result menu.
+- Pad (`gPad[pad].gamePressed`): up 8, down 4, cross 0x200 confirms, triangle 0x400 closes,
+  start 0x1000 also closes the top-level pause menu; the skill list uses `gameRepeat`.
+- **Writes to the simulation**: (1) a picked result item calls `BattleResult_Set(8, reason)`,
+  one reason bit per item id (table in the source; inferred: 0x8000 rematch, 0x10000 watch
+  replay); (2) closing the pause menu clears `BATTLE_FLAG_PAUSE` and resumes paused voices;
+  (3) the mode 6 pause menu's CPU level sub menu calls `BtlAiMgr_SetLevel(1, level)` every
+  frame it is open. Nothing else. For netplay / replays these are inputs outside the fighter
+  pad stream.
+- No random draw, clock or camera read. Opening / closing take 6 frames each.
+- Original quirk: the code tests `pad` for -1 yet still indexes `gPad[pad]` with it.
