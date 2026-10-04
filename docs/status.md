@@ -130,7 +130,9 @@ stg_a..stg_c, and nineteen decomp agents:
 | eft_ac | 0x1A21A8..0x1A62C8 |
 
 Reported, re-diffed and documented so far (not linked): stg_d, eft_det_b (three files), eft_s,
-eft_u (two files).
+eft_u (two files), eft_w, eft_x (three files). Also launched: eft_ae, col_c.
+The user asked (2026-10-04) for at most 10 subagents at a time from now on: launch nothing
+new until fewer than 10 are running.
 
 Launched later, as slots freed: eft_ad 0x1A62C8..0x1AA7E8; bobj_a 0x24BBE8..0x24F1F0 and
 bobj_b 0x24F1F0..0x2527B0 (battle object: animation player, model nodes; continues btl_obj.c);

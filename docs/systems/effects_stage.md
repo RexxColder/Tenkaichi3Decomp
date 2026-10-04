@@ -89,6 +89,9 @@ and the stage update at 0x243568).
 | 0x182CE8..0x1853C8 | eft_u_b.c | particle emitter `EftPtcl_*`, head (effect pack part kind 5; pool of 500) | no | libc `rand()`: 25..30 per particle | 9/9 |
 | 0x1895E8..0x18C190 | eft_w.c | sprite particles `EftLink_*`, second half (effect pack part kind 15; pool of 200) | no | VU0: 18 per sprite; libc `rand()`: up to 3 | (eft_w 39/44) |
 | 0x18C190..0x18D618 | eft_w.c | ring particles `EftPart10*`, first half (part kind 10; 150 rings) | no | VU0: 2 per ring | |
+| 0x18D618..0x190CC8 | eft_x.c | ring particles `EftPart10*`, second half | no | VU0: 18 per particle; libc `rand()`: up to 3 | 29/34 |
+| 0x190CC8..0x190DA8 | eft_x_b.c | **scene layer 3 root**: creates the 31 common effect managers of table 0x2C3FB0 | no | none | 4/4 |
+| 0x190DA8..0x191D28 | eft_x_c.c | quad emitter `EftQuad*`, first half (part kind 9; 200 quads) | no | VU0: 28 per quad; libc `rand()`: up to 5 | 11/11 |
 | 0x1B16F0..0x1B3510 | eft_det_b.c | **stage collision queries `StgCol_*`** (fighter body sweep, segment trace, camera sweep, debris, shadow) | **yes** | none | 30/33 |
 | 0x1B3510..0x1B3F78 | eft_det_b_b.c | stage way-point graph `StgNav_*` and path search (AI only) | yes (AI input) | none | 10/12 |
 | 0x1B3F78..0x1B4140 | eft_det_b_c.c | head of the AI sequence object (`BtlAiSeq_Reset`, `PushRule`) | yes | none | 1/2 |
@@ -402,3 +405,7 @@ First wave complete: all sixteen agents reported; every file was re-diffed.
   256 entries with no bound check. The search ignores destructible objects.
 - No random draws; no camera, pad or screen-mode input.
 - Ring-out is decided in `BtlColl_UpdateGround`, not here.
+- (verified, eft_x) Scene layer 3 is the root of the 31 "common effect" modules (table
+  0x2C3FB0 of `{class, 1}` pairs, created in table order from pool slot 1).
+- (verified hazard, eft_x) `EftQuad_Update` computes `age % interval`: a definition with
+  interval 0 traps.
