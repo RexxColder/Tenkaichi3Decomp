@@ -143,3 +143,41 @@ module).
 
 Effect tasks 0x12DD80..0x1AE200 and the stage 0x23FB20..0x248F28 complete the simulation; then
 the headless PC simulation validated against the game's replay format.
+
+## Running now (written 2026-10-04, late)
+
+Last verified and committed state: commit "Link the battle object, collision library, task tree,
+text printer and AI scripts" (68.41%, 152 linked C files, 5405 functions clean, no unlinked
+decompiled files, working tree clean at that commit).
+
+Six agents were launched after that commit (cap: at most 10 at a time, user request). Their
+reports arrive as messages. None may run ninja / configure.py or git; I verify and commit.
+
+| Agent | Edits | Task |
+|---|---|---|
+| cleanup: battle object | src/battle/bobj_a.c, bobj_b_b.c (+ their headers) | match `BtlObjAnim_SamplePosRot`, `SamplePose`, `BtlObjXf_Update`, `BtlObjAnim_Load`, `BtlObj_BindTables`, `BObjChainB_Build`, `BObjChainB_Step`, `BObjChainA_Step` |
+| cleanup: stage | stg_a.c, stg_a_b.c, eft_det_b.c, eft_det_b_b.c | `BtlStage_UpdateObjs`, `BtlStage_BreakObj`, `StgPart_Animate`, `StgFrustum_Build`, `Stg_FadeByCamDist`, `StgCol_SplitStep`, `StgCol_FighterBreakObj`, `StgCol_TraceZone`, `StgNav_FindPath`, `StgNavNode_Clear` |
+| cleanup: projectiles | eft_a.c, eft_o_b.c, eft_o_c.c, eft_p.c, eft_i.c, eft_j.c, eft_r.c, eft_h.c | the `EftHit_*` near-misses, blast object, disc, sweep, `EftEmit_Spawn`, `EftBlast_Init`, `EftStruggle_Init`, shot manager |
+| cleanup: fighter / AI | btl_ai_cond.c, btl_ai_act.c, btl_ai_seq.c, eft_det_b_c.c, btl_act_a.c, btl_act_c.c, btl_act_h.c, btl_capi_a.c, btl_input.c | six `AiThink_*`, `BtlAi_GetPairRate / QuadRate`, `BtlAiSense_IsBusy`, `BtlAiStep_GuardUntilSafe / Unk17`, `BtlAiSeq_PushRule`, `BtlActB_TickMemberChange`, `BtlAct_GuardHandler`, `BtlAct_GrabDash`, `BtlCharApi_HasKiBlastType2/3`, `BtlInput_Update` |
+| vu0_a | NEW: config/symbols/vu0_a.txt, src/port/vu0_a.c, include/port/vu0_a.h, src/sys/vu0_a_c.c | vector / matrix library 0x11FA10..~0x121000: names, exact portable C reference (`Ref_*`), matching C for the non-VU0 functions |
+| vu0_b | NEW: config/symbols/vu0_b.txt, src/port/vu0_b.c, include/port/vu0_b.h, src/sys/vu0_b_c.c | the same for ~0x121000..0x122940 |
+
+When a cleanup agent reports: rebuild with the gate (configure, ninja exit 0, both .ok files,
+both cmp silent), run fdiff over every linked file, then commit. A matched function may have
+moved constants from LIT4_WORD / INCLUDE_RODATA lines into C: the ROM compare catches mistakes.
+When the vu0 agents report: list vu0_a.txt / vu0_b.txt in both yamls, run
+scripts/apply_names.py (all symbol files are listed, so the stock script is safe), link the
+matching C files they wrote (src/sys/vu0_*_c.c) if any, rebuild with the gate, write
+docs/systems/math.md additions (exact semantics, VU0 vs IEEE differences, R register rule),
+commit. src/port/ is not part of the matching build.
+
+Open question put to the user (no answer yet): after the vu0 agents report, have ONE agent
+find the equivalent maths routines in the Wii build (wii/, reference only; PowerPC, no VU0)
+and compare them with the PS2 reference implementations, as a cross-check of intent. Do not
+launch it without a yes.
+
+Also offered, not yet done: extracting PZS3US1.AFS and PZS3US2.AFS (2.7 GB together) from the
+ISO into the gitignored disc/DATA/ when asset-format work starts.
+
+Then continue with docs/roadmap.md, "Status 2026-10-04 (evening)", items 2..5.
+
