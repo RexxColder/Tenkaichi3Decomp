@@ -233,3 +233,31 @@ are separate files (duplicate strings), contrary to the note above.
 - (verified) The `.data` of four objects (CharSel, TeamSel, ItemPanel, DuelMenu) is contiguous
   at 0x3B38D4..0x3B38F0 and their `.rodata` follows in the same order up to 0x3B4854: the
   layout rule is per link group.
+
+## Modes 13..30 group: selects (chunk 13, 0x36DBE8..0x372148; src/menu/menu_m.c, menu_m_b.c; all 17 functions match)
+
+menu_m.c = tail of `SoloSel` (appends to menu_l_b.c; object 0x36B3E0..0x36E028); menu_m_b.c =
+head of `UbTeamSel` (object 0x36E028..0x372560, continues in chunk 14). "Ub" is a placeholder
+prefix for this mode family (main-menu item 1); its game name is not established.
+
+Handler 0x379A58 (FROM DISASSEMBLY, not matched yet: chunk 15 owns it), archive 3 = file
+baseFile + 3: mode 13 is a group menu leading to four sub-families:
+- 14 -> 15 (select: `UbTeamSel` if `gProgress + 0x644` teamSize >= 2, else `SoloSel_Run`)
+  -> battle -> 16 (result) -> 14;
+- 17 -> 18 (`SoloSel_Run`) -> battle -> 19 -> 17;
+- 20 -> 21 (`SoloSel_Run`) -> 22 -> battle -> 23 -> 20 or 22 (a counter at `gProgress + 0x674`
+  advances: a ladder);
+- 24 -> 25 / 28 -> 26 / 29 -> battle -> 27 / 30.
+
+(verified) The selects do NOT write the battle setup: they copy the choice to
+`gProgress + 0x440` (one 0x30-byte member record, or the whole 0xF0-byte team with
+`gProgress + 0x644` = member count). Member record: +0 col, +4 row, +8 form, +0x14 item-set
+plate, +0x18 costume, +0x1C character id, +0x20 eight u16 item ids. (from disassembly) the
+handler then calls `BattleSetup_SetSide(0, 0, 0, teamSize, 1, 1, 0, 0)` /
+`BattleSetup_SetMember(0, i, chara, color, 0, 0, 100.0f, items)` / `BattleSetup_Finish()` for
+the player's side only; the rule and the opposing side are set by the preceding menu screens.
+
+`UbTeamSel` (verified): a one-side team select like TeamSel (same DP rule 10 / 15 / 20 from
+`gProgress + 0x648`, same related-character refusal), guides Android 17 / 18 (clip names),
+voice base 0x8765; unlike TeamSel it has no random-cell draw. Random draws: blink timers and
+`FlashAnim_*` only. Pad 0 only.
