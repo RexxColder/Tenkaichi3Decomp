@@ -211,3 +211,16 @@ includes 0x22F9A8.. pause check and 0x22FC20..0x22FD10 before stg_d.c); 0x252F68
 (the second Mersenne Twister / menu codec area: misc_a); 0x2600B0..0x263098 (view_b);
 0x26C050..0x26FE90, 0x26FE90..0x273CA0 (lib_b, lib_c: only if lib_a turns out to be game code).
 After the main executable: the menu overlay DBZP.BIN (0x7C204 bytes, 737 functions).
+
+## STOP INSTRUCTION (user, 2026-10-04, late)
+
+"when those 10 finish stop for now". Do NOT launch any new agents. For the agents still running
+(three cleanup agents: stage, projectiles, fighter / AI; six new-range agents: hud_a, hud_b,
+gfxm_a, gfxm_b, view_a, lib_a): when each reports, re-diff its files and record its findings in
+docs/. When all cleanup agents are in: run the full gate (configure, ninja, both .ok files,
+both cmp silent; a trial build while they were mid-edit did not match, which is expected),
+find and fix anything that breaks the image, then commit the cleanup work (bobj_a.c and
+bobj_b_b.c from the battle-object cleanup agent are edited and re-diffed but NOT committed
+yet). The new-range files stay unlinked and get committed as they are. Then stop and wait for
+the user. Not to be done until the user says so: linking the vu0 files, launching the queued
+chunks, the menu overlay, any port work.
