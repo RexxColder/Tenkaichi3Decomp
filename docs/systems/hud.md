@@ -145,3 +145,35 @@ blocks, +0x28 mark, +0x30 tex0, +0x38 / +0x3C pointers; `HudSprite.texSub` is un
 
 Original quirks: the text line's slide width is always zero (it only fades); a 1.2 s ramp in
 the hit counter that nothing reads; `HudRes_UploadTex` uses the wrong entry's palette width.
+
+## Notice tail, prompt part, timer part, pause request (0x22A750..0x22FD10; src/battle/hud_e.c .. hud_e_e.c, not linked yet; names in config/symbols/hud_e.txt)
+
+57 of 58 functions match; `HudPrompt_UpdateCue` (0x22C838) is INCLUDE_ASM, registers only.
+Final names: hud_notice.c (hud_d_b.c + hud_e.c), hud_prompt.c, hud_timer.c, btl_pause.c;
+hud_e_e.c (two list helpers) belongs at the top of stg_d.c. `.sdata` evidence: the combo part,
+sprite library and notice part are one object (0x2224C8..0x22B4F8); prompt and timer are
+objects of their own. Field tables in include/battle/hud_e.h.
+
+Verified by matching C:
+- Notice: `HudNotice_Show(id 0..8)` also plays the announcer voice
+  (`StreamSe_PlayDefault(0, base + announcer * 7 + line)`, base 0x10B6C or 0x10B34 by
+  `SAVE_FLAG_VOICE`). Correction to the section above: the band animation is shared by ids 3
+  and 8; id 7 is a banner (drops 100 px in 0.4 s, bounces, holds 1.73 s, fades); 16 sprites,
+  [15] is a mark switched by `HudNotice_ShowReplayMark` (name guessed).
+- **Random draw**: `HudNotice_Show(8)` calls `Rand_Range(2)` (the shared Mersenne Twister, the
+  AI's generator) to pick an announcer line; it runs from `Hud_PreUpdate` in battle mode 5
+  only. No libc `rand()` in this range.
+- Prompt (`gHudPrompt` 0x2D0 bytes): button prompt (node 24 at (64, 384), state machine with
+  press / hold / release / animated picture / fade), cue (node 25, side 0, shown by
+  `BtlScript_UpdateHud` while an event action is pending), command row (node 26, up to four
+  icons, "accepted" animation). Reads `gPad[side].status / lastStatus` for the controller-type
+  icon. Frozen by `BATTLE_FLAG_PAUSE`.
+- Timer (`gHudTimer` 0x4C bytes, at (256, 37)): value clamped to 999; changes look below 10
+  and below 4 with a 0.5 s pulse; battle mode 3 shows a count instead.
+- **Pause request** (`BtlPause_*`, `gBtlPause` {padCount, pad}; NOT HUD): START is read
+  directly from `gPad[i].gamePressed & 0x1000` (two pads in split screen); outside mode 7 a
+  pulled-out pad sets `BATTLE_FLAG_PAUSE | BATTLE_FLAG_PAUSE_MENU` and pauses streams and
+  sound group 4; a loaded replay uses pad 0. With the pause menu (docs/systems/battle.md) this
+  is the full path by which START reaches the simulation's pause flag.
+- Original quirks: 27 prompt nodes allocated, 4 used; `HudTimer_ShowMark2` duplicates
+  `ShowMark` with no caller; the notice band node is never linked under the root.
