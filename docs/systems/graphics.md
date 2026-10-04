@@ -287,3 +287,37 @@ Battle object renderer (0x10FB40..0x112A30, verified unless marked):
   lightDir`; flag 0x100000 masks all context-1 writes; 0x200000 selects the dim sprite.
 - Original quirk: the CLUT range is uploaded `clutCount` times per frame.
 - No pad, clock or random draw; nothing feeds back into the simulation.
+
+## Object GS state, model binding, ground shadows, stage relocation (0x112A30..0x115170; src/sys/gfxm_e.c, gfxm_e_b.c, gfxm_e_c.c, gfxm_e_d.c, not linked yet; names in config/symbols/gfxm_e.txt)
+
+35 of 36 functions match; `ObjShadow_BuildPacket` (0x113700) is INCLUDE_ASM with an attempt
+(a loop-size threshold keeps three constants in the loop in the original; compared with the
+disassembly by reading only). Final names: battle/btl_obj_gs.c (probably the tail of the
+object-draw file), btl_obj_mdl.c + btl_obj_shadow.c, mdl_tex.c, stg_reloc.c. 0x1131D8 is a
+proven object boundary (`beqz` / `beqzl`). Layouts in include/sys/gfxm_e.h.
+
+- (verified) **Model binding** (`BtlObjMdl_Create` 0x113598 / `Destroy` 0x1135F0, called by
+  `BtlObj_Setup` / `BtlObj_Destroy`): the first time a model file is bound its texture block
+  pointers are rebased (TBP 0x3480, CBP 0x3C00; second TEX0 TBP 0x3D40, CBP + 0x3D00), it
+  claims a row of the per-object alpha table, and for each material texture the alpha bytes
+  of the first 16 CLUT entries become slot + row x 15 (this is the id byte the post passes
+  read back from the depth buffer's spare byte). Bit 31 of header +0x0C marks the file bound.
+  One pool part (of 512) per mesh record. A texture reference in a model is a VIF block
+  0x6C058000 whose words 5/6 and 9/10 are two TEX0 values; streams end with 0x70000000.
+- (verified) **Ground shadow** (`ObjShadow_*`; pool of five, objects with flag bit 28):
+  each frame unless paused, the stage triangles under the object's bounds are collected (up
+  to 128, alpha fading with height); the object is drawn flattened into a 256x256 page (page
+  0x150) from 1000 above with VU1 program 2, then the triangles are drawn in each view with
+  that page as a texture (program 6, batches of 18, lifted 0.02 along the normal). Area size
+  / texture scale by body scale: <= 23: 18 / 0.055; <= 50: 24.4 / 0.042; <= 70: 50 / 0.021;
+  above: 85 / 0.012. Objects with flag bit 29 get a flat squashed shadow instead (purpose
+  inferred). Reads `Battle_IsSplitScreen`, the pause and loading flags; visual only.
+- (verified) **Stage file relocation** (`BtlStage_Relocate` 0x114C60, called by
+  `BtlStage_Init`): every offset is in words from the base; the header holds count / pointer
+  pairs at +0x10, +0x18, +0x20, +0x30, +0x38, +0x44, pointers at +0x2C and +0x40, an octree at
+  +0x50 (eight children per node), the texture file offset at +0x54. (inferred) what each
+  table holds. Original bug: writes `gBtlStage->base` before the NULL test.
+- Corrections for btl_obj.h: `BtlObj.unk04` = "built" flag, `unk14` = `BtlResSlot *`,
+  `BtlObjBound` records are the mesh list (VIF stream at +0x60), `BtlObjPool3Work` is the
+  shadow pool.
+- No pad, clock or random draw; nothing feeds back into the simulation.
