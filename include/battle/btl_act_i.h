@@ -34,7 +34,7 @@
  *                 0x40000 makes it a cinematic: camera cut (1, 5) and every frame flags 0x125 (hit-stop level 2),
  *                 0x12A, 0x42..0x46, 0x128, 0xBB. Attributes 0x1000000 / 0x2000000 / 0x4000000 / 0x8000000 set
  *                 flags 0x42 + 0x43 / 0x44 / 0x46 / 0x45 each frame. Skill id 1 sets flag 0x137 each frame and on
- *                 leaving holds flag 0x4C + slot. Skill id 0x18 on leaving calls func_002500E8(obj, 2, 0) when
+ *                 leaving holds flag 0x4C + slot. Skill id 0x18 on leaving calls BtlObj_SetColorMode(obj, 2, 0) when
  *                 flag 0x98 is clear and object flag 0x40000 is set.
  *   0xFF / 0x100  BtlAct_SkillTeleport: applies at once; when the animation is over, nine frames of vanish; with
  *                 lock-on the fighter reappears behind the opponent on the 7th.

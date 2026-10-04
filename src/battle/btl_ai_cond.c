@@ -1549,7 +1549,7 @@ s32 AiThCond_ActRateByFlags(AiThWork *ai, u8 arg) {
 }
 
 /* The rate part of the same for condition id cond, without the trace and the state test. Called from
- * func_001B4A50 (at 0x1B4ACC). */
+ * BtlAiSeq_RollPowerUpChain (at 0x1B4ACC). */
 s32 AiThink_RollActRate(AiThWork *ai, s32 cond) {
     s32 code = cond - 40;
     s32 roll = Rand_Range(100);
@@ -2137,7 +2137,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_EvalRules);
 
 /* For the fighter's own action: 1 when its class is 15; otherwise, for the actions 0x3C..0x3F, the step to
  * continue at (action - 0x3A with sequence flag 0x100, else action - 0x3B); 0 for anything else. Called by step
- * handler func_001B5040 (the call is at 0x1B5098). */
+ * handler BtlAiPick_ComboBranch (the call is at 0x1B5098). */
 #if 0
 /* Best attempt. 11 of 32 instructions differ: registers only (the original sets v0 = 1 before the class test and has the action id in a2). */
 s32 AiThink_GetBlastStep(AiThWork *ai) {

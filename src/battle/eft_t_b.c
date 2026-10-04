@@ -51,9 +51,9 @@ extern s32 *BtlScene_GetCommonEntry(s32 idx);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 type);
 extern void *BtlTask_CreateChildList(EftTTask *task, s32 count, s32 workSize);
 extern EftTTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftTTask *task);                     /* kills the task */
-extern u64 func_001ADD28(EftTTex *tex, s32 a, s32 b);          /* steps a texture, returns its TEX0 */
-extern s32 func_001ADDC0(EftTTex *tex);                        /* steps a texture, returns its CLUT base */
+extern void BtlTask_SetDead(EftTTask *task);                     /* kills the task */
+extern u64 EftVram_AddImage(EftTTex *tex, s32 a, s32 b);          /* steps a texture, returns its TEX0 */
+extern s32 EftVram_AddClut(EftTTex *tex);                        /* steps a texture, returns its CLUT base */
 extern void EftTexSet_Load8(void *tex, s32 *entry);              /* builds a texture set from a pack entry */
 
 extern s32 EftCam_IsActive(void);
@@ -219,7 +219,7 @@ void EftStreak_Update(EftTTask *task) {
         }
         if (w->flags & EFT_STREAK_DEAD) {
             w->flags &= ~EFT_STREAK_ALIVE;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
     }
     if (!(w->flags & EFT_STREAK_DEAD)) {
@@ -341,7 +341,7 @@ void EftStreak_Reset(EftTTask *task) {
     EftStreakWork *w = task->work;
 
     w->flags &= ~EFT_STREAK_ALIVE;
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Term callback: gives the streaks back to the pool. */
@@ -662,9 +662,9 @@ void EftStreak_StepTexture(EftStreakWork *w) {
     EftStreakMgr *mgr = gEftStreak->mgr;
 
     if (!(mgr->flags & 1)) {
-        u64 tex0 = func_001ADD28(&w->tex, 1, 0);
+        u64 tex0 = EftVram_AddImage(&w->tex, 1, 0);
 
-        tex0 |= (u64)func_001ADDC0(&w->tex2) << 37;
+        tex0 |= (u64)EftVram_AddClut(&w->tex2) << 37;
         mgr->tex[0].tex0 = tex0;
         mgr->flags |= 1;
     }

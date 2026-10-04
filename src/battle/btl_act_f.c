@@ -125,8 +125,8 @@ extern s32 BtlSuper_GetDamage(BtlSuperChr *chr, s32 cls, s32 a2, s32 a3); /* dam
 extern s32 BtlSuper_GetKiCost(BtlSuperChr *chr, s32 cls);  /* ki cost (halved with ability 0x2B) */
 extern s32 BtlSuper_IsThrow(BtlSuperChr *chr, s32 cls);  /* one of the technique's four reactions is 0x22 (a catch) */
 /* Animation event query on the object: mode 0 = frame of the first event with `mask`, 3 = how many. */
-extern s32 func_0024D610(BtlSuperObj *obj, u64 mask, s32 layer, s32 mode);
-extern void func_002500E8(BtlSuperObj *obj, s32 bit, s32 on);
+extern s32 BtlObjAnim_QueryEvent(BtlSuperObj *obj, u64 mask, s32 layer, s32 mode);
+extern void BtlObj_SetColorMode(BtlSuperObj *obj, s32 bit, s32 on);
 
 /* Requests the camera cut of a technique: cut 0, 1 or 2 for class 2, 3 or 4. */
 void BtlSuper_RequestCut(BtlSuperChr *chr, s32 cls) {
@@ -238,10 +238,10 @@ void BtlSuper_ShakeOnEvent(BtlSuperChr *chr, s32 cls, s32 kind) {
     switch (kind) {
     case 0:
         if (flags & 0x4000000) {
-            s32 n = func_0024D610(obj, 0x400, 0, 3);
+            s32 n = BtlObjAnim_QueryEvent(obj, 0x400, 0, 3);
 
             if (n == 1) {
-                s32 frame = func_0024D610(obj, 0x400, 0, 0) - 4;
+                s32 frame = BtlObjAnim_QueryEvent(obj, 0x400, 0, 0) - 4;
 
                 if (frame < 0) {
                     frame = 0;
@@ -284,7 +284,7 @@ void BtlSuper_ShakeOnEvent(BtlSuperChr *chr, s32 cls, s32 kind) {
 
 /* Stretches the animation so its 0x400 event falls `seconds` from now (0.1 s animation when it has none). */
 void BtlSuper_FitAnimToEvent(BtlSuperChr *chr, f32 seconds) {
-    f32 event = func_0024D610(BtlChar_GetObj(chr), 0x400, 0, 0);
+    f32 event = BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 0x400, 0, 0);
     f32 frame;
     f32 step;
 
@@ -364,18 +364,18 @@ void BtlSuper_MeasureRushStep(BtlSuperChr *chr, s32 cls, s32 step) {
         }
         BtlAnim_PlaySub(chr, step + cls * 0x22 + 0xD8);
         if (obj->subAnim != NULL) {
-            chr->rushHits += func_0024D610(obj, 0x200000000, 1, 3);
+            chr->rushHits += BtlObjAnim_QueryEvent(obj, 0x200000000, 1, 3);
             if (chr->rushStepA < 0) {
-                if (func_0024D610(obj, 0x20000, 1, 3) > 0) {
-                    chr->rushFrameA += func_0024D610(obj, 0x20000, 1, 0);
+                if (BtlObjAnim_QueryEvent(obj, 0x20000, 1, 3) > 0) {
+                    chr->rushFrameA += BtlObjAnim_QueryEvent(obj, 0x20000, 1, 0);
                     chr->rushStepA = step;
                 } else {
                     chr->rushFrameA = chr->rushFrameA + (obj->subAnim->frames + 1.0f);
                 }
             }
             if (chr->rushStepB < 0) {
-                if (func_0024D610(obj, 0x40000, 1, 3) > 0) {
-                    chr->rushFrameB += func_0024D610(obj, 0x40000, 1, 2);
+                if (BtlObjAnim_QueryEvent(obj, 0x40000, 1, 3) > 0) {
+                    chr->rushFrameB += BtlObjAnim_QueryEvent(obj, 0x40000, 1, 2);
                     chr->rushStepB = step;
                 } else {
                     chr->rushFrameB = chr->rushFrameB + (obj->subAnim->frames + 1.0f);
@@ -407,7 +407,7 @@ void BtlSuper_Begin(BtlSuperChr *chr, s32 cls, s32 force) {
         BtlChar_SetHeldFlag(chr, 0xE);
     }
     if ((BtlSuper_GetFlags(chr, cls) & 0x8000) && !BtlChar_TestFlag(chr, 0x98)) {
-        func_002500E8(BtlChar_GetObj(chr), 2, 1);
+        BtlObj_SetColorMode(BtlChar_GetObj(chr), 2, 1);
     }
 }
 
@@ -433,7 +433,7 @@ void BtlSuper_Leave(BtlSuperChr *chr, s32 cls) {
     if ((BtlSuper_GetFlags(chr, cls) & 0x8000) && !BtlChar_TestFlag(chr, 0x98)) {
         obj = BtlChar_GetObj(chr);
         if (obj->flags & 0x40000) {
-            func_002500E8(obj, 2, 0);
+            BtlObj_SetColorMode(obj, 2, 0);
         }
     }
     switch (BtlSuper_GetId(chr, cls)) {
@@ -486,7 +486,7 @@ void BtlSuper_SetupRushDamage(BtlSuperChr *chr, s32 cls, s32 fromAnim) {
             damage /= 2;
         }
         if (fromAnim) {
-            chr->dmgHits = func_0024D610(BtlChar_GetObj(chr), 0x200000000, 0, 3);
+            chr->dmgHits = BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 0x200000000, 0, 3);
         } else {
             chr->dmgHits = chr->rushHits;
         }
@@ -653,7 +653,7 @@ void BtlAct_SuperBeamHandler(BtlSuperChr *chr, s32 phase) {
             BtlSuper_ShakeOnEvent(chr, cls, 0);
             BtlSuper_Recoil(chr, cls, 0);
             BtlSuper_SetClass(chr, cls);
-            if (BtlAnim_GetFrame(chr) < func_0024D610(obj, 0x400, 0, 0)) {
+            if (BtlAnim_GetFrame(chr) < BtlObjAnim_QueryEvent(obj, 0x400, 0, 0)) {
                 aim = 1;
                 BtlSuper_RequestHitStop(chr, 1);
             }
@@ -855,7 +855,7 @@ void BtlAct_SuperWarpBeamHandler(BtlSuperChr *chr, s32 phase) {
             BtlAnim_AdvanceThen(chr, SUPER_ANIM(cls, 3), 0.0f, 0);
             BtlSuper_ShakeOnEvent(chr, cls, 0);
             BtlSuper_Recoil(chr, cls, 0);
-            event = func_0024D610(obj, 0x400, 0, 0);
+            event = BtlObjAnim_QueryEvent(obj, 0x400, 0, 0);
             frame = BtlAnim_GetFrame(chr);
             if (frame < event - 4.0f) {
                 BtlSuper_RequestHitStop(chr, 1);
@@ -1131,7 +1131,7 @@ void BtlAct_SuperChargeHandler(BtlSuperChr *chr, s32 phase) {
             BtlSuper_ShakeOnEvent(chr, cls, 0);
             BtlSuper_Recoil(chr, cls, 0);
             BtlChar_SetFlag(chr, 0x53);
-            if (BtlAnim_GetFrame(chr) < func_0024D610(obj, 0x400, 0, 0)) {
+            if (BtlAnim_GetFrame(chr) < BtlObjAnim_QueryEvent(obj, 0x400, 0, 0)) {
                 aim = 1;
             }
             break;
@@ -1303,7 +1303,7 @@ void BtlAct_SuperRepeatHandler(BtlSuperChr *chr, s32 phase) {
             BtlAnim_AdvanceThen(chr, SUPER_ANIM(cls, 3), 0.0f, 0);
             BtlSuper_ShakeOnEvent(chr, cls, 0);
             BtlSuper_Recoil(chr, cls, 0);
-            if (BtlAnim_GetFrame(chr) < func_0024D610(obj, 0x400, 0, 0)) {
+            if (BtlAnim_GetFrame(chr) < BtlObjAnim_QueryEvent(obj, 0x400, 0, 0)) {
                 aim = 1;
                 BtlSuper_RequestHitStop(chr, 1);
             }
@@ -1447,7 +1447,7 @@ void BtlAct_SuperQuickBeamHandler(BtlSuperChr *chr, s32 phase) {
             BtlAnim_AdvanceThen(chr, SUPER_ANIM(cls, 3), 0.0f, 0);
             BtlSuper_ShakeOnEvent(chr, cls, 0);
             BtlSuper_Recoil(chr, cls, 0);
-            if (BtlAnim_GetFrame(chr) < func_0024D610(obj, 0x400, 0, 0)) {
+            if (BtlAnim_GetFrame(chr) < BtlObjAnim_QueryEvent(obj, 0x400, 0, 0)) {
                 aim = 1;
             }
             break;
@@ -1718,7 +1718,7 @@ extern void BtlChange_SetReady(s32 player);
 extern void BtlChange_SetDone(s32 player);
 extern void BtlAnim_JumpToEnd(ActGChr *chr);
 extern void BtlAnim_EnableHandle(ActGChr *chr);
-#define func_0024D610 ((s32 (*)(ActGObj *obj, u64 mask, s32 layer, s32 mode))func_0024D610)
+#define BtlObjAnim_QueryEvent ((s32 (*)(ActGObj *obj, u64 mask, s32 layer, s32 mode))BtlObjAnim_QueryEvent)
 extern s32 BtlAtk_GetDamage(ActGChr *chr);
 extern s32 BtlAtk_GetThrowParamC(ActGChr *chr);
 extern s32 BtlAtk_GetThrowParamE(ActGChr *chr);
@@ -3225,7 +3225,7 @@ void BtlActThrow_SetupDamage(ActGChr *chr, s32 extraHit) {
     s32 to;
     s32 span;
 
-    chr->queue.hits = func_0024D610(obj, 0x200000000, 0, 3);
+    chr->queue.hits = BtlObjAnim_QueryEvent(obj, 0x200000000, 0, 3);
     if (extraHit) {
         chr->queue.hits++;
     }
@@ -3258,8 +3258,8 @@ void BtlActThrow_SetupDamage(ActGChr *chr, s32 extraHit) {
         drainHealth = BtlAtk_GetThrowParamC(chr);
         drainKi = BtlAtk_GetThrowParamE(chr);
         if (drainHealth > 0 || drainKi > 0) {
-            from = func_0024D610(obj, 0x20000, 0, 0);
-            to = func_0024D610(obj, 0x40000, 0, 2);
+            from = BtlObjAnim_QueryEvent(obj, 0x20000, 0, 0);
+            to = BtlObjAnim_QueryEvent(obj, 0x40000, 0, 2);
             span = (to - from) / 2;
             if (span <= immune) {
                 span = 1;

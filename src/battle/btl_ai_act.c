@@ -67,7 +67,7 @@ extern f32 func_00122200(AiActVec *a, AiActVec *b); /* distance between two poin
 
 extern s32 BtlSeq_GetState(void);
 extern s32 BtlAi_ScaleByLevel(s32 level, s32 lo, s32 hi);
-extern s32 func_001B4140(AiActSide *s, s32 actionId); /* the action must stop (by actFlags and state class) */
+extern s32 BtlAiSeq_IsInterrupted(AiActSide *s, s32 actionId); /* the action must stop (by actFlags and state class) */
 
 /* Fighter accessors by object id (btl_char_api.c and the not yet decompiled 0x204E78.. object). */
 extern s32 BtlCharApi_GetUnk974(s32 objId);            /* state id */
@@ -126,11 +126,11 @@ extern s32 BtlSide_IsPoweredUp(s32 side);                    /* fighter flag 6 *
     (cls)[0] = ((AiActTables8 *)((u8 *)(tbl) + 8))->stateClass[(state)[0]];    \
     (cls)[1] = ((AiActTables8 *)((u8 *)(tbl) + 8))->stateClass[(state)[1]]
 
-/* Action 7 (move): ends the action when func_001B4140 says so, else runs its current phase. */
+/* Action 7 (move): ends the action when BtlAiSeq_IsInterrupted says so, else runs its current phase. */
 void BtlAiMove_Dispatch(AiActSide *s) {
     AiActSeq *act = &s->act;
 
-    if (act->depth > 0 && func_001B4140(s, AIACT_TOP(act)->id)) {
+    if (act->depth > 0 && BtlAiSeq_IsInterrupted(s, AIACT_TOP(act)->id)) {
         act->depth = 0;
         return;
     }
@@ -643,11 +643,11 @@ void BtlAiAtk_End(AiActSide *s) {
     act->phase = 0;
 }
 
-/* Action 0x19: goes to the end phase when func_001B4140 asks, or when the opponent is not in close range. */
+/* Action 0x19: goes to the end phase when BtlAiSeq_IsInterrupted asks, or when the opponent is not in close range. */
 void BtlAiCombo_Dispatch(AiActSide *s) {
     AiActSeq *act = &s->act;
 
-    if (func_001B4140(s, AIACT_TOP(act)->id)) {
+    if (BtlAiSeq_IsInterrupted(s, AIACT_TOP(act)->id)) {
         act->phase = 3;
     }
     if (BtlAiSense_GetRange(s)) {
@@ -746,11 +746,11 @@ void BtlAiFollow_End(AiActSide *s) {
     }
 }
 
-/* Action 0x1A: goes to the end phase when func_001B4140 asks, then runs the phase. */
+/* Action 0x1A: goes to the end phase when BtlAiSeq_IsInterrupted asks, then runs the phase. */
 void BtlAiFollow_Dispatch(AiActSide *s) {
     AiActSeq *act = &s->act;
 
-    if (func_001B4140(s, AIACT_TOP(act)->id)) {
+    if (BtlAiSeq_IsInterrupted(s, AIACT_TOP(act)->id)) {
         act->phase = 3;
     }
     gBtlAiFollowPhases[act->phase](s);
@@ -810,11 +810,11 @@ void BtlAiAct36_Start(AiActSide *s) {
     }
 }
 
-/* Action 0x36: goes to the end phase when func_001B4140 asks, then runs the phase. */
+/* Action 0x36: goes to the end phase when BtlAiSeq_IsInterrupted asks, then runs the phase. */
 void BtlAiAct36_Dispatch(AiActSide *s) {
     AiActSeq *act = &s->act;
 
-    if (func_001B4140(s, AIACT_TOP(act)->id)) {
+    if (BtlAiSeq_IsInterrupted(s, AIACT_TOP(act)->id)) {
         act->phase = 3;
     }
     gBtlAiAct36Phases[act->phase](s);

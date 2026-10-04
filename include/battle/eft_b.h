@@ -26,7 +26,7 @@
 /* Flag bytes are read as one-byte bit-field structs through a cast: as members of a word-aligned struct the
    compiler would use word loads, and the original uses byte loads. */
 typedef struct EftBTaskFlags {
-    u8 dying : 1;                   /* set by func_001ADA58 */
+    u8 dying : 1;                   /* set by BtlTask_SetDead */
 } EftBTaskFlags;
 #define EFTB_TASK_FLAGS(t) ((EftBTaskFlags *)&(t)->flags)
 
@@ -47,7 +47,7 @@ typedef struct EftBTask {
     /* 0x3C */ s32 unk3C;
 } EftBTask; /* size 0x40 */
 
-/* One texture of a texture set (func_001AE148 fills it from a pack entry). */
+/* One texture of a texture set (EftTexSet_Load32 fills it from a pack entry). */
 typedef struct EftBTex {
     /* 0x00 */ u64 tex0;            /* GS TEX0 */
     /* 0x08 */ struct EftBTexImg *img;

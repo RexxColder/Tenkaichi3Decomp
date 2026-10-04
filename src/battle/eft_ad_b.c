@@ -131,10 +131,10 @@ extern s32 BtlScene_IsEffectHidden(s32 objId, s32 type);
 extern s32 BtlObj_Create(s32 type, void *res, s32 active);
 extern s32 BtlObj_Destroy(s32 id);
 extern EftAdObj *BtlObj_Get(s32 id);
-extern void func_0024E2B0(EftAdObj *obj);                   /* rebuilds the object's matrix from pos / rot */
-extern void func_0024D390(EftAdObj *obj, s32 anim, s32 mode); /* starts animation 0..7 of the model */
-extern s32 func_0024D770(EftAdObj *obj);                    /* the animation's play mode (0 = none) */
-extern void func_0024E3B8(EftAdObj *obj, Mtx44 *m);         /* sets the object's matrix and its inverse */
+extern void BtlObjXf_Update(EftAdObj *obj);                   /* rebuilds the object's matrix from pos / rot */
+extern void BtlObjAnim_PlayModel(EftAdObj *obj, s32 anim, s32 mode); /* starts animation 0..7 of the model */
+extern s32 BtlObjAnim_GetMode(EftAdObj *obj);                    /* the animation's play mode (0 = none) */
+extern void BtlObjXf_SetMtx(EftAdObj *obj, Mtx44 *m);         /* sets the object's matrix and its inverse */
 
 /* A vertex handed to the clipper and the triangle writers. */
 typedef struct EftMeshOut {
@@ -763,17 +763,17 @@ void EftObj_SetPos(s32 id, Vec4 *pos) {
 
 /* Rebuilds the object's matrix from its position and rotation. No caller. */
 void EftObj_UpdateMtx(s32 id) {
-    func_0024E2B0(BtlObj_Get(id));
+    BtlObjXf_Update(BtlObj_Get(id));
 }
 
 /* Starts one of the model's animations. */
 void EftObj_PlayAnim(s32 id, s32 anim, s32 mode) {
-    func_0024D390(BtlObj_Get(id), anim, mode);
+    BtlObjAnim_PlayModel(BtlObj_Get(id), anim, mode);
 }
 
 /* Whether an animation is playing. */
 s32 EftObj_IsAnimPlaying(s32 id) {
-    return func_0024D770(BtlObj_Get(id)) != 0;
+    return BtlObjAnim_GetMode(BtlObj_Get(id)) != 0;
 }
 
 /* Writes the object's rotation (used by EftObj_UpdateMtx). No caller. */
@@ -783,7 +783,7 @@ void EftObj_SetRot(s32 id, Vec4 *rot) {
 
 /* Poses the object: sets its world matrix. */
 void EftObj_SetMtx(s32 id, Mtx44 *m) {
-    func_0024E3B8(BtlObj_Get(id), m);
+    BtlObjXf_SetMtx(BtlObj_Get(id), m);
 }
 
 /* Shows or hides the object (the battle object's "drawn" flag). */

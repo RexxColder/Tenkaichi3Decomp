@@ -102,7 +102,7 @@ void EftGndDustLand_Term(EftZTask *task) {
 
 /* Kind 4 reset: kills the task. */
 void EftGndDustLand_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 4 update: follows the owner; the task ends with its last particle. */
@@ -120,7 +120,7 @@ void EftGndDustLand_Update(EftZTask *task) {
         w->tex = EftGndDust_GetTex(gEftGndDust->texPtr, 0);
         w->texFar = EftGndDust_GetTex(gEftGndDust->texPtr, 2);
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 

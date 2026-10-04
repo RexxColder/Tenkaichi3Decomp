@@ -89,7 +89,7 @@ void EftGndDustImpact_Term(EftZTask *task) {
 
 /* Kind 5 reset: kills the task. */
 void EftGndDustImpact_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 5 update: follows the owner; the task ends with its last particle. */
@@ -106,7 +106,7 @@ void EftGndDustImpact_Update(EftZTask *task) {
     if (List_GetHead(&w->parts) != NULL) {
         w->tex = EftGndDust_GetTex(gEftGndDust->texPtr, 0);
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 

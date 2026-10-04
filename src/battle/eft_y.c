@@ -47,8 +47,8 @@ extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 a
                                   s32 z);
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
-extern u64 func_001ADD28(EftYTex *tex, s32 a, s32 b);
-extern s32 func_001ADDC0(EftYTex *tex);
+extern u64 EftVram_AddImage(EftYTex *tex, s32 a, s32 b);
+extern s32 EftVram_AddClut(EftYTex *tex);
 extern EftYTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern s32 EftQuad_InitQuad(EftQuad *q, EftQuadWork *w); /* fills a new quad from the emitter's current values */
 
@@ -778,9 +778,9 @@ void EftQuad_SetTex(EftQuadWork *w, EftYTex8 *tex, s32 a, s32 b) {
 /* Builds the GS TEX0 value of the emitter's texture pair into the table entry, once per entry. */
 void EftQuad_LoadTex(EftQuadWork *w, EftYTex8 *tex) {
     if (tex != NULL && !(tex->loaded & (1 << w->texA))) {
-        u64 t = func_001ADD28(&w->tex0, 1, 0);
+        u64 t = EftVram_AddImage(&w->tex0, 1, 0);
 
-        t |= (u64)func_001ADDC0(&w->tex1) << 37;
+        t |= (u64)EftVram_AddClut(&w->tex1) << 37;
         tex->e[w->texA].tex0 = t;
         tex->loaded |= 1 << w->texA;
     }

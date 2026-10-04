@@ -47,9 +47,9 @@ extern void *EftChar_GetList(s32 objId, s32 kind);
 extern void EftCharSlot_SetAbsorb(s32 objId, EftTask *task);
 extern void EftCharSlot_ClearAbsorb(s32 objId);
 extern EftTask *EftCharSlot_GetAbsorb(s32 objId);
-extern void func_001ADA58(EftTask *task);
-extern void func_001ADB78(EftTask *task, s32 flag);
-extern EftTask *func_001ADB98(EftTask *task);
+extern void BtlTask_SetDead(EftTask *task);
+extern void BtlTask_SetOwnerTag(EftTask *task, s32 flag);
+extern EftTask *BtlTask_GetParent(EftTask *task);
 
 extern u8 gEftAbsorbClass[0x18]; /* the task class (0x2C3A00): six callbacks, see config/symbols/eft_l.txt */
 
@@ -76,7 +76,7 @@ void EftAbsorb_DrawOne(s32 objId, EftTask *task, EftModel *model, EftModelInst *
 
 /* Init callback: copies the argument, makes two emitter states and places the glow(s). */
 void EftAbsorb_Init(EftTask *task, EftAbsorbArg *arg) {
-    EftAbsorbMgr *mgr = func_001ADB98(task)->work;
+    EftAbsorbMgr *mgr = BtlTask_GetParent(task)->work;
     EftAbsorb *w = task->work;
     EftAbsorbOwner *owner = &w->owner;
     EftModel *model = mgr->model;
@@ -93,7 +93,7 @@ void EftAbsorb_Init(EftTask *task, EftAbsorbArg *arg) {
     EftEmit_InitState(w->model, &w->inst[1]);
     w->flags |= EFT_ABSORB_NEW;
     w->life = EftEmit_GetEndFrames(w->model);
-    func_001ADB78(task, owner->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, owner->objId == 0 ? 0x800 : 0x1000);
     if (w->hands == 0) {
         BtlCharApi_GetNodePos(owner->objId, 0x36, &w->pos[0]);
         Vec4_Set(&w->dir[0], 0.0f, -1.0f, 0.0f, 1.0f);
@@ -180,7 +180,7 @@ void EftAbsorb_Update(EftTask *task) {
         }
     }
     if (w->flags & EFT_ABSORB_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -193,7 +193,7 @@ void EftAbsorb_Reset(EftTask *task) {
         EftEmit_KillAll(w->model, &w->inst[0]);
         EftEmit_KillAll(w->model, &w->inst[1]);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback (from the second frame on): once no particle of the first set is alive, the hands variant

@@ -1412,7 +1412,7 @@ extern void BtlChange_SetReady(s32 player);
 extern void BtlChange_SetDone(s32 player);
 extern s32 BtlChars_IsTimeStopped(void);
 extern void BtlStage_GetStartPlace(s32 player, Vec4 *pos, Vec4 *rot, s32 arg3); /* start placement of a player (stage side) */
-extern void func_002500E8(BtlActIObj *obj, s32 arg1, s32 arg2);        /* battle object: called for object flag 0x40000 */
+extern void BtlObj_SetColorMode(BtlActIObj *obj, s32 arg1, s32 arg2);        /* battle object: called for object flag 0x40000 */
 
 /* Gauges and stat modifiers. */
 extern BtlActIGauge *BtlMember_GetActiveGauge(BtlActIChr *chr);
@@ -2022,7 +2022,7 @@ s32 BtlAct_SkillBasic(BtlActIChr *chr, s32 phase) {
                 BtlActIObj *obj = BtlChar_GetObj(chr);
 
                 if (obj->flags & 0x40000) {
-                    func_002500E8(obj, 2, 0);
+                    BtlObj_SetColorMode(obj, 2, 0);
                     return;
                 }
             }

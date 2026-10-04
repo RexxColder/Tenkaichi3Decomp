@@ -29,7 +29,7 @@ typedef struct AiActEntry {
 /* Action runner state: side + 0x28. */
 typedef struct AiActSeq {
     /* 0x00 */ s32 flags;   /* (m) bit 0x80 becomes situation bit 59 and is cleared in state classes 1..7;
-                                   0x400 is tested by func_001B4140 */
+                                   0x400 is tested by BtlAiSeq_IsInterrupted */
     /* 0x04 */ s32 depth;   /* (m) entries on the stack; the running one is stack[depth - 1] */
     /* 0x08 */ s32 phase;   /* (m) 0 init, 1 start, 2 run, 3 end */
     /* 0x0C */ s32 unk0C[2];

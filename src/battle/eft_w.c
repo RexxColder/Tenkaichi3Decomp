@@ -304,8 +304,8 @@ extern s32 rand(void);
 extern f32 cosf(f32 x);
 extern f32 sinf(f32 x);
 extern f32 EftMath_WrapAngle(f32 a);
-extern u64 func_001ADD28(EftWTexEntry *e, s32 a, s32 b);
-extern u64 func_001ADDC0(EftWTexEntry *e);
+extern u64 EftVram_AddImage(EftWTexEntry *e, s32 a, s32 b);
+extern u64 EftVram_AddClut(EftWTexEntry *e);
 extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);
 extern void func_00120C18(Vec4 *v);
 extern void func_00120F88(f32 s);
@@ -343,9 +343,9 @@ void EftLink_BuildTex(EftWLink *w) {
 
     if (arg->tex != NULL) {
         if (!(arg->tex->built & (1 << w->texIdx))) {
-            u64 t = func_001ADD28(&w->tex, 1, 0);
+            u64 t = EftVram_AddImage(&w->tex, 1, 0);
 
-            t |= func_001ADDC0(&w->clut) << 37;
+            t |= EftVram_AddClut(&w->clut) << 37;
             arg->tex->e[w->texIdx].tex0 = t;
             arg->tex->built |= 1 << w->texIdx;
         }
@@ -1291,7 +1291,7 @@ extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Mathf_Asin(f32 x);
 extern f32 atan2f(f32 y, f32 x);
-extern void func_001ADA58(EftWTask *task);
+extern void BtlTask_SetDead(EftWTask *task);
 extern void func_00120B80(Mtx44 *m);
 extern void EftPart10_InitSpin(EftPart10 *w);
 extern void EftPart10_StartKeys(EftPart10 *w);
@@ -1461,7 +1461,7 @@ void EftPart10_Update(EftWTask *task) {
             }
             if ((w->flags & 0x20) || (w->flags & 2)) {
                 w->flags &= ~1;
-                func_001ADA58(task);
+                BtlTask_SetDead(task);
             }
         }
     }
@@ -1521,7 +1521,7 @@ void EftPart10_Draw(EftWTask *task) {
 
 /* Reset callback: kills the task. */
 void EftPart10_Reset(EftWTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Term callback: returns every particle and ring to the shared pools. */

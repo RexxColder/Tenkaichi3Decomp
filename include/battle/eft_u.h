@@ -108,7 +108,7 @@ typedef struct EftShotFxWork {
     /* 0x08 */ s32 count;                 /* lines in the list */
     /* 0x0C */ s32 unkC;
     /* 0x10 */ Mtx44 camRot;              /* camera-to-world rotation of the view being drawn */
-    /* 0x50 */ EftShotFxTex *tex;         /* 0x48 bytes, filled by func_001AE1F8 from common entry 0x237 */
+    /* 0x50 */ EftShotFxTex *tex;         /* 0x48 bytes, filled by EftTexSet_Load4 from common entry 0x237 */
     /* 0x54 */ EftShotFxLine *head;
     /* 0x58 */ EftShotFxLine *tail;
     /* 0x5C */ s32 unk5C;

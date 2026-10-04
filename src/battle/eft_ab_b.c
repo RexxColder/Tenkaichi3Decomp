@@ -32,7 +32,7 @@ extern void BtlPool_Free(s32 slot, void *ptr);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern void *BtlTask_CreateChildList(EftAbTask *task, s32 count, s32 workSize);
 extern EftAbTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftAbTask *task);                         /* marks a task as dying */
+extern void BtlTask_SetDead(EftAbTask *task);                         /* marks a task as dying */
 
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 BtlCharApi_GetPartnerObjId(s32 objId);
@@ -337,7 +337,7 @@ void EftTransform_Update(EftAbTask *task) {
         EftStage_UpdateSprite();
     }
     if (w->flags & EFT_TF_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -349,7 +349,7 @@ void EftTransform_Reset(EftAbTask *task) {
         w->flags |= EFT_TF_KILLED;
         EftEmit_KillAll(w->set, w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback: refreshes the "alive" flag and forgets this frame's node bindings. */

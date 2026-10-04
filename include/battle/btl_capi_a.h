@@ -90,7 +90,7 @@ typedef struct BtlCapiKiBlast {
     /* 0x03 */ u8 unk3[0x34 - 3];
 } BtlCapiKiBlast; /* size 0x34 */
 
-/* Model node, as returned by func_002505A8(obj, node). */
+/* Model node, as returned by BtlObj_GetNode(obj, node). */
 typedef struct BtlCapiNode {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ Mtx44 mtx;      /* world matrix; its translation (+0x40) is the node position */
@@ -99,7 +99,7 @@ typedef struct BtlCapiNode {
     /* 0xA0 */ Quat rot;
 } BtlCapiNode;
 
-/* What func_00250570(obj, n) returns. */
+/* What BtlObj_FindBound(obj, n) returns. */
 typedef struct BtlCapiPart {
     /* 0x00 */ u8 unk0[0x5C];
     /* 0x5C */ f32 unk5C;
@@ -132,7 +132,7 @@ typedef struct BtlCapiObj {
     /* 0xFA0 */ Vec4 *bodyPos;      /* -> {Vec4 pos; f32 radius} (BtlMoveObjBody in btl_char_move.h) */
     /* 0xFA4 */ u8 unkFA4[0xFF0 - 0xFA4];
     /* 0xFF0 */ f32 unkFF0;         /* from the model's body data; * 1.8 = default radius */
-    /* 0xFF4 */ f32 height;         /* model header +0x18 (func_0024DB28 copies the four) */
+    /* 0xFF4 */ f32 height;         /* model header +0x18 (BtlObjBody_Init copies the four) */
     /* 0xFF8 */ f32 unkFF8;         /* model header +0x1C */
     /* 0xFFC */ f32 centerHeight;   /* model header +0x20 */
     /* 0x1000 */ f32 unk1000;       /* model header +0x24 */

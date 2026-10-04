@@ -38,9 +38,9 @@ extern s32 *BtlScene_GetPackEntry(s32 *base, s32 idx);
 extern void *BtlTask_CreateChildList(EftHTask *task, s32 count, s32 dataSize);
 extern EftHTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void BtlTask_Kill(EftHTask *task);
-extern void func_001ADA58(EftHTask *task);          /* task->kill |= 1 */
-extern void func_001ADB78(void *task, s32 flags);   /* task->flags |= flags */
-extern EftHTask *func_001ADB98(EftHTask *task);     /* the task that owns the list this task is in */
+extern void BtlTask_SetDead(EftHTask *task);          /* task->kill |= 1 */
+extern void BtlTask_SetOwnerTag(void *task, s32 flags);   /* task->flags |= flags */
+extern EftHTask *BtlTask_GetParent(EftHTask *task);     /* the task that owns the list this task is in */
 
 extern s32 BtlCharApi_GetPlayerObjUnk9C(s32 player, u32 n);
 extern void *BtlCharApi_GetPlayerSuperData(s32 player);
@@ -79,8 +79,8 @@ extern void EftBlastObj_SetNoHit(void *shot, s32 a);
 extern void EftBlastObj_SetModelAnim(void *shot, s32 a);
 extern void EftBlastObj_MarkLast(void *shot);
 
-extern void func_001AE148(u8 *res, s32 *entry);
-extern void func_001AE1F8(u8 *res, s32 *entry);
+extern void EftTexSet_Load32(u8 *res, s32 *entry);
+extern void EftTexSet_Load4(u8 *res, s32 *entry);
 extern void EftTexSet_Load8(u8 *res, s32 *entry);
 extern void EftTexSet_Load16(u8 *res, s32 *entry);
 extern s32 EftVolleyAim_GetNodeSide(s32 node);
@@ -434,7 +434,7 @@ void EftShotNull_Term(EftHTask *task) {
 
 /* Instance reset: kills the instance. */
 void EftShotNull_Reset(EftHTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Instance update: kills the instance at once, whatever the slot holds. */
@@ -442,14 +442,14 @@ void EftShotNull_Update(EftHTask *task) {
     EftHSlot *slot = ((EftShotNullWork *)task->data)->slot;
 
     if (slot == NULL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (slot->param == NULL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Instance post-update: nothing. */
@@ -534,7 +534,7 @@ void EftVolley_Fire(s32 objId, EftHTask *task, s32 phase, s32 sub) {
                 }
             }
             if (w->flags & EFT_VOLLEY_EXTRA) {
-                shot->handle = EftBlastObj_CreateWithModel(&arg, ((EftSet *)func_001ADB98(task)->data)->extra);
+                shot->handle = EftBlastObj_CreateWithModel(&arg, ((EftSet *)BtlTask_GetParent(task)->data)->extra);
             } else {
                 shot->handle = EftBlastObj_Create(&arg);
             }
@@ -713,7 +713,7 @@ void EftVolley_UpdateParts(s32 objId, EftHTask *task, EftSet *set, s32 reset) {
 /* Instance init: clears the work, takes the shot parameters of the slot and the group's emitter set. */
 #if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. */
 void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
-    EftSet *set = func_001ADB98(task)->data;
+    EftSet *set = BtlTask_GetParent(task)->data;
     EftVolleyWork *w = task->data;
     EftShotParam *p;
     s32 id;
@@ -739,7 +739,7 @@ void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
     if ((u16)slot->param->id - 0x26E < 2U) {
         w->flags |= EFT_VOLLEY_800 | EFT_VOLLEY_1000;
     }
-    func_001ADB78(task, slot->arg.chr == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, slot->arg.chr == 0 ? 0x800 : 0x1000);
 }
 #endif
 INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftVolley_Init);
@@ -824,7 +824,7 @@ void EftVolley_Update(EftHTask *task) {
         w->endTime += 1.0f;
     }
     if (alive == 0 && (w->flags & EFT_VOLLEY_DEAD)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & EFT_VOLLEY_ENDING) {
         if ((w->flags & EFT_VOLLEY_4) || w->endTime >= w->endLimit) {
             w->flags |= EFT_VOLLEY_DEAD;
@@ -858,7 +858,7 @@ void EftVolley_Reset(EftHTask *task) {
         w->flags |= EFT_VOLLEY_RESET;
         EftEmit_KillAll(w->pack, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Instance draw: nothing (the shots and the emitters draw themselves). */
@@ -1019,7 +1019,7 @@ void EftEmit_LoadSet(void *owner, EftSet *set, EftSetHead *given, s32 *base, s32
             m = g->catFirst + j;
             switch (g->cat) {
             case 0:
-                func_001AE148(set->array[0] + m * 0x208, set->resAt[EFT_SET_RES + n]);
+                EftTexSet_Load32(set->array[0] + m * 0x208, set->resAt[EFT_SET_RES + n]);
                 break;
             case 1:
                 EftTexSet_Load16(set->array[1] + m * 0x108, set->resAt[EFT_SET_RES + n]);
@@ -1028,7 +1028,7 @@ void EftEmit_LoadSet(void *owner, EftSet *set, EftSetHead *given, s32 *base, s32
                 EftTexSet_Load8(set->array[2] + m * 0x88, set->resAt[EFT_SET_RES + n]);
                 break;
             case 3:
-                func_001AE1F8(set->array[3] + m * 0x48, set->resAt[EFT_SET_RES + n]);
+                EftTexSet_Load4(set->array[3] + m * 0x48, set->resAt[EFT_SET_RES + n]);
                 break;
             }
         }
@@ -1425,7 +1425,7 @@ void EftEmit_TagTask(void *task, s32 chr, s32 type) {
 
     if (task != NULL && type != 2 && type != 5) {
         flags = chr == 0 ? 0x800 : 0x1000;
-        func_001ADB78(task, flags);
+        BtlTask_SetOwnerTag(task, flags);
         flags = 0; /* dead store: the original does not tail-call here */
     }
 }

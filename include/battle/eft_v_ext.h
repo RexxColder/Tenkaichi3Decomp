@@ -63,7 +63,7 @@ extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *p);
 extern void *BtlTask_CreateChildList(EftVTask *task, s32 count, s32 workSize);
 extern EftVTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftVTask *task);                          /* marks a task as dying */
+extern void BtlTask_SetDead(EftVTask *task);                          /* marks a task as dying */
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern s32 BtlScene_IsEffectHidden(s32 objId, s32 kind);
 extern s32 BtlScene_IsCharInView(s32 objId);

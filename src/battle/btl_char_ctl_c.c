@@ -53,7 +53,7 @@ extern void BtlOpp_GetDelta(BtlCtlChr *chr, Vec4 *out);
 extern void BtlOpp_GetUnk15A0(BtlCtlChr *chr, Vec4 *out);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 BtlParam_GetFlags(BtlCtlChr *chr);
-extern BtlCtlNode *func_002505A8(BtlCtlObj *obj, s32 node);
+extern BtlCtlNode *BtlObj_GetNode(BtlCtlObj *obj, s32 node);
 
 /* Clears the head tracking: identity rotations, zero weights, and the height offset. */
 void BtlChar_ResetLook(BtlCtlChr *chr) {
@@ -77,7 +77,7 @@ void BtlChar_UpdateLookOffset(BtlCtlChr *chr) {
     if (BtlChars_IsTimeStopped()) {
         BtlChar_ResetLook(chr);
     } else {
-        BtlCtlNode *node = func_002505A8(obj, 0x2F);
+        BtlCtlNode *node = BtlObj_GetNode(obj, 0x2F);
 
         look->height += (obj->outPos.y - node->unk40.y - look->height) * 0.2f;
         Vec4_Sub(&offset, &obj->outPos, &node->unk40);
@@ -139,8 +139,8 @@ void BtlChar_UpdateLook(BtlCtlChr *chr) {
         full = 0;
         active = 0;
     }
-    head = func_002505A8(obj, 0x2E);
-    neck = func_002505A8(obj, 0x2F);
+    head = BtlObj_GetNode(obj, 0x2E);
+    neck = BtlObj_GetNode(obj, 0x2F);
     blend = 0.0f;
     Vec4_Copy(&q0, (Vec4 *)&head->rot);
     Vec4_Copy(&q1, (Vec4 *)&neck->rot);
@@ -282,8 +282,8 @@ void BtlChar_UpdateLookAlt(BtlCtlChr *chr) {
         full = 0;
         active = 0;
     }
-    head = func_002505A8(obj, 0x2E);
-    neck = func_002505A8(obj, 0x2F);
+    head = BtlObj_GetNode(obj, 0x2E);
+    neck = BtlObj_GetNode(obj, 0x2F);
     Vec4_Copy(&q0, (Vec4 *)&head->rot);
     blend = 0.0f;
     Vec4_Copy(&q1, (Vec4 *)&neck->rot);

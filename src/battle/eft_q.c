@@ -64,13 +64,13 @@ extern void BtlScene_Reset(s32 mode);
 extern void *BtlTask_CreateChildList(EftQTask *task, s32 count, s32 workSize);
 extern EftQTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void BtlTask_Kill(EftQTask *task);
-extern void func_001ADA58(EftQTask *task);              /* marks the task dead */
-extern void func_001ADB78(EftQTask *task, s32 flag);    /* ors bits into the task's class flags */
-extern EftQTask *func_001ADB98(EftQTask *task);         /* parent task */
-extern u64 func_001ADC68(EftQTex *tex, s32 a, s32 b);   /* GS TEX0 of a texture for this frame */
-extern u64 func_001ADD28(EftQTex *tex, s32 a, s32 b);   /* the same for an image with a separate palette */
-extern s32 func_001ADDC0(EftQTex *tex);                 /* palette address of a texture */
-extern void func_001AE148(EftQTexSet *set, s32 *entry); /* builds a texture set from a pack entry */
+extern void BtlTask_SetDead(EftQTask *task);              /* marks the task dead */
+extern void BtlTask_SetOwnerTag(EftQTask *task, s32 flag);    /* ors bits into the task's class flags */
+extern EftQTask *BtlTask_GetParent(EftQTask *task);         /* parent task */
+extern u64 EftVram_AddTex(EftQTex *tex, s32 a, s32 b);   /* GS TEX0 of a texture for this frame */
+extern u64 EftVram_AddImage(EftQTex *tex, s32 a, s32 b);   /* the same for an image with a separate palette */
+extern s32 EftVram_AddClut(EftQTex *tex);                 /* palette address of a texture */
+extern void EftTexSet_Load32(EftQTexSet *set, s32 *entry); /* builds a texture set from a pack entry */
 
 extern s32 BtlCharApi_GetChara(s32 objId);
 extern f32 BtlCharApi_GetHeight(s32 objId);
@@ -135,16 +135,16 @@ void EftGlow_UpdateTextures(EftGlow *w) {
     s32 i;
 
     if (w->flags & EFT_GLOW_TEXTURED) {
-        u64 tex0 = func_001ADD28(&mgr->res[0].tex.entry[8], 1, 0);
+        u64 tex0 = EftVram_AddImage(&mgr->res[0].tex.entry[8], 1, 0);
 
         for (i = w->texFirst; i < w->texFirst + w->texCount; i++) {
             EftGlowTexView *v = (EftGlowTexView *)&w->paramFlags;
 
-            v->tex[i - w->texFirst] = tex0 | ((u64)func_001ADDC0(&set->entry[i]) << 37);
+            v->tex[i - w->texFirst] = tex0 | ((u64)EftVram_AddClut(&set->entry[i]) << 37);
         }
     } else {
-        w->tex[0] = func_001ADD28(&set->entry[0], 1, 0);
-        w->tex[0] |= (u64)func_001ADDC0(&set->entry[w->type]) << 37;
+        w->tex[0] = EftVram_AddImage(&set->entry[0], 1, 0);
+        w->tex[0] |= (u64)EftVram_AddClut(&set->entry[w->type]) << 37;
     }
     mgr = gEftGlow;
     res = &mgr->res[1];
@@ -152,7 +152,7 @@ void EftGlow_UpdateTextures(EftGlow *w) {
         EftQTexSet *set2 = &mgr->res[1].tex;
 
         for (i = 0; i < set2->count; i++) {
-            set2->entry[i].tex0 = func_001ADC68(&set2->entry[i], 1, 0);
+            set2->entry[i].tex0 = EftVram_AddTex(&set2->entry[i], 1, 0);
         }
         res->ready = 1;
     }
@@ -268,7 +268,7 @@ void EftGlowTask_Update(EftQTask *task) {
         EftGlow_StepParts(w, *objId);
     }
     if (w->flags & EFT_GLOW_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftGlow_UpdateTextures(w);
     }
@@ -282,7 +282,7 @@ void EftGlowTask_PostUpdate(EftQTask *task) {
 
 /* Reset callback: kills the task. */
 void EftGlowTask_Reset(EftQTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: skipped for a hidden fighter; 30% alpha when the camera is on a fighter with object flag bit 21. */
@@ -321,7 +321,7 @@ void EftGlowMgr_Init(EftQTask *task) {
     gEftGlow->res[0].entry = BtlScene_GetCommonEntry(9);
     gEftGlow->res[1].entry = BtlScene_GetCommonEntry(8);
     for (i = 0; i < 2; i++) {
-        func_001AE148(&gEftGlow->res[i].tex, gEftGlow->res[i].entry);
+        EftTexSet_Load32(&gEftGlow->res[i].tex, gEftGlow->res[i].entry);
     }
     gEftGlow->cfg = BtlScene_GetCommonEntry(7);
     gEftGlowCfg2 = gEftGlowCfg = (EftGlowCfg *)gEftGlow->cfg; /* 0x2FEA40 is stored first */
@@ -530,7 +530,7 @@ void EftRushBurst_Emit(s32 objId, EftQTask *task, EftQEmitSet *set) {
 
 /* Init callback: copies the argument, places the burst at the fighter's node and starts the first stage. */
 void EftRushBurst_Init(EftQTask *task, EftRushBurstArg *arg) {
-    EftQSetMgr *mgr = func_001ADB98(task)->work;
+    EftQSetMgr *mgr = BtlTask_GetParent(task)->work;
     EftRushBurst *w = task->work;
     Vec4 *dir = &w->dir;
     EftQEmitSet *set = mgr->set;
@@ -549,7 +549,7 @@ void EftRushBurst_Init(EftQTask *task, EftRushBurstArg *arg) {
     EftEmit_SetNode(w->nodes, 0, arg->node, NULL);
     w->flags |= EFT_RUSHBURST_ALIVE;
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback: releases the emitter state and the fighter's slot. */
@@ -592,7 +592,7 @@ void EftRushBurst_Update(EftQTask *task) {
         }
     }
     if (w->flags & EFT_RUSHBURST_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -604,7 +604,7 @@ void EftRushBurst_Reset(EftQTask *task) {
         w->flags |= EFT_RUSHBURST_RESET;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback (from the second frame on): records whether a particle is alive, clears the phase mask. */
@@ -935,7 +935,7 @@ void EftCharNull_Init(EftQTask *task, s32 chr) {
     s32 *w = task->work;
 
     *w = 0;
-    func_001ADB78(task, chr == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, chr == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term: nothing. */
@@ -944,12 +944,12 @@ void EftCharNull_Term(EftQTask *task) {
 
 /* Task reset: kills the task. */
 void EftCharNull_Reset(EftQTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task update: kills the task. */
 void EftCharNull_Update(EftQTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update: nothing. */
@@ -1080,7 +1080,7 @@ void EftFlash_Term(EftQTask *task) {
 
 /* Task reset: kills the task. */
 void EftFlash_Reset(EftQTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task update: fade in, hold, fade out. The hold lasts until its time has run AND, for a flash started by the
@@ -1143,7 +1143,7 @@ void EftFlash_Update(EftQTask *task) {
         w->fade = 1.0f - w->arg.out / w->outMax;
         if (w->arg.out <= 0.0f) {
             w->arg.out = 0.0f;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
         break;
     }
@@ -1430,7 +1430,7 @@ void EftTrail_Term(EftQTask *task) {
 
 /* Task reset: kills the task. */
 void EftTrail_Reset(EftQTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task update: shifts the point history and adds the head position, turns the direction towards the target, runs
@@ -1466,12 +1466,12 @@ void EftTrail_Update(EftQTask *task) {
         if (w->flags & 1) {
             w->width -= w->width0 / (f32)w->fadeFrames;
             if (w->width <= 0.1f) {
-                func_001ADA58(task);
+                BtlTask_SetDead(task);
             }
         }
         if (w->life >= 0) {
             if (--w->life <= 0) {
-                func_001ADA58(task);
+                BtlTask_SetDead(task);
             }
         }
     }
@@ -1617,7 +1617,7 @@ void EftTrail_UpdateTextures(EftTrail *w) {
 
     if (!(w->tbl->loaded & (1 << w->texFirst))) {
         for (i = 0; i < w->texCount; i++) {
-            w->tex0[i] = func_001ADC68(&w->tex[i], 1, 0);
+            w->tex0[i] = EftVram_AddTex(&w->tex[i], 1, 0);
             w->tbl->tex[w->texFirst + i].tex0 = w->tex0[i];
         }
         w->tbl->loaded |= 1 << w->texFirst;
@@ -1767,7 +1767,7 @@ void EftCharaFx_Emit(s32 objId, EftQTask *task, EftQEmitSet *set, EftQEmitState 
 
 /* Init callback: picks the model nodes by character id and places the effect. */
 void EftCharaFx_Init(EftQTask *task, EftCharaFxArg *arg) {
-    EftQSetMgr *mgr = func_001ADB98(task)->work;
+    EftQSetMgr *mgr = BtlTask_GetParent(task)->work;
     EftCharaFx *w = task->work;
     Vec4 *dir = &w->dir;
     EftQEmitSet *set = mgr->set;
@@ -1809,7 +1809,7 @@ void EftCharaFx_Init(EftQTask *task, EftCharaFxArg *arg) {
     EftEmit_SetNode(w->nodes, 0, w->node, NULL);
     w->flags |= EFT_CHARAFX_ALIVE;
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback: releases both emitter states and the fighter's slot. */
@@ -1873,7 +1873,7 @@ void EftCharaFx_Update(EftQTask *task) {
         }
     }
     if (w->flags & EFT_CHARAFX_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -1886,7 +1886,7 @@ void EftCharaFx_Reset(EftQTask *task) {
         EftEmit_KillAll(w->set, &w->state[0]);
         EftEmit_KillAll(w->set, &w->state[1]);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback (from the second frame on): steps both states' particle lists, clears the phase mask. */

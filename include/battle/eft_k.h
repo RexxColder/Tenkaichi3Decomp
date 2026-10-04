@@ -21,7 +21,7 @@ typedef struct EftKVec {
 
 /* A task of the effect scene's task tree (0x40 bytes); only what this file touches. */
 typedef struct EftKTask {
-    /* 0x00 */ u8 dead;      /* bit 0: set by func_001ADA58, the list update then kills the task */
+    /* 0x00 */ u8 dead;      /* bit 0: set by BtlTask_SetDead, the list update then kills the task */
     /* 0x01 */ u8 state;     /* phase of the item's state machine: 0 started, 1 -> 2 fired / flying, 3 -> 4 ended */
     /* 0x02 */ u8 unk2[2];
     /* 0x04 */ u32 flags;    /* written by the hit pass for the task a hit record names (record +0x60): 1 hit,
@@ -226,7 +226,7 @@ typedef struct EftObjTechMgr {
     /* 0x328 */ s32 *ringTex;
     /* 0x32C */ s32 unk32C;
     /* 0x330 */ u8 ringProto[0x90]; /* EftMesh_Init */
-    /* 0x3C0 */ u8 ringTexSet[0x210]; /* func_001AE148 */
+    /* 0x3C0 */ u8 ringTexSet[0x210]; /* EftTexSet_Load32 */
 } EftObjTechMgr; /* size 0x5D0 */
 
 typedef struct EftKRings {

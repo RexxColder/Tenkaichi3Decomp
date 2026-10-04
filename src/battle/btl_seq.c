@@ -29,24 +29,24 @@ extern u16 *func_002153E0(u16 *line);        /* start of the next line */
 extern void func_00215350(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1); /* GS scissor */
 extern void func_00215140(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u, s32 v, s32 w, s32 h, u32 color, s32 part);
 extern s32 BtlCtrl_TestMemberUnk70(s32 side);
-extern s32 func_0023A458(void);
-extern void func_0023A2D0(s32 font);
-extern s32 func_0023A488(void);
-extern f32 func_0023A5F0(u16 *str, s32 width);
-extern void func_0023A848(s32 x, s32 y, u16 *str);
-extern void func_0023AC60(void);
-extern void func_0023AD48(void);
-extern void func_0023AE48(f32 a);
-extern void func_0023AE68(f32 sx, f32 sy);
-extern void func_0023AE80(f32 *sx, f32 *sy);
-extern void func_0023AED8(s32 x0, s32 y0, s32 x1, s32 y1);
-extern void func_0023AF28(s32 align);
-extern void func_0023AF48(s32 a);
-extern void func_0023AF68(s32 a);
-extern void func_0023AFE0(s32 r, s32 g, s32 b, s32 a);
-extern void func_0023B010(s32 r, s32 g, s32 b, s32 a);
-extern void func_0023B040(s32 r, s32 g, s32 b, s32 a);
-extern s32 func_0023D1A0(u16 *str);
+extern s32 Font_GetCmdCount(void);
+extern void Font_Flush(s32 font);
+extern s32 Font_GetGlyphHeight(void);
+extern f32 Font_FitScale(u16 *str, s32 width);
+extern void Font_PrintAt(s32 x, s32 y, u16 *str);
+extern void Font_PushStyle(void);
+extern void Font_PopStyle(void);
+extern void Font_SetScale(f32 a);
+extern void Font_SetScaleXY(f32 sx, f32 sy);
+extern void Font_GetScaleXY(f32 *sx, f32 *sy);
+extern void Font_SetClip(s32 x0, s32 y0, s32 x1, s32 y1);
+extern void Font_SetAlign(s32 align);
+extern void Font_SetFlags(s32 a);
+extern void Font_SetShadowMode(s32 a);
+extern void Font_SetColorRGBA(s32 r, s32 g, s32 b, s32 a);
+extern void Font_SetColor2RGBA(s32 r, s32 g, s32 b, s32 a);
+extern void Font_SetShadowColorRGBA(s32 r, s32 g, s32 b, s32 a);
+extern s32 FontIcon_GetPadTagSize(u16 *str);
 extern s32 Battle_IsSplitScreen(void);
 
 
@@ -57,7 +57,7 @@ void BtlText_DrawPart(void *pkt, s32 x, s32 y, s32 w, s32 h, s32 part) {
 
 /* Draws the icon of a page title: digit '0'..'8' picks part 7..14 ('7' and '8' share the last one). */
 void BtlText_DrawPageIcon(void *pkt, s32 x, s32 y, u16 digit) {
-    s32 w = func_0023A488();
+    s32 w = Font_GetGlyphHeight();
     s32 idx = digit - '0';
     s32 part = 0;
 
@@ -200,25 +200,25 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
     entry = 0;
     list = &work->list[side];
     p = func_00214FE0();
-    lineH = func_0023A488() * 20;
+    lineH = Font_GetGlyphHeight() * 20;
     if (p == NULL) {
         return;
     }
     if (mode == 0) {
         y -= list->scroll[list->page] * 28;
     }
-    func_0023AC60();
-    func_0023AF48(1);
-    func_0023AE68(1.0f, 1.0f);
+    Font_PushStyle();
+    Font_SetFlags(1);
+    Font_SetScaleXY(1.0f, 1.0f);
     Battle_IsSplitScreen();
-    func_0023AF68(2);
-    func_0023AFE0(0xFF, 0xFF, 0xFF, 0x80);
-    func_0023B040(0, 0x10, 0x10, 0x40);
+    Font_SetShadowMode(2);
+    Font_SetColorRGBA(0xFF, 0xFF, 0xFF, 0x80);
+    Font_SetShadowColorRGBA(0, 0x10, 0x10, 0x40);
     if (mode == 0) {
-        func_0023AED8(x0, y0, x1, y1);
+        Font_SetClip(x0, y0, x1, y1);
         func_00215350(pkt, x0, y0, x1, y1);
     } else {
-        func_0023AED8(x0, y0 - 7, x1, y1 + 7);
+        Font_SetClip(x0, y0 - 7, x1, y1 + 7);
         func_00215350(pkt, x0, y0 - 7, x1, y1 + 7);
     }
     p += 1;
@@ -251,15 +251,15 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
         if (mode == 0) {
             switch (tag) {
             case '$':
-                func_0023AC60();
+                Font_PushStyle();
                 func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
-                func_0023AED8(0, 0, 0x1FF, 0x1BF);
-                func_0023AFE0(0xFF, 0xFF, 0xFF, 0x80);
-                func_0023B040(0x56, 0x3D, 0x39, 0x80);
-                func_0023A848(x0 + 0x1E, y0 - 0x22, p + 2);
+                Font_SetClip(0, 0, 0x1FF, 0x1BF);
+                Font_SetColorRGBA(0xFF, 0xFF, 0xFF, 0x80);
+                Font_SetShadowColorRGBA(0x56, 0x3D, 0x39, 0x80);
+                Font_PrintAt(x0 + 0x1E, y0 - 0x22, p + 2);
                 BtlText_DrawPageIcon(pkt, x0, y0 - 0x28, p[1]);
                 func_00215350(pkt, x0, y0, x1, y1);
-                func_0023AD48();
+                Font_PopStyle();
                 break;
             case '*':
                 if (y0 < y + 0x20 && y < y1) {
@@ -267,21 +267,21 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
                     icon[1] = p[2] - '0';
                     icon[2] = p[3] - '0';
                     if (entry == list->cursor[list->page]) {
-                        func_0023AFE0(BTLTEXT_COL(255.0f), BTLTEXT_COL(247.0f), BTLTEXT_COL(15.0f), 0x80);
-                        func_0023B040(BTLTEXT_COL(28.0f), BTLTEXT_COL(32.0f), BTLTEXT_COL(21.0f), 0x40);
+                        Font_SetColorRGBA(BTLTEXT_COL(255.0f), BTLTEXT_COL(247.0f), BTLTEXT_COL(15.0f), 0x80);
+                        Font_SetShadowColorRGBA(BTLTEXT_COL(28.0f), BTLTEXT_COL(32.0f), BTLTEXT_COL(21.0f), 0x40);
                     } else {
-                        func_0023AFE0(BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), 0x80);
-                        func_0023B040(BTLTEXT_COL(32.0f), BTLTEXT_COL(43.0f), BTLTEXT_COL(94.0f), 0x40);
+                        Font_SetColorRGBA(BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), BTLTEXT_COL(255.0f), 0x80);
+                        Font_SetShadowColorRGBA(BTLTEXT_COL(32.0f), BTLTEXT_COL(43.0f), BTLTEXT_COL(94.0f), 0x40);
                     }
-                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x44);
+                    fit = Font_FitScale(p + 2, (x1 - x0) - 0x44);
                     if (fit < 1.0f) {
-                        func_0023AC60();
-                        func_0023AE80(&sx, &sy);
-                        func_0023AE68(sx * fit, sy);
-                        func_0023A848(x0 + 0xF, y + 3, p + 4);
-                        func_0023AD48();
+                        Font_PushStyle();
+                        Font_GetScaleXY(&sx, &sy);
+                        Font_SetScaleXY(sx * fit, sy);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 4);
+                        Font_PopStyle();
                     } else {
-                        func_0023A848(x0 + 0xF, y + 3, p + 4);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 4);
                     }
                     h = lineH - 2;
                     if (entry == list->cursor[list->page]) {
@@ -313,17 +313,17 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
                     if (entry != list->cursor[list->page]) {
                         break;
                     }
-                    func_0023AFE0(BTLTEXT_COL(170.0f), BTLTEXT_COL(215.0f), BTLTEXT_COL(255.0f), 0x80);
-                    func_0023B040(BTLTEXT_COL(43.0f), BTLTEXT_COL(54.0f), BTLTEXT_COL(64.0f), 0x40);
-                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x1E);
+                    Font_SetColorRGBA(BTLTEXT_COL(170.0f), BTLTEXT_COL(215.0f), BTLTEXT_COL(255.0f), 0x80);
+                    Font_SetShadowColorRGBA(BTLTEXT_COL(43.0f), BTLTEXT_COL(54.0f), BTLTEXT_COL(64.0f), 0x40);
+                    fit = Font_FitScale(p + 2, (x1 - x0) - 0x1E);
                     if (fit < 1.0f) {
-                        func_0023AC60();
-                        func_0023AE80(&sx, &sy);
-                        func_0023AE68(sx * fit, sy);
-                        func_0023A848(x0 + 0xF, y + 3, p + 2);
-                        func_0023AD48();
+                        Font_PushStyle();
+                        Font_GetScaleXY(&sx, &sy);
+                        Font_SetScaleXY(sx * fit, sy);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 2);
+                        Font_PopStyle();
                     } else {
-                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 2);
                     }
                     y += 0x1C;
                     break;
@@ -331,17 +331,17 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
                     if (entry != list->cursor[list->page]) {
                         break;
                     }
-                    func_0023AFE0(BTLTEXT_COL(239.0f), BTLTEXT_COL(89.0f), BTLTEXT_COL(89.0f), 0x80);
-                    func_0023B040(BTLTEXT_COL(64.0f), BTLTEXT_COL(17.0f), BTLTEXT_COL(0.0f), 0x40);
-                    fit = func_0023A5F0(p + 2, (x1 - x0) - 0x1E);
+                    Font_SetColorRGBA(BTLTEXT_COL(239.0f), BTLTEXT_COL(89.0f), BTLTEXT_COL(89.0f), 0x80);
+                    Font_SetShadowColorRGBA(BTLTEXT_COL(64.0f), BTLTEXT_COL(17.0f), BTLTEXT_COL(0.0f), 0x40);
+                    fit = Font_FitScale(p + 2, (x1 - x0) - 0x1E);
                     if (fit < 1.0f) {
-                        func_0023AC60();
-                        func_0023AE80(&sx, &sy);
-                        func_0023AE68(sx * fit, sy);
-                        func_0023A848(x0 + 0xF, y + 3, p + 2);
-                        func_0023AD48();
+                        Font_PushStyle();
+                        Font_GetScaleXY(&sx, &sy);
+                        Font_SetScaleXY(sx * fit, sy);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 2);
+                        Font_PopStyle();
                     } else {
-                        func_0023A848(x0 + 0xF, y + 3, p + 2);
+                        Font_PrintAt(x0 + 0xF, y + 3, p + 2);
                     }
                     y += 0x1C;
                     break;
@@ -349,12 +349,12 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
                 break;
             case '#':
                 if (entry == list->cursor[list->page]) {
-                    func_0023B010(BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), 0x80);
-                    func_0023A848(x0 + 0xF, y, p + 1);
+                    Font_SetColor2RGBA(BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), BTLTEXT_COL(128.0f), 0x80);
+                    Font_PrintAt(x0 + 0xF, y, p + 1);
                     y += 0x1C;
-                    func_0023B010(0x80, 0x80, 0x80, 0x80);
+                    Font_SetColor2RGBA(0x80, 0x80, 0x80, 0x80);
                     if (work->unk10 == 1) {
-                        if (func_0023D1A0(p + 1) > 0x20) {
+                        if (FontIcon_GetPadTagSize(p + 1) > 0x20) {
                             y += 0x14;
                         }
                     }
@@ -368,7 +368,7 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
         gBtlTextAlpha = 1.0f;
         p = func_002153E0(p);
     }
-    func_0023AD48();
+    Font_PopStyle();
     func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
 }
 
@@ -497,29 +497,29 @@ void BtlText_DrawEntryName(s32 x, s32 y, s32 n, s32 align, f32 alpha) {
     u16 *str = BtlText_FindEntry(n);
 
     if (str != NULL) {
-        s32 font = func_0023A458();
+        s32 font = Font_GetCmdCount();
 
-        func_0023AC60();
-        func_0023AF48(1);
-        func_0023AE48(0.9f);
-        func_0023AE68(0.95f, 1.0f);
-        func_0023AFE0(0xFF, 0xFF, 0xFF, (u8)(u32)(alpha * 128.0f));
-        func_0023AF68(2);
-        func_0023B040(0x20, 0x20, 0xFF, (u8)(u32)(alpha * 64.0f));
+        Font_PushStyle();
+        Font_SetFlags(1);
+        Font_SetScale(0.9f);
+        Font_SetScaleXY(0.95f, 1.0f);
+        Font_SetColorRGBA(0xFF, 0xFF, 0xFF, (u8)(u32)(alpha * 128.0f));
+        Font_SetShadowMode(2);
+        Font_SetShadowColorRGBA(0x20, 0x20, 0xFF, (u8)(u32)(alpha * 64.0f));
         switch (align) {
         case 0:
-            func_0023AF28(0);
+            Font_SetAlign(0);
             break;
         case 1:
-            func_0023AF28(2);
+            Font_SetAlign(2);
             break;
         default:
-            func_0023AF28(1);
+            Font_SetAlign(1);
             break;
         }
-        func_0023A848(x, y, str);
-        func_0023AD48();
-        func_0023A2D0(font);
+        Font_PrintAt(x, y, str);
+        Font_PopStyle();
+        Font_Flush(font);
     }
 }
 

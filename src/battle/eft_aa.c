@@ -86,19 +86,19 @@ extern s32 EftBurst_IsBusy(void);
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 layer,
                               s32 front, u64 tex0);
 extern EftGroundPiece *EftGndDust_AllocPart(List *active, List *free);       /* takes a cleared piece from the free list */
-extern void func_001AA8D0(void *obj, void *tex, void *res);            /* animated object: create */
-extern void func_001AA9B8(void *obj);                                  /* free */
-extern void func_001AAB40(void *obj);                                  /* step */
-extern void func_001AAD00(void *obj);                                  /* draw */
-extern s32 func_001AAEB8(void *obj);                                   /* still playing */
-extern void func_001AAF20(void *obj, Vec4 *pos);
-extern void func_001AAF50(void *obj, Vec4 *dir);
-extern void func_001AAF80(void *obj, Vec4 *scale);
-extern void func_001AAFB0(void *obj, Vec4 *color);
-extern void func_001AAFE8(void *obj, s32 layer);
-extern void func_001AAFF0(void *obj);                                  /* end of frame */
-extern void func_001ADA58(EftAaTask *task);                            /* kills the task */
-extern u64 func_001ADC68(void *entry, s32 a1, s32 a2);                 /* advances a texture, returns TEX0 */
+extern void EftSprAnim_Create(void *obj, void *tex, void *res);            /* animated object: create */
+extern void EftSprAnim_Destroy(void *obj);                                  /* free */
+extern void EftSprAnim_Step(void *obj);                                  /* step */
+extern void EftSprAnim_Draw(void *obj);                                  /* draw */
+extern s32 EftSprAnim_IsPlaying(void *obj);                                   /* still playing */
+extern void EftSprAnim_SetPos(void *obj, Vec4 *pos);
+extern void EftSprAnim_SetDir(void *obj, Vec4 *dir);
+extern void EftSprAnim_SetScale(void *obj, Vec4 *scale);
+extern void EftSprAnim_SetColor(void *obj, Vec4 *color);
+extern void EftSprAnim_SetDrawFlags(void *obj, s32 layer);
+extern void EftSprAnim_KeepTextures(void *obj);                                  /* end of frame */
+extern void BtlTask_SetDead(EftAaTask *task);                            /* kills the task */
+extern u64 EftVram_AddTex(void *entry, s32 a1, s32 a2);                 /* advances a texture, returns TEX0 */
 extern void EftTexSet_Load16(u8 *res, s32 *entry);                        /* binds a resource set */
 
 extern EftAaView *gBtlCamView;
@@ -140,7 +140,7 @@ u64 EftGndDust_GetTex(EftGroundTex *tex, s32 idx) {
     s32 bit = 1 << idx;
 
     if (!(tex->loaded & bit)) {
-        tex->entry[idx].tex0 = func_001ADC68(&tex->entry[idx], 1, 0);
+        tex->entry[idx].tex0 = EftVram_AddTex(&tex->entry[idx], 1, 0);
         tex->loaded |= bit;
     }
     return tex->entry[idx].tex0;
@@ -639,14 +639,14 @@ void EftDelaySe_Update(EftAaTask *task) {
     if (!BtlScene_IsCharStopped(w->objId)) {
         if (--w->delay <= 0) {
             Snd_PlaySeEx(4, w->seId, 0x7F, 0x40, 0);
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
     }
 }
 
 /* Task reset: a pending sound is dropped. */
 void EftDelaySe_Reset(EftAaTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* ---- per-fighter effect slots --------------------------------------------------------------------------- */
@@ -1422,7 +1422,7 @@ s32 EftAnimPart_SetType(EftAaTask *task, s32 type) {
 /* Moves a part. */
 s32 EftAnimPart_SetPos(EftAaTask *task, Vec4 *pos) {
     if (EftAnimPart_IsValid(task)) {
-        func_001AAF20(task->work, pos);
+        EftSprAnim_SetPos(task->work, pos);
         return 1;
     }
     return 0;
@@ -1436,7 +1436,7 @@ s32 EftAnimPart_SetSize(EftAaTask *task, f32 size) {
         EftAnimPart *w = task->work;
 
         Vec4_Set((Vec4 *)&v, size, size, size, 1.0f);
-        func_001AAF80(w, (Vec4 *)&v);
+        EftSprAnim_SetScale(w, (Vec4 *)&v);
         return 1;
     }
     return 0;
@@ -1445,7 +1445,7 @@ s32 EftAnimPart_SetSize(EftAaTask *task, f32 size) {
 /* Turns a part. */
 s32 EftAnimPart_SetDir(EftAaTask *task, Vec4 *dir) {
     if (EftAnimPart_IsValid(task)) {
-        func_001AAF50(task->work, dir);
+        EftSprAnim_SetDir(task->work, dir);
         return 1;
     }
     return 0;
@@ -1506,7 +1506,7 @@ void EftAnimPart_Init(EftAaTask *task, EftAnimPartArg *arg) {
 
     memset(w, 0, sizeof(EftAnimPart));
     w->arg = *arg;
-    func_001AA8D0(w, w->arg.tex, w->arg.res);
+    EftSprAnim_Create(w, w->arg.tex, w->arg.res);
     w->taskId = task->id;
     w->flags |= EFT_ANIMPART_VALID;
     if (arg->life > 0.0f) {
@@ -1514,19 +1514,19 @@ void EftAnimPart_Init(EftAaTask *task, EftAnimPartArg *arg) {
         w->flags |= EFT_ANIMPART_TIMED;
     }
     Vec4_Set((Vec4 *)&v, w->arg.size, w->arg.size, w->arg.size, 1.0f);
-    func_001AAF20(w, (Vec4 *)&w->arg.pos);
-    func_001AAF50(w, (Vec4 *)&w->arg.dir);
-    func_001AAF80(w, (Vec4 *)&v);
+    EftSprAnim_SetPos(w, (Vec4 *)&w->arg.pos);
+    EftSprAnim_SetDir(w, (Vec4 *)&w->arg.dir);
+    EftSprAnim_SetScale(w, (Vec4 *)&v);
 }
 
 /* Task term: frees the animated object. */
 void EftAnimPart_Term(EftAaTask *task) {
-    func_001AA9B8(task->work);
+    EftSprAnim_Destroy(task->work);
 }
 
 /* Task reset: the part is dropped. */
 void EftAnimPart_Reset(EftAaTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task update: delay, then steps the object until its animation or its life ends; then hold and fade. */
@@ -1537,7 +1537,7 @@ void EftAnimPart_Update(EftAaTask *task) {
 
     if (!BtlScene_IsEffectStopped(w->arg.chr, w->type)) {
         if (w->delay <= 0.0f) {
-            func_001AAB40(w);
+            EftSprAnim_Step(w);
             w->flags |= EFT_ANIMPART_STARTED;
             if (w->flags & EFT_ANIMPART_TIMED) {
                 w->life -= 1.0f;
@@ -1545,7 +1545,7 @@ void EftAnimPart_Update(EftAaTask *task) {
                     w->flags |= EFT_ANIMPART_ENDING;
                 }
             }
-            if (!func_001AAEB8(w)) {
+            if (!EftSprAnim_IsPlaying(w)) {
                 w->flags &= ~EFT_ANIMPART_STARTED;
                 w->flags |= EFT_ANIMPART_ENDING;
             }
@@ -1566,14 +1566,14 @@ void EftAnimPart_Update(EftAaTask *task) {
                     a = 0.0f;
                 }
                 Vec4_Set((Vec4 *)&c, 1.0f, 1.0f, 1.0f, a);
-                func_001AAFB0(w, (Vec4 *)&c);
+                EftSprAnim_SetColor(w, (Vec4 *)&c);
             }
         }
     }
     if (w->flags & EFT_ANIMPART_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
-        func_001AAFF0(w);
+        EftSprAnim_KeepTextures(w);
     }
 }
 
@@ -1629,8 +1629,8 @@ void EftAnimPart_Draw(EftAaTask *task) {
         break;
     }
     if (w->flags & EFT_ANIMPART_STARTED) {
-        func_001AAFE8(w, layer);
-        func_001AAD00(w);
+        EftSprAnim_SetDrawFlags(w, layer);
+        EftSprAnim_Draw(w);
     }
 }
 #else

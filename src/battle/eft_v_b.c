@@ -184,7 +184,7 @@ void EftImpact_Update(EftVTask *task) {
         w->time += 1.0f;
     }
     if (w->flags & EFT_IMPACT_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & EFT_IMPACT_ENDING) {
         if ((w->flags & EFT_IMPACT_KILL) || w->time >= w->endFrames) {
             w->flags |= EFT_IMPACT_DEAD;
@@ -216,7 +216,7 @@ void EftImpact_Reset(EftVTask *task) {
         w->flags |= EFT_IMPACT_KILLED;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: nothing (the parts draw themselves). */

@@ -25,7 +25,7 @@ extern s32 BtlCharApi_HasMemberUnk70(void *arg);
 extern void BtlCharApi_GetCamUnk460(void *arg, Vec4 *out);
 extern s32 BtlStage_IsReady(void);
 extern DemoCamAnim *BtlStage_GetFileMember(s32 idx);          /* the stage's camera animation idx (0..2) */
-extern u8 *func_002505A8(void *obj, s32 arg);
+extern u8 *BtlObj_GetNode(void *obj, s32 arg);
 
 /* Turns the file offsets of a camera animation into pointers (once). */
 void DemoCam_FixupAnim(DemoCamAnim *anim) {
@@ -199,7 +199,7 @@ s32 DemoCam_Update(void) {
             }
         }
         if (gDemoCam->obj != NULL) {
-            DemoCam_SetBase((Mtx44 *)(func_002505A8(gDemoCam->obj, 0) + 0x10));
+            DemoCam_SetBase((Mtx44 *)(BtlObj_GetNode(gDemoCam->obj, 0) + 0x10));
         } else if (gDemoCam->chr != NULL) {
             DemoCam_SetBase((Mtx44 *)((u8 *)gDemoCam->chr + 0x9A0));
         }

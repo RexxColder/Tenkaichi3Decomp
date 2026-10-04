@@ -20,12 +20,12 @@ extern void BtlChar_SetFxBit(FxChr *chr, s32 bit);          /* set */
 extern s32 BtlChar_TestFxBit(FxChr *chr, s32 bit);           /* test */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 part, Vec4 *out); /* world position of a model part */
 extern void BtlCharSnd_PlayCommon(FxChr *chr, s32 sound);
-extern void func_002500E8(FxObj *obj, s32 bit, s32 on);
+extern void BtlObj_SetColorMode(FxObj *obj, s32 bit, s32 on);
 extern void EftShotFx_Start(s32 objId, s32 kind);
 extern void EftImpact_SpawnHit(FxPosArg *arg);
 extern s32 *BtlMember_GetActive(FxChr *chr);
-extern void func_0024F568(FxObj *obj, s32 arg);
-extern s32 func_0024F9F0(FxObj *obj);
+extern void BtlObj_SetEyeFrame(FxObj *obj, s32 arg);
+extern s32 BtlObj_GetMouthMode(FxObj *obj);
 extern void BtlObj_SetSubState(FxObj *obj, s32 state, s32 arg);
 extern s32 BtlAnim_TestAttr(FxChr *chr, u64 mask);           /* animation event bits raised this frame */
 extern s32 BtlAnim_GetId(FxChr *chr);                      /* the current animation number */
@@ -44,10 +44,10 @@ extern s32 BtlAtk_GetHitSoundLevel(FxChr *chr);
 extern s32 BtlSuper_GetFlagsA(FxChr *chr, s32 slot);
 extern s32 BtlSkill_GetId(FxChr *chr, s32 slot);
 extern s32 BtlChar_GetHitSoundLine(s32 kind);
-extern s32 func_0024D4D0(FxObj *obj, u64 mask);
-extern s32 func_0024D518(s32 bits);
-extern s32 func_0024D610(FxObj *obj, s32 a, s32 b, s32 c);
-extern void func_00250940(FxObj *obj, s32 part, Vec4 *out);
+extern s32 BtlObjAnim_GetEventArg(FxObj *obj, u64 mask);
+extern s32 BtlObjAnim_MaskToNode(s32 bits);
+extern s32 BtlObjAnim_QueryEvent(FxObj *obj, s32 a, s32 b, s32 c);
+extern void BtlObj_GetNodeVelocity(FxObj *obj, s32 part, Vec4 *out);
 extern void Mtx_MulVec4(Vec4 *out, void *mtx, Vec4 *in);
 extern void EftSpdLine_SpawnPartStreaks(s32 objId, Vec4 *pos, s32 part);
 extern s32 BtlChar_FrameMod(s32 n);
@@ -58,18 +58,18 @@ extern FxChr *BtlChar_Get(s32 i);
 extern s32 BtlChar_IsFrozen(FxChr *chr);
 extern void BtlChar_PlayVoice(FxChr *chr, s32 kind);
 extern void ChrCam_AddShake(FxChr *chr, f32 strength, f32 time);
-extern s32 func_0024D498(FxObj *obj, u64 mask);
+extern s32 BtlObjAnim_TestEvent(FxObj *obj, u64 mask);
 extern void BtlCharSnd_RequestAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 far);
-extern void func_0024E2B0(FxObj *obj);
-extern void func_0024D390(FxObj *obj, s32 anim, s32 arg);
-extern void func_00250888(FxObj *obj, s32 arg);
-extern void func_0024C958(FxObj *obj);
-extern void func_0024CC88(FxObj *obj);
-extern void func_0024E3F8(FxObj *obj);
-extern void func_00250D38(FxObj *obj);
-extern void func_002500B0(FxObj *obj, FxObj *owner);
-extern void func_00250B88(FxObj *obj, Vec4 *v, f32 arg);
-extern void func_00250C38(FxObj *obj, f32 a, f32 b);
+extern void BtlObjXf_Update(FxObj *obj);
+extern void BtlObjAnim_PlayModel(FxObj *obj, s32 anim, s32 arg);
+extern void BtlObj_SaveNodePositions(FxObj *obj, s32 arg);
+extern void BtlObjAnim_SamplePose(FxObj *obj);
+extern void BtlObjAnim_UpdateEvents(FxObj *obj);
+extern void BtlObjPose_CalcMatrices(FxObj *obj);
+extern void BtlObj_UpdateChains(FxObj *obj);
+extern void BtlObj_CopyLipTables(FxObj *obj, FxObj *owner);
+extern void BtlObj_AddPush(FxObj *obj, Vec4 *v, f32 arg);
+extern void BtlObj_AddSway(FxObj *obj, f32 a, f32 b);
 extern void StgTint_Start(s32 a, s32 b, f32 time);
 extern void BtlChar_SpawnFxBits3C(FxChr *chr);
 extern void BtlChar_SpawnFxBits0(FxChr *chr);
@@ -136,7 +136,7 @@ void BtlFx_HandleImpactEvents(FxChr *chr) {
         }
         if (obj->flags & 2) {
             if (!BtlAnim_TestAttr(chr, 0x8000000)) {
-                BtlCharApi_GetNodePos(chr->objId, func_0024D518(func_0024D4D0(obj, mask)), &arg.pos);
+                BtlCharApi_GetNodePos(chr->objId, BtlObjAnim_MaskToNode(BtlObjAnim_GetEventArg(obj, mask)), &arg.pos);
                 arg.pos.w = 1.0f;
                 arg.pos2.x = Mathf_Sin(BtlChar_GetPos(chr)->rot.y);
                 arg.pos2.y = 0.0f;
@@ -174,7 +174,7 @@ void BtlFx_HandleEvent1(FxChr *chr) {
     if (BtlAnim_TestAttr(chr, 1)) {
         if (BtlAtk_GetId(chr) != -1) {
             if (BtlAtk_GetFlags(chr) & 0x80000) {
-                if (func_0024D610(obj, 1, 0, 5) == 1) {
+                if (BtlObjAnim_QueryEvent(obj, 1, 0, 5) == 1) {
                     BtlChar_SetFxBit(chr, 0x1B);
                 }
             }
@@ -218,12 +218,12 @@ void BtlFx_SpawnPartFxEvent8(FxChr *chr) {
     s32 bit;
 
     if (BtlAnim_TestAttr(chr, 8)) {
-        bits = func_0024D4D0(obj, 8);
+        bits = BtlObjAnim_GetEventArg(obj, 8);
         for (i = 0; i < 0x13; i++) {
             bit = bits & (1U << i);
             if (bit != 0) {
-                part = func_0024D518(bit);
-                func_00250940(obj, part, &pos);
+                part = BtlObjAnim_MaskToNode(bit);
+                BtlObj_GetNodeVelocity(obj, part, &pos);
                 pos.w = 0.0f;
                 Mtx_MulVec4(&pos, obj->mtx, &pos);
                 EftSpdLine_SpawnPartStreaks(chr->objId, &pos, part);
@@ -241,7 +241,7 @@ void BtlFx_SpawnPartFlashes(FxChr *chr) {
     s32 bit;
 
     if (BtlAnim_TestAttr(chr, 0x1000000)) {
-        bits = func_0024D4D0(obj, 0x1000000);
+        bits = BtlObjAnim_GetEventArg(obj, 0x1000000);
         if (bits != 0) {
             arg.pos2.x = Mathf_Sin(BtlChar_GetPos(chr)->rot.y);
             arg.pos2.y = 0.0f;
@@ -253,7 +253,7 @@ void BtlFx_SpawnPartFlashes(FxChr *chr) {
             for (i = 0; i < 0x20; i++) {
                 bit = bits & (1U << i);
                 if (bit != 0) {
-                    BtlCharApi_GetNodePos(chr->objId, func_0024D518(bit), &arg.pos);
+                    BtlCharApi_GetNodePos(chr->objId, BtlObjAnim_MaskToNode(bit), &arg.pos);
                     arg.pos.w = 1.0f;
                     EftImpact_SpawnHit(&arg);
                 }
@@ -292,7 +292,7 @@ s32 BtlFx_SetObjMaskOnEvent400(FxChr *chr) {
     if (BtlCharApi_IsInSkill(chr->objId)) {
         if (BtlSkill_GetId(chr, BtlAct_GetCurrentClass(chr)) == 0x18) {
             if (BtlAnim_TestAttr(chr, 0x400)) {
-                func_002500E8(obj, 2, 1);
+                BtlObj_SetColorMode(obj, 2, 1);
             }
         }
     }
@@ -322,19 +322,19 @@ void BtlFx_VibrateOnEvent(FxChr *chr) {
 
 /* Object animation events: bit 42 spawns effect 0 of module 0x180A00; 0x20 / 0x40 and bits 43 / 44 set / clear object flags 0x20 and 0x40. */
 void BtlFxObj_HandleFlagEvents(FxObj *obj) {
-    if (func_0024D498(obj, 0x40000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x40000000000)) {
         EftShotFx_Start(obj->id, 0);
     }
-    if (func_0024D498(obj, 0x20)) {
+    if (BtlObjAnim_TestEvent(obj, 0x20)) {
         obj->flags |= 0x20;
     }
-    if (func_0024D498(obj, 0x40)) {
+    if (BtlObjAnim_TestEvent(obj, 0x40)) {
         obj->flags &= ~0x20;
     }
-    if (func_0024D498(obj, 0x80000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x80000000000)) {
         obj->flags |= 0x40;
     }
-    if (func_0024D498(obj, 0x100000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x100000000000)) {
         obj->flags &= ~0x40;
     }
 }
@@ -345,28 +345,28 @@ void BtlFxObj_PlayEventSounds(FxObj *obj) {
     s32 id;
 
     BtlCharApi_GetNodePos(obj->id, 3, &pos);
-    if (func_0024D498(obj, 0x10)) {
+    if (BtlObjAnim_TestEvent(obj, 0x10)) {
         BtlCharSnd_RequestAt(&pos, 0, BtlChar_FrameMod(3) + 0x28, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x10000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x10000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x1E, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x20000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x20000000)) {
         BtlCharSnd_RequestAt(&pos, 0, BtlChar_FrameMod(2), 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x40000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x40000000)) {
         BtlCharSnd_RequestAt(&pos, 0, BtlChar_FrameMod(3) + 6, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x800000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x800000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x20, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x1000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x1000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x4D, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x2000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x2000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x25, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x4000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x4000000000)) {
         id = 0x33;
         if (obj->action != NULL) {
             if (obj->action->attr & 0x8000) {
@@ -375,57 +375,57 @@ void BtlFxObj_PlayEventSounds(FxObj *obj) {
         }
         BtlCharSnd_RequestAt(&pos, 0, id, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x10000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x10000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x30, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x20000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x20000000000)) {
         BtlCharSnd_RequestAt(&pos, 4, 0x8D3B, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x80000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x80000000000000)) {
         BtlCharSnd_RequestAt(&pos, 4, 0x8D3D, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x800000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x800000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x48, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x1000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x1000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x12, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x2000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x2000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x18, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x4000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x4000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x2C, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x8000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x8000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x1F, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x10000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x10000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, 0x31, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x20000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x20000000000000)) {
         BtlCharSnd_RequestAt(&pos, 0, BtlChar_FrameMod(2) + 4, 200.0f, 1500.0f);
     }
-    if (func_0024D498(obj, 0x80000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x80000000)) {
         BtlCharSnd_RequestAt(&pos, 1, BtlChar_FrameMod(2), 200.0f, 1500.0f);
     }
 }
 
 /* Object animation events bits 56..60: face sub-states 9..11, command 2, and "back to sub-state 0, then command 9". */
 void BtlFxObj_HandleSubStateEvents(FxObj *obj) {
-    if (func_0024D498(obj, 0x100000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x100000000000000)) {
         BtlObj_SetSubState(obj, 9, 0);
     }
-    if (func_0024D498(obj, 0x200000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x200000000000000)) {
         BtlObj_SetSubState(obj, 0xA, 0);
     }
-    if (func_0024D498(obj, 0x400000000000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x400000000000000)) {
         BtlObj_SetSubState(obj, 0xB, 0);
     }
-    if (func_0024D498(obj, 0x800000000000000)) {
-        func_0024F568(obj, 2);
+    if (BtlObjAnim_TestEvent(obj, 0x800000000000000)) {
+        BtlObj_SetEyeFrame(obj, 2);
     }
-    if (func_0024D498(obj, 0x1000000000000000)) {
-        switch (func_0024F9F0(obj)) {
+    if (BtlObjAnim_TestEvent(obj, 0x1000000000000000)) {
+        switch (BtlObj_GetMouthMode(obj)) {
         case 9:
         case 10:
         case 11:
@@ -433,7 +433,7 @@ void BtlFxObj_HandleSubStateEvents(FxObj *obj) {
             BtlObj_SetSubState(obj, 0, 0);
             break;
         }
-        func_0024F568(obj, 9);
+        BtlObj_SetEyeFrame(obj, 9);
     }
 }
 
@@ -562,7 +562,7 @@ void BtlFx_UpdateRoster(void) {
 void BtlFxObj_Place(FxObj *obj, Vec4 *pos, Vec4 *rot) {
     Vec4_Copy(&obj->pos, pos);
     Vec4_Copy(&obj->rot, rot);
-    func_0024E2B0(obj);
+    BtlObjXf_Update(obj);
 }
 
 /*
@@ -581,30 +581,30 @@ void BtlPartner_HandleEvents(FxObj *obj, FxChr *chr) {
     s32 sound;
 
     BtlCharApi_GetNodePos(obj->id, 3, &pos);
-    if (func_0024D498(obj, 0x2000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x2000000)) {
         obj->flags &= ~2;
     }
-    if (func_0024D498(obj, 0x4000000)) {
+    if (BtlObjAnim_TestEvent(obj, 0x4000000)) {
         obj->flags |= 2;
     }
     on = 0;
     mask = 0;
     kind = 0;
     sound = 0;
-    if (func_0024D498(obj, 0x100)) {
+    if (BtlObjAnim_TestEvent(obj, 0x100)) {
         on = 1;
         mask = 0x100;
         sound = BtlChar_FrameMod(2) + 2;
         kind = 0xF;
     }
-    if (func_0024D498(obj, 0x80)) {
+    if (BtlObjAnim_TestEvent(obj, 0x80)) {
         on = 1;
         mask = 0x80;
         kind = 0x10;
         sound = 0x49;
     }
     if (on) {
-        BtlCharApi_GetNodePos(obj->id, func_0024D518(func_0024D4D0(obj, mask)), &arg.pos);
+        BtlCharApi_GetNodePos(obj->id, BtlObjAnim_MaskToNode(BtlObjAnim_GetEventArg(obj, mask)), &arg.pos);
         arg.pos.w = 1.0f;
         arg.pos2.x = Mathf_Sin(obj->rot.y);
         arg.pos2.y = 0.0f;
@@ -628,18 +628,18 @@ void BtlPartner_HandleEvents(FxObj *obj, FxChr *chr) {
     on = -1;
     if (BtlChar_TestFlag(chr, 0x130)) {
         mask = 0x5F;
-        if (!func_0024D498(obj, 0x8000)) {
+        if (!BtlObjAnim_TestEvent(obj, 0x8000)) {
             mask = on;
         }
-        if (func_0024D498(obj, 0x8000000000)) {
+        if (BtlObjAnim_TestEvent(obj, 0x8000000000)) {
             mask = 0x60;
         }
-        if (func_0024D498(obj, 0x20000)) {
+        if (BtlObjAnim_TestEvent(obj, 0x20000)) {
             mask = 0x61;
         }
     }
     if (BtlChar_TestFlag(chr, 0x131)) {
-        if (func_0024D498(obj, 0x8000008000)) {
+        if (BtlObjAnim_TestEvent(obj, 0x8000008000)) {
             kind = 0x62;
             mask = 0x62;
         }
@@ -662,11 +662,11 @@ void BtlPartner_HandleEvents(FxObj *obj, FxChr *chr) {
         break;
     }
     if (on >= 0) {
-        if (func_0024D498(obj, 0x8000)) {
+        if (BtlObjAnim_TestEvent(obj, 0x8000)) {
             BtlCharSnd_RequestAt(&pos, 7, sound + *BtlMember_GetActive(chr) * 100 + on, 200.0f, 1500.0f);
             BtlObj_SetSubState(obj, 2, on);
         }
-        if (func_0024D498(obj, 0x8000000000)) {
+        if (BtlObjAnim_TestEvent(obj, 0x8000000000)) {
             BtlCharSnd_RequestAt(&pos, 7, sound + (on + *BtlMember_GetActive(chr) * 100) + 1, 200.0f, 1500.0f);
             BtlObj_SetSubState(obj, 2, on + 1);
         }
@@ -714,13 +714,13 @@ void BtlPartner_Update(FxChr *chr) {
         pos = &obj->pos;
         partner = BtlObj_Get(p->objId);
         BtlFxObj_Place(partner, pos, &obj->rot);
-        func_00250888(partner, 0);
-        func_0024C958(partner);
-        func_0024CC88(partner);
+        BtlObj_SaveNodePositions(partner, 0);
+        BtlObjAnim_SamplePose(partner);
+        BtlObjAnim_UpdateEvents(partner);
         BtlFxObj_HandleSubStateEvents(partner);
-        func_0024E3F8(partner);
-        func_00250D38(partner);
-        func_0024E3F8(partner);
+        BtlObjPose_CalcMatrices(partner);
+        BtlObj_UpdateChains(partner);
+        BtlObjPose_CalcMatrices(partner);
         partner->flags &= ~0x2000000;
     }
 }
@@ -746,7 +746,7 @@ void BtlPartner_PlayAnim(FxChr *chr, s32 anim) {
         return;
     }
     obj = BtlObj_Get(p->objId);
-    func_0024D390(obj, anim - 0x19E, 0);
+    BtlObjAnim_PlayModel(obj, anim - 0x19E, 0);
     if (obj->anim.head == NULL) {
         obj->flags &= ~2;
     } else if (obj->anim.head->unk2 == 0) {
@@ -754,7 +754,7 @@ void BtlPartner_PlayAnim(FxChr *chr, s32 anim) {
     }
     obj->flags &= ~0x20;
     obj->flags &= ~0x40;
-    switch (func_0024F9F0(obj)) {
+    switch (BtlObj_GetMouthMode(obj)) {
     case 9:
     case 10:
     case 11:
@@ -799,12 +799,12 @@ void BtlPartner_SetFlag10(FxChr *chr, s32 on) {
     }
 }
 
-/* Links the partner object to the fighter's object (func_002500B0). */
+/* Links the partner object to the fighter's object (BtlObj_CopyLipTables). */
 void BtlPartner_LinkToOwner(FxChr *chr) {
     FxPartner *p = &chr->partner;
 
     if (p->active) {
-        func_002500B0(BtlObj_Get(p->objId), BtlChar_GetObj(chr));
+        BtlObj_CopyLipTables(BtlObj_Get(p->objId), BtlChar_GetObj(chr));
     }
 }
 
@@ -829,7 +829,7 @@ void BtlPartner_PushAngle(FxChr *chr, f32 yaw, f32 speed, f32 arg) {
         v.y = 0.0f;
         v.z = Mathf_Cos(yaw) * speed;
         v.w = 0.0f;
-        func_00250B88(obj, &v, arg);
+        BtlObj_AddPush(obj, &v, arg);
     }
 }
 
@@ -846,17 +846,17 @@ void BtlPartner_PushDir(FxChr *chr, Vec4 *dir, f32 speed, f32 arg) {
         if (!(len < 0.0001f)) {
             Vec4_Scale(&v, dir, 1.0f / len);
             Vec4_Scale(&v, &v, speed);
-            func_00250B88(obj, &v, arg);
+            BtlObj_AddPush(obj, &v, arg);
         }
     }
 }
 
-/* Forwards two floats to func_00250C38 on the partner. */
+/* Forwards two floats to BtlObj_AddSway on the partner. */
 void BtlPartner_SetObjFloats(FxChr *chr, f32 a, f32 b) {
     FxPartner *p = &chr->partner;
 
     if (p->active) {
-        func_00250C38(BtlObj_Get(p->objId), a, b);
+        BtlObj_AddSway(BtlObj_Get(p->objId), a, b);
     }
 }
 

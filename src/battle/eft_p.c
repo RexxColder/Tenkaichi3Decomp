@@ -26,10 +26,10 @@
  * (+0x484 / +0x488) which only enter the model matrix: it does not reach the position, the direction or the hit
  * record. Read from the disassembly of the update callback, which is outside this file.
  *
- * Callees named by address: func_001ADA58(task) kills a task; EftMesh_SetTex / EftMesh_SetLayer / EftMesh_SetTexBase /
+ * Callees named by address: BtlTask_SetDead(task) kills a task; EftMesh_SetTex / EftMesh_SetLayer / EftMesh_SetTexBase /
  * EftMesh_SetColor / EftMesh_Draw model instance: set texture set / set a mode / set a mode / set colour / queue
- * for drawing; func_001ADD28 / func_001ADDC0 advance one texture entry and return TEX0 fields; func_001ADEA0
- * advances a whole texture set; func_002399A0 fills a sphere; func_00250828(node) tests a node code (which hand).
+ * for drawing; EftVram_AddImage / EftVram_AddClut advance one texture entry and return TEX0 fields; EftTexSet_Keep32
+ * advances a whole texture set; ColSphere_Set fills a sphere; BtlObj_GetNodeSide(node) tests a node code (which hand).
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -50,7 +50,7 @@ extern f32 Vec3_Dot(EftPVec *a, EftPVec *b);
 
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern void *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftPTask *task);
+extern void BtlTask_SetDead(EftPTask *task);
 extern void EftDisc_Update(EftPTask *task);
 
 extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
@@ -89,7 +89,7 @@ extern EftPHitRec *EftHit_GetNew(void);
 extern void EftHit_Add(EftPHitRec *rec);
 extern void *EftHitArena_AllocSphere(void);
 extern void EftHit_SetShapeSpheres(EftPHitRec *rec, void *a, void *b);
-extern void func_002399A0(void *sphere, void *pos, f32 radius);
+extern void ColSphere_Set(void *sphere, void *pos, f32 radius);
 extern s32 EftAim_GetDirKeep(EftPSrc *src, EftPVec *out, EftPVec *pos, s32 objId);
 
 extern void EftMesh_SetTex(void *model, void *tex);
@@ -97,10 +97,10 @@ extern void EftMesh_SetLayer(void *model, s32 a1);
 extern void EftMesh_SetTexBase(void *model, s32 a1);
 extern void EftMesh_SetColor(void *model, u8 r, u8 g, u8 b, u8 a);
 extern void EftMesh_Draw(void *model);
-extern u64 func_001ADD28(EftPTexEntry *tex, s32 a, s32 b);
-extern u64 func_001ADDC0(EftPTexEntry *tex);
-extern void func_001ADEA0(void *set, s32 a, s32 b);
-extern s32 func_00250828(s32 node);
+extern u64 EftVram_AddImage(EftPTexEntry *tex, s32 a, s32 b);
+extern u64 EftVram_AddClut(EftPTexEntry *tex);
+extern void EftTexSet_Keep32(void *set, s32 a, s32 b);
+extern s32 BtlObj_GetNodeSide(s32 node);
 
 extern void *D_002C3B38[];
 
@@ -163,7 +163,7 @@ void EftDisc_Reset(EftPTask *task) {
         EftEmit_KillAll(arg->set, w->emit);
     }
     w->flags |= EFT_DISC_DEAD;
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Term callback: frees the emitter state, or unlinks a held ki blast disc from its fighter's list. */
@@ -278,8 +278,8 @@ void EftDisc_AddHit(EftPTask *task) {
     }
     a = EftHitArena_AllocSphere();
     b = EftHitArena_AllocSphere();
-    func_002399A0(a, &w->arg.pos, r);
-    func_002399A0(b, &w->prev, r);
+    ColSphere_Set(a, &w->arg.pos, r);
+    ColSphere_Set(b, &w->prev, r);
     EftHit_SetShapeSpheres(rec, a, b);
     EftHit_Add(rec);
 }
@@ -415,15 +415,15 @@ void EftDisc_StepTex(EftDisc *w) {
             s32 bit = 1 << w->arg.texA;
 
             if (!(tex->stepped & bit)) {
-                u64 lo = func_001ADD28(&w->texA, 1, 0);
-                u64 hi = func_001ADDC0(&w->texB);
+                u64 lo = EftVram_AddImage(&w->texA, 1, 0);
+                u64 hi = EftVram_AddClut(&w->texB);
 
                 tex->entry[w->arg.texA].tex0 = lo | (hi << 37);
                 tex->stepped |= 1 << w->arg.texA;
             }
         } else {
             if (!(tex->stepped & 1)) {
-                func_001ADEA0(tex, 1, 0);
+                EftTexSet_Keep32(tex, 1, 0);
                 tex->stepped |= 1;
             }
         }
@@ -543,7 +543,7 @@ s32 EftDisc_SpawnHeld(EftDiscHeldArg *a, s32 hand) {
         arg.texB = 0;
         break;
     }
-    if (func_00250828(a->node) == 0) {
+    if (BtlObj_GetNodeSide(a->node) == 0) {
         arg.hand = 0;
     } else {
         arg.hand = 1;
@@ -613,7 +613,7 @@ s32 EftDisc_SpawnThrown(EftDiscAtk *a) {
     }
     arg = (EftDiscArg){ NULL, NULL, a->pos, {}, a->scale, a->speed, (f32)a->life / 30.0f, 0.0f, 0.7f, a->turn, 1.5f,
                         0.0f, 0.0f, 0, 0, a->objId, 1, 0, 0 };
-    if (func_00250828(a->node) == 0) {
+    if (BtlObj_GetNodeSide(a->node) == 0) {
         arg.hand = 0;
     } else {
         arg.hand = 1;

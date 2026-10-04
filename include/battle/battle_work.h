@@ -68,7 +68,7 @@
  *   1  wait; for kind 1 (in-battle change) BtlChange_NotifyLoaded().
  *   2  kind 1 waits for BtlChange_IsReady() (fighter manager request state 4, not paused); then
  *      BtlRes_CommitReload2(); Snd bank 0x10 (side 0) / 0x20 (side 1) reloaded from res->bank through Snd_ReloadBank;
- *      BtlObj_Rebind(side->objId, side->modelSlot); kind 0: func_0024D330(BtlObj_Get(objId), 0, 2), kind 1:
+ *      BtlObj_Rebind(side->objId, side->modelSlot); kind 0: BtlObjAnim_PlayAuto(BtlObj_Get(objId), 0, 2), kind 1:
  *      BtlChars_OnModelLoaded(side); full load: BtlAiMgr_ResetSide(side), BtlScene_CreateChar(side), relocate the member's
  *      second buffer and make it member->data. Clears the flag.
  *
@@ -77,7 +77,7 @@
  *      gBtlLoadHandle = BtlRes_Request(0, file, -1, -1)
  *   1  wait; kind 2: BtlChange_NotifyLoaded()
  *   2  not while paused; kind 2 waits for BtlChange_IsReady() (fighter manager request state 4);
- *      kind 0: gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(handle), 1), func_0024D390(BtlObj_Get(obj), 0, 2)
+ *      kind 0: gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(handle), 1), BtlObjAnim_PlayModel(BtlObj_Get(obj), 0, 2)
  *      kind 2: gBtlLoadObj = BtlObj_Create(job->costume [request word +0x20], BtlRes_GetSlot(handle), 1), BtlCtrl_AttachPartner(side, handle, obj)
  *
  * --- Stage jobs (flag BATTLE_FLAG_LOADING) ---------------------------------------------------------

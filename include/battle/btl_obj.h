@@ -42,7 +42,7 @@
 #define BTL_OBJ_FLAG_FADE 0x8           /* view only: distance fade alpha is non-zero */
 #define BTL_OBJ_FLAG_COLOR_STAGE 0x10000  /* colour = stage ambient (integer triple from BtlStage_GetAmbient) */
 #define BTL_OBJ_FLAG_COLOR_A 0x20000    /* these four all give colour 128,128,128,128 */
-#define BTL_OBJ_FLAG_COLOR_B 0x40000    /* also: alpha row = func_0024E810() * 128 */
+#define BTL_OBJ_FLAG_COLOR_B 0x40000    /* also: alpha row = BtlObjFade_Get() * 128 */
 #define BTL_OBJ_FLAG_COLOR_BLACK 0x80000 /* colour 0,0,0,128; alpha row = 0xFF */
 #define BTL_OBJ_FLAG_PASS1 0x100000     /* drawn in the second pass of the draw list */
 #define BTL_OBJ_FLAG_PASS2 0x200000     /* drawn in the third pass; set by BtlObj_UpdateView for a hidden fighter */
@@ -75,7 +75,7 @@ typedef struct BtlObjBound {
     /* 0x04 */ u16 unk04;
     /* 0x06 */ u16 last;     /* non-zero on the last record */
     /* 0x08 */ u16 enabled;  /* 0: record skipped */
-    /* 0x0A */ u16 node;     /* argument of func_002505A8: the model node the box hangs on */
+    /* 0x0A */ u16 node;     /* argument of BtlObj_GetNode: the model node the box hangs on */
     /* 0x0C */ s32 unk0C;
     /* 0x10 */ Vec4 unk10;
     /* 0x20 */ Vec4 unk20;
@@ -127,11 +127,11 @@ typedef struct BtlObjView {
     /* 0x48 */ u8 unk48[8];
 } BtlObjView; /* size 0x50 */
 
-/* Node of a model as returned by func_002505A8. */
+/* Node of a model as returned by BtlObj_GetNode. */
 typedef struct BtlObjPart {
     /* 0x00 */ u8 unk00[8];
-    /* 0x08 */ s32 unk08;    /* argument of func_002505D0 */
-    /* 0x0C */ u8 active;    /* 1 when func_002505D0 returned 1 this frame */
+    /* 0x08 */ s32 unk08;    /* argument of BtlObj_IsNodeShown */
+    /* 0x0C */ u8 active;    /* 1 when BtlObj_IsNodeShown returned 1 this frame */
     /* 0x0D */ u8 unk0D[3];
     /* 0x10 */ Mtx44 mtx;
 } BtlObjPart;

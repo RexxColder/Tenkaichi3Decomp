@@ -87,7 +87,7 @@ typedef struct BtlCharApiObj {
     /* 0xC84 */ u8 unkC84[0xCAC - 0xC84];
     /* 0xCAC */ s8 unkCAC;
     /* 0xCAD */ s8 unkCAD;          /* expected to be ~unkCAC */
-    /* 0xCAE */ s8 attrCount;       /* number of attribute words below (func_0024D498) */
+    /* 0xCAE */ s8 attrCount;       /* number of attribute words below (BtlObjAnim_TestEvent) */
 } BtlCharApiObj;
 
 /* One playing sound of a side (0xC bytes). BtlCharSnd_StoreHandle fills a slot, BtlCharSnd_StopUnrequestedLoops stops it with Snd_StopHandle. */

@@ -35,8 +35,8 @@ struct EftTTaskList;
 typedef struct EftTTask {
     /* 0x00 */ u8 flags;          /* bit 0: dead */
     /* 0x01 */ u8 unk1[7];
-    /* 0x08 */ u8 unk8[0x10];     /* texture animation state A (func_001ADD28) */
-    /* 0x18 */ u8 unk18[0xC];     /* texture animation state B (func_001ADDC0) */
+    /* 0x08 */ u8 unk8[0x10];     /* texture animation state A (EftVram_AddImage) */
+    /* 0x18 */ u8 unk18[0xC];     /* texture animation state B (EftVram_AddClut) */
     /* 0x24 */ struct EftTTaskList *children; /* the list BtlTask_CreateChildList made for this task */
     /* 0x28 */ void **cls;        /* task class; cls[0] is the update callback, used as a type tag */
     /* 0x2C */ u8 unk2C[0xC];
@@ -68,7 +68,7 @@ typedef struct EftTCamView {
     /* 0x220 */ Vec4 pos;
 } EftTCamView;
 
-/* One entry of a texture set (func_001AE148 / func_001AE1F8 / EftTexSet_Load8). */
+/* One entry of a texture set (EftTexSet_Load32 / EftTexSet_Load4 / EftTexSet_Load8). */
 typedef struct EftTTex {
     /* 0x0 */ u64 tex0;
     /* 0x8 */ u64 unk8;

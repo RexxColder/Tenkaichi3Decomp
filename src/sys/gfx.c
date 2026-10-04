@@ -75,7 +75,7 @@ extern u8 gBattleProf[];
 extern void BtlObj_RebuildTable(void);
 extern void Fade_UpdateAll(void);
 extern void Fade_DrawScreen(void);
-extern void func_0023D160(s32 vsyncs);
+extern void FontIcon_Tick(s32 vsyncs);
 extern void PadWatch_Update(void);
 extern void PadWatch_Draw(void);
 extern void func_00121DE0(void);
@@ -179,7 +179,7 @@ void Gfx_BeginFrame(void) {
  */
 void Gfx_EndFrame(s32 vsyncs) {
     Fade_DrawScreen();
-    func_0023D160(vsyncs);
+    FontIcon_Tick(vsyncs);
     PadWatch_Update();
     PadWatch_Draw();
     Dbg_ProfColor(gBattleProf, 0x80404040);

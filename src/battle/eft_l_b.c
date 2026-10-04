@@ -89,11 +89,11 @@ extern void EftBlastObj_SetDir(void *shot, Vec4 *dir);
 extern void EftBlastObj_SetHeld(void *shot, s32 hold);
 extern void EftBlastObj_MarkLast(void *shot);
 extern void EftBlastObj_SetDelay(void *shot, f32 delay);
-extern void func_001ADA58(EftTask *task);
-extern void func_001ADB78(EftTask *task, s32 flag);
-extern EftTask *func_001ADB98(EftTask *task);
-extern void func_00239588(void *shape, Vec4 *from, Vec4 *to, f32 radius);
-extern void func_002399A0(void *shape, Vec4 *pos, f32 radius);
+extern void BtlTask_SetDead(EftTask *task);
+extern void BtlTask_SetOwnerTag(EftTask *task, s32 flag);
+extern EftTask *BtlTask_GetParent(EftTask *task);
+extern void ColCapsule_Set(void *shape, Vec4 *from, Vec4 *to, f32 radius);
+extern void ColSphere_Set(void *shape, Vec4 *pos, f32 radius);
 
 /* The part of a hit record (0x190 bytes, EftHit_GetNew) this module fills. */
 typedef struct EftRingShotPath {
@@ -632,8 +632,8 @@ void EftRingShot_AddHit(EftTask *task, s32 last) {
             void *a = EftHitArena_AllocBox();
             void *b = EftHitArena_AllocBox();
 
-            func_00239588(a, &w->unk330, &w->pos, radius);
-            func_00239588(b, &w->unk330, &w->prev, radius);
+            ColCapsule_Set(a, &w->unk330, &w->pos, radius);
+            ColCapsule_Set(b, &w->unk330, &w->prev, radius);
             EftHit_SetShapeBoxes(rec, a, b);
             break;
         }
@@ -641,8 +641,8 @@ void EftRingShot_AddHit(EftTask *task, s32 last) {
             void *a = EftHitArena_AllocSphere();
             void *b = EftHitArena_AllocSphere();
 
-            func_002399A0(a, &w->pos, radius);
-            func_002399A0(b, &w->prev, radius);
+            ColSphere_Set(a, &w->pos, radius);
+            ColSphere_Set(b, &w->prev, radius);
             EftHit_SetShapeSpheres(rec, a, b);
             break;
         }
@@ -687,7 +687,7 @@ void EftRingShot_Draw(s32 objId, EftTask *task, EftModel *model, s32 mode) {
 
 /* Init callback: clears the work, reads the definition, picks the variant from the effect id. */
 void EftRingShot_Init(EftTask *task, EftTechArg *arg) {
-    EftRingShotMgr *mgr = func_001ADB98(task)->work;
+    EftRingShotMgr *mgr = BtlTask_GetParent(task)->work;
     EftRingShot *w = task->work;
     EftModel *model;
     EftTechDef *def;
@@ -726,7 +726,7 @@ void EftRingShot_Init(EftTask *task, EftTechArg *arg) {
     } else if (id == 0x2A4) {
         w->type = 3;
     }
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback: releases the model instance and the fighter's held flags. */
@@ -828,7 +828,7 @@ void EftRingShot_Update(EftTask *task) {
         w->timer += 1.0f;
     }
     if (!alive && (w->flags & EFT_RINGSHOT_KILL)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & EFT_RINGSHOT_COUNT) {
         if ((w->flags & EFT_RINGSHOT_FAST_END) || w->timer >= w->life) {
             w->flags |= EFT_RINGSHOT_KILL;
@@ -886,7 +886,7 @@ void EftRingShot_Reset(EftTask *task) {
         w->flags |= EFT_RINGSHOT_RESET;
         EftEmit_KillAll(w->model, &w->inst);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: nothing. */

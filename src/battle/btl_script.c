@@ -38,13 +38,13 @@ extern void Vec4_Add(Vec4 *out, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *out, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *out, Vec4 *in, f32 scale);
 /* text drawing of the next module (0x23A2D0..0x23AD48), not decompiled */
-extern s32 func_0023A458(void);
-extern void func_0023AC60(void);
-extern void func_0023AB90(void *window);
-extern s32 func_0023A6E8(void *text);
-extern void func_0023A848(s32 x, s32 y, void *text);
-extern void func_0023AD48(void);
-extern void func_0023A2D0(s32 state);
+extern s32 Font_GetCmdCount(void);
+extern void Font_PushStyle(void);
+extern void Font_SetStyle(void *window);
+extern s32 Font_GetHeight(void *text);
+extern void Font_PrintAt(s32 x, s32 y, void *text);
+extern void Font_PopStyle(void);
+extern void Font_Flush(s32 state);
 /* fighter / HUD side, not decompiled */
 extern s32 BtlCtrl_IsActiveDead(s32 side);
 extern void func_0022D990(void);
@@ -216,14 +216,14 @@ void BtlScript_UpdateView(void) {
         }
     }
     if (work->textId >= 0) {
-        state = func_0023A458();
+        state = Font_GetCmdCount();
         window = BtlScript_GetWindow(work->textWindow);
-        func_0023AC60();
-        func_0023AB90(window);
+        Font_PushStyle();
+        Font_SetStyle(window);
         text = BtlScript_GetText(work->textId);
-        func_0023A848(window->unk48, window->unk4C - func_0023A6E8(text), text);
-        func_0023AD48();
-        func_0023A2D0(state);
+        Font_PrintAt(window->unk48, window->unk4C - Font_GetHeight(text), text);
+        Font_PopStyle();
+        Font_Flush(state);
     }
 }
 

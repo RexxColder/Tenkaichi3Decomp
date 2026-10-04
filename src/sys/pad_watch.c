@@ -31,17 +31,17 @@ extern s32 Battle_IsSplitScreen(void);
 extern s32 Battle_GetMode(void);
 extern s32 func_00212A08(void);  /* returns the word at gBtlGameReplayActive */
 extern void Gfx_AddDefaultEnv(void);
-extern s32 func_0023A458(void);          /* current font */
-extern void func_0023A2D0(s32 font);     /* select a font */
-extern s32 func_0023A6E8(u16 *str);      /* height of a text in pixels */
-extern void func_0023A848(s32 x, s32 y, u16 *str);
-extern void func_0023AC60(void);
-extern void func_0023AD48(void);
-extern void func_0023AED8(s32 x0, s32 y0, s32 x1, s32 y1);
-extern void func_0023AF28(s32 align);
-extern void func_0023AF68(s32 a);
-extern void func_0023AFE0(s32 r, s32 g, s32 b, s32 a);
-extern void func_0023B040(s32 r, s32 g, s32 b, s32 a);
+extern s32 Font_GetCmdCount(void);          /* current font */
+extern void Font_Flush(s32 font);     /* select a font */
+extern s32 Font_GetHeight(u16 *str);      /* height of a text in pixels */
+extern void Font_PrintAt(s32 x, s32 y, u16 *str);
+extern void Font_PushStyle(void);
+extern void Font_PopStyle(void);
+extern void Font_SetClip(s32 x0, s32 y0, s32 x1, s32 y1);
+extern void Font_SetAlign(s32 align);
+extern void Font_SetShadowMode(s32 a);
+extern void Font_SetColorRGBA(s32 r, s32 g, s32 b, s32 a);
+extern void Font_SetShadowColorRGBA(s32 r, s32 g, s32 b, s32 a);
 
 /* 1 when a usable controller is plugged into the port. */
 s32 PadWatch_IsConnected(s32 port) {
@@ -170,9 +170,9 @@ void PadWatch_DrawMessage(void) {
     if (gPadWatch->disabled == 0 && (Battle_GetWork()->running == 0 || Battle_GetMode() != 7) &&
         (gPadWatch->valid[0] != 0 || gPadWatch->valid[1] != 0) && message >= 0) {
         u32 *boot = gCommonRes->boot;
-        s32 font = func_0023A458();
+        s32 font = Font_GetCmdCount();
         u16 *text = (u16 *)((u8 *)boot + ((boot[9 + message] >> 2) << 2));
-        s32 height = func_0023A6E8(text);
+        s32 height = Font_GetHeight(text);
         s32 *fontPtr = &font; /* taking a local's address is what stops the last call from becoming a tail call (needed to match) */
         u64 *p;
 
@@ -193,15 +193,15 @@ void PadWatch_DrawMessage(void) {
         p[0] = GS_SET_XYZ(0x6F00, 0x7100, 0xFFFFFF);
         p[1] = GS_SET_XYZ(0x9100, 0x8F00, 0xFFFFFF);
         Dma_EndDirect(p + 2);
-        func_0023AC60();
-        func_0023AF28(1);
-        func_0023AF68(1);
-        func_0023AED8(0, 0, 0x200, 0x1C0);
-        func_0023AFE0(0xFF, 0xFF, 0xFF, 0x80);
-        func_0023B040(0, 0, 0, 0x80);
-        func_0023A848(0x100, 0xE0 - height / 2, text);
-        func_0023AD48();
-        func_0023A2D0(*fontPtr);
+        Font_PushStyle();
+        Font_SetAlign(1);
+        Font_SetShadowMode(1);
+        Font_SetClip(0, 0, 0x200, 0x1C0);
+        Font_SetColorRGBA(0xFF, 0xFF, 0xFF, 0x80);
+        Font_SetShadowColorRGBA(0, 0, 0, 0x80);
+        Font_PrintAt(0x100, 0xE0 - height / 2, text);
+        Font_PopStyle();
+        Font_Flush(*fontPtr);
     }
 }
 

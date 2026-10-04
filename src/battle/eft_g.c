@@ -12,14 +12,14 @@
  * Callees that have no name yet, from a first read of how they are used here:
  *   func_00122168(out,a,b,t) linear interpolation of two vectors
  *   func_001202A0(out, m)    inverse of a view matrix: gives the camera's world matrix (row 3 = position)
- *   func_001AE148(set, pack) loads a texture set; EftTexSet_Load8(tex, pack) loads a single texture
- *   func_001ADEA0(set, 1, 0) advances every texture of a set; func_001ADC68(entry, 1, 0) advances one, returns TEX0
+ *   EftTexSet_Load32(set, pack) loads a texture set; EftTexSet_Load8(tex, pack) loads a single texture
+ *   EftTexSet_Keep32(set, 1, 0) advances every texture of a set; EftVram_AddTex(entry, 1, 0) advances one, returns TEX0
  *   func_00120AB0() / func_00120AC8()   begin / end of a block of projections; func_00120B80(m) sets the matrix
  *   func_001210D8(out, pos)  projects a point to GS screen coordinates; func_00121140(out, pos, n) projects n
  *                            points and returns 0 when they are rejected
  *   func_00121950(out, pos, st, col)   builds one clip-space vertex (0x30 bytes) for EftGfx_DrawPolyScaledZ
  *   EftSpr_DrawFlat(...)       queues a camera-facing sprite
- *   func_001AD9F8(list)      destroys a task list; func_001ADA58(task) kills a task
+ *   BtlTaskList_KillAll(list)      destroys a task list; BtlTask_SetDead(task) kills a task
  * Named by the neighbouring effect and stage files (config/symbols/eft_c.txt, eft_e.txt, eft_h.txt, eft_j.txt,
  * stg_*.txt): EftWater_GetSurfaceY, EftStage_GetTintScale (brightness 0..1 of the stage effects layer),
  * EftStage_IsDrawOn, EftGfx_DrawPolyScaledZ (clips and queues a triangle), EftMath_WrapAngle,
@@ -84,10 +84,10 @@ extern void EftWater_GetSurfaceY(f32 *y);
 extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
 extern void func_001202A0(Mtx44 *out, Mtx44 *m);
 extern void BtlStage_GetWaterLevel(f32 *y);
-extern void func_001AE148(void *set, void *pack);
+extern void EftTexSet_Load32(void *set, void *pack);
 extern void EftTexSet_Load8(void *tex, void *pack);
-extern void func_001ADEA0(void *set, s32 a, s32 b);
-extern u64 func_001ADC68(void *entry, s32 a, s32 b);
+extern void EftTexSet_Keep32(void *set, s32 a, s32 b);
+extern u64 EftVram_AddTex(void *entry, s32 a, s32 b);
 extern f32 EftStage_GetTintScale(void);
 extern s32 EftStage_IsDrawOn(void);
 extern void func_00120AB0(void);
@@ -103,8 +103,8 @@ extern f32 BtlStage_GetBottom(void);
 extern s32 BtlStage_GetFxResB(void);
 extern s32 BtlStage_GetFxResA(void);
 extern EftSmokeSrc *BtlStage_GetFxResB2(void);
-extern void func_001AD9F8(void *list);
-extern void func_001ADA58(void *task);
+extern void BtlTaskList_KillAll(void *list);
+extern void BtlTask_SetDead(void *task);
 extern s32 EftTechEvt_GetEvents(s32 objId);
 extern void *EftShot_GetCharPack(s32 chr, s32 slot);
 extern void EftShot_BuildParam(s32 chr, s32 slot, EftShotDef *def, s32 clear);
@@ -458,7 +458,7 @@ void EftStorm_Init(EftTask *task) {
     }
     gEftStorm = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftStorm));
     memset(gEftStorm, 0, sizeof(EftStorm));
-    func_001AE148(gEftStorm, BtlScene_GetPackEntry((s32 *)pack, 14));
+    EftTexSet_Load32(gEftStorm, BtlScene_GetPackEntry((s32 *)pack, 14));
     EftStorm_Reset(task);
     EftStorm_InitRain();
 }
@@ -473,7 +473,7 @@ void EftStorm_Update(void) {
     EftStormBolt *bolt = gEftStorm->bolt;
     s32 i;
 
-    func_001ADEA0(gEftStorm, 1, 0);
+    EftTexSet_Keep32(gEftStorm, 1, 0);
     if (*(u64 *)((u8 *)Battle_GetWork() + 0x19F0) & 0x100) {
         return;
     }
@@ -896,7 +896,7 @@ void EftSmokeMgr_Term(void) {
 /* Smoke manager update callback: advances the texture while there is an emitter. */
 void EftSmokeMgr_Update(void) {
     if (((void **)gEftSmokeMgr->list)[1] != NULL) {
-        gEftSmokeMgr->tex0 = func_001ADC68(&gEftSmokeMgr->tex0, 1, 0);
+        gEftSmokeMgr->tex0 = EftVram_AddTex(&gEftSmokeMgr->tex0, 1, 0);
     }
 }
 
@@ -964,7 +964,7 @@ void EftSmoke_Update(EftTask *task) {
             }
         }
         if (n == 0) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             return;
         }
     }
@@ -1338,7 +1338,7 @@ void EftBound_Update(EftTask *task) {
         tex = &gEftBound->tex;
         if (work->wall.active != 0 || work->unk850.active != 0) {
             for (i = 0; i < tex->count; i++) {
-                tex->entry[i].tex0 = func_001ADC68(&tex->entry[i], 1, 0);
+                tex->entry[i].tex0 = EftVram_AddTex(&tex->entry[i], 1, 0);
             }
             gEftBound->texStepped = 1;
         }
@@ -1396,7 +1396,7 @@ void EftBoundMgr_Init(EftTask *task) {
     gEftBound->texPack = BtlScene_GetPackEntry((s32 *)pack, 21);
     gEftBound->param = (struct EftBoundParam *)BtlScene_GetPackEntry((s32 *)pack, 23);
     gEftBound->color = (f32 *)BtlScene_GetPackEntry((s32 *)pack, 22);
-    func_001AE148(&gEftBound->tex, gEftBound->texPack);
+    EftTexSet_Load32(&gEftBound->tex, gEftBound->texPack);
     EftBoundMgr_Enable();
     gEftBoundList = BtlTask_CreateChildList(task, 2, sizeof(EftBoundChar));
     EftBoundMgr_AddChar(0);
@@ -1405,7 +1405,7 @@ void EftBoundMgr_Init(EftTask *task) {
 
 /* Boundary manager term callback. */
 void EftBoundMgr_Term(void) {
-    func_001AD9F8(gEftBoundList);
+    BtlTaskList_KillAll(gEftBoundList);
     BtlPool_Free(BtlPool_GetCurrent(), gEftBound);
     gEftBound = NULL;
 }

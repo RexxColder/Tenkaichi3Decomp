@@ -27,16 +27,16 @@ extern void BtlChar_ClearFlagRange(BtlStatChr *chr, s32 first, s32 last);  /* Bt
 extern s32 BtlOpp_GetObj(BtlStatChr *chr);                        /* the opponent's battle object (inferred) */
 extern s32 BtlCharApi_IsInRushSequence(s32 objId);
 extern void BtlObj_SetSubState(BtlStatObj *obj, s32 state, s32 arg);
-extern void func_0024C668(BtlStatObj *obj, f32 blend);            /* starts a blend of `blend` seconds */
-extern void func_0024C728(void *handle, s32 a, s32 b, s32 c);
-extern void func_0024C800(void *handle);
-extern void func_0024C890(void *handle, s32 node);
-extern void func_0024D038(BtlStatObj *obj, s32 layer, s32 anim, s32 reset);
-extern void func_0024D178(BtlStatObj *obj, s32 other, s32 anim, s32 arg);
-extern void func_0024D238(BtlStatObj *obj);                       /* the second layer becomes the main one */
-extern s32 func_0024D498(BtlStatObj *obj, u64 mask);              /* attribute test at the current frame */
-extern void func_0024F568(BtlStatObj *obj, s32 state);
-extern s32 func_0024F9F0(BtlStatObj *obj);
+extern void BtlObjAnim_StartBlend(BtlStatObj *obj, f32 blend);            /* starts a blend of `blend` seconds */
+extern void BtlObjAnim_ZeroRootAxes(void *handle, s32 a, s32 b, s32 c);
+extern void BtlObjAnim_RebaseRoot(void *handle);
+extern void BtlObjAnim_ClearNodeRot(void *handle, s32 node);
+extern void BtlObjAnim_Play(BtlStatObj *obj, s32 layer, s32 anim, s32 reset);
+extern void BtlObjAnim_PlayFrom(BtlStatObj *obj, s32 other, s32 anim, s32 arg);
+extern void BtlObjAnim_PromoteLayer(BtlStatObj *obj);                       /* the second layer becomes the main one */
+extern s32 BtlObjAnim_TestEvent(BtlStatObj *obj, u64 mask);              /* attribute test at the current frame */
+extern void BtlObj_SetEyeFrame(BtlStatObj *obj, s32 state);
+extern s32 BtlObj_GetMouthMode(BtlStatObj *obj);
 
 extern BtlStatRoster *gBtlChars;
 
@@ -45,11 +45,11 @@ void BtlAnim_ApplyTableFlags(void *handle, s32 anim) {
     if (handle != NULL) {
         do {
             if (BtlAnim_GetFlags(anim) & BTL_ANIM_F_40000000) {
-                func_0024C728(handle, 1, 1, 1);
+                BtlObjAnim_ZeroRootAxes(handle, 1, 1, 1);
             } else if (BtlAnim_GetFlags(anim) & BTL_ANIM_F_80000000) {
-                func_0024C800(handle);
+                BtlObjAnim_RebaseRoot(handle);
                 if (BtlAnim_GetFlags(anim) & BTL_ANIM_F_2) {
-                    func_0024C728(handle, 1, 0, 0);
+                    BtlObjAnim_ZeroRootAxes(handle, 1, 0, 0);
                 }
             }
         } while (0);
@@ -62,19 +62,19 @@ void BtlAnim_HideModelNodes(void *handle, s32 model) {
         do {
             switch (model) {
                 case 0x98:
-                    func_0024C890(handle, 0x10);
-                    func_0024C890(handle, 0x11);
-                    func_0024C890(handle, 0x2E);
-                    func_0024C890(handle, 0x2F);
+                    BtlObjAnim_ClearNodeRot(handle, 0x10);
+                    BtlObjAnim_ClearNodeRot(handle, 0x11);
+                    BtlObjAnim_ClearNodeRot(handle, 0x2E);
+                    BtlObjAnim_ClearNodeRot(handle, 0x2F);
                     break;
                 case 0x99:
-                    func_0024C890(handle, 0x11);
+                    BtlObjAnim_ClearNodeRot(handle, 0x11);
                     break;
                 case 0x78:
-                    func_0024C890(handle, 0x11);
-                    func_0024C890(handle, 0x2E);
-                    func_0024C890(handle, 0x23);
-                    func_0024C890(handle, 0x15);
+                    BtlObjAnim_ClearNodeRot(handle, 0x11);
+                    BtlObjAnim_ClearNodeRot(handle, 0x2E);
+                    BtlObjAnim_ClearNodeRot(handle, 0x23);
+                    BtlObjAnim_ClearNodeRot(handle, 0x15);
                     break;
             }
         } while (0);
@@ -86,7 +86,7 @@ void BtlAnim_HideModelNode10(void *handle, s32 model) {
     if (handle != NULL) {
         do {
             if (model == 0x78) {
-                func_0024C890(handle, 0x10);
+                BtlObjAnim_ClearNodeRot(handle, 0x10);
             }
         } while (0);
     }
@@ -106,20 +106,20 @@ void BtlAnim_Play(BtlStatChr *chr, s32 anim, f32 blend) {
             arg = chr->unkEE4;
         }
         obj2 = BtlChar_GetObj(chr);
-        func_0024D178(obj2, BtlOpp_GetObj(chr), anim, arg);
+        BtlObjAnim_PlayFrom(obj2, BtlOpp_GetObj(chr), anim, arg);
         BtlAnim_HideModelNode10(obj->anim.handle, obj->model);
     } else {
-        func_0024D038(obj, 0, anim, 1);
+        BtlObjAnim_Play(obj, 0, anim, 1);
     }
     obj->flags &= ~0x20;
     obj->flags &= ~0x40;
-    n = func_0024F9F0(obj);
+    n = BtlObj_GetMouthMode(obj);
     if (n < 13) {
         if (n >= 9) {
             BtlObj_SetSubState(obj, 0, 0);
         }
     }
-    func_0024F568(obj, 9);
+    BtlObj_SetEyeFrame(obj, 9);
     BtlChar_ClearFlag(chr, BTL_ANIM_FLAG_30);
     BtlAnim_ApplyTableFlags(obj->anim.handle, anim);
     BtlAnim_HideModelNodes(obj->anim.handle, obj->model);
@@ -139,7 +139,7 @@ void BtlAnim_PlayKeep(BtlStatChr *chr, s32 anim, f32 blend) {
     BtlStatObj *obj = BtlChar_GetObj(chr);
     BtlAnimIds *ids = &chr->anim;
 
-    func_0024D038(obj, 0, anim, 0);
+    BtlObjAnim_Play(obj, 0, anim, 0);
     BtlAnim_ApplyTableFlags(obj->anim.handle, anim);
     BtlAnim_HideModelNodes(obj->anim.handle, obj->model);
     BtlChar_ClearFlagRange(chr, BTL_ANIM_FLAG_REQ, BTL_ANIM_FLAG_END);
@@ -157,7 +157,7 @@ void BtlAnim_SubToMain(BtlStatChr *chr) {
     BtlStatObj *obj = BtlChar_GetObj(chr);
     BtlAnimIds *ids = &chr->anim;
 
-    func_0024D238(obj);
+    BtlObjAnim_PromoteLayer(obj);
     ids->cur = ids->sub;
     obj->flags &= ~0x20;
     obj->flags &= ~0x40;
@@ -224,13 +224,13 @@ void BtlAnim_ApplyBlend(BtlStatChr *chr) {
     BtlStatObj *obj = BtlChar_GetObj(chr);
 
     if (BtlChar_TestFlag(chr, BTL_ANIM_FLAG_NO_BLEND)) {
-        func_0024C668(obj, 0.0f);
+        BtlObjAnim_StartBlend(obj, 0.0f);
         BtlChar_ClearFlag(chr, BTL_ANIM_FLAG_BLEND_REQ);
         chr->blendTime = 0.0f;
     } else if (BtlChar_TestFlag(chr, BTL_ANIM_FLAG_BLEND_REQ)) {
         BtlAnimObj *a;
 
-        func_0024C668(obj, chr->blendTime);
+        BtlObjAnim_StartBlend(obj, chr->blendTime);
         a = &obj->anim;
         BtlChar_ClearFlag(chr, BTL_ANIM_FLAG_BLEND_REQ);
         chr->blendTime = 0.0f;
@@ -247,7 +247,7 @@ void BtlAnim_PlaySub(BtlStatChr *chr, s32 anim) {
         BtlAnimIds *ids = &chr->anim;
         BtlStatObj *obj = BtlChar_GetObj(chr);
 
-        func_0024D038(obj, 1, anim, 0);
+        BtlObjAnim_Play(obj, 1, anim, 0);
         BtlAnim_ApplyTableFlags(obj->anim.subHandle, anim);
         BtlAnim_HideModelNodes(obj->anim.subHandle, obj->model);
         ids->sub = anim;
@@ -295,9 +295,9 @@ void BtlAnim_JumpToEnd(BtlStatChr *chr) {
     a->prevFrame = a->frame = a->length;
 }
 
-/* func_0024C728(main handle, 1, 1, 1): what table flag 0x40000000 does at an animation start. */
+/* BtlObjAnim_ZeroRootAxes(main handle, 1, 1, 1): what table flag 0x40000000 does at an animation start. */
 void BtlAnim_EnableHandle(BtlStatChr *chr) {
-    func_0024C728(BtlChar_GetObj(chr)->anim.handle, 1, 1, 1);
+    BtlObjAnim_ZeroRootAxes(BtlChar_GetObj(chr)->anim.handle, 1, 1, 1);
 }
 
 /* Current animation id. */
@@ -366,7 +366,7 @@ s32 BtlAnim_TestAttr(BtlStatChr *chr, u64 mask) {
     if (chr->prevStall > 0) {
         return 0;
     }
-    return func_0024D498(BtlChar_GetObj(chr), mask);
+    return BtlObjAnim_TestEvent(BtlChar_GetObj(chr), mask);
 }
 
 /* Advances the animation one step (flags & 1: not while blending); at the end clamps, holds flag 0x31 and returns 1. */

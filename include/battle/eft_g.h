@@ -36,7 +36,7 @@ typedef struct EftScrXyz {
     /* 0x0C */ s32 unkC;
 } EftScrXyz; /* 0x10 */
 
-/* One entry of a texture set loaded by func_001AE148: the GS TEX0 value, advanced by func_001ADC68. */
+/* One entry of a texture set loaded by EftTexSet_Load32: the GS TEX0 value, advanced by EftVram_AddTex. */
 typedef struct EftTexEntry {
     /* 0x00 */ u64 tex0;
     /* 0x08 */ u64 unk8;

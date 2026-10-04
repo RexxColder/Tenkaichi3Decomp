@@ -100,15 +100,15 @@ extern s32 BtlAtk_GetVoiceKind(BtlActAChr *chr);
 extern s32 BtlParam_GetFlags2(BtlActAChr *chr);
 extern f32 BtlParam_GetChargeRateA(BtlActAChr *chr);
 extern f32 BtlParam_GetChargeRateB(BtlActAChr *chr);
-extern s32 func_0024D518(u32 bit);                                /* event bit -> model node id */
-extern s32 func_0024D610(BtlActAObj *obj, s32 a, s32 b, s32 c);  /* motion event query (mask, layer, what) */
+extern s32 BtlObjAnim_MaskToNode(u32 bit);                                /* event bit -> model node id */
+extern s32 BtlObjAnim_QueryEvent(BtlActAObj *obj, s32 a, s32 b, s32 c);  /* motion event query (mask, layer, what) */
 extern s32 BtlParam_GetDashSound(BtlActAChr *chr);
 extern f32 BtlMoveParam_GetSpeed(BtlActAChr *chr, s32 kind);
 extern f32 BtlMoveParam_GetAngle58(BtlActAChr *chr);
 extern s32 BtlMoveParam_GetKiCost(BtlActAChr *chr, s32 kind);
 extern f32 BtlMoveParam_GetTurnAccel(BtlActAChr *chr, s32 axis);
 extern f32 BtlMoveParam_GetTurnMax(BtlActAChr *chr, s32 axis);
-extern s32 func_00250828(s32 a);                                   /* node id -> group 0..3 */
+extern s32 BtlObj_GetNodeSide(s32 a);                                   /* node id -> group 0..3 */
 
 /* Actions 7..0xA: stand (animations 0 / 0x26, 1 / 0x27, 0x196, 0x17B) facing the opponent until flag 0xAF or 0xB0 drops. */
 s32 BtlAct_WaitHandler(BtlActAChr *chr, s32 phase) {
@@ -236,10 +236,10 @@ s32 BtlAct_StartSub19B(BtlActAChr *chr) {
     i = 0;
     obj = BtlChar_GetObj(chr);
     BtlAnim_PlaySub(chr, 0x19B);
-    mask = func_0024D610(obj, 1, 1, 6);
+    mask = BtlObjAnim_QueryEvent(obj, 1, 1, 6);
     for (; i < 32; i++) {
         if (mask & (1 << i)) {
-            kind = func_00250828(func_0024D518(mask & (1 << i)));
+            kind = BtlObj_GetNodeSide(BtlObjAnim_MaskToNode(mask & (1 << i)));
             if (kind == 0) {
                 return 0x2D;
             }
@@ -369,7 +369,7 @@ s32 BtlAct_RushHandler(BtlActAChr *chr, s32 phase) {
                 if (BtlAnim_Advance(chr, 0)) {
                     BtlAct_Request(chr, 0xB);
                 }
-                if (BtlAnim_GetFrame(chr) < (f32)func_0024D610(BtlChar_GetObj(chr), 2, 0, 2)) {
+                if (BtlAnim_GetFrame(chr) < (f32)BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 2, 0, 2)) {
                     BtlChar_SetFlag(chr, 0x40);
                 }
                 break;
@@ -524,7 +524,7 @@ s32 BtlAct_RushRapidHandler(BtlActAChr *chr, s32 phase) {
                 BtlChar_SetFxBit(chr, 9);
                 break;
             case 0x40:
-                if (BtlAnim_GetFrame(chr) < (f32)func_0024D610(BtlChar_GetObj(chr), 1, 0, 0)) {
+                if (BtlAnim_GetFrame(chr) < (f32)BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 1, 0, 0)) {
                     BtlAnim_SetStep(chr, 3.0f);
                     BtlChar_SetFxBit(chr, 9);
                 } else {
@@ -1451,8 +1451,8 @@ s32 BtlAct_SmashVanishHandler(BtlActAChr *chr, s32 phase) {
                 }
                 if (*count == 2) {
                     BtlAnim_PlaySub(chr, *anim + 2);
-                    a = func_0024D610(obj, 1, 1, 0);
-                    a += func_0024D610(obj, 2, 1, 0);
+                    a = BtlObjAnim_QueryEvent(obj, 1, 1, 0);
+                    a += BtlObjAnim_QueryEvent(obj, 2, 1, 0);
                     *lead += (f32)a * 0.5f * 30.0f / 60.0f;
                     *lead = floorf(*lead + 0.5f);
                 }
@@ -1732,7 +1732,7 @@ s32 BtlAct_RushFinishHandler(BtlActAChr *chr, s32 phase) {
                     if (BtlOpp_GetSeenAction(chr) == 0xCE) {
                         BtlColl_AddActionBit(chr, 0x34);
                         if (BtlInput_TestAction(chr, 0x2A, 1)) {
-                            speed = (f32)func_0024D610(obj, 1, 0, 0);
+                            speed = (f32)BtlObjAnim_QueryEvent(obj, 1, 0, 0);
                             turn = BtlAnim_GetLength(chr);
                             speed += 20.0f;
                             speed /= turn;

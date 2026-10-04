@@ -67,8 +67,8 @@ extern void BtlOpp_GetTargetPos(BtlMemberChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetRadius(BtlMemberChr *chr);
 extern void EftImpact_SpawnHit(BtlMemberHitFxReq *req);
 extern f32 BtlCharApi_GetHeight(s32 objId);
-extern u32 func_0024D610(BtlMemberObj *obj, s32 a, s32 b, s32 c);
-extern s32 func_0024D518(u32 mask);
+extern u32 BtlObjAnim_QueryEvent(BtlMemberObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_MaskToNode(u32 mask);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlCharSnd_PlayCommon(BtlMemberChr *chr, s32 line);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -434,7 +434,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
             Vec4 tmp;
 
             if (bits == 0) {
-                bits = func_0024D610(obj, 1, 0, 6);
+                bits = BtlObjAnim_QueryEvent(obj, 1, 0, 6);
             }
             for (i = 0; i < 9; i++) {
                 hit = bits & masks[i];
@@ -453,7 +453,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
             if (hit != 0) {
                 f32 d;
 
-                BtlCharApi_GetNodePos(chr->objId, func_0024D518(hit), &req.pos);
+                BtlCharApi_GetNodePos(chr->objId, BtlObjAnim_MaskToNode(hit), &req.pos);
                 fwd.x = Mathf_Sin(pose->unk14);
                 fwd.y = 0.0f;
                 fwd.z = Mathf_Cos(pose->unk14);
@@ -512,8 +512,8 @@ extern s32 BtlParam_GetFlags(FxChr *chr);
 extern void BtlParam_GetUnk0(FxChr *chr);
 extern s32 BtlKiBlast_GetType(FxChr *chr);
 extern s32 BtlKiBlast_GetUnk3(FxChr *chr);
-extern void func_002500E8(FxObj *obj, s32 bit, s32 on);
-extern s32 func_00250828(s32 kind);
+extern void BtlObj_SetColorMode(FxObj *obj, s32 bit, s32 on);
+extern s32 BtlObj_GetNodeSide(s32 kind);
 extern void EftSpdLine_SpawnBodyTrails(s32 objId);
 extern void EftAura_SetLevel(s32 objId, f32 level);
 extern void EftAura_Command(s32 objId, s32 cmd);
@@ -587,7 +587,7 @@ void BtlFx_SpawnHitSparkReq17(FxChr *chr) {
         }
         if (type == 5) {
         } else if (type == 4) {
-            EftDisc_SpawnHeld(&arg, func_00250828(arg.kind));
+            EftDisc_SpawnHeld(&arg, BtlObj_GetNodeSide(arg.kind));
         } else if (type == 2) {
         } else if (type == 3) {
         } else {
@@ -676,17 +676,17 @@ s32 BtlFx_UpdatePowerUpLook(FxChr *chr) {
         if (BtlChar_TestFxBit(chr, 5)) {
             EftGlow_Request(chr->player, 2);
             EftAura_Command(chr->player, 5);
-            func_002500E8(obj, 6, 0);
+            BtlObj_SetColorMode(obj, 6, 0);
         } else {
             if (BtlChar_IsFxBitNew(chr, 4)) {
                 EftGlow_Request(chr->player, 0);
                 EftAura_Command(chr->player, 6);
-                func_002500E8(obj, 6, 1);
+                BtlObj_SetColorMode(obj, 6, 1);
             }
             if (BtlChar_IsFxBitEnded(chr, 4)) {
                 EftGlow_Request(chr->player, 1);
                 EftAura_Command(chr->player, 5);
-                func_002500E8(obj, 6, 0);
+                BtlObj_SetColorMode(obj, 6, 0);
             }
         }
     }
@@ -851,7 +851,7 @@ extern f32 BtlAtk_GetLaunchAngleBOf(FxChr *chr, s32 param);
 extern s32 BtlKiBlast_GetType(FxChr *chr);
 extern s32 BtlKiBlast_GetUnk3(FxChr *chr);
 extern s32 BtlStage_GetWaterLevel(f32 *height);
-extern s32 func_00250828(s32 kind);
+extern s32 BtlObj_GetNodeSide(s32 kind);
 extern void EftBubble_StartBurst(s32 objId);
 extern void EftWater_SetWake(s32 objId, s32 off);
 extern void EftWater_AddSplashFor(s32 objId, Vec4 *pos, s32 arg, f32 speed);
@@ -880,10 +880,10 @@ extern s32 BtlCharApi_IsModelNew(s32 objId);
 #define BtlMember_GetActive ((s32 *(*)(FxChr *chr))BtlMember_GetActive)
 #define BtlMember_HasAbility ((s32 (*)(FxChr *chr, s32 param))BtlMember_HasAbility)
 extern void BtlCharApi_ShakeCamsNear(Vec4 *pos, f32 near, f32 far, f32 strength, f32 time);
-extern void func_0024E5B8(FxObj *obj, s32 kind);
-extern void func_0024F568(FxObj *obj, s32 arg);
-extern s32 func_0024F9F0(FxObj *obj);
-extern s32 func_0024FA08(FxObj *obj);
+extern void BtlObjFlash_Start(FxObj *obj, s32 kind);
+extern void BtlObj_SetEyeFrame(FxObj *obj, s32 arg);
+extern s32 BtlObj_GetMouthMode(FxObj *obj);
+extern s32 BtlObj_GetEyeFrame(FxObj *obj);
 extern void BtlObj_SetSubState(FxObj *obj, s32 state, s32 arg);
 #define BtlAnim_TestAttr ((s32 (*)(FxChr *chr, u64 mask))BtlAnim_TestAttr)           /* animation event bits raised this frame */
 extern f32 BtlOpp_GetDistance(FxChr *chr);
@@ -899,9 +899,9 @@ extern s32 BtlKiBlast_GetUnk31(FxChr *chr);
 extern s32 BtlKiBlast_GetHits(FxChr *chr);
 extern f32 BtlKiBlast_GetUnk28(FxChr *chr);
 extern f32 BtlKiBlast_GetUnk2C(FxChr *chr);
-extern s32 func_0024D4D0(FxObj *obj, u64 mask);
-#define func_0024D518 ((s32 (*)(s32 bits))func_0024D518)
-#define func_0024D610 ((s32 (*)(FxObj *obj, s32 a, s32 b, s32 c))func_0024D610)
+extern s32 BtlObjAnim_GetEventArg(FxObj *obj, u64 mask);
+#define BtlObjAnim_MaskToNode ((s32 (*)(s32 bits))BtlObjAnim_MaskToNode)
+#define BtlObjAnim_QueryEvent ((s32 (*)(FxObj *obj, s32 a, s32 b, s32 c))BtlObjAnim_QueryEvent)
 extern void Vec3_Normalize(Vec4 *out, Vec4 *in);
 extern void func_00122698(Vec4 *out, Vec4 *a, Vec4 *b, f32 s);
 extern void func_00122868(Vec4 *out, Vec4 *in, f32 s);
@@ -1194,7 +1194,7 @@ void BtlFx_TriggerObjReq1D(FxChr *chr) {
     FxObj *obj = BtlChar_GetObj(chr);
 
     if (BtlChar_TestFxBit(chr, 0x1D)) {
-        func_0024E5B8(obj, 0);
+        BtlObjFlash_Start(obj, 0);
     }
 }
 
@@ -1204,7 +1204,7 @@ void BtlFx_TriggerObjReq1E(FxChr *chr) {
 
     if (BtlChar_TestFxBit(chr, 0x1E)) {
         if (chr->trigger1E == 0) {
-            func_0024E5B8(obj, 1);
+            BtlObjFlash_Start(obj, 1);
         }
         chr->trigger1E = (chr->trigger1E + 1) % 4;
     } else {
@@ -1218,7 +1218,7 @@ void BtlFx_TriggerObjReq1F(FxChr *chr) {
 
     if (BtlChar_TestFxBit(chr, 0x1F)) {
         if (chr->trigger1F == 0) {
-            func_0024E5B8(obj, 2);
+            BtlObjFlash_Start(obj, 2);
         }
         chr->trigger1F = (chr->trigger1F + 1) % 4;
     } else {
@@ -1253,14 +1253,14 @@ void BtlFx_UpdateOccludedFlag(FxChr *chr) {
     }
 }
 
-/* Fighter flag 0x137 sends the object command 1; otherwise command 9 once func_0024FA08 answers 1. */
+/* Fighter flag 0x137 sends the object command 1; otherwise command 9 once BtlObj_GetEyeFrame answers 1. */
 void BtlFx_UpdateObjCmdFlag137(FxChr *chr) {
     FxObj *obj = BtlChar_GetObj(chr);
 
     if (BtlChar_TestFlag(chr, 0x137)) {
-        func_0024F568(obj, 1);
-    } else if (func_0024FA08(obj) == 1) {
-        func_0024F568(obj, 9);
+        BtlObj_SetEyeFrame(obj, 1);
+    } else if (BtlObj_GetEyeFrame(obj) == 1) {
+        BtlObj_SetEyeFrame(obj, 9);
     }
 }
 
@@ -1271,13 +1271,13 @@ void BtlFx_UpdateSubStateFlag96(FxChr *chr) {
 
     if (BtlChar_TestFlag(chr, 0x96)) {
         obj = BtlChar_GetObj(chr);
-        state = func_0024F9F0(obj);
+        state = BtlObj_GetMouthMode(obj);
         if (state == 0 || state == 4) {
             BtlObj_SetSubState(obj, 5, 0);
         }
     } else {
         obj = BtlChar_GetObj(chr);
-        if (func_0024F9F0(obj) == 5) {
+        if (BtlObj_GetMouthMode(obj) == 5) {
             BtlObj_SetSubState(obj, 0, 0);
         }
     }
@@ -1327,7 +1327,7 @@ void BtlFx_FireKiBlast(FxChr *chr) {
 
     if (BtlAnim_TestAttr(chr, 4)) {
         react = BtlKiBlast_GetUnk31(chr);
-        code = func_0024D518(func_0024D4D0(obj, 4));
+        code = BtlObjAnim_MaskToNode(BtlObjAnim_GetEventArg(obj, 4));
         Vec4_Copy(&hitPos, &chr->hitPos);
         count = BtlKiBlast_GetHits(chr);
         arg.code = code;
@@ -1348,7 +1348,7 @@ void BtlFx_FireKiBlast(FxChr *chr) {
         arg.unk34 = 1;
         arg.unk38 = 1;
         arg.unk3C = (BtlKiBlast_GetFlags(chr) >> 5) & 1;
-        arg.unk41 = func_0024D610(obj, 4, 0, 3);
+        arg.unk41 = BtlObjAnim_QueryEvent(obj, 4, 0, 3);
         switch (arg.level) {
         case 1:
         case 5:
@@ -1435,7 +1435,7 @@ void BtlFx_FireKiBlast(FxChr *chr) {
                         case 5:
                             break;
                         case 6:
-                            back = func_00250828(code) == 0;
+                            back = BtlObj_GetNodeSide(code) == 0;
                             break;
                         }
                         if (back) {

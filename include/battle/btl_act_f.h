@@ -35,7 +35,7 @@ typedef struct BtlSuperAnimData {
 /* Battle object of a fighter (BtlChar_GetObj). */
 typedef struct BtlSuperObj {
     /* 0x000 */ u8 unk0[0xA40];
-    /* 0xA40 */ u32 flags;     /* bit 0x40000: set while func_002500E8 bit 2 is on (inferred) */
+    /* 0xA40 */ u32 flags;     /* bit 0x40000: set while BtlObj_SetColorMode bit 2 is on (inferred) */
     /* 0xA44 */ u8 unkA44[0xBD8 - 0xA44];
     /* 0xBD8 */ BtlSuperAnimData *subAnim; /* animation of layer 1 (BtlAnim_PlaySub), NULL when not loaded */
 } BtlSuperObj;

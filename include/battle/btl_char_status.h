@@ -52,11 +52,11 @@ typedef struct BtlStatMod {
 /* ---- animation ----------------------------------------------------------------------------------------------- */
 
 /* Bits of an animation's word in the roster table (gBtlChars + 0x20, 0x19E entries). */
-#define BTL_ANIM_F_2        0x00000002 /* with F_80000000: func_0024C728(handle, 1, 0, 0) after func_0024C800 */
+#define BTL_ANIM_F_2        0x00000002 /* with F_80000000: BtlObjAnim_ZeroRootAxes(handle, 1, 0, 0) after BtlObjAnim_RebaseRoot */
 #define BTL_ANIM_F_10       0x00000010 /* tested by the manager (btl_char_mgr.c) */
-#define BTL_ANIM_F_20000000 0x20000000 /* started with func_0024D178 (needs the opponent's object) */
-#define BTL_ANIM_F_40000000 0x40000000 /* func_0024C728(handle, 1, 1, 1) */
-#define BTL_ANIM_F_80000000 0x80000000 /* func_0024C800(handle) */
+#define BTL_ANIM_F_20000000 0x20000000 /* started with BtlObjAnim_PlayFrom (needs the opponent's object) */
+#define BTL_ANIM_F_40000000 0x40000000 /* BtlObjAnim_ZeroRootAxes(handle, 1, 1, 1) */
+#define BTL_ANIM_F_80000000 0x80000000 /* BtlObjAnim_RebaseRoot(handle) */
 #define BTL_ANIM_COUNT      0x19E
 
 /* Fighter flags owned by the animation code. */
@@ -81,7 +81,7 @@ typedef struct BtlAnimIds {
 
 /* Animation player inside the battle object: object + 0xB40. Layer handles are 0x98 bytes apart. */
 typedef struct BtlAnimObj {
-    /* 0x000 */ void *handle;    /* main layer (what func_0024C728 / func_0024C800 / func_0024C890 take) */
+    /* 0x000 */ void *handle;    /* main layer (what BtlObjAnim_ZeroRootAxes / BtlObjAnim_RebaseRoot / BtlObjAnim_ClearNodeRot take) */
     /* 0x004 */ f32 length;      /* last frame of the current animation */
     /* 0x008 */ u8 unk8[0x98 - 0x8];
     /* 0x098 */ void *subHandle; /* second layer (object + 0xBD8) */
@@ -135,7 +135,7 @@ typedef struct BtlStatChr {
     /* 0x0E34 */ s32 kind3On;     /* the same for kind 3 */
     /* 0x0E38 */ s32 slotOn[BTL_STAT_SLOTS]; /* 1 while the slot's (non-kept) modifier is active */
     /* 0x0E40 */ u8 unkE40[0xEE4 - 0xE40];
-    /* 0x0EE4 */ s32 unkEE4;      /* passed to func_0024D178 when BtlCharApi_IsInRushSequence(objId) is set */
+    /* 0x0EE4 */ s32 unkEE4;      /* passed to BtlObjAnim_PlayFrom when BtlCharApi_IsInRushSequence(objId) is set */
     /* 0x0EE8 */ u8 unkEE8[0xF50 - 0xEE8];
     /* 0x0F50 */ BtlStatMod stat[BTL_STAT_COUNT];
     /* 0x0FB0 */ u8 unkFB0[0x1600 - 0xFB0];

@@ -56,7 +56,7 @@ typedef struct StgColSeg {
     /* 0x10 */ StgColVec b;
 } StgColSeg; /* size 0x20 */
 
-/* Ray built from a segment by func_00238540: origin and direction. */
+/* Ray built from a segment by ColRay_FromSeg: origin and direction. */
 typedef struct StgColRay {
     /* 0x00 */ StgColVec origin;
     /* 0x10 */ StgColVec dir;
@@ -248,7 +248,7 @@ typedef struct StgColObjWork {
 } StgColObjWork;
 
 /* StgColObjWork.flags, the "stage contact word" of a fighter. */
-/* The whole word is zeroed by func_0024DCB8, the first call of StgCol_UpdateFighter, so every bit lasts one frame. */
+/* The whole word is zeroed by BtlObjBody_BeginFrame, the first call of StgCol_UpdateFighter, so every bit lasts one frame. */
 #define STGCOL_HIT_WALL 0x20    /* the body sphere was pushed out of stage geometry this frame */
 #define STGCOL_HIT_BROKE 0x40   /* the fighter broke a stage object this frame */
 #define STGCOL_HIT_DMG_200 0x80   /* the broken object has type bit 0x800 (BtlColl_UpdateGround: 200 damage) */

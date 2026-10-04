@@ -23,8 +23,8 @@ extern f32 sqrtf(f32 x);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
-extern void func_002399A0(RigidSphere *out, Vec4 *center, f32 radius);        /* fills a sphere */
-extern s32 func_00238310(Vec4 *out, RigidSphere *sphere, StgRigidTri *tri);    /* sphere against triangle: closest point */
+extern void ColSphere_Set(RigidSphere *out, Vec4 *center, f32 radius);        /* fills a sphere */
+extern s32 ColSphere_TestTri(Vec4 *out, RigidSphere *sphere, StgRigidTri *tri);    /* sphere against triangle: closest point */
 extern void StgCol_CollectSphere(RigidSphere *sphere, s32 hits);                     /* collects the stage triangles near a sphere */
 
 extern s32 BtlStage_IsReady(void);
@@ -119,7 +119,7 @@ void StgRigidList_BeginFrame(StgRigidNode *head) {
             continue;
         }
         if (n->body.user != 0 && BtlStage_IsReady()) {
-            func_002399A0(&sphere, &n->body.prevSphere.center, n->body.prevSphere.radius + n->body.moved + 0.1f);
+            ColSphere_Set(&sphere, &n->body.prevSphere.center, n->body.prevSphere.radius + n->body.moved + 0.1f);
             StgCol_CollectSphere(&sphere, n->body.user);
         }
         n->damp = 0.0015f;
@@ -167,7 +167,7 @@ void StgRigidList_Collide(StgRigidNode *head) {
             continue;
         }
         for (i = 0; i < ((StgRigidHits *)n->body.user)->count; i++) {
-            if (func_00238310(&hit, &n->body.prevSphere, &((StgRigidHits *)n->body.user)->tri[i])) {
+            if (ColSphere_TestTri(&hit, &n->body.prevSphere, &((StgRigidHits *)n->body.user)->tri[i])) {
                 f32 depth;
 
                 Vec4_Sub(&d, &n->body.prevSphere.center, &hit);

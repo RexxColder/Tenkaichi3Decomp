@@ -43,12 +43,12 @@
  *   - address temporaries that the disassembly shows at the top of a function (EftShotTech_Start) are not
  *     variables: the scheduler moves them up across basic blocks.
  *
- * Callees still named by address: func_001ADB98(task) parent task, func_001ADA58(task) mark a task dead,
- * func_001ADB78(task, bits) or bits into the task's class flags (0x800 / 0x1000 = character 0 / 1, the bits
+ * Callees still named by address: BtlTask_GetParent(task) parent task, BtlTask_SetDead(task) mark a task dead,
+ * BtlTask_SetOwnerTag(task, bits) or bits into the task's class flags (0x800 / 0x1000 = character 0 / 1, the bits
  * BtlScene_Reset uses); EftObj_Create / EftObj_Destroy / EftObj_SetMtx / EftObj_SetVisible / EftObj_Nop create /
  * destroy / place / show a battle object; EftDisc_Create.. the piece task; EftBlastObj_Create.. the blast object task;
  * EftFlash_Start screen flash; EftDelaySe_Start node effects; EftStreak_Start / EftStreak_Stop start / stop a
- * sub-effect; func_00239588 / func_002399A0 fill a box / sphere shape; func_00120150 / 398 / 428 / 4B8 / 590
+ * sub-effect; ColCapsule_Set / ColSphere_Set fill a box / sphere shape; func_00120150 / 398 / 428 / 4B8 / 590
  * matrix translate / rotate X / rotate Y / rotate by angles / scale; func_00121FB8 copies a position.
  */
 
@@ -108,9 +108,9 @@ extern void EftFlash_Start(EftJFlashArg *arg);
 extern void EftDelaySe_Start(s32 objId, s32 *tbl, s32 count);
 extern void *EftStreak_Start(s32 objId, s32 kind, s32 arg, f32 angle);
 extern void EftStreak_Stop(void *sub);
-extern EftJTask *func_001ADB98(EftJTask *task);
-extern void func_001ADA58(EftJTask *task);
-extern void func_001ADB78(EftJTask *task, s32 flags);
+extern EftJTask *BtlTask_GetParent(EftJTask *task);
+extern void BtlTask_SetDead(EftJTask *task);
+extern void BtlTask_SetOwnerTag(EftJTask *task, s32 flags);
 extern s32 EftShot_TestBits(s32 objId, s32 bits);
 extern void EftShot_Nop(s32 size);
 extern void EftShot_SetHeldFlagA8(s32 objId);
@@ -141,8 +141,8 @@ extern void *EftHitArena_AllocSphere(void);
 extern void *EftHitArena_AllocBox(void);
 extern void EftHit_SetShapeSpheres(EftJHitRec *rec, void *a, void *b);
 extern void EftHit_SetShapeBoxes(EftJHitRec *rec, void *a, void *b);
-extern void func_002399A0(void *shape, void *pos, f32 r);
-extern void func_00239588(void *shape, void *a, void *b, f32 r);
+extern void ColSphere_Set(void *shape, void *pos, f32 r);
+extern void ColCapsule_Set(void *shape, void *a, void *b, f32 r);
 extern void EftAim_Home(f32 speed, f32 homing, void *out, void *pos, void *dir, s32 objId);
 extern void StgBlur_SetCenter(s32 light, void *dir, s32 a2);
 extern void StgBlur_SetColor0Rgba(s32 light, s32 r, s32 g, s32 b, s32 a);
@@ -152,7 +152,7 @@ extern void StgBlur_SetColor3Rgba(s32 light, s32 r, s32 g, s32 b, s32 a);
 extern void EftEmit_UpdateTrailWidth(EftJSet *set, void *emit);
 extern s32 EftAim_GetDir(void *dir, void *from, s32 objId);
 extern void EftAim_GetDirKeep(EftJSrc *src, void *dir, void *from, s32 objId);
-extern void func_001AE148(void *tex, s32 *entry);
+extern void EftTexSet_Load32(void *tex, s32 *entry);
 extern void *EftDisc_Create(EftJPieceArg *arg);
 extern void EftDisc_Release(void *h, Vec4 *dir);
 extern void EftDisc_Kill(void *h);
@@ -185,7 +185,7 @@ void EftFollow_Reset(EftJTask *task) {
         w->flags |= 0x80;
         EftEmit_KillAll(w->set, w->emit);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback of the follow item: nothing. */
@@ -236,7 +236,7 @@ EftJPiece *EftMulti_AllocPiece(EftMulti *w) {
 /* Fires the next piece: fills the parameter block for its kind and creates it. */
 void EftMulti_FirePiece(s32 objId, EftJTask *task) {
     EftJPieceArg arg;
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftMulti *w = task->work;
     EftMultiMgr *mgr = parent->work;
     EftJSrc *src = w->src;
@@ -442,7 +442,7 @@ void EftMulti_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
 
 /* Init callback of an item. */
 void EftMulti_Init(EftJTask *task, EftJSrc *src) {
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftMulti *w = task->work;
     EftMultiMgr *mgr = parent->work;
     EftJDef *def;
@@ -463,7 +463,7 @@ void EftMulti_Init(EftJTask *task, EftJSrc *src) {
     } else {
         w->flags |= 0x400;
     }
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback of an item. */
@@ -546,7 +546,7 @@ void EftMulti_Update(EftJTask *task) {
         w->timer += 1.0f;
     }
     if (!alive && (w->flags & 2)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & 1) {
         if (w->flags & 4) {
             w->flags |= 2;
@@ -592,7 +592,7 @@ void EftMulti_Reset(EftJTask *task) {
         w->flags |= 0x80;
         EftEmit_KillAll(w->set, w->emit);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback of an item: nothing. */
@@ -606,7 +606,7 @@ void EftMultiMgr_Init(EftJTask *task, EftJSrc *src) {
     EftShot_Nop(0x530);
     memset(m, 0, 0x530);
     if (src->def->id == 0x158 || src->def->id == 0x202) {
-        func_001AE148(m->tex, BtlScene_GetPackEntry(src->pack, 1));
+        EftTexSet_Load32(m->tex, BtlScene_GetPackEntry(src->pack, 1));
     }
     EftEmit_LoadSet(src, &m->set, 0, src->pack, 0, 4);
     BtlTask_CreateChildList(task, 2, 0x620);
@@ -633,7 +633,7 @@ void EftMultiMgr_Reset(EftJTask *task) {
 
 /* Sets the prop up for the effect id and creates its battle object, hidden. */
 void EftPropShot_InitProp(EftJTask *task) {
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftPropShot *w = task->work;
     EftPropShotMgr *mgr = parent->work;
     EftProp *prop = &w->prop;
@@ -778,8 +778,8 @@ void EftPropShot_AddHit(EftJTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->muzzle, &w->head, r);
-        func_00239588(b, &w->muzzle, &w->tail, r);
+        ColCapsule_Set(a, &w->muzzle, &w->head, r);
+        ColCapsule_Set(b, &w->muzzle, &w->tail, r);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -787,8 +787,8 @@ void EftPropShot_AddHit(EftJTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, &w->head, r);
-        func_002399A0(b, &w->tail, r);
+        ColSphere_Set(a, &w->head, r);
+        ColSphere_Set(b, &w->tail, r);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -871,7 +871,7 @@ void EftPropShot_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) 
 
 /* Init callback of an item. */
 void EftPropShot_Init(EftJTask *task, EftJSrc *src) {
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftPropShot *w = task->work;
     EftPropShotMgr *mgr = parent->work;
     EftJDef *def;
@@ -894,7 +894,7 @@ void EftPropShot_Init(EftJTask *task, EftJSrc *src) {
     if (w->src->def->id == 0x19A) {
         w->flags |= 0x800;
     }
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback of an item. */
@@ -1019,7 +1019,7 @@ void EftPropShot_Update(EftJTask *task) {
         if (w->flags & 0x800) {
             BtlCharApi_ObjSetFlag100(src->objId, 0);
         }
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & 1) {
         if (!(w->flags & 0x1000)) {
             if (w->flags & 4) {
@@ -1073,7 +1073,7 @@ void EftPropShot_Reset(EftJTask *task) {
         w->flags |= 0x80;
         EftEmit_KillAll(w->set, w->emit);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback of an item: nothing. */
@@ -1131,8 +1131,8 @@ void EftBlast_AddHit(EftJTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->muzzle, &w->head, r);
-        func_00239588(b, &w->muzzle, &w->tail, r);
+        ColCapsule_Set(a, &w->muzzle, &w->head, r);
+        ColCapsule_Set(b, &w->muzzle, &w->tail, r);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -1140,8 +1140,8 @@ void EftBlast_AddHit(EftJTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, &w->head, r);
-        func_002399A0(b, &w->tail, r);
+        ColSphere_Set(a, &w->head, r);
+        ColSphere_Set(b, &w->tail, r);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -1236,7 +1236,7 @@ void EftBlast_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
  */
 #if 0
 void EftBlast_Init(EftJTask *task, EftJSrc *src) {
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftBlast *w = task->work;
     EftBlastMgr *mgr = parent->work;
     EftJDef *def;
@@ -1277,7 +1277,7 @@ void EftBlast_Init(EftJTask *task, EftJSrc *src) {
         w->flags |= 0x200;
     }
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 #endif
 LIT4_WORD(D_002FC7B0, 0x3E999999); /* 0.3f */
@@ -1415,7 +1415,7 @@ void EftBlast_Update(EftJTask *task) {
         w->timer += 1.0f;
     }
     if (w->flags & 2) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & 1) {
         if (w->flags & 4) {
             w->flags |= 2;
@@ -1472,7 +1472,7 @@ void EftBlast_Reset(EftJTask *task) {
         w->flags |= 0x80;
         EftEmit_KillAll(w->set, w->emit);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback of an item: nothing. */
@@ -1507,7 +1507,7 @@ void EftBlastMgr_Reset(EftJTask *task) {
 
 /* Creates the item's model object, hidden. */
 void EftShotTech_InitModel(EftJTask *task) {
-    EftJTask *parent = func_001ADB98(task);
+    EftJTask *parent = BtlTask_GetParent(task);
     EftJShotMgr *mgr = parent->work;
     EftJShotTech *w = task->work;
     EftJShotModel *model = &w->model;

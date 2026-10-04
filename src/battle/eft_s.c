@@ -60,10 +60,10 @@ extern void EftGfx_DrawPolyScaledZ(void *verts, s32 layer, s32 a2, s32 a3, s32 f
    is the one that reproduces the order the arguments are set up in. */
 extern void EftSpr_DrawRot(f32 x, f32 y, f32 z, u8 r, u8 g, u8 b, u8 a, s32 t0, s32 t1, s32 w, s32 h, f32 u0, f32 v0,
                           f32 u1, f32 v1, f32 rot, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
-extern u64 func_001ADD28(void *tex, s32 a, s32 b);
-extern s32 func_001ADDC0(void *tex);
-extern void func_001AE1F8(void *tex, s32 *entry);
-extern void func_001ADA58(EftTask *task);                   /* kills the task */
+extern u64 EftVram_AddImage(void *tex, s32 a, s32 b);
+extern s32 EftVram_AddClut(void *tex);
+extern void EftTexSet_Load4(void *tex, s32 *entry);
+extern void BtlTask_SetDead(EftTask *task);                   /* kills the task */
 extern void EftObj_SetMtx(s32 obj, Mtx44 *m);               /* sets a model object's matrix */
 extern void EftObj_SetVisible(s32 obj, s32 show);
 extern s32 BtlPool_GetCurrent(void);
@@ -84,7 +84,7 @@ extern void EftKiObj_Update(EftTask *task);                   /* update callback
 
 /* Reset callback of the prop ki blast: kills the task. */
 void EftKiObj_Reset(EftTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback. */
@@ -110,7 +110,7 @@ void EftKiObjMgr_Init(EftTask *task, s32 *arg) {
     res = mgr->res;
     res->pack = BtlScene_GetCharPackEntry(arg[0], 3);
     res->model = BtlScene_GetPackEntry(res->pack, 1);
-    func_001AE1F8(res->tex, BtlScene_GetPackEntry(res->pack, 2));
+    EftTexSet_Load4(res->tex, BtlScene_GetPackEntry(res->pack, 2));
     list = BtlTask_CreateChildList(task, 10, sizeof(EftKiProp));
     EftChar_SetList(arg[0], arg[1], list);
 }
@@ -314,8 +314,8 @@ void EftChain_BuildTex(EftArc *dst, EftArc *src) {
     s32 one = 1;
 
     if (!(src->arg.texSet->built & (one << src->arg.texIdx))) {
-        dst->tex0 = func_001ADD28(&dst->texA, 1, 0);
-        dst->tex0 |= (u64)func_001ADDC0(&dst->texB) << 37;
+        dst->tex0 = EftVram_AddImage(&dst->texA, 1, 0);
+        dst->tex0 |= (u64)EftVram_AddClut(&dst->texB) << 37;
         src->arg.texSet->entry[src->arg.texIdx].tex0 = dst->tex0;
         src->arg.texSet->built |= one << src->arg.texIdx;
     } else {
@@ -1451,7 +1451,7 @@ void EftChain_Update(EftTask *task) {
         }
     }
     if (w->flags & EFT_ARC_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftChain_BuildTex(w, w);
     }
@@ -1525,10 +1525,10 @@ extern s32 BtlScene_IsEffectHidden(s32 objId, s32 type);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 type);
 #define BtlTask_CreateChildList ((void *(*)(EftTTask *task, s32 count, s32 workSize))BtlTask_CreateChildList)
 #define BtlTaskList_AddTail ((EftTTask *(*)(void *list, void *cls, void *arg))BtlTaskList_AddTail)
-#define func_001ADA58 ((void (*)(EftTTask *task))func_001ADA58)                    /* kills the task */
-extern void func_001ADB78(EftTTask *task, s32 flags);         /* ors into the task flags */
-extern void func_001ADEA0(void *tex, s32 a1, s32 a2);         /* steps a texture set's animation */
-extern void func_001AE148(void *tex, s32 *entry);             /* builds a texture set from a pack entry */
+#define BtlTask_SetDead ((void (*)(EftTTask *task))BtlTask_SetDead)                    /* kills the task */
+extern void BtlTask_SetOwnerTag(EftTTask *task, s32 flags);         /* ors into the task flags */
+extern void EftTexSet_Keep32(void *tex, s32 a1, s32 a2);         /* steps a texture set's animation */
+extern void EftTexSet_Load32(void *tex, s32 *entry);             /* builds a texture set from a pack entry */
 
 extern s32 EftCam_IsActive(void);
 extern f32 EftMath_WrapAngle(f32 angle);
@@ -1573,7 +1573,7 @@ void EftChain_PostUpdate(EftTTask *task) {
 
 /* Reset callback: the effect does not survive a scene reset. */
 void EftChain_Reset(EftTTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: draws the strands unless the effect is hidden or belongs to the other view. */
@@ -2080,7 +2080,7 @@ EftTTask *EftRay_CreateByValue(EftRayArg arg) {
 void EftRayMgr_Init(EftTTask *task) {
     gEftRay = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftRayMgr));
     memset(gEftRay, 0, sizeof(EftRayMgr));
-    func_001AE148(gEftRay, BtlScene_GetCommonEntry(10));
+    EftTexSet_Load32(gEftRay, BtlScene_GetCommonEntry(10));
     gEftRay->list = BtlTask_CreateChildList(task, 4, sizeof(EftRayWork));
 }
 
@@ -2105,7 +2105,7 @@ void EftRay_Init(EftTTask *task, EftRayArg *arg) {
     w->type = 2;
     EftRay_Setup(w, arg);
     if ((u32)arg->objId < 2) {
-        func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+        BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
     }
 }
 
@@ -2156,7 +2156,7 @@ void EftRay_Update(EftTTask *task) {
         }
     }
     if (w->flags & EFT_RAY_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     switch (w->mode) {
@@ -2194,7 +2194,7 @@ void EftRay_Update(EftTTask *task) {
 
 /* Reset callback: the burst does not survive a scene reset. */
 void EftRay_Reset(EftTTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback. */
@@ -2208,7 +2208,7 @@ void EftRay_Draw(EftTTask *task) {
 
 /* Steps the animation of the ray texture. */
 void EftRay_StepTexture(void) {
-    func_001ADEA0(gEftRay, 1, 0);
+    EftTexSet_Keep32(gEftRay, 1, 0);
 }
 
 /* Fills the work from the create argument and rolls the rays: evenly spread angles with up to 4 degrees of

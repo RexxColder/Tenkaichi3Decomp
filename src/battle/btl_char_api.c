@@ -38,7 +38,7 @@ extern f32 func_00122200(Vec4 *a, Vec4 *b);              /* distance between two
 extern f32 BtlAnim_GetFrame(BtlCharApiChr *chr);            /* BtlObj_Get(chr->objId)->unkC78 */
 extern s32 BtlAnim_GetId(BtlCharApiChr *chr);            /* chr->unk974 */
 extern void *BtlAnim_GetFlags(s32 idx);                     /* gBtlChars->unk20[idx], idx < 0x19E */
-extern s32 BtlAnim_TestAttr(BtlCharApiChr *chr, u64 mask);  /* 0 while chr->unk990 > 0, else func_0024D498 on its object */
+extern s32 BtlAnim_TestAttr(BtlCharApiChr *chr, u64 mask);  /* 0 while chr->unk990 > 0, else BtlObjAnim_TestEvent on its object */
 extern void ChrCam_AddShake(BtlCharApiChr *chr, f32 a, f32 b); /* CamShake_Add(&chr->camShake, a, b) if chr->camShakeOn */
 extern s32 ChrCam_IsCutActive(BtlCharApiChr *chr);
 extern BtlCharApiVitals *BtlMember_GetActiveGauge(BtlCharApiChr *chr); /* the active member's vitals */
@@ -66,11 +66,11 @@ extern s32 BtlParam_GetUnk84(BtlCharApiChr *chr, u32 n);
 extern s32 BtlParam_GetUnk8A(BtlCharApiChr *chr, u32 n);
 extern s32 BtlSuper_GetFlags(BtlCharApiChr *chr, s32 slot);  /* attribute word of technique `slot` */
 extern s32 BtlSuper_IsThrow(BtlCharApiChr *chr, s32 slot);
-extern s32 func_0024D498(BtlCharApiObj *obj, u64 mask);
-extern s32 func_0024D4D0(BtlCharApiObj *obj, u64 mask);
-extern s32 func_0024D518(s32 bits);
-extern s32 func_0024D610(BtlCharApiObj *obj, s32 arg1, s32 arg2, s32 arg3);
-extern void func_002500E8(BtlCharApiObj *obj, s32 bit, s32 on);
+extern s32 BtlObjAnim_TestEvent(BtlCharApiObj *obj, u64 mask);
+extern s32 BtlObjAnim_GetEventArg(BtlCharApiObj *obj, u64 mask);
+extern s32 BtlObjAnim_MaskToNode(s32 bits);
+extern s32 BtlObjAnim_QueryEvent(BtlCharApiObj *obj, s32 arg1, s32 arg2, s32 arg3);
+extern void BtlObj_SetColorMode(BtlCharApiObj *obj, s32 bit, s32 on);
 
 extern s32 DemoCam_IsActive(void);
 extern s32 Battle_IsSplitScreen(void);
@@ -303,7 +303,7 @@ void BtlCharApi_ObjClearMaskBit3(s32 objId) {
     BtlCharApiObj *obj = BtlObj_Get(objId);
 
     if (obj != NULL) {
-        func_002500E8(obj, 3, 0);
+        BtlObj_SetColorMode(obj, 3, 0);
     }
 }
 
@@ -312,7 +312,7 @@ void BtlCharApi_ObjSetMaskBit3(s32 objId) {
     BtlCharApiObj *obj = BtlObj_Get(objId);
 
     if (obj != NULL) {
-        func_002500E8(obj, 3, 1);
+        BtlObj_SetColorMode(obj, 3, 1);
     }
 }
 
@@ -469,7 +469,7 @@ s32 BtlCharApi_ObjTestAttr(s32 objId, u64 mask) {
     }
     obj = BtlObj_Get(objId);
     if (obj != NULL) {
-        return func_0024D498(obj, mask);
+        return BtlObjAnim_TestEvent(obj, mask);
     }
     return 0;
 }
@@ -479,22 +479,22 @@ s32 BtlCharApi_ObjGetAttrValue(s32 objId, u64 mask) {
     BtlCharApiObj *obj = BtlObj_Get(objId);
 
     if (obj != NULL) {
-        return func_0024D4D0(obj, mask);
+        return BtlObjAnim_GetEventArg(obj, mask);
     }
     return 0;
 }
 
-/* The same value mapped to a kind code by func_0024D518, 0 when there is none. */
+/* The same value mapped to a kind code by BtlObjAnim_MaskToNode, 0 when there is none. */
 s32 BtlCharApi_ObjGetAttrKind(s32 objId, u64 mask) {
     BtlCharApiObj *obj = BtlObj_Get(objId);
     s32 bits;
     s32 kind;
 
     if (obj != NULL) {
-        bits = func_0024D4D0(obj, mask);
+        bits = BtlObjAnim_GetEventArg(obj, mask);
         kind = 0;
         if (bits != 0) {
-            kind = func_0024D518(bits);
+            kind = BtlObjAnim_MaskToNode(bits);
         }
         return kind;
     }
@@ -541,12 +541,12 @@ f32 BtlCharApi_ObjGetUnkC80(s32 objId) {
     return 0.0f;
 }
 
-/* func_0024D610(obj, arg1, 0, arg2) on the object. */
+/* BtlObjAnim_QueryEvent(obj, arg1, 0, arg2) on the object. */
 s32 BtlCharApi_ObjQuery24D610(s32 objId, s32 arg1, s32 arg2) {
     BtlCharApiObj *obj = BtlObj_Get(objId);
 
     if (obj != NULL) {
-        return func_0024D610(obj, arg1, 0, arg2);
+        return BtlObjAnim_QueryEvent(obj, arg1, 0, arg2);
     }
     return 0;
 }

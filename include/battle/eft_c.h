@@ -127,7 +127,7 @@ typedef struct EftWeatherPtcl {
     /* 0x38 */ s32 unk38[2];
 } EftWeatherPtcl; /* size 0x40 */
 
-/* Texture table filled by func_001AE148. */
+/* Texture table filled by EftTexSet_Load32. */
 typedef struct EftTexEntry {
     /* 0x00 */ u64 tex0;
     /* 0x08 */ struct EftTexDef *def;
@@ -182,7 +182,7 @@ typedef struct EftStage {
     /* 0x04 */ void *task;  /* the layer-0 task */
     /* 0x08 */ s32 flags;   /* EFT_STAGE_FLAG_* */
     /* 0x0C */ s32 unkC;
-    /* 0x10 */ EftTexEntry sprite; /* filled by func_001AE1F8 from pack entry 0x14 */
+    /* 0x10 */ EftTexEntry sprite; /* filled by EftTexSet_Load4 from pack entry 0x14 */
     /* 0x20 */ u8 unk20[0x38];
 } EftStage; /* size 0x58 */
 

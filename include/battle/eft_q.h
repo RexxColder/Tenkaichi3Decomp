@@ -28,7 +28,7 @@
 
 /* The task view shared by the effect modules (0x40 bytes, 0x1AD150..). */
 typedef struct EftQTask {
-    /* 0x00 */ u8 flags;       /* bit 0: dead (set by func_001ADA58); read through EFTQ_TASK_FLAGS */
+    /* 0x00 */ u8 flags;       /* bit 0: dead (set by BtlTask_SetDead); read through EFTQ_TASK_FLAGS */
     /* 0x01 */ u8 step;        /* free for the class; the flash keeps its phase here, the root its character */
     /* 0x02 */ u8 unk2[0x26];
     /* 0x28 */ void **cls;     /* task class; cls[0] is the update callback */
@@ -51,7 +51,7 @@ typedef struct EftQVec {
     /* 0xC */ f32 w;
 } __attribute__((aligned(16))) EftQVec;
 
-/* One entry of a texture set (func_001AE148). */
+/* One entry of a texture set (EftTexSet_Load32). */
 typedef struct EftQTex {
     /* 0x0 */ u64 tex0;
     /* 0x8 */ u64 unk8;

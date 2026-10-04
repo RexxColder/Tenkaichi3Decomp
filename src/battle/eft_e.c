@@ -31,7 +31,7 @@ extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern void *BtlTask_CreateChildList(void *task, s32 capacity, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, BtlTaskClass *cls, void *arg);
-extern void func_001ADA58(void *task);
+extern void BtlTask_SetDead(void *task);
 extern void EftCam_Start(s32 *arg);
 extern void EftCam_SetHold(s32 arg);
 extern void EftCam_Stop(void);
@@ -46,7 +46,7 @@ extern s32 BtlStage_GetFxResC(void);
 extern s32 BtlStage_GetFxResA(void);
 extern EftStageMarker *BtlStage_GetFxResC2(void);
 extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
-extern u64 func_001ADC68(u64 *tex0, s32 a1, s32 a2);
+extern u64 EftVram_AddTex(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
 extern void func_00120AB0(void);
 extern void func_00120B80(Mtx44 *mtx);
@@ -96,7 +96,7 @@ extern void BtlCharApi_PlaySoundAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 fa
 extern f32 EftHit_GetRadiusA(EftWaterBlast *rec);
 extern void EftUtil_ClipSegToWater(EftEVec *out, Vec4 *a, Vec4 *b);
 extern s32 EftRec_GetDefClass(EftWaterBlast *rec);
-extern void func_001AE148(u8 *tex, s32 *data);
+extern void EftTexSet_Load32(u8 *tex, s32 *data);
 extern void EftWater_UpdateTextures(s32 a0, s32 a1);
 /* The pool functions below are defined in the second part of this file (formerly eft_f.c) with that part's own
  * types; this part calls them through aliased declarations with its view types (same symbol, same code). */
@@ -324,7 +324,7 @@ void EftSteamMgr_Term(void) {
 /* Emitter manager update: renews the TEX0 of the texture while any emitter exists. */
 void EftSteamMgr_Update(void) {
     if (((void **)gEftSteam->list)[1] != NULL) {
-        gEftSteam->tex.tex0 = func_001ADC68(&gEftSteam->tex.tex0, 1, 0);
+        gEftSteam->tex.tex0 = EftVram_AddTex(&gEftSteam->tex.tex0, 1, 0);
     }
 }
 
@@ -355,7 +355,7 @@ void EftSteam_Update(EftSteamTask *task) {
         }
     }
     if ((work->flags & EFT_STEAM_STOP) && work->count <= 0) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     EftSteam_MoveParts(work);
@@ -934,9 +934,9 @@ void EftWater_Init(void *task) {
     }
     stage = (s32 *)BtlScene_GetStageData();
     if (BtlScene_GetPackEntrySize(stage, 0x12) > 0) {
-        func_001AE148(gEftDust->tex, BtlScene_GetPackEntry(stage, 0x12));
+        EftTexSet_Load32(gEftDust->tex, BtlScene_GetPackEntry(stage, 0x12));
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -1369,7 +1369,7 @@ extern s32 func_00121A10(EftWaterClipVtx *poly, EftWaterVec *plane, s32 n);  /* 
 extern void func_00121D48(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterClipVtx *poly, s32 n); /* projects it */
 extern EftWaterVec *EftGfx_GetClipPlanes(void);                                    /* the 5 clip planes of the view */
 extern s32 EftUtil_IsCamBelowLevel(void); /* eft_g.c: camera height against the water level; picks the depth bias */
-#define func_001ADC68 ((u64 (*)(void *entry, s32 a1, s32 a2))func_001ADC68)                     /* advances a texture, returns TEX0 */
+#define EftVram_AddTex ((u64 (*)(void *entry, s32 a1, s32 a2))EftVram_AddTex)                     /* advances a texture, returns TEX0 */
 
 /* GS XYZF2 register value. */
 typedef struct EftWaterXyzf {
@@ -2875,7 +2875,7 @@ void EftWater_UpdateTextures(s32 a0, s32 a1) {
 
     if (gEftDust != NULL && gEftDust->dropCount + gEftDust->ringCount + gEftDust->sprayCount != 0) {
         for (i = 0; i < 5; i++) {
-            gEftDust->tex[i].tex0 = func_001ADC68(&gEftDust->tex[i], a0, a1);
+            gEftDust->tex[i].tex0 = EftVram_AddTex(&gEftDust->tex[i], a0, a1);
         }
     }
 }

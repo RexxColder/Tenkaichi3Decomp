@@ -15,7 +15,7 @@ extern void Mtx_StoreIdentity(Mtx44 *dst);
 extern void func_00120230(Mtx44 *dst, Mtx44 *src);              /* 4x4 matrix copy */
 extern f32 func_00122200(Vec4 *a, Vec4 *b);                     /* distance between two points */
 extern f32 Mathf_Sqrt(f32 x);
-extern void func_002399A0(RigidSphere *out, Vec4 *center, f32 radius); /* fills a sphere */
+extern void ColSphere_Set(RigidSphere *out, Vec4 *center, f32 radius); /* fills a sphere */
 
 /* out = v * -scale (xyz). */
 void Vec3_ScaleNeg(Vec4 *out, Vec4 *v, f32 scale) {
@@ -436,7 +436,7 @@ void Rigid_Init(RigidBody *body, s32 user, f32 radius, f32 density) {
 
     memset(body, 0, sizeof(RigidBody));
     body->flags = 1;
-    func_002399A0(&body->sphere, &zero, radius);
+    ColSphere_Set(&body->sphere, &zero, radius);
     Vec4_Copy(&body->localCenter, &zero);
     body->mass = radius * 2.35619449f * radius * radius * density;
     inertia = body->mass * radius * radius * 2.0f / 5.0f * 20.0f;

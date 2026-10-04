@@ -55,9 +55,9 @@ extern s32 BtlPool_GetCurrent(void);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern EftAbTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftAbTask *task);                         /* marks a task as dying */
-extern u64 func_001ADD28(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
-extern s32 func_001ADDC0(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
+extern void BtlTask_SetDead(EftAbTask *task);                         /* marks a task as dying */
+extern u64 EftVram_AddImage(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
+extern s32 EftVram_AddClut(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
 
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern void BtlCharApi_GetDir(s32 objId, EftAbVec *out);
@@ -230,7 +230,7 @@ void EftOrbTail_Update(EftAbTask *task) {
         w->flags |= EFT_ORB_DONE;
     }
     if (w->flags & (EFT_ORB_KILL | EFT_ORB_DONE)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         if (w->flags & (EFT_ORB_KILL | EFT_ORB_DONE)) {
             return;
         }
@@ -254,7 +254,7 @@ void EftOrbTail_Draw(EftAbTask *task) {
 
 /* Reset callback (battle restart): the task dies. */
 void EftOrbTail_Reset(EftAbTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Term callback: gives every node and streak back to the pools and stops the burst emitters. */
@@ -771,9 +771,9 @@ void EftOrbTail_UpdateTex(EftOrbTail *w) {
 
     if (tex != NULL) {
         if (!(tex->ready & (1 << w->texIdx))) {
-            u64 tex0 = func_001ADD28(&w->image, 1, 0);
+            u64 tex0 = EftVram_AddImage(&w->image, 1, 0);
 
-            tex0 |= (u64)func_001ADDC0(&w->palette) << 37;
+            tex0 |= (u64)EftVram_AddClut(&w->palette) << 37;
             tex->entry[w->texIdx].tex0 = tex0;
             tex->ready |= 1 << w->texIdx;
         }

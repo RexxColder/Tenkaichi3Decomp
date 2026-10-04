@@ -47,8 +47,8 @@ extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 a
                                   s32 z);
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
-extern u64 func_001ADD28(EftYTex *tex, s32 a, s32 b);
-extern s32 func_001ADDC0(EftYTex *tex);
+extern u64 EftVram_AddImage(EftYTex *tex, s32 a, s32 b);
+extern s32 EftVram_AddClut(EftYTex *tex);
 extern EftYTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern s32 EftQuad_InitQuad(EftQuad *q, EftQuadWork *w); /* fills a new quad from the emitter's current values */
 
@@ -71,8 +71,8 @@ void EftLine_SetTex(EftLineWork *w, EftYTex16 *tex, s32 a, s32 b) {
 /* Builds the line's GS TEX0 value, or takes the one already built for its table entry. */
 void EftLine_LoadTex(EftLineWork *w, EftLineArg *arg) {
     if (!(arg->tex->loaded & (1 << arg->texIdx))) {
-        w->gsTex0 = func_001ADD28(&w->tex0, 1, 0);
-        w->gsTex0 |= (u64)func_001ADDC0(&w->tex1) << 37;
+        w->gsTex0 = EftVram_AddImage(&w->tex0, 1, 0);
+        w->gsTex0 |= (u64)EftVram_AddClut(&w->tex1) << 37;
         arg->tex->e[arg->texIdx].tex0 = w->gsTex0;
         arg->tex->loaded |= 1 << arg->texIdx;
     } else {
@@ -644,7 +644,7 @@ void EftBill_Update(EftZTask *task) {
         }
     }
     if (w->flags & EFT_BILL_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftLine_LoadTex(w, w);
     }
@@ -656,7 +656,7 @@ void EftBill_PostUpdate(EftZTask *task) {
 
 /* Item reset: kills the task. */
 void EftBill_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Item draw: one sprite facing the camera (or the oriented quads of shape 1). */
@@ -1336,7 +1336,7 @@ void EftGndDustPuff_Term(EftZTask *task) {
 
 /* Kind 0 reset: kills the task. */
 void EftGndDustPuff_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 0 update: steps the particles; the task ends with its last particle. */
@@ -1349,7 +1349,7 @@ void EftGndDustPuff_Update(EftZTask *task) {
     if (List_GetHead(&w->parts) != NULL) {
         w->tex = EftGndDust_GetTex(gEftGndDust->texPtr, w->arg.tex);
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -1403,7 +1403,7 @@ void EftGndDustSlide_Term(EftZTask *task) {
 
 /* Kind 1 reset: kills the task. */
 void EftGndDustSlide_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 1 update: follows the fighter, emits every 5th frame while switched on, and leaves the particles
@@ -1499,7 +1499,7 @@ void EftGndDustDash_Term(EftZTask *task) {
 
 /* Kind 2 reset: kills the task. */
 void EftGndDustDash_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 2 update: follows the fighter, emits every 6th frame while switched on. Never ends by itself. */
@@ -1582,7 +1582,7 @@ void EftGndDustBurst_Term(EftZTask *task) {
 
 /* Kind 3 reset: kills the task. */
 void EftGndDustBurst_Reset(EftZTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Kind 3 update: follows the fighter; the task ends with its last particle. */
@@ -1599,7 +1599,7 @@ void EftGndDustBurst_Update(EftZTask *task) {
     if (List_GetHead(&w->parts) != NULL) {
         w->tex = EftGndDust_GetTex(gEftGndDust->texPtr, w->arg.tex);
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 

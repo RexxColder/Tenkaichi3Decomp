@@ -31,8 +31,9 @@ extern void Dma_AddData(void *src, s32 size);
 extern void Dma_AddRef(void *addr, s32 size);
 /* Empty (a stripped assert: count <= max). It is defined right before the loaders in the original file (0x1AE140),
    so the compiler knew it touches no memory and kept the pack header and the count in registers across the call;
-   the attribute stands in for that until the file before (stem eft_ae) is joined with this one. */
-extern void func_001AE140(s32 count, s32 max) __attribute__((const));
+   the attribute stands in for that (the function is in eft_ae.c, which declares it the same way; the two files were
+   not joined at integration because everything matches as it is). */
+extern void EftTexSet_CheckCount(s32 count, s32 max) __attribute__((const));
 
 extern void Vec4_Set(EftDetVec *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(EftDetVec *dst, EftDetVec *src);
@@ -76,7 +77,7 @@ extern void BtlCharApi_RumbleNear(EftDetVec *pos, f32 near, f32 far, f32 power, 
 extern s32 BtlSeq_GetState(void);
 extern s32 BattleSide_GetObjId(s32 side);
 extern EftDetObj *BtlObj_Get(s32 objId);
-extern EftDetNodeMtx *func_002505A8(EftDetObj *obj, s32 node);
+extern EftDetNodeMtx *BtlObj_GetNode(EftDetObj *obj, s32 node);
 
 /* Battle work: only the flags. */
 typedef struct EftDetBattle {
@@ -127,15 +128,15 @@ extern s32 ColBox_Overlaps(EftDetBox *a, EftDetBox *b);                         
 extern s32 ColObb_Overlaps(void *vol, void *partVol);
 /* Swept capsule against a triangle. The 64-bit return type is what makes EftDet_StageCb match (with a 32-bit one
    the compiler threads the "return 0" after the test). */
-extern s64 func_00236228(EftDetStageCtx *sweep, EftDetTri *tri, EftDetVec *hit, f32 *dist);
-extern s32 func_00236B10(EftDetSphere *sphere, void *partVol, EftDetVec *out0, EftDetVec *out1, f32 *t);
-extern s32 func_00237838(EftDetSphere *sphere, void *box);                        /* 1 when they overlap */
-extern s32 func_00237A10(EftDetSphere *a, void *b, EftDetVec *moveA, EftDetVec *moveB, f32 *t);
-extern s32 func_00237B70(EftDetSphere *a, EftDetSphere *b, EftDetVec *posA, EftDetVec *posB, EftDetVec *nrm);
-extern void func_00238388(EftDetBox *box, void *capsule);                         /* bounds of a capsule */
-extern void func_00239588(EftDetCapsule *cap, void *from, void *to, f32 radius);
-extern void func_00239620(EftDetStageCtx *sweep, EftDetCapsule *cap);
-extern void func_002399A0(EftDetSphere *sphere, void *center, f32 radius);
+extern s64 ColSweep_TestTri(EftDetStageCtx *sweep, EftDetTri *tri, EftDetVec *hit, f32 *dist);
+extern s32 ColSphere_ContactObb(EftDetSphere *sphere, void *partVol, EftDetVec *out0, EftDetVec *out1, f32 *t);
+extern s32 ColSphere_TestSphere(EftDetSphere *sphere, void *box);                        /* 1 when they overlap */
+extern s32 ColSphere_SweepSphere(EftDetSphere *a, void *b, EftDetVec *moveA, EftDetVec *moveB, f32 *t);
+extern s32 ColSphere_SeparateSphere(EftDetSphere *a, EftDetSphere *b, EftDetVec *posA, EftDetVec *posB, EftDetVec *nrm);
+extern void ColBounds_OfCapsule(EftDetBox *box, void *capsule);                         /* bounds of a capsule */
+extern void ColCapsule_Set(EftDetCapsule *cap, void *from, void *to, f32 radius);
+extern void ColSweep_FromCapsule(EftDetStageCtx *sweep, EftDetCapsule *cap);
+extern void ColSphere_Set(EftDetSphere *sphere, void *center, f32 radius);
 
 /* Stage (stg_a.c, eft_det_b.c). */
 extern s32 BtlStage_FindZoneNear(s32 zone, void *pos);
@@ -170,7 +171,7 @@ void EftTexSet_Load8(EftTexSet8 *set, void *pack) {
     Res_RelocateOffsets(&hdr, pack, pack);
     count = hdr->count;
     set->count = count;
-    func_001AE140(count, 8);
+    EftTexSet_CheckCount(count, 8);
     for (i = 0; i < set->count; i++) {
         set->tex[i].image = &hdr->images[i];
         set->tex[i].tex0 = hdr->images[i].tex0;
@@ -187,7 +188,7 @@ void EftTexSet_Load16(EftTexSet16 *set, void *pack) {
     Res_RelocateOffsets(&hdr, pack, pack);
     count = hdr->count;
     set->count = count;
-    func_001AE140(count, 16);
+    EftTexSet_CheckCount(count, 16);
     for (i = 0; i < set->count; i++) {
         set->tex[i].image = &hdr->images[i];
         set->tex[i].tex0 = hdr->images[i].tex0;
@@ -204,7 +205,7 @@ void EftTexSet_Load34(EftTexSet34 *set, void *pack) {
     Res_RelocateOffsets(&hdr, pack, pack);
     count = hdr->count;
     set->count = count;
-    func_001AE140(count, 34);
+    EftTexSet_CheckCount(count, 34);
     for (i = 0; i < set->count; i++) {
         set->tex[i].image = &hdr->images[i];
         set->tex[i].tex0 = hdr->images[i].tex0;
@@ -652,7 +653,7 @@ s32 BtlBodyHit_TestVolumes(EftDetObjWork *work, EftDetPart **body) {
     for (i = 0; i < work->atkSphereCount; i++) {
         part = *body;
         do {
-            if (func_00236B10(&work->atkSphere[i], part->vol, &out0, &out1, &t)) {
+            if (ColSphere_ContactObb(&work->atkSphere[i], part->vol, &out0, &out1, &t)) {
                 return 1;
             }
         } while (!((part++)->flags & 1));
@@ -716,8 +717,8 @@ s32 EftDet_PrepareSpheres(EftDetShape *shape) {
     EftDetSphere *a = shape->a;
     EftDetSphere *b = shape->b;
 
-    func_00239588(&cap, b, a, a->radius);
-    func_00238388(&shape->bounds, &cap);
+    ColCapsule_Set(&cap, b, a, a->radius);
+    ColBounds_OfCapsule(&shape->bounds, &cap);
     Vec3_Sub(&shape->delta, &a->pos, &b->pos);
     Vec3_Normalize(&shape->dir, &shape->delta);
     shape->zone = BtlStage_FindZoneNear(shape->zone, a);
@@ -729,7 +730,7 @@ s32 EftDet_PrepareCapsule(EftDetShape *shape) {
     EftDetCapsule *a = shape->a;
     EftDetVec *end = &a->end;
 
-    func_00238388(&shape->bounds, a);
+    ColBounds_OfCapsule(&shape->bounds, a);
     Vec3_Sub(&shape->delta, end, &a->start);
     Vec3_Normalize(&shape->dir, &shape->delta);
     shape->zone = BtlStage_FindZoneNear(shape->zone, end);
@@ -784,9 +785,9 @@ s32 EftDet_SpheresVsFighter(EftDetObj *obj, EftDetShape *shape) {
         return 0;
     }
     for (part = *body;; part++) {
-        if (func_00237A10(b, part->box, &shape->delta, &D_002EC2C0, &t)) {
+        if (ColSphere_SweepSphere(b, part->box, &shape->delta, &D_002EC2C0, &t)) {
             if (t <= 0.000001f || 1.0f <= t) {
-                if (func_00237838(b, part->box)) {
+                if (ColSphere_TestSphere(b, part->box)) {
                     Vec4_Copy(&shape->hitPos, &b->pos);
                     Vec4_Copy(&shape->contact, &b->pos);
                     hits++;
@@ -828,11 +829,11 @@ s32 EftDet_CapsuleVsFighter(EftDetObj *obj, EftDetShape *shape) {
     if (!ColBox_Overlaps(&shape->bounds, &obj->hitBox)) {
         return 0;
     }
-    func_002399A0(&sphere, a, a->radius);
+    ColSphere_Set(&sphere, a, a->radius);
     for (part = *body;; part++) {
-        if (func_00237A10(&sphere, part->box, &shape->delta, &D_002EC2C0, &t)) {
+        if (ColSphere_SweepSphere(&sphere, part->box, &shape->delta, &D_002EC2C0, &t)) {
             if (t <= 0.000001f || 1.0f <= t) {
-                if (func_00237838(&sphere, part->box)) {
+                if (ColSphere_TestSphere(&sphere, part->box)) {
                     hits++;
                     Vec4_Copy(&shape->hitPos, &sphere.pos);
                     Vec4_Copy(&shape->contact, &sphere.pos);
@@ -990,9 +991,9 @@ s32 EftDet_SpheresVsSpheres(EftDetShape *a, EftDetShape *b) {
     if (!ColBox_Overlaps(&a->bounds, &b->bounds)) {
         return 0;
     }
-    if (func_00237A10(sa, sb, &a->delta, &b->delta, &t)) {
+    if (ColSphere_SweepSphere(sa, sb, &a->delta, &b->delta, &t)) {
         if (t <= 0.000001f || 1.0f <= t) {
-            if (func_00237B70(sa, sb, &a->hitPos, &b->hitPos, &nrm)) {
+            if (ColSphere_SeparateSphere(sa, sb, &a->hitPos, &b->hitPos, &nrm)) {
                 a->contact.x = a->hitPos.x + nrm.x * sa->radius;
                 a->contact.y = a->hitPos.y + nrm.y * sa->radius;
                 a->contact.z = a->hitPos.z + nrm.z * sa->radius;
@@ -1032,14 +1033,14 @@ s32 EftDet_CapsuleVsCapsule(EftDetShape *a, EftDetShape *b) {
     EftDetCapsule *ca = a->a;
     EftDetCapsule *cb = b->a;
 
-    func_002399A0(&sa, ca, ca->radius);
-    func_002399A0(&sb, cb, cb->radius);
+    ColSphere_Set(&sa, ca, ca->radius);
+    ColSphere_Set(&sb, cb, cb->radius);
     if (!ColBox_Overlaps(&a->bounds, &b->bounds)) {
         return 0;
     }
-    if (func_00237A10(&sa, &sb, &a->delta, &b->delta, &t)) {
+    if (ColSphere_SweepSphere(&sa, &sb, &a->delta, &b->delta, &t)) {
         if (t <= 0.000001f || 1.0f <= t) {
-            if (func_00237B70(&sa, &sb, &a->hitPos, &b->hitPos, &nrm)) {
+            if (ColSphere_SeparateSphere(&sa, &sb, &a->hitPos, &b->hitPos, &nrm)) {
                 a->contact.x = a->hitPos.x + nrm.x * sa.radius;
                 a->contact.y = a->hitPos.y + nrm.y * sa.radius;
                 a->contact.z = a->hitPos.z + nrm.z * sa.radius;
@@ -1078,13 +1079,13 @@ s32 EftDet_CapsuleVsSpheres(EftDetShape *a, EftDetShape *b) {
     EftDetCapsule *ca = a->a;
     EftDetSphere *sb = b->b;
 
-    func_002399A0(&sa, ca, ca->radius);
+    ColSphere_Set(&sa, ca, ca->radius);
     if (!ColBox_Overlaps(&a->bounds, &b->bounds)) {
         return 0;
     }
-    if (func_00237A10(&sa, sb, &a->delta, &b->delta, &t)) {
+    if (ColSphere_SweepSphere(&sa, sb, &a->delta, &b->delta, &t)) {
         if (t <= 0.000001f || 1.0f <= t) {
-            if (func_00237B70(&sa, sb, &a->hitPos, &b->hitPos, &nrm)) {
+            if (ColSphere_SeparateSphere(&sa, sb, &a->hitPos, &b->hitPos, &nrm)) {
                 a->contact.x = a->hitPos.x + nrm.x * sa.radius;
                 a->contact.y = a->hitPos.y + nrm.y * sa.radius;
                 a->contact.z = a->hitPos.z + nrm.z * sa.radius;
@@ -1205,7 +1206,7 @@ s32 EftDet_StageCb(EftDetNode *node, EftDetStageCtx *ctx) {
     }
     ColMesh_GetPolyVerts(gStgColMesh, poly, &tri.v[0], &tri.v[1], &tri.v[2]);
     Vec4_Copy(&tri.nrm, &poly->nrm);
-    if (func_00236228(ctx, &tri, &hit, &dist)) {
+    if (ColSweep_TestTri(ctx, &tri, &hit, &dist)) {
         if (dist < ctx->best) {
             ctx->best = dist;
             ctx->hit = 1;
@@ -1248,15 +1249,15 @@ s32 EftDet_TestStage(EftDetShape *shape, s32 isBlast, s32 objectsOnly) {
     ctx.shape = shape;
     switch (shape->type) {
     case 0:
-        func_00239588(&cap, shape->b, shape->a, ((EftDetSphere *)shape->a)->radius);
+        ColCapsule_Set(&cap, shape->b, shape->a, ((EftDetSphere *)shape->a)->radius);
         if (!objectsOnly) {
             cap.radius *= shape->scale;
         }
         if (cap.radius < 0.08f) {
             cap.radius = 0.08f;
         }
-        func_00239620(&ctx, &cap);
-        func_00238388(&box, &cap);
+        ColSweep_FromCapsule(&ctx, &cap);
+        ColBounds_OfCapsule(&box, &cap);
         if (ctx.length > cap.radius) {
             ctx.best = ctx.length + 0.001f;
         } else {
@@ -1264,14 +1265,14 @@ s32 EftDet_TestStage(EftDetShape *shape, s32 isBlast, s32 objectsOnly) {
         }
         break;
     case 1:
-        func_00239588(&cap, &((EftDetCapsule *)shape->b)->end, &((EftDetCapsule *)shape->a)->end,
+        ColCapsule_Set(&cap, &((EftDetCapsule *)shape->b)->end, &((EftDetCapsule *)shape->a)->end,
                       ((EftDetCapsule *)shape->a)->radius);
         cap.radius *= shape->scale;
         if (cap.radius < 0.08f) {
             cap.radius = 0.08f;
         }
-        func_00239620(&ctx, &cap);
-        func_00238388(&box, &cap);
+        ColSweep_FromCapsule(&ctx, &cap);
+        ColBounds_OfCapsule(&box, &cap);
         ctx.best = ctx.length + 0.001f;
         break;
     case 2:
@@ -1458,7 +1459,7 @@ void StgGround_UpdateFighter(EftDetObj *obj) {
     func_00121FB8(&work->ground, &obj->pos);
     StgGround_Probe(*(s32 *)(blk + 0xD4), &box, &work->ground, body->y);
     if (gStgGroundResult.obj != 0) {
-        if (work->ground.y < func_002505A8(obj, 0)->mtx[3][1]) {
+        if (work->ground.y < BtlObj_GetNode(obj, 0)->mtx[3][1]) {
             StgCol_FighterBreakObj(obj, StgCol_FirstBit(gStgGroundResult.objMask), &hitPos);
         }
     }

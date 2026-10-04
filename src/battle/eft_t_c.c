@@ -17,7 +17,7 @@ extern void *memset(void *dst, s32 c, u32 n);
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern s32 *BtlScene_GetCommonEntry(s32 idx);
-extern void func_001AE1F8(EftTTex *tex, s32 *entry); /* builds a texture set from a pack entry */
+extern void EftTexSet_Load4(EftTTex *tex, s32 *entry); /* builds a texture set from a pack entry */
 
 extern EftTShotFxMgr *gEftShotFx;
 
@@ -107,7 +107,7 @@ void EftShotFxMgr_Init(EftTTask *task) {
         memset(gEftShotFx->tex, 0, 0x48);
     }
     tex = gEftShotFx->tex;
-    func_001AE1F8(tex, BtlScene_GetCommonEntry(0x237));
+    EftTexSet_Load4(tex, BtlScene_GetCommonEntry(0x237));
 }
 
 /* ------------------------------------------------------------------------------------------------------------
@@ -210,7 +210,7 @@ extern void func_00120AB0(void);                            /* VU0 matrix stack 
 extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
 extern void func_00120AC8(void);                            /* pop */
 extern void func_00121240(EftUIVec *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects with the loaded matrix */
-extern void func_001ADF20(EftShotFxTex *tex, s32 a, s32 b);
+extern void EftTexSet_Keep4(EftShotFxTex *tex, s32 a, s32 b);
 extern EftUBattleWork *Battle_GetWork(void);
 extern s32 BtlPool_GetCurrent(void);
 extern void BtlPool_Free(s32 slot, void *ptr);
@@ -480,7 +480,7 @@ void EftShotFx_UpdateReqs(void) {
 /* Keeps the textures referenced while any line is alive. */
 void EftShotFx_UpdateTexture(s32 a, s32 b) {
     if (gEftShotFx->count != 0) {
-        func_001ADF20(gEftShotFx->tex, a, b);
+        EftTexSet_Keep4(gEftShotFx->tex, a, b);
     }
 }
 

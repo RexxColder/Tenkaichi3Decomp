@@ -52,6 +52,15 @@
   Nothing was merged on that evidence alone (the five files link identically as they are).
   `StgCol_FighterBreakObj` (eft_det_b.c) differs by a `bnez` / `bnezl` after calls into OTHER files only; a
   stub definition of every INCLUDE_ASM function of its file does not change it.
+- Last batch (eft_ae, col_b / col_c, bobj, the AI sequence): 0x239BB0..0x23C310 is one object (`Font_Flush` needs
+  `Font_BeginPacket` / `Font_EndPacket` above it); 0x24E9C8..0x24F9B0 at least is one object (`BtlObj_UpdateFace`
+  and `BtlObj_IsJawActive` need `BtlObjFace_StepBlink` / `BtlObjMdl_HasJaw`), linked as 0x24BBE8..0x250B28, and
+  it ends before 0x251940 (`BObjChainA_StepAll` / `BObjChainB_StepAll` match only when `BtlObj_GetNode`, 0x2505A8,
+  is NOT defined in their file; the cut at 0x250B28 is a choice). 0x1ADBA8..0x1AE5F8 is one source file
+  (`EftTexSet_Load*` on both sides of the eft_ae.c / eft_det_a.c cut need the empty `EftTexSet_CheckCount` known
+  to clobber nothing); it is linked as two files with a `const` prototype in each. The AI sequence object starts
+  at 0x1B3F78 (eft_det_b_c.c): its read-only data begins with `D_002ED8A0`. Compiling every remaining attempt of
+  bobj_a.c, bobj_b_b.c and btl_ai_seq.c as a stub definition changes no other function.
 - `BtlAct_SuperRushFollowHandler` (btl_act_f.c): whether its jump-table dispatch comes out in the
   original form depends on unrelated declarations earlier in the translation unit; it matches with a
   redundant prototype in front of it. What state of the compiler decides it is not understood.
@@ -147,6 +156,12 @@ Still pulled from assembly inside linked files:
 | `StgNavNode_Clear`, `StgNav_FindPath` | `eft_det_b_b.c` | two adjacent `li` in the other order; the operand order of two `addu` |
 | `BtlAiSeq_PushRule` | `eft_det_b_c.c` | 66 of 85: the original does not reduce the two byte lists to walking pointers |
 | `ColObb_Contact` | `col_a.c` | not matched (1137 of 1140); dead code with no caller; owns the jump table at 0x2F2170 |
+| `EftSprAnim_Draw`, `EftSprAnim_DrawQuad`, `EftSprAnim_DrawQuadSubdiv` | `eft_ae.c` | 9 of 110, scheduling only (the original loads the constant 2 into t1 right after reading the draw flags); the quad writers: the original computes the GS context bit as an int after the entry test of the fan loop and uses it unextended / sign-extended for different registers, the two stq pointers swap registers and two header stores swap (one inlined `EftSprAnim_QueueTri` attempt covers both) |
+| `BtlAiStep_GuardUntilSafe` | `btl_ai_seq.c` | 2 of 74: `sltiu v0,v0,1` and `li a1,0x10` in the other order around the first branch |
+| `FontIcon_PutSprite` | `col_c_b.c` | 125 of 129: same operations; the original builds every 64-bit register value after the visibility test, keeps x0, x1, colour and TEX0 in saved registers and y0, y1 on the stack |
+| `BtlObjAnim_SamplePosRot`, `BtlObjAnim_Load`, `BtlObjAnim_SamplePose`, `BtlObjXf_Update` | `bobj_a.c` | 202 of 244 (the original re-reads the first key's frame from memory at every use and keeps a pointer to it in a1); 8 of 29 (v0 / v1 swapped, the table entry loaded before `*size` is stored); 165 of 197 (the original copies `&pos` / `&rot` into saved registers in each arm of the layer 1 sampling); 23 of 65 (saved registers; owns the two constants at 0x2FE658 / 0x2FE65C, emitted with LIT4_WORD) |
+| `BtlObj_BindTables` | `bobj_a.c` (second part) | 43 of 213: callee-saved registers of three values and the base of the three-entry loop (`(obj + 0x20) + 0x90` against `(obj + 0x10) + 0xA0`) |
+| `BObjChainB_Step`, `BObjChainB_Build`, `BObjChainA_Step` | `bobj_b_b.c` | 492 of 600 and 521 of 711 (frame size, register allocation and float scheduling: the original keeps the clamp limits in f26..f31 from the top; the arithmetic of the attempts is read from the disassembly, not verified); 9 of 122 (operand order of four address additions around the id stack). `BObjChainB_Step` owns 28 constants in the middle of the pool (LIT4_WORD), `BObjChainA_Step` the 19 at 0x2FE718..0x2FE764 (assembly chunk) |
 
 `StgVu_RotateZ`, `StgVu_RotateX`, `StgVu_RotateY` (0x240C68..0x240DB8) are hand-written VU0 macro code and stay an
 assembly chunk between `stg_a.c` and `stg_a_b.c` (they cannot be INCLUDE_ASM, see decomp_guide.md).

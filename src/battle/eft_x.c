@@ -139,8 +139,8 @@ extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftGfx_DrawPolyFixedZ(EftXVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex, s32 z);
 extern void EftGfx_DrawPolyScaledZ(EftXVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
-extern u64 func_001ADD28(EftXTexEntry *tex, s32 a, s32 b);
-extern s32 func_001ADDC0(EftXTexEntry *tex);
+extern u64 EftVram_AddImage(EftXTexEntry *tex, s32 a, s32 b);
+extern s32 EftVram_AddClut(EftXTexEntry *tex);
 extern EftXTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void EftPart10_Update(EftXTask *task);                       /* the emitter class's update */
 
@@ -1035,9 +1035,9 @@ void EftPart10_SelectTex(EftPart10 *em, EftXTexEntry *tbl, s32 a, s32 b) {
 void EftPart10_BuildTex(EftPart10 *em, EftXTexSet *tex) {
     if (tex != NULL) {
         if (!(tex->ready & (1 << em->texSlot))) {
-            u64 t = func_001ADD28(&em->texA, 1, 0);
+            u64 t = EftVram_AddImage(&em->texA, 1, 0);
 
-            t |= (u64)func_001ADDC0(&em->texB) << 37;
+            t |= (u64)EftVram_AddClut(&em->texB) << 37;
             tex->entry[em->texSlot].tex0 = t;
             tex->ready |= 1 << em->texSlot;
         }

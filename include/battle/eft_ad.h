@@ -39,7 +39,7 @@ typedef struct EftAdScr {
     s32 x, y, z, w;
 } __attribute__((aligned(16))) EftAdScr;
 
-/* A texture set as func_001AE148 builds it (EftTexSet in eft_g.h). */
+/* A texture set as EftTexSet_Load32 builds it (EftTexSet in eft_g.h). */
 typedef struct EftAdTexSet {
     /* 0x000 */ EftAdTex entry[32];
     /* 0x200 */ s32 count;

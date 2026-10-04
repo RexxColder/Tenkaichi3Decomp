@@ -368,7 +368,7 @@ extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern void *BtlTask_CreateChildList(EftZTask *task, s32 count, s32 workSize);
 extern EftZTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftZTask *task);                  /* kills the task */
+extern void BtlTask_SetDead(EftZTask *task);                  /* kills the task */
 extern void EftTexSet_Load8(EftGndDustTex *tex, s32 *data);      /* loads one animated texture */
 extern s32 *BtlScene_GetCommonEntry(s32 idx);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);

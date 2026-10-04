@@ -43,7 +43,7 @@
  *               Gfx_AddDefaultEnv emits a direct GS packet (0x102208) before the fighter pass;
  *               Ot_Draw ends the fighter pass; Gfx_MarkPass(n) is an empty stub taking a pass id
  *               func_0010FF40      a full-screen pass between the first two effect passes
- *   overlays    func_0023A2B8 (0x23A2D0(0)); func_0023D1E0 is an empty stub
+ *   overlays    Font_FlushAll (0x23A2D0(0)); FontIcon_Stub23D1E0 is an empty stub
  *   menu side   Gsc_Update walks the list at 0x333B80; BtlScript_Update acts in sequence states 3 and 5 only
  */
 
@@ -115,8 +115,8 @@ extern void BtlChars_UpdateInput(void);
 extern void BtlChars_UpdateMain(void);
 extern void BtlChars_PostScene(void);
 extern void BtlChars_EndFrame(void);
-extern void func_0023A2B8(void);
-extern void func_0023D1E0(void);
+extern void Font_FlushAll(void);
+extern void FontIcon_Stub23D1E0(void);
 extern void BtlStage_Reset(void);
 extern void BtlStage_Term(void);
 extern void BtlStage_Update(void);
@@ -257,8 +257,8 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x80FF40FF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(0);
-    func_0023A2B8();
-    func_0023D1E0();
+    Font_FlushAll();
+    FontIcon_Stub23D1E0();
     Dbg_ProfColor(prof, 0x80FF40FF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
@@ -313,8 +313,8 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x80FF40FF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(0);
-    func_0023A2B8();
-    func_0023D1E0();
+    Font_FlushAll();
+    FontIcon_Stub23D1E0();
     Dbg_ProfColor(gBattleProf, 0x80FF40FF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);

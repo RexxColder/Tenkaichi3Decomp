@@ -54,7 +54,7 @@
 
 /*
  * One attack record: (battle object + 0x920)[id], 0x30 bytes. For every byte: the accessor and what it does to the
- * raw value. "hits" is the number of hit events (attribute bit 0) of the playing animation, func_0024D610(obj, 1, 0, 3).
+ * raw value. "hits" is the number of hit events (attribute bit 0) of the playing animation, BtlObjAnim_QueryEvent(obj, 1, 0, 3).
  */
 typedef struct BtlAtkRecord {
     /* 0x00 */ u32 flags;       /* BtlAtk_GetFlags: raw. The bits are listed in btl_char_hit.c */

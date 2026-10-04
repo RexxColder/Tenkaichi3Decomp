@@ -70,7 +70,7 @@ typedef struct EftSpdLineWork {
     /* 0x0960 */ EftSpdStreak streaks[40];
     /* 0x1860 */ s32 trailCount;
     /* 0x1864 */ s32 streakCount;
-    /* 0x1868 */ EftSpdTex tex[4];        /* filled by func_001AE1F8 from common entry 0x237 */
+    /* 0x1868 */ EftSpdTex tex[4];        /* filled by EftTexSet_Load4 from common entry 0x237 */
     /* 0x18A8 */ u8 unk18A8[8];
     /* 0x18B0 */ s32 texReady;            /* set by EftSpdLine_UpdateTexture; only the streak draw tests it */
     /* 0x18B4 */ EftSpdTrail *trailHead;

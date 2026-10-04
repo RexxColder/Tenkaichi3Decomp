@@ -1,8 +1,7 @@
 # Effects and stage (seventh batch, in progress)
 
 Sources: `src/battle/eft_*.c`, `src/battle/stg_*.c` with headers under `include/battle/`.
-Everything in the module table is linked and byte-identical except eft_ae (0x1AA7E8..0x1AE2A8),
-which is decompiled and waiting. At the second integration eft_t.c went into eft_s.c, eft_u.c
+Everything in the module table is linked and byte-identical. At the second integration eft_t.c went into eft_s.c, eft_u.c
 into eft_t_c.c, eft_v.c into eft_u_b.c, eft_ac.c into eft_ab_c.c, and eft_y.c's tail into
 eft_z.c; `BtlFx_SpawnDamageSparks` became `BtlFx_FireKiBlast` and the eft_a.h task flags got
 their real names (GUARDED, HIT_STAGE, LOST_CLASH, ABSORBED, DEFLECTED, REFLECTED, STRUGGLE,

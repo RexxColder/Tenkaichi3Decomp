@@ -62,11 +62,11 @@ extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern s32 BtlScene_IsEffectHidden(s32 objId, s32 kind);
 extern void *BtlTask_CreateChildList(EftOTask *task, s32 count, s32 workSize);
 extern EftOTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftOTask *task);                  /* kill a task */
-extern u64 func_001ADC68(void *entry, s32 a, s32 b);        /* advances a texture, returns TEX0 */
-extern u64 func_001ADD28(void *set, s32 a, s32 b);
-extern s32 func_001ADDC0(void *entry);
-extern void func_001AE148(void *set, s32 *pack);            /* binds a texture set to a pack */
+extern void BtlTask_SetDead(EftOTask *task);                  /* kill a task */
+extern u64 EftVram_AddTex(void *entry, s32 a, s32 b);        /* advances a texture, returns TEX0 */
+extern u64 EftVram_AddImage(void *set, s32 a, s32 b);
+extern s32 EftVram_AddClut(void *entry);
+extern void EftTexSet_Load32(void *set, s32 *pack);            /* binds a texture set to a pack */
 
 extern s32 BtlCharApi_ObjGetParamFlags0(s32 objId);
 extern f32 BtlCharApi_GetHeight(s32 objId);
@@ -100,20 +100,20 @@ void EftBolt_UpdateTex(EftOBoltWork *w) {
         u64 base;
         s32 i;
 
-        t->tex0 = func_001ADD28(set, 1, 0);
-        frame = func_001ADDC0(set);
+        t->tex0 = EftVram_AddImage(set, 1, 0);
+        frame = EftVram_AddClut(set);
         w->tex0 = t->tex0 | (frame << 37);
         t->flags = 1;
         t->ready = 1;
         t->frame = frame;
         set = &gEftBoltPool->tex[1].set;
-        base = func_001ADD28(set, 1, 0);
+        base = EftVram_AddImage(set, 1, 0);
         for (i = 0; i < set->count; i++) {
-            set->entry[i].tex0 = base | ((u64)func_001ADDC0(&set->entry[i]) << 37);
+            set->entry[i].tex0 = base | ((u64)EftVram_AddClut(&set->entry[i]) << 37);
         }
     } else {
         if (!(t->flags & 1)) {
-            frame = func_001ADDC0(set);
+            frame = EftVram_AddClut(set);
         } else {
             frame = t->frame;
         }
@@ -190,7 +190,7 @@ void EftBoltTask_Update(EftOTask *task) {
         }
     }
     if (w->flags & 4) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftBolt_UpdateTex(w);
     }
@@ -205,7 +205,7 @@ void EftBoltTask_Reset(EftOTask *task) {
     EftOBoltWork *w = task->work;
 
     gEftBoltPool->tasks[w->objId] = NULL;
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: bolts and flashes, at 0.3 alpha when the camera is inside the fighter's view and its flag 21. */
@@ -241,7 +241,7 @@ void EftBoltMgr_Init(EftOTask *task) {
     t = &gEftBoltPool->tex[1];
     t->pack = BtlScene_GetCommonEntry(6);
     for (i = 0; i < 2; i++) {
-        func_001AE148(&gEftBoltPool->tex[i].set, gEftBoltPool->tex[i].pack);
+        EftTexSet_Load32(&gEftBoltPool->tex[i].set, gEftBoltPool->tex[i].pack);
     }
     gEftBoltPool->pack4 = BtlScene_GetCommonEntry(4);
     for (i = 0; i < gEftBoltPool->count; i++) {
@@ -497,7 +497,7 @@ void EftRays_Update(EftOTask *task) {
         }
     }
     if (w->flags & EFT_RAYS_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         w->tex0 = EftRays_GetTex(arg->res, arg->tex);
     }
@@ -505,7 +505,7 @@ void EftRays_Update(EftOTask *task) {
 
 /* Reset callback of a part: the task dies. */
 void EftRays_Reset(EftOTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback of a part. */
@@ -712,7 +712,7 @@ EftRay *EftRays_FreeRay(List *list, EftRay *ray) {
 /* TEX0 of texture n of a part resource; the texture is advanced the first time it is asked for in a frame. */
 u64 EftRays_GetTex(EftRaysTex *res, s32 n) {
     if (!(res->stepped & (1U << n))) {
-        res->entry[n].tex0 = func_001ADC68(&res->entry[n], 1, 0);
+        res->entry[n].tex0 = EftVram_AddTex(&res->entry[n], 1, 0);
         res->stepped |= 1U << n;
     }
     return res->entry[n].tex0;

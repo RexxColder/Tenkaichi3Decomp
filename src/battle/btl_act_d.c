@@ -125,7 +125,7 @@ extern s32 BtlParam_CanFly(BtlActDChr *chr);   /* can fly: parameter flag 0x1000
 extern s32 BtlKiBlast_GetKiCost(BtlActDChr *chr);   /* ki cost of the current attack */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlCharApi_CalcAimDir(s32 objId, s32 node, Vec4 *pos, Vec4 *out, f32 a, f32 b);
-extern s32 func_0024D610(void *obj, s32 mask, s32 layer, s32 what); /* motion event query: what 0 = first frame, 3 = count */
+extern s32 BtlObjAnim_QueryEvent(void *obj, s32 mask, s32 layer, s32 what); /* motion event query: what 0 = first frame, 3 = count */
 
 /*
  * Action 0xB2: a ki blast (motion 0x7A) paid on entry, aimed 18..45 degrees below the horizon at the opponent when
@@ -141,7 +141,7 @@ s32 BtlAct_KiBlastB2(BtlActDChr *chr, s32 phase) {
         BtlChar_PlayVoice(chr, 0xC);
         BtlChar_GetPos(chr)->speed = 0.0f;
         BtlChar_GetPos(chr)->fallSpeed = 0.0f;
-        chr->unkDE0 += func_0024D610(BtlChar_GetObj(chr), 4, 0, 3);
+        chr->unkDE0 += BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 4, 0, 3);
         chr->unkDE4 = 0x1E;
     }
     if (phase == PHASE_RUN) {
@@ -210,7 +210,7 @@ s32 BtlAct_KiBlastChargeB3(BtlActDChr *chr, s32 phase) {
                     BtlMember_SpendKi(chr, BtlKiBlast_GetKiCost(chr), 0);
                 }
                 frame = BtlAnim_GetFrame(chr);
-                if (frame < func_0024D610(BtlChar_GetObj(chr), 4, 0, 0)) {
+                if (frame < BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 4, 0, 0)) {
                     BtlChar_SetFlag(chr, 0x8E);
                 }
                 break;

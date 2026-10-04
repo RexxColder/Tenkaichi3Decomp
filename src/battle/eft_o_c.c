@@ -71,9 +71,9 @@ extern f32 BtlScene_GetCharScale(s32 chr);
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern void *BtlTask_CreateChildList(EftOTask *task, s32 count, s32 workSize);
 extern EftOTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftOTask *task);            /* kill a task */
-extern void func_001ADB78(EftOTask *task, s32 flags); /* or into the task's class flags */
-extern void func_001AE148(void *set, s32 *pack);      /* binds a texture set to a pack */
+extern void BtlTask_SetDead(EftOTask *task);            /* kill a task */
+extern void BtlTask_SetOwnerTag(EftOTask *task, s32 flags); /* or into the task's class flags */
+extern void EftTexSet_Load32(void *set, s32 *pack);      /* binds a texture set to a pack */
 
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, void *out);
 extern f32 BtlCharApi_GetHeight(s32 objId);
@@ -162,7 +162,7 @@ void EftBodyFx_Init(EftOTask *task, EftBodyFxArg *arg) {
     EftEmit_SetNode(&w->nodes, 0, 3, NULL);
     w->flags |= 8;
     w->endLife = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback. */
@@ -199,7 +199,7 @@ void EftBodyFx_Update(EftOTask *task) {
         }
     }
     if (w->flags & 4) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -211,7 +211,7 @@ void EftBodyFx_Reset(EftOTask *task) {
         w->flags |= 0x20;
         EftEmit_KillAll(w->set, w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Post-update callback: from the second frame on, drops finished parts and clears the phase mask. */
@@ -303,8 +303,8 @@ void EftDiscMgr_Init(EftOTask *task) {
     gEftDisc->res->packTexB = BtlScene_GetCommonEntry(0x23A);
     gEftDisc->res->packModelA = BtlScene_GetCommonEntry(0x239);
     gEftDisc->res->packModelB = BtlScene_GetCommonEntry(0x23B);
-    func_001AE148(&gEftDisc->res->texA, gEftDisc->res->packTexA);
-    func_001AE148(&gEftDisc->res->texB, gEftDisc->res->packTexB);
+    EftTexSet_Load32(&gEftDisc->res->texA, gEftDisc->res->packTexA);
+    EftTexSet_Load32(&gEftDisc->res->texB, gEftDisc->res->packTexB);
     EftMesh_Init(gEftDisc->res->modelA, gEftDisc->res->packModelA);
     EftMesh_Init(gEftDisc->res->modelB, gEftDisc->res->packModelB);
     EftMesh_SetTex(gEftDisc->res->modelA, &gEftDisc->res->texA);
@@ -416,7 +416,7 @@ void EftDisc_Init(EftOTask *task, EftODiscArg *arg) {
     }
     EftDisc_SetTex(w, w->tex, arg->texA, arg->texB);
     w->flags |= EFT_ODISC_ALIVE;
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* NON-MATCHING: 10 of 517 instructions, register allocation only, in the roll decay block: the original
@@ -592,7 +592,7 @@ void EftDisc_Update(EftOTask *task) {
         }
         if (w->flags & EFT_ODISC_DEAD) {
             w->flags &= ~EFT_ODISC_ALIVE;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
         w->timer += 1.0f;
     }

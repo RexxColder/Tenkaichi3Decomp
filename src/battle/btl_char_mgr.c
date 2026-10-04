@@ -40,8 +40,8 @@
  *   4. BtlChars_UpdateMain      skipped under PAUSE / LOADING.
  *        per fighter            BtlChar_UpdateMotion: BtlMove_UpdateAction (the action state machine: BtlAct_Update
  *                               sets stages 4 and 5 itself), seven placement requests (BtlChar_PlaceRestart..), then
- *                               pose -> object, animation (func_0024C958, func_0024CC88), matrices
- *                               (func_0024E3F8), object -> pose
+ *                               pose -> object, animation (BtlObjAnim_SamplePose, BtlObjAnim_UpdateEvents), matrices
+ *                               (BtlObjPose_CalcMatrices), object -> pose
  *        per fighter            BtlChar_UpdateStage6: stage 6, BtlOpp_MirrorFlags, BtlPartner_Update
  *        BtlChars_UpdateHold          fighter against fighter push-out
  *        BtlChars_Snapshot(1)
@@ -86,8 +86,8 @@
  *   BtlChars_IsTimeStopped()      gBtlChars + 0x274: non-zero while time is stopped
  *   BtlChar_PoseToObj(chr, f) writes the pose (position, rotation matrix) into the BtlObj
  *   BtlChar_ObjToPose(chr)   reads position / rotation back from the BtlObj into the pose
- *   func_0024C958, func_0024CC88, func_0024E3F8, func_0024DD80, func_0024DDF0, func_0024FE78, func_0024FFE8,
- *   func_00250888, func_00250CB8, func_00250CD0, func_00250D38   BtlObj (model / skeleton) updates
+ *   BtlObjAnim_SamplePose, BtlObjAnim_UpdateEvents, BtlObjPose_CalcMatrices, BtlObjBody_Warp, BtlObjHit_BuildVolumes, BtlObj_SetColorPreset, BtlObj_BindCommonTables,
+ *   BtlObj_SaveNodePositions, BtlObj_SetMoveVec, BtlObj_InitChains, BtlObj_UpdateChains   BtlObj (model / skeleton) updates
  *   BtlChars_Snapshot(n)     per fighter BtlChar_Snapshot(chr, &pose, &pose + 0x10, n): position snapshot n
  *   BtlParam_GetUnkAD(chr)   byte 0xAD of the object's parameter block (BtlObj + 0x91C)
  *   BtlAtk_GetId(chr)   id of the technique in use
@@ -221,17 +221,17 @@ extern s32 BtlParam_GetUnkAD(BtlMgrChr *chr);
 extern s32 BtlParam_GetAuraKind(BtlMgrChr *chr);
 extern s32 BtlParam_GetUnk70(BtlMgrChr *chr);
 extern s32 BtlParam_GetUnk72(BtlMgrChr *chr);
-extern void func_0024C958(BtlMgrObj *obj);
-extern void func_0024CC88(BtlMgrObj *obj);
-extern void func_0024DD80(BtlMgrObj *obj, void *vec);
-extern void func_0024DDF0(BtlMgrObj *obj);
-extern void func_0024E3F8(BtlMgrObj *obj);
-extern void func_0024FE78(BtlMgrObj *obj, s32 arg1, s32 arg2);
-extern void func_0024FFE8(BtlMgrObj *obj);
-extern void func_00250888(BtlMgrObj *obj, s32 arg1);
-extern void func_00250CB8(BtlMgrObj *obj, void *vec);
-extern void func_00250CD0(BtlMgrObj *obj);
-extern void func_00250D38(BtlMgrObj *obj);
+extern void BtlObjAnim_SamplePose(BtlMgrObj *obj);
+extern void BtlObjAnim_UpdateEvents(BtlMgrObj *obj);
+extern void BtlObjBody_Warp(BtlMgrObj *obj, void *vec);
+extern void BtlObjHit_BuildVolumes(BtlMgrObj *obj);
+extern void BtlObjPose_CalcMatrices(BtlMgrObj *obj);
+extern void BtlObj_SetColorPreset(BtlMgrObj *obj, s32 arg1, s32 arg2);
+extern void BtlObj_BindCommonTables(BtlMgrObj *obj);
+extern void BtlObj_SaveNodePositions(BtlMgrObj *obj, s32 arg1);
+extern void BtlObj_SetMoveVec(BtlMgrObj *obj, void *vec);
+extern void BtlObj_InitChains(BtlMgrObj *obj);
+extern void BtlObj_UpdateChains(BtlMgrObj *obj);
 
 /* The word of the object's +0x1660 block that mirrors BtlChar_TestMemberUnk70(). */
 #define OBJ_WORD_18028(obj) (*(s32 *)((obj)->unk1660 + 0x18028))
@@ -254,7 +254,7 @@ void BtlChar_BindObject(BtlMgrChr *chr) {
     }
     BtlChar_ClearFlag(chr, 0xBE);
     BtlChar_ClearFlagRange(chr, 0x98, 0x99);
-    func_00250CD0(obj);
+    BtlObj_InitChains(obj);
     memset(chr->unkE00, 0, 0x40);
     BtlStat_Reset(chr);
     OBJ_WORD_18028(obj) = 0;
@@ -328,8 +328,8 @@ void BtlChar_Reset(BtlMgrChr *chr) {
     obj = BtlChar_GetObj(chr);
     BtlChar_PoseToObj(chr, 1);
     BtlAnim_Play(chr, 0, 0.0f);
-    func_0024C958(obj);
-    func_0024E3F8(obj);
+    BtlObjAnim_SamplePose(obj);
+    BtlObjPose_CalcMatrices(obj);
     chr->memberCount = BattleSide_GetMemberCount(side);
     chr->unk1300 = BattleSide_GetUnk1FC(side);
     chr->unkCF4 = BattleSide_GetUnk200(side);
@@ -371,9 +371,9 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     obj = BtlChar_GetObj(chr);
     BtlChar_SetFlag(chr, 0x12B);
     BtlAnim_FlushRequest(chr);
-    func_0024C958(obj);
+    BtlObjAnim_SamplePose(obj);
     BtlChar_PoseToObj(chr, 1);
-    func_0024E3F8(obj);
+    BtlObjPose_CalcMatrices(obj);
     switch (BtlAct_GetCurrent(chr)) {
     case 0xEC:
     case 0xED:
@@ -424,7 +424,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
             g->blast = g->blastMax;
         }
         if (BtlChar_TestMemberUnk70(chr)) {
-            func_0024FFE8(obj);
+            BtlObj_BindCommonTables(obj);
         }
         break;
     case 0xF1:
@@ -489,13 +489,13 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
         g->unk20 = chr->new20;
         if (BtlChar_TestFlag(chr, 0xA6)) {
             g->unk30 = 1;
-            func_0024FFE8(obj);
+            BtlObj_BindCommonTables(obj);
             BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0, 0.0f);
             g->health = g->healthMax;
         }
         break;
     }
-    func_0024FE78(obj, BtlParam_GetAuraKind(chr), -1);
+    BtlObj_SetColorPreset(obj, BtlParam_GetAuraKind(chr), -1);
     if (BtlMember_GetActiveGauge(chr)->unk20 != 0) {
         obj->flags |= 0x40000000;
     } else {
@@ -525,8 +525,8 @@ void BtlChar_OnStageLoaded(BtlMgrChr *chr) {
     }
     chr->unkFB0 = 1;
     BtlAnim_Play(chr, 0, 0.0f);
-    func_0024C958(obj);
-    func_0024E3F8(obj);
+    BtlObjAnim_SamplePose(obj);
+    BtlObjPose_CalcMatrices(obj);
 }
 
 /* Puts the fighter back to the round start action (0xF9) with its timers cleared. */
@@ -559,7 +559,7 @@ void BtlChar_ResetRound(BtlMgrChr *chr) {
 
 /* Resets the work area of the fighter's object. */
 void BtlChar_ResetObjWork(BtlMgrChr *chr) {
-    func_00250CD0(BtlChar_GetObj(chr));
+    BtlObj_InitChains(BtlChar_GetObj(chr));
 }
 
 /* Decides which fighters are frozen (hit-stop) and counts the freeze timers down. */
@@ -1090,9 +1090,9 @@ void BtlChar_UpdateMotion(BtlMgrChr *chr) {
     }
     BtlMove_UpdateAction(chr);
     if (BtlChar_TestFlag(chr, 0x2B)) {
-        func_00250888(obj, 1);
+        BtlObj_SaveNodePositions(obj, 1);
     } else {
-        func_00250888(obj, 0);
+        BtlObj_SaveNodePositions(obj, 0);
     }
     BtlChar_PlaceRestart(chr);
     BtlChar_PlaceCenter(chr);
@@ -1102,11 +1102,11 @@ void BtlChar_UpdateMotion(BtlMgrChr *chr) {
     BtlChar_PlaceSaved(chr);
     BtlChar_PlaceWarp(chr);
     BtlChar_PoseToObj(chr, 1);
-    func_0024C958(obj);
-    func_0024CC88(obj);
+    BtlObjAnim_SamplePose(obj);
+    BtlObjAnim_UpdateEvents(obj);
     BtlChar_UpdateLean(chr);
     BtlFx_UpdateObjEvents(chr);
-    func_0024E3F8(obj);
+    BtlObjPose_CalcMatrices(obj);
     BtlChar_ObjToPose(chr);
     BtlChar_UpdateLookOffset(chr);
 }
@@ -1129,7 +1129,7 @@ void BtlChar_UpdateStage7(BtlMgrChr *chr) {
         BtlMove_PushOut(chr);
         BtlMove_ApplyOrbit(chr);
         BtlChar_PoseToObj(chr, 0);
-        func_0024E3F8(obj);
+        BtlObjPose_CalcMatrices(obj);
         BtlChar_ObjToPose(chr);
     }
 }
@@ -1147,9 +1147,9 @@ void BtlChar_UpdateStage8(BtlMgrChr *chr) {
     BtlChar_SetStage(chr, BTL_CHR_STAGE_8);
     BtlMove_ClampToStage(chr);
     BtlChar_PoseToObj(chr, 0);
-    func_0024E3F8(obj);
+    BtlObjPose_CalcMatrices(obj);
     if (BtlChar_TestFlag(chr, 0x55)) {
-        func_0024DD80(obj, chr->unk1310);
+        BtlObjBody_Warp(obj, chr->unk1310);
         flag = 0;
     }
     started = 0;
@@ -1172,7 +1172,7 @@ void BtlChar_UpdateStage9(BtlMgrChr *chr) {
         BtlChar_SetStage(chr, BTL_CHR_STAGE_9);
         BtlColl_UpdateGround(chr);
         BtlChar_PoseToObj(chr, 0);
-        func_0024E3F8(obj);
+        BtlObjPose_CalcMatrices(obj);
     }
 }
 
@@ -1184,12 +1184,12 @@ void BtlChar_UpdateCamera(BtlMgrChr *chr) {
         ChrCam_StartCut(chr);
         ChrCam_UpdateDemo(chr);
         ChrCam_UpdateInput(chr);
-        func_00250CB8(obj, BtlChar_GetPos(chr)->unk30);
-        func_00250D38(obj);
+        BtlObj_SetMoveVec(obj, BtlChar_GetPos(chr)->unk30);
+        BtlObj_UpdateChains(obj);
         BtlChar_UpdateHead(chr);
-        func_0024E3F8(obj);
+        BtlObjPose_CalcMatrices(obj);
         BtlFx_UpdateAll(chr);
-        func_0024DDF0(obj);
+        BtlObjHit_BuildVolumes(obj);
     }
 }
 

@@ -79,11 +79,11 @@ extern s32 BtlCharApi_TestAnimFlag10(s32 objId);
 extern s32 BtlCharApi_ObjTestAttr(s32 objId, u64 mask);
 extern void BtlCharApi_SetHeldFlagA7(s32 objId);
 
-extern EftKTask *func_001ADB98(EftKTask *task);
-extern void func_001ADA58(EftKTask *task);
-extern void func_001ADB78(EftKTask *task, s32 flags);
-extern void func_001ADEA0(void *tex, s32 a1, s32 a2);
-extern void func_001AE148(void *tex, s32 *entry);
+extern EftKTask *BtlTask_GetParent(EftKTask *task);
+extern void BtlTask_SetDead(EftKTask *task);
+extern void BtlTask_SetOwnerTag(EftKTask *task, s32 flags);
+extern void EftTexSet_Keep32(void *tex, s32 a1, s32 a2);
+extern void EftTexSet_Load32(void *tex, s32 *entry);
 extern s32 EftShot_TestBits(s32 objId, s32 bits);
 extern void EftShot_SetHeldFlagA8(s32 objId);
 extern void EftShot_Nop(s32 size);
@@ -153,8 +153,8 @@ extern void EftObj_Destroy(s32 objId);
 extern void EftObj_SetMtx(s32 objId, Mtx44 *m);
 extern void EftObj_SetVisible(s32 objId, s32 on);
 extern void EftObj_Nop(s32 objId, s32 a1);
-extern void func_002399A0(void *sphere, Vec4 *pos, f32 radius);
-extern void func_00239588(void *box, Vec4 *a, Vec4 *pos, f32 size);
+extern void ColSphere_Set(void *sphere, Vec4 *pos, f32 radius);
+extern void ColCapsule_Set(void *box, Vec4 *a, Vec4 *pos, f32 size);
 
 extern const EftKVec D_002ECB60; /* {0, -1, 0, 1}: a local initialiser of EftShotTech_UpdateTargetBurst */
 extern s32 gEftTechEvtTaskClass[6];        /* class of the timeline task */
@@ -375,7 +375,7 @@ void EftShotTech_UpdateConnected(EftKTask *task) {
     Vec4 pos;
     Vec4 ang;
     Vec4 d;
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftShotTech *w = task->work;
     EftShotTechMgr *mgr = owner->work;
     EftKSrc *src = w->src;
@@ -410,7 +410,7 @@ void EftShotTech_UpdateConnected(EftKTask *task) {
 /* Item init: clears the 0x900-byte work, reads speed and scale from the definition and the aim kind from the
    emitter set's header, creates the model when the manager loaded one. */
 void EftShotTech_Init(EftKTask *task, EftKSrc *src) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftShotTech *w = task->work;
     EftShotTechMgr *mgr = owner->work;
     EftKDef *def;
@@ -440,13 +440,13 @@ void EftShotTech_Init(EftKTask *task, EftKSrc *src) {
     if (mgr->modelPack != NULL) {
         EftShotTech_InitModel(task);
     }
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Item term: destroys the model, the eight sub-effects and the aura effect, frees the emitter state and sets the
    fighter's held flag 0xA8. */
 void EftShotTech_Term(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftShotTech *w = task->work;
     EftKSrc *src = w->src;
     s32 i;
@@ -570,7 +570,7 @@ void EftShotTech_Update(EftKTask *task) {
         task->state++;
     }
     if (!busy && (w->flags & 2)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (w->flags & 1) {
@@ -596,7 +596,7 @@ void EftShotTech_PostUpdate(EftKTask *task) {
 
 /* Item reset: the task dies. */
 void EftShotTech_Reset(EftKTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Item draw: nothing. */
@@ -770,7 +770,7 @@ s32 EftTechEvtTask_Update(EftKTask *task) {
 
 /* Timeline reset: the task dies. */
 void EftTechEvtTask_Reset(EftKTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Timeline draw callback, first view of the frame only: applies the requests and steps the two timers. When the
@@ -838,13 +838,13 @@ void EftTechEvtTask_UpdateNormal(EftKTask *task) {
     }
     if (ev & 0x800) {
         e->events |= EFT_TECH_EVT_END;
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (src->def->kind == 0) {
         if (EftTechEvt_IsInterrupted(src->objId)) {
             e->events |= EFT_TECH_EVT_ABORT;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             return;
         }
         BtlCharApi_IsSkillApplied(src->objId);
@@ -854,18 +854,18 @@ void EftTechEvtTask_UpdateNormal(EftKTask *task) {
             } else {
                 e->events |= EFT_TECH_EVT_ABORT;
             }
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             return;
         }
     } else {
         if (!EftTechEvt_IsInTechnique(src->objId)) {
             e->events |= EFT_TECH_EVT_ABORT;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             return;
         }
         if (EftTechEvt_IsInterrupted(src->objId)) {
             e->events |= EFT_TECH_EVT_ABORT;
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             return;
         }
     }
@@ -909,19 +909,19 @@ void EftTechEvtTask_UpdateRush(EftKTask *task) {
     if (!BtlCharApi_IsInTechnique(src->objId)) {
         e = &gEftTechEvt->entries[src->objId];
         e->events |= EFT_TECH_EVT_ABORT;
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if ((w->flags & 8) && !BtlCharApi_IsInRushSequence(src->objId)) {
         e = &gEftTechEvt->entries[src->objId];
         e->events |= EFT_TECH_EVT_ABORT;
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (BtlCharApi_ObjTestAttr(src->objId, 0x800)) {
         e = &gEftTechEvt->entries[src->objId];
         e->events |= EFT_TECH_EVT_END;
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     for (i = 0; i < gEftTechEvt->count; i++) {
@@ -1072,8 +1072,8 @@ void EftObjTech_AddHitRecord(EftKTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->unk3C0, (Vec4 *)&shape->pos, size);
-        func_00239588(b, &w->unk3C0, (Vec4 *)&shape->prev, size);
+        ColCapsule_Set(a, &w->unk3C0, (Vec4 *)&shape->pos, size);
+        ColCapsule_Set(b, &w->unk3C0, (Vec4 *)&shape->prev, size);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -1081,8 +1081,8 @@ void EftObjTech_AddHitRecord(EftKTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, (Vec4 *)&shape->pos, size);
-        func_002399A0(b, (Vec4 *)&shape->prev, size);
+        ColSphere_Set(a, (Vec4 *)&shape->pos, size);
+        ColSphere_Set(b, (Vec4 *)&shape->prev, size);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -1094,7 +1094,7 @@ void EftObjTech_AddHitRecord(EftKTask *task) {
 
 /* Creates the model object from the manager's model pack, hidden. */
 void EftObjTech_CreateModel(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftKModel *model = &w->model;
 
@@ -1128,7 +1128,7 @@ void EftObjTech_DestroyModel(EftKTask *task) {
    scale (1, growing by grow). */
 void EftObjTech_InitRings(EftKTask *task, f32 roll, f32 step, f32 grow) {
     s32 i;
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftObjTechMgr *mgr = owner->work;
     EftKRings *rings = &w->rings;
@@ -1261,7 +1261,7 @@ void EftObjTech_UpdateEmitters(s32 objId, EftKTask *task, EftKSet *set) {
 
 /* Moves the object and its model according to the mode and the fighter's technique events. */
 void EftObjTech_UpdateMotion(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftObjTechMgr *mgr = owner->work;
     EftKSrc *src = w->src;
@@ -1435,7 +1435,7 @@ void EftObjTech_UpdateMotion(EftKTask *task) {
 
 /* Shows the model while it is in use (hidden when the effect scene hides effects of this fighter). */
 void EftObjTech_UpdateModelVisible(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftObjTechMgr *mgr = owner->work;
     s32 show = 0;
@@ -1470,7 +1470,7 @@ void EftObjTech_UpdateModelVisible(EftKTask *task) {
 /* Item init: clears the 0x800-byte work, reads speed and scale from the definition, picks the mode from the
    effect id, creates the model and the rings. */
 void EftObjTech_Init(EftKTask *task, EftKSrc *src) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftObjTechMgr *mgr = owner->work;
     void *emit;
@@ -1522,12 +1522,12 @@ void EftObjTech_Init(EftKTask *task, EftKSrc *src) {
         }
         EftObjTech_InitRings(task, roll, step, grow);
     }
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Item term: destroys the model, frees the emitter state; a technique (kind not 0) sets held flag 0xA8. */
 void EftObjTech_Term(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     EftObjTech *w = task->work;
     EftKSrc *src = w->src;
 
@@ -1632,7 +1632,7 @@ skip:
         w->timer += 1.0f;
     }
     if (w->flags & 4) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & 2) {
         if (w->flags & 8) {
             w->flags |= 4;
@@ -1692,7 +1692,7 @@ void EftObjTech_Reset(EftKTask *task) {
         w->flags |= 0x100;
         EftEmit_KillAll(w->mgr, w->emit);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Item draw: the rings, once they are in use. */
@@ -1724,7 +1724,7 @@ void EftObjTechMgr_Init(EftKTask *task, EftKSrc *src) {
         mgr->ringModel = BtlScene_GetPackEntry(pack, 1);
         mgr->ringTex = BtlScene_GetPackEntry(pack, 2);
         EftMesh_Init(mgr->ringProto, mgr->ringModel);
-        func_001AE148(mgr->ringTexSet, mgr->ringTex);
+        EftTexSet_Load32(mgr->ringTexSet, mgr->ringTex);
     }
 }
 
@@ -1739,7 +1739,7 @@ void EftObjTechMgr_Update(EftKTask *task) {
 
     EftEmit_BeginFrame(mgr);
     if (task->unk24[1] != 0 && mgr->ringTex != NULL) {
-        func_001ADEA0(mgr->ringTexSet, 1, 0);
+        EftTexSet_Keep32(mgr->ringTexSet, 1, 0);
     }
 }
 
@@ -1764,8 +1764,8 @@ void EftRushShot_AddHitRecord(EftKTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->unk390, (Vec4 *)&w->body.pos, size);
-        func_00239588(b, &w->unk390, (Vec4 *)&w->body.prev, size);
+        ColCapsule_Set(a, &w->unk390, (Vec4 *)&w->body.pos, size);
+        ColCapsule_Set(b, &w->unk390, (Vec4 *)&w->body.prev, size);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -1773,8 +1773,8 @@ void EftRushShot_AddHitRecord(EftKTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, (Vec4 *)&w->body.pos, size);
-        func_002399A0(b, (Vec4 *)&w->body.prev, size);
+        ColSphere_Set(a, (Vec4 *)&w->body.pos, size);
+        ColSphere_Set(b, (Vec4 *)&w->body.prev, size);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -1786,7 +1786,7 @@ void EftRushShot_AddHitRecord(EftKTask *task) {
 
 /* Creates the swarm's model objects from the manager's model pack, hidden. */
 void EftRushShot_CreateModels(EftKTask *task) {
-    EftKTask *owner = func_001ADB98(task);
+    EftKTask *owner = BtlTask_GetParent(task);
     s32 i;
     EftRushShot *w = task->work;
     EftRushShotMgr *mgr = owner->work;
@@ -2011,9 +2011,9 @@ extern s32 EftStreak_Start(s32 objId, s32 kind, s32 arg2, f32 angle);
 #define EftStreak_Stop ((void (*)(s32 handle))EftStreak_Stop)
 extern void EftDelaySe_Start(s32 objId, EftSparkTbl *tbl, s32 count);
 extern void EftObj_Destroy(s32 handle);
-#define func_001ADA58 ((void (*)(EftTask *task))func_001ADA58)
-#define func_001ADB78 ((void (*)(EftTask *task, s32 flag))func_001ADB78)
-#define func_001ADB98 ((EftTask *(*)(EftTask *task))func_001ADB98)
+#define BtlTask_SetDead ((void (*)(EftTask *task))BtlTask_SetDead)
+#define BtlTask_SetOwnerTag ((void (*)(EftTask *task, s32 flag))BtlTask_SetOwnerTag)
+#define BtlTask_GetParent ((EftTask *(*)(EftTask *task))BtlTask_GetParent)
 extern void StgTint_Start(s32 a0, s32 a1, f32 time);
 extern void StgBlur_SetCenter(s32 a0, Vec4 *pos, s32 a2);
 extern void StgBlur_SetColor0Rgba(s32 a0, s32 r, s32 g, s32 b, s32 a);
@@ -2203,7 +2203,7 @@ void EftRushShot_Draw(s32 objId, EftTask *task, EftModel *model) {
 /* Swarm models, the node the shot sits on while attached, and the four handlers of the victim's events.
  * Standalone this differs by one instruction (beqz / beqzl at +0x48); see the note at the top of the file. */
 void EftRushShot_UpdateAttached(EftTask *task) {
-    EftRushShotMgrWork *mgr = func_001ADB98(task)->work;
+    EftRushShotMgrWork *mgr = BtlTask_GetParent(task)->work;
     EftRushShotWork *w = task->work;
     EftTechArg *arg = w->arg;
 
@@ -2235,7 +2235,7 @@ void EftRushShot_UpdateAttached(EftTask *task) {
 
 /* Init callback: clears the work, takes speed and size from the definition and creates the model instance. */
 void EftRushShot_Init(EftTask *task, EftTechArg *arg) {
-    EftRushShotMgrWork *mgr = func_001ADB98(task)->work;
+    EftRushShotMgrWork *mgr = BtlTask_GetParent(task)->work;
     EftRushShotWork *w = task->work;
     EftTechDef *def;
 
@@ -2269,12 +2269,12 @@ void EftRushShot_Init(EftTask *task, EftTechArg *arg) {
             w->unkAB0 = v;
         }
     }
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Term callback: ends the stage tint, the sub-effects and the model instance. */
 void EftRushShot_Term(EftTask *task) {
-    EftRushShotMgrWork *mgr = func_001ADB98(task)->work;
+    EftRushShotMgrWork *mgr = BtlTask_GetParent(task)->work;
     EftRushShotWork *w = task->work;
     EftTechArg *arg = w->arg;
 
@@ -2293,7 +2293,7 @@ void EftRushShot_Term(EftTask *task) {
 /* Update callback. */
 void EftRushShot_Update(EftTask *task) {
     s32 advance = 0;
-    EftRushShotMgrWork *mgr = func_001ADB98(task)->work;
+    EftRushShotMgrWork *mgr = BtlTask_GetParent(task)->work;
     EftRushShotWork *w = task->work;
     EftTechArg *arg = w->arg;
 
@@ -2388,7 +2388,7 @@ void EftRushShot_Update(EftTask *task) {
         w->timer += 1.0f;
     }
     if (w->flags & EFT_RUSHSHOT_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & EFT_RUSHSHOT_END) {
         if ((w->flags & EFT_RUSHSHOT_FAST_END) || w->timer >= w->life) {
             w->flags |= EFT_RUSHSHOT_KILL;
@@ -2446,7 +2446,7 @@ void EftRushShot_Reset(EftTask *task) {
         w->flags |= EFT_RUSHSHOT_RESET;
         EftEmit_KillAll(w->model, &w->inst);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: nothing. */

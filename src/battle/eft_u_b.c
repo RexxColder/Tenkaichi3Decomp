@@ -34,8 +34,8 @@ extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = bas
 extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Z */
 extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about X */
 extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Y */
-extern u64 func_001ADD28(EftUPtclTex *tex, s32 a, s32 b);       /* uploads the image, returns its TEX0 */
-extern s32 func_001ADDC0(EftUPtclTex *tex);                     /* uploads the palette, returns its block */
+extern u64 EftVram_AddImage(EftUPtclTex *tex, s32 a, s32 b);       /* uploads the image, returns its TEX0 */
+extern s32 EftVram_AddClut(EftUPtclTex *tex);                     /* uploads the palette, returns its block */
 
 /* Copies entries a (image) and b (palette) of a texture set into the work and remembers b as the cache slot. */
 void EftPtcl_PickTexture(EftUPtclWork *w, EftUPtclTex *tex, s32 a, s32 b) {
@@ -48,8 +48,8 @@ void EftPtcl_PickTexture(EftUPtclWork *w, EftUPtclTex *tex, s32 a, s32 b) {
    caches the value in the set; later emitters of the frame take the cached value. */
 void EftPtcl_UploadTexture(EftUPtclWork *w, EftUPtclWork *w2) {
     if (!(w2->arg.res->uploaded & (1U << w2->arg.texIdx))) {
-        w->tex0 = func_001ADD28(&w->texA, 1, 0);
-        w->tex0 |= (u64)func_001ADDC0(&w->texB) << 37;
+        w->tex0 = EftVram_AddImage(&w->texA, 1, 0);
+        w->tex0 |= (u64)EftVram_AddClut(&w->texB) << 37;
         w2->arg.res->tex[w2->arg.texIdx].tex0 = w->tex0;
         w2->arg.res->uploaded |= 1U << w2->arg.texIdx;
     } else {
@@ -1275,7 +1275,7 @@ void EftPtcl_Update(EftVTask *task) {
         }
     }
     if (w->flags & EFT_PTCL_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftPtcl_UploadTexture(w, w);
     }
@@ -1287,7 +1287,7 @@ void EftPtcl_PostUpdate(EftVTask *task) {
 
 /* Task reset: ends the task. */
 void EftPtcl_Reset(EftVTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: picks the draw routine for the definition's shape. */

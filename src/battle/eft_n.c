@@ -114,11 +114,11 @@ extern void func_001210D8(EftNScr *out, Vec4 *pos);         /* project to GS scr
 extern void func_0011FA40(s32 *out, s32 x, s32 y, s32 z, s32 w);
 extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
                           s32 t0, s32 t1, s32 w, s32 h, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
-extern void func_001ADA58(EftNTask *task);                  /* kills the task */
-extern u64 func_001ADC68(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 of an entry */
-extern u64 func_001ADD28(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 without the palette */
-extern s32 func_001ADDC0(EftNTexEntry *tex);                /* palette base of an entry */
-extern void func_001AE148(EftNTexSet *set, s32 *data);
+extern void BtlTask_SetDead(EftNTask *task);                  /* kills the task */
+extern u64 EftVram_AddTex(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 of an entry */
+extern u64 EftVram_AddImage(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 without the palette */
+extern s32 EftVram_AddClut(EftNTexEntry *tex);                /* palette base of an entry */
+extern void EftTexSet_Load32(EftNTexSet *set, s32 *data);
 extern void EftBolt_Enable(s32 objId);                       /* creates the fighter's lightning task (eft_o) */
 extern void EftBolt_Disable(s32 objId);                       /* asks it to stop */
 extern s32 EftGlow_IsActive(s32 objId);
@@ -422,19 +422,19 @@ void EftAura_UpdateTextures(EftAuraWork *aura) {
     s32 i;
 
     if (aura->flags & 0x80) {
-        base = func_001ADD28(&set->entry[8], 1, 0);
+        base = EftVram_AddImage(&set->entry[8], 1, 0);
         for (i = aura->texFirst; i < aura->texFirst + aura->texCount; i++) {
-            ((EftAuraWork *)((u8 *)aura + 8))->tex[i - aura->texFirst] = base | ((u64)func_001ADDC0(&set->entry[i]) << 37);
+            ((EftAuraWork *)((u8 *)aura + 8))->tex[i - aura->texFirst] = base | ((u64)EftVram_AddClut(&set->entry[i]) << 37);
         }
     } else {
-        aura->tex[0] = func_001ADD28(&set->entry[0], 1, 0);
-        aura->tex[0] |= (u64)func_001ADDC0(&set->entry[aura->type]) << 37;
+        aura->tex[0] = EftVram_AddImage(&set->entry[0], 1, 0);
+        aura->tex[0] |= (u64)EftVram_AddClut(&set->entry[aura->type]) << 37;
     }
     ready = &gPool->grp[1].ready;
     if (!*ready) {
         set = &gPool->grp[1].set;
         for (i = 0; i < set->count; i++) {
-            set->entry[i].tex0 = func_001ADC68(&set->entry[i], 1, 0);
+            set->entry[i].tex0 = EftVram_AddTex(&set->entry[i], 1, 0);
         }
         *ready = 1;
     }
@@ -624,7 +624,7 @@ void EftAuraTask_Update(EftNTask *task) {
         aura->frame++;
     }
     if (aura->flags & 2) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftAura_UpdateTextures(aura);
     }
@@ -638,7 +638,7 @@ void EftAuraTask_PostUpdate(EftNTask *task) {
 
 /* Task reset: kills the task. */
 void EftAuraTask_Reset(EftNTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: the flames, unless the fighter is hidden, in a technique or rush sequence, or the aura is hidden or of
@@ -700,7 +700,7 @@ void EftAuraMgr_Init(EftNTask *task) {
     gPool->grp[0].data = BtlScene_GetCommonEntry(3);
     gPool->grp[1].data = BtlScene_GetCommonEntry(2);
     for (i = 0; i < 2; i++) {
-        func_001AE148(&gPool->grp[i].set, gPool->grp[i].data);
+        EftTexSet_Load32(&gPool->grp[i].set, gPool->grp[i].data);
     }
     gPool->data = BtlScene_GetCommonEntry(1);
     gEftAuraPrm = (EftAuraPrm *)(gEftAuraCfg = gPool->data); /* 0x2FEA08 is stored first */

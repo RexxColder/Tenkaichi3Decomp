@@ -44,7 +44,7 @@ extern f32 floorf(f32 x);
 extern void BtlAnim_PlaySub(BtlActEChr *chr, s32 anim);
 extern s32 BtlAct_IsAirMotion(BtlActEChr *chr, s32 useSaved);
 extern s32 BtlParam_GetRecoverKiCost(BtlActEChr *chr);               /* character parameter: a ki cost */
-extern s32 func_0024D610(BtlActEObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(BtlActEObj *obj, s32 a, s32 b, s32 c);
 
 extern BtlActEPose *BtlChar_GetPos(BtlActEChr *chr);
 extern BtlActEObj *BtlChar_GetObj(BtlActEChr *chr);
@@ -731,8 +731,8 @@ f32 BtlAct_PlayAttackPart(BtlActEChr *chr, BtlActEAttack *atk, s32 frame, f32 ti
         s32 n;
 
         BtlAnim_PlaySub(chr, atk->motion[frame]);
-        n = func_0024D610(obj, 1, 1, 0);
-        n += func_0024D610(obj, 2, 1, 0);
+        n = BtlObjAnim_QueryEvent(obj, 1, 1, 0);
+        n += BtlObjAnim_QueryEvent(obj, 2, 1, 0);
         time += (f32)n * 0.5f * 30.0f / 60.0f;
         time = floorf(time + 0.5f);
     }

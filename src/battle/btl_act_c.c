@@ -120,8 +120,8 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 
 extern void BtlActB_SetReactionFlags(Chr *chr);
 extern s32 BtlActB_TickMemberChange(Chr *chr, s32 *work);
-extern s32 func_0024D518(s32 bits);
-extern s32 func_0024D610(void *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_MaskToNode(s32 bits);
+extern s32 BtlObjAnim_QueryEvent(void *obj, s32 a, s32 b, s32 c);
 extern f32 BtlMoveParam_GetSpeed(Chr *chr, s32 n);
 extern f32 BtlMoveParam_GetTurnRate(Chr *chr, s32 n);
 extern s32 BtlChar_ClearFlagRet(Chr *chr, s32 n) __asm__("BtlChar_ClearFlag");
@@ -1307,7 +1307,7 @@ s32 BtlAct_PlaySubAnim(Chr *chr, s32 anim) {
     void *obj = BtlChar_GetObj(chr);
 
     BtlAnim_PlaySub(chr, anim);
-    return func_0024D518(func_0024D610(obj, 4, 1, 6));
+    return BtlObjAnim_MaskToNode(BtlObjAnim_QueryEvent(obj, 4, 1, 6));
 }
 
 /*
@@ -1421,7 +1421,7 @@ s32 BtlAct_ChargedKiBlastHandler(Chr *chr, s32 phase) {
                     BtlAct_Request(chr, 0xB);
                 }
                 frame = BtlAnim_GetFrame(chr);
-                if (frame < (f32)func_0024D610(BtlChar_GetObj(chr), 4, 0, 0)) {
+                if (frame < (f32)BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 4, 0, 0)) {
                     BtlChar_SetFlag(chr, 0x8E);
                 }
                 if (BtlAnim_IsNew(chr)) {
@@ -1494,7 +1494,7 @@ s32 BtlAct_DashKiBlastHandler(Chr *chr, s32 phase) {
         BtlAnim_Play(chr, anim, 0.15f);
         BtlMember_SpendKi(chr, BtlKiBlast_GetKiCost(chr), 0);
         BtlChar_PlayVoice(chr, 0xC);
-        chr->unkDE0 += func_0024D610(BtlChar_GetObj(chr), 4, 0, 3);
+        chr->unkDE0 += BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 4, 0, 3);
         chr->unkDE4 = 0x1E;
     }
     if (phase == 1) {
@@ -1626,7 +1626,7 @@ s32 BtlAct_DashChargedKiBlastHandler(Chr *chr, s32 phase) {
                     BtlMember_SpendKi(chr, BtlKiBlast_GetKiCost(chr), 0);
                 }
                 frame = BtlAnim_GetFrame(chr);
-                if (frame < (f32)func_0024D610(BtlChar_GetObj(chr), 4, 0, 0)) {
+                if (frame < (f32)BtlObjAnim_QueryEvent(BtlChar_GetObj(chr), 4, 0, 0)) {
                     BtlChar_SetFlag(chr, 0x8E);
                 }
                 break;

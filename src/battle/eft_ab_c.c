@@ -29,8 +29,8 @@ extern void Vec3_Normalize(EftRbnVec *dst, EftRbnVec *src);
 extern void func_00121F88(EftRbnVec *dst, EftRbnVec *src, f32 d);   /* dst.xyz = src.xyz / d */
 extern void func_00121FB8(EftRbnVec *dst, EftRbnVec *src);          /* copies x, y, z */
 
-extern u64 func_001ADD28(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
-extern s32 func_001ADDC0(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
+extern u64 EftVram_AddImage(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
+extern s32 EftVram_AddClut(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
 
 /* Takes a free node from the pool (round-robin) and appends it to the ribbon's list. */
 EftRbnNode *EftRibbon_AllocNode(EftRbn *w) {
@@ -98,8 +98,8 @@ void EftRibbon_UpdateTex(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
 
     if (!(arg->tex->ready & (1 << arg->texBase))) {
         for (i = 0; i < w->numTex; i++) {
-            w->tex0[i] = func_001ADD28(&w->frame[i][0], 1, 0);
-            w->tex0[i] |= (u64)func_001ADDC0(&w->frame[i][1]) << 37;
+            w->tex0[i] = EftVram_AddImage(&w->frame[i][0], 1, 0);
+            w->tex0[i] |= (u64)EftVram_AddClut(&w->frame[i][1]) << 37;
             arg->tex->entry[arg->texBase + i].tex0 = w->tex0[i];
         }
         arg->tex->ready |= 1 << arg->texBase;
@@ -603,7 +603,7 @@ extern s32 BtlScene_IsEffectStopped(s32 chr, s32 type);
 extern s32 BtlScene_IsEffectHidden(s32 chr, s32 type);
 extern void *BtlTask_CreateChildList(EftAcTask *task, s32 count, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, void **cls, void *arg);
-extern void func_001ADA58(EftAcTask *task);  /* kills the task */
+extern void BtlTask_SetDead(EftAcTask *task);  /* kills the task */
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern s32 rand(void);
@@ -1063,7 +1063,7 @@ void EftRibbon_Update(EftAcTask *task) {
         }
     }
     if (w->flags & EFT_RIBBON_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else {
         EftRibbon_UpdateTex(prm, w, arg);
     }
@@ -1075,7 +1075,7 @@ void EftRibbon_PostUpdate(EftAcTask *task) {
 
 /* Task reset: kills the task. */
 void EftRibbon_Reset(EftAcTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: loads the world-to-screen matrix and draws the ribbon by kind. */
@@ -1520,7 +1520,7 @@ void EftZap_Update(EftAcTask *task) {
             }
         }
         if ((w->flags & EFT_ZAPF_KILL) || (w->flags & EFT_ZAPF_DEAD)) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
         w->frame += 1.0f;
     }
@@ -1679,7 +1679,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftZap_Draw);
 
 /* Task reset: kills the task. */
 void EftZap_Reset(EftAcTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Unlinks `x` from the doubly linked list `l` (head / tail). */

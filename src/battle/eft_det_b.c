@@ -9,7 +9,7 @@
  * (0x1B18B8) is NOT known to the compiler, so a source file ends between 0x1B18F8 and 0x1B2BA0; the .lit4 pool
  * runs on from the neighbouring file (0x2FCFC0 is its last constant, 0x2FCFC4 the first one here).
  *
- * Per fighter and frame (BtlChar_UpdateStage8, fighter 0 first): func_0024DCB8 clears the contact word,
+ * Per fighter and frame (BtlChar_UpdateStage8, fighter 0 first): BtlObjBody_BeginFrame clears the contact word,
  * StgCol_UpdateFighter sweeps the body sphere, StgGround_UpdateFighter probes the ground; BtlColl_UpdateGround
  * (stage 9) then turns the contact word into fighter flags and damage.
  *
@@ -59,20 +59,20 @@ extern s32 ColBox_Overlaps(StgColBox *a, StgColBox *b);           /* overlap */
 extern s32 ColBox_ClipRay(StgColBox *box, StgColRay *ray, StgColVec *out); /* ray against box */
 
 /* Primitive tests (0x236228..0x2387E0). */
-extern s32 func_00236228(StgColSweepCtx *ctx, StgColTri *tri, StgColVec *pos, f32 *dist); /* swept sphere */
-extern s32 func_002368C8(StgColSeg *seg, StgColTri *tri, StgColVec *pos, f32 *dist);      /* segment */
-extern s32 func_00238310(StgColVec *pos, StgColSphere *sphere, StgColTri *tri);           /* sphere */
-extern void func_00238388(StgColBox *out, StgColSweep *seg);    /* bounds of a swept sphere */
-extern void func_00238490(StgColBox *out, StgColSphere *sphere); /* bounds of a sphere */
-extern void func_00238540(StgColRay *out, StgColSeg *seg);      /* ray of a segment */
-extern void func_00238698(StgColBox *out, StgColSeg *seg);      /* bounds of a segment */
-extern void func_002387E0(StgColVec *out, StgColVec *dir, StgColSweepCtx *ctx); /* direction of a sweep */
+extern s32 ColSweep_TestTri(StgColSweepCtx *ctx, StgColTri *tri, StgColVec *pos, f32 *dist); /* swept sphere */
+extern s32 ColSeg_TestTri(StgColSeg *seg, StgColTri *tri, StgColVec *pos, f32 *dist);      /* segment */
+extern s32 ColSphere_TestTri(StgColVec *pos, StgColSphere *sphere, StgColTri *tri);           /* sphere */
+extern void ColBounds_OfCapsule(StgColBox *out, StgColSweep *seg);    /* bounds of a swept sphere */
+extern void ColBounds_OfSphere(StgColBox *out, StgColSphere *sphere); /* bounds of a sphere */
+extern void ColRay_FromSeg(StgColRay *out, StgColSeg *seg);      /* ray of a segment */
+extern void ColBounds_OfSeg(StgColBox *out, StgColSeg *seg);      /* bounds of a segment */
+extern void ColCapsule_GetLongSegDir(StgColVec *out, StgColVec *dir, StgColSweepCtx *ctx); /* direction of a sweep */
 
 /* Battle object body (0x24DC58..0x24E3F8). */
-extern void func_0024DC58(StgColFighter *obj, s32 arg);
-extern void func_0024DCB8(StgColFighter *obj);
-extern void func_0024E2B0(StgColFighter *obj);
-extern void func_0024E3F8(StgColFighter *obj);
+extern void BtlObjBody_Update(StgColFighter *obj, s32 arg);
+extern void BtlObjBody_BeginFrame(StgColFighter *obj);
+extern void BtlObjXf_Update(StgColFighter *obj);
+extern void BtlObjPose_CalcMatrices(StgColFighter *obj);
 
 /* Stage (stg_a.c). */
 extern s32 BtlStage_IsReady(void);
@@ -180,7 +180,7 @@ s32 StgCol_SweepCb(StgColNode *node, StgColSweepCtx *ctx) {
     }
     ColMesh_GetPolyVerts(gStgColMesh, poly, &tri.v[0], &tri.v[1], &tri.v[2]);
     Vec4_Copy(&tri.nrm, &poly->nrm);
-    if (func_00236228(ctx, &tri, &pos, &dist)) {
+    if (ColSweep_TestTri(ctx, &tri, &pos, &dist)) {
         if (dist < ctx->dist) {
             ctx->dist = dist;
             ctx->hit = 1;
@@ -203,10 +203,10 @@ s32 StgCol_TraceSphere(s32 zoneIdx, StgColSweep *seg, StgColVec *hitPos, f32 *fr
     StgColVec unused;
     StgColZone *zone = BtlStage_GetZone(zoneIdx);
 
-    func_00238388(&box, seg);
+    ColBounds_OfCapsule(&box, seg);
     memset(&ctx, 0, sizeof(ctx));
     ctx.seg = *seg;
-    func_002387E0(&tmp, &dir, &ctx);
+    ColCapsule_GetLongSegDir(&tmp, &dir, &ctx);
     ctx.seg.a.x -= dir.x * seg->radius * 2.0f;
     ctx.seg.a.y -= dir.y * seg->radius * 2.0f;
     ctx.seg.a.z -= dir.z * seg->radius * 2.0f;
@@ -301,7 +301,7 @@ s32 StgCol_PushCb(StgColNode *node, StgColPushCtx *ctx) {
     }
     ColMesh_GetPolyVerts(gStgColMesh, poly, &tri.v[0], &tri.v[1], &tri.v[2]);
     Vec4_Copy(&tri.nrm, &poly->nrm);
-    if (func_00238310(&pos, &ctx->sphere, &tri)) {
+    if (ColSphere_TestTri(&pos, &ctx->sphere, &tri)) {
         StgCol_PushSphere(&ctx->sphere, &ctx->box, &pos);
         ctx->poly = *poly;
         ctx->hit = 1;
@@ -350,10 +350,10 @@ s32 StgCol_MoveFighter(StgColFighter *obj, StgColPushCtx *ctx, s32 zoneIdx, s32 
         Vec3_Sub(&body->push, &sphere->pos, &ctx->sphere.pos);
         Vec3_Sub(&pose->pos, &pose->pos, &body->push);
         pose->pos.w = 1.0f;
-        func_0024E2B0(obj);
-        func_0024E3F8(obj);
+        BtlObjXf_Update(obj);
+        BtlObjPose_CalcMatrices(obj);
         if (keepSphere) {
-            func_0024DC58(obj, 0);
+            BtlObjBody_Update(obj, 0);
             return 1;
         }
         Vec4_Copy(&sphere->pos, &ctx->sphere.pos);
@@ -383,13 +383,13 @@ void StgCol_UpdateFighter(StgColFighter *obj, s32 keepSphere, s32 grow) {
     if (work == NULL) {
         return;
     }
-    func_0024DCB8(obj);
+    BtlObjBody_BeginFrame(obj);
     cur = body->cur;
     prev = body->prev;
     work->flags &= ~STGCOL_HIT_WALL;
     work->flags &= ~STGCOL_HIT_BROKE;
     if (keepSphere) {
-        func_0024DC58(obj, 0);
+        BtlObjBody_Update(obj, 0);
     } else {
         r = body->radius;
         cur->radius = r;
@@ -495,7 +495,7 @@ s32 StgCol_SegCb(StgColNode *node, StgColCtx *ctx) {
     }
     ColMesh_GetPolyVerts(gStgColMesh, poly, &tri.v[0], &tri.v[1], &tri.v[2]);
     Vec4_Copy(&tri.nrm, &poly->nrm);
-    if (func_002368C8(&ctx->seg, &tri, &pos, &dist)) {
+    if (ColSeg_TestTri(&ctx->seg, &tri, &pos, &dist)) {
         if (ctx->dist > dist) {
             ctx->poly = *poly;
             Vec4_Copy(&ctx->pos, &pos);
@@ -519,7 +519,7 @@ s32 StgCol_CollectCb(StgColNode *node, StgColCtx *ctx) {
     }
     ColMesh_GetPolyVerts(gStgColMesh, poly, &tri.v[0], &tri.v[1], &tri.v[2]);
     Vec4_Copy(&tri.nrm, &poly->nrm);
-    if (func_00238310(&pos, &ctx->sphere, &tri)) {
+    if (ColSphere_TestTri(&pos, &ctx->sphere, &tri)) {
         if (ctx->list != NULL) {
             if (ctx->list->count < 0x40) {
                 *(StgColTri *)((u8 *)&((StgColTri *)ctx->list)[ctx->list->count] + 0x10) = tri;
@@ -538,9 +538,9 @@ void StgCol_InitSegCtx(StgColCtx *ctx, StgColSeg *seg) {
 
     memset(ctx, 0, sizeof(StgColCtx));
     ctx->seg = *seg;
-    func_00238698(&ctx->box, seg);
+    ColBounds_OfSeg(&ctx->box, seg);
     ctx->dist = func_00122200(&seg->a, &seg->b);
-    func_00238540(&ctx->ray, seg);
+    ColRay_FromSeg(&ctx->ray, seg);
     far = gStgColFar[0];
     ctx->obj = -1;
     ctx->dist = far;
@@ -550,7 +550,7 @@ void StgCol_InitSegCtx(StgColCtx *ctx, StgColSeg *seg) {
 void StgCol_InitSphereCtx(StgColCtx *ctx, StgColSphere *sphere, StgColTriList *list) {
     memset(ctx, 0, sizeof(StgColCtx));
     ctx->sphere = *sphere;
-    func_00238490(&ctx->box, sphere);
+    ColBounds_OfSphere(&ctx->box, sphere);
     ctx->list = list;
     if (list != NULL) {
         list->count = 0;

@@ -147,7 +147,7 @@ void EftLink_Update(EftVTask *task) {
                 w->flags |= EFT_LINK_DEAD;
             }
             if ((w->flags & EFT_LINK_KILLED) || (w->flags & EFT_LINK_DEAD)) {
-                func_001ADA58(task);
+                BtlTask_SetDead(task);
             }
         }
     }
@@ -214,7 +214,7 @@ void EftLink_Draw(EftVTask *task) {
 
 /* Task reset: ends the task. */
 void EftLink_Reset(EftVTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task term: returns the chain's sprites to the pool. */

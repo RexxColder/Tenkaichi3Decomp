@@ -127,6 +127,12 @@ options:
     - config/symbols/eft_det_b.txt
     - config/symbols/stg_d.txt
     - config/symbols/col_a.txt
+    - config/symbols/eft_ae.txt
+    - config/symbols/col_b.txt
+    - config/symbols/col_c.txt
+    - config/symbols/bobj_a.txt
+    - config/symbols/bobj_b.txt
+    - config/symbols/btl_ai_seq_a.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

@@ -1050,7 +1050,7 @@ extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern void *BtlTask_CreateChildList(void *task, s32 capacity, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, BtlTaskClass *cls, void *arg);
-extern void func_001ADA58(void *task);
+extern void BtlTask_SetDead(void *task);
 extern void EftCam_Start(s32 *arg);
 extern void EftCam_SetHold(s32 arg);
 extern void EftCam_Stop(void);
@@ -1065,7 +1065,7 @@ extern s32 BtlStage_GetFxResC(void);
 extern s32 BtlStage_GetFxResA(void);
 extern EftStageMarker *BtlStage_GetFxResC2(void);
 extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
-extern u64 func_001ADC68(u64 *tex0, s32 a1, s32 a2);
+extern u64 EftVram_AddTex(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
 extern void func_00120AB0(void);
 extern void func_00120B80(Mtx44 *mtx);
@@ -1115,7 +1115,7 @@ extern void BtlCharApi_PlaySoundAt(Vec4 *pos, s32 kind, s32 id, f32 near, f32 fa
 extern f32 EftHit_GetRadiusA(EftWaterBlast *rec);
 extern void EftUtil_ClipSegToWater(EftEVec *out, Vec4 *a, Vec4 *b);
 extern s32 EftRec_GetDefClass(EftWaterBlast *rec);
-extern void func_001AE148(u8 *tex, s32 *data);
+extern void EftTexSet_Load32(u8 *tex, s32 *data);
 extern void EftWater_UpdateTextures(s32 a0, s32 a1);
 extern void EftWaterSplash_UpdateList(EftWaterSplash **head, EftWaterSplash **tail);
 extern void EftWaterSplash_DrawList(void *head);
@@ -1288,7 +1288,7 @@ void EftBurst_Update(void *task) {
     s32 j;
 
     if (gEftBurstRes.endReq != 0) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         EftCam_Stop();
         return;
     }
@@ -1473,7 +1473,7 @@ void EftBurst_PostUpdate(void) {
 /* Transition task reset (battle restart): stops the camera animation and ends the task. */
 void EftBurst_Reset(void *task) {
     EftCam_Stop();
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Called by the stage swap once the transition file is loaded: resolves its entries and asks for the task. */

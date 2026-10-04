@@ -34,7 +34,7 @@ typedef struct EftOVec {
 
 /* A task of the effect scene (0x40 bytes). */
 typedef struct EftOTask {
-    /* 0x00 */ u8 state;     /* bit 0: the task was killed (func_001ADA58) */
+    /* 0x00 */ u8 state;     /* bit 0: the task was killed (BtlTask_SetDead) */
     /* 0x01 */ u8 unk1[3];
     /* 0x04 */ s32 flags;    /* EFT_TASK_* of eft_a.h, written by the hit pass */
     /* 0x08 */ u16 result;   /* EftHit_CalcResult: bit 0 = the hit pass moved the record (pos is valid),

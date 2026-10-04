@@ -101,8 +101,8 @@ extern void BtlPool_Free(void *pool, void *p);
 extern s32 BtlScene_IsCharStopped(s32 objId);
 extern void *BtlTask_CreateChildList(EftOTask *task, s32 count, s32 workSize);
 extern EftOTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftOTask *task);            /* kill a task */
-extern void func_001ADB78(EftOTask *task, s32 flags); /* or into the task's class flags */
+extern void BtlTask_SetDead(EftOTask *task);            /* kill a task */
+extern void BtlTask_SetOwnerTag(EftOTask *task, s32 flags); /* or into the task's class flags */
 
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, void *out);
 
@@ -112,8 +112,8 @@ extern void *EftHitArena_AllocSphere(void);
 extern void *EftHitArena_AllocBox(void);
 extern void EftHit_SetShapeSpheres(EftOHitRec *rec, void *a, void *b);
 extern void EftHit_SetShapeBoxes(EftOHitRec *rec, void *a, void *b);
-extern void func_00239588(void *box, void *from, void *to, f32 radius);
-extern void func_002399A0(void *sphere, void *center, f32 radius);
+extern void ColCapsule_Set(void *box, void *from, void *to, f32 radius);
+extern void ColSphere_Set(void *sphere, void *center, f32 radius);
 
 extern s32 EftShot_TestBits(s32 objId, s32 mask);
 extern s32 EftShot_GetAttrKind(s32 objId, s32 bits);
@@ -161,8 +161,8 @@ void EftBlastObj_AddHit(EftOTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->pose.start, &w->pose.pos, r);
-        func_00239588(b, &w->pose.start, &w->pose.prev, r);
+        ColCapsule_Set(a, &w->pose.start, &w->pose.pos, r);
+        ColCapsule_Set(b, &w->pose.start, &w->pose.prev, r);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -170,8 +170,8 @@ void EftBlastObj_AddHit(EftOTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, &w->pose.pos, r);
-        func_002399A0(b, &w->pose.prev, r);
+        ColSphere_Set(a, &w->pose.pos, r);
+        ColSphere_Set(b, &w->pose.prev, r);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -387,7 +387,7 @@ void EftBlastObj_Init(EftOTask *task, EftBlastObjArg *arg) {
         w->model.pack = arg->model;
         EftBlastObj_InitModel(task);
     }
-    func_001ADB78(task, src->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
 #else
 INCLUDE_RODATA("asm/nonmatchings/battle/eft_o_b", D_002ECC60); /* slots[7] = { 0, 1, 3, 4, 5, -1, -1 } */
@@ -451,7 +451,7 @@ void EftBlastObj_Update(EftOTask *task) {
     }
     EftBlastObj_UpdateParts(src->objId, task, w->set, 0);
     if (w->flags & EFT_BLASTOBJ_DYING) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     } else if (w->flags & EFT_BLASTOBJ_STOP) {
         w->flags |= EFT_BLASTOBJ_DYING;
     } else if (!(w->flags & EFT_BLASTOBJ_NO_HIT)) {
@@ -487,7 +487,7 @@ void EftBlastObj_Reset(EftOTask *task) {
         w->flags |= EFT_BLASTOBJ_KILLED;
         EftEmit_KillAll(w->set, w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Draw callback: nothing (the pack parts and the model draw themselves). */

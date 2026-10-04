@@ -48,11 +48,11 @@ extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern void *BtlTask_CreateChildList(EftRTask *task, s32 count, s32 workSize);
 extern EftRTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001ADA58(EftRTask *task);                 /* kills the task */
-extern void func_001ADB78(EftRTask *task, s32 bits);       /* 0x800 / 0x1000: task of character 0 / 1 */
-extern EftRTask *func_001ADB98(EftRTask *task);            /* the manager task */
-extern s64 func_001ADD28(EftRTexAnim *tex, s32 a, s32 b);
-extern s64 func_001ADDC0(EftRTexAnim *tex);
+extern void BtlTask_SetDead(EftRTask *task);                 /* kills the task */
+extern void BtlTask_SetOwnerTag(EftRTask *task, s32 bits);       /* 0x800 / 0x1000: task of character 0 / 1 */
+extern EftRTask *BtlTask_GetParent(EftRTask *task);            /* the manager task */
+extern s64 EftVram_AddImage(EftRTexAnim *tex, s32 a, s32 b);
+extern s64 EftVram_AddClut(EftRTexAnim *tex);
 
 extern u64 *Battle_GetWork(void);
 extern void BtlScene_Reset(s32 mode);
@@ -83,7 +83,7 @@ extern EftRRec *EftHit_GetNew(void);
 extern void EftHit_Add(EftRRec *rec);
 extern EftRSphere *EftHitArena_AllocSphere(void);
 extern void EftHit_SetShapeSpheres(EftRRec *rec, EftRSphere *a, EftRSphere *b);
-extern void func_002399A0(EftRSphere *sphere, EftRVec *pos, f32 radius);
+extern void ColSphere_Set(EftRSphere *sphere, EftRVec *pos, f32 radius);
 
 extern void EftEmit_LoadSet(void *arg, void *set, s32 a2, s32 *pack, s32 a4, s32 a5);
 extern void EftEmit_FreeSet(void *set);
@@ -490,7 +490,7 @@ void EftStruggle_Update(EftRTask *task) {
 
 /* Task reset: dies. */
 void EftStruggle_Reset(EftRTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: nothing. */
@@ -528,7 +528,7 @@ void EftStruggle_Step(EftRTask *task) {
         w->flags |= EFT_STRUGGLE_END;
     }
     if (w->flags & EFT_STRUGGLE_END) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     one = 1.0f;
@@ -652,7 +652,7 @@ void EftClashSpark_Update(EftRTask *task) {
             w->timer += 1.0f;
         }
         if (w->flags & EFT_CSPARK_KILL) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             dead = 1;
             return;
         }
@@ -687,7 +687,7 @@ void EftClashSpark_Reset(EftRTask *task) {
         w->flags |= EFT_CSPARK_RESET;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task draw: nothing. */
@@ -818,7 +818,7 @@ void EftCharge_SpawnParts(s32 objId, EftRTask *task, EftRSet *set) {
 
 /* Task init. */
 void EftCharge_Init(EftRTask *task, s32 *arg) {
-    EftRMgr *mgr = func_001ADB98(task)->work;
+    EftRMgr *mgr = BtlTask_GetParent(task)->work;
     EftCharge *w = task->work;
     EftRSet *set = &mgr->set->set;
     s32 objId;
@@ -838,7 +838,7 @@ void EftCharge_Init(EftRTask *task, s32 *arg) {
     EftEmit_SetNode(&w->nodes, 0, 3, NULL);
     w->flags |= EFT_CHARGE_ALIVE;
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, arg[0] == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg[0] == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term: releases the emitter state and the fighter's task slot. */
@@ -883,7 +883,7 @@ void EftCharge_Update(EftRTask *task) {
         }
     }
     if (w->flags & EFT_CHARGE_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -895,7 +895,7 @@ void EftCharge_Reset(EftRTask *task) {
         w->flags |= EFT_CHARGE_RESET;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update (from the second frame on): notes whether a particle is alive, clears the phase mask. */
@@ -1046,8 +1046,8 @@ void EftKiBlast_AddHitRecord(EftRTask *task) {
     radius = w->radius * EftEmit_GetTrailWidth(&w->state);
     a = EftHitArena_AllocSphere();
     b = EftHitArena_AllocSphere();
-    func_002399A0(a, &w->pose.pos, radius);
-    func_002399A0(b, &w->pose.prev, radius);
+    ColSphere_Set(a, &w->pose.pos, radius);
+    ColSphere_Set(b, &w->pose.prev, radius);
     EftHit_SetShapeSpheres(rec, a, b);
     EftHit_Add(rec);
 }
@@ -1124,7 +1124,7 @@ void EftKiBlast_EndTrail(s32 objId, EftRTask *task, EftRSet *set) {
    replaced by the state's second width, which is still 0 at this point (the state is initialised after): such a
    blast would not move. */
 void EftKiBlast_Init(EftRTask *task, EftRArg *arg) {
-    EftRMgr *mgr = func_001ADB98(task)->work;
+    EftRMgr *mgr = BtlTask_GetParent(task)->work;
     EftKiBlast *w = task->work;
     EftRSet *set = &mgr->set->set;
 
@@ -1155,7 +1155,7 @@ void EftKiBlast_Init(EftRTask *task, EftRArg *arg) {
     if (BtlCharApi_IsLockedOn(arg->objId)) {
         w->flags |= EFT_KIBLAST_HOMING;
     }
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term. */
@@ -1211,7 +1211,7 @@ void EftKiBlast_Update(EftRTask *task) {
         }
     }
     if (w->flags & EFT_KIBLAST_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
     if (w->flags & EFT_KIBLAST_ENDING) {
         w->endCount++;
@@ -1226,7 +1226,7 @@ void EftKiBlast_Reset(EftRTask *task) {
         w->flags |= EFT_KIBLAST_RESET;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update: reacts to what the hit pass reported. Any end result (hit, guarded, stage, lost clash, left
@@ -1368,7 +1368,7 @@ void EftBlastCharge_SpawnParts(s32 objId, EftRTask *task, EftRSet *set) {
 
 /* Task init. */
 void EftBlastCharge_Init(EftRTask *task, EftBlastChargeArg *arg) {
-    EftRMgr *mgr = func_001ADB98(task)->work;
+    EftRMgr *mgr = BtlTask_GetParent(task)->work;
     EftBlastCharge *w = task->work;
     EftRSet *set = &mgr->set->set;
 
@@ -1384,14 +1384,14 @@ void EftBlastCharge_Init(EftRTask *task, EftBlastChargeArg *arg) {
     w->unk564 = w->arg.unk18;
     w->set = set;
     if (set == NULL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     EftEmit_InitState(set, &w->state);
     w->mask |= 1;
     EftEmit_SetNode(&w->nodes, 0, arg->node, NULL);
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term: releases the emitter state and the fighter's task slot. */
@@ -1413,7 +1413,7 @@ void EftBlastCharge_Update(EftRTask *task) {
     s32 dead; /* a dead store after a call keeps it from becoming a tail call, as in the original */
 
     if (w->set == NULL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (!BtlScene_IsEffectStopped(arg->objId, 0)) {
@@ -1425,7 +1425,7 @@ void EftBlastCharge_Update(EftRTask *task) {
         }
     }
     if (w->flags & EFT_BCHARGE_KILL) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         dead = 1;
     } else if (w->flags & EFT_BCHARGE_END) {
         EftBlastCharge_SpawnParts(w->arg.objId, task, w->set);
@@ -1435,7 +1435,7 @@ void EftBlastCharge_Update(EftRTask *task) {
 
 /* Task reset: dies. */
 void EftBlastCharge_Reset(EftRTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update (from the second frame on): refreshes which particles are alive, clears the phase mask. */
@@ -1551,8 +1551,8 @@ void EftKiBomb_AddHitRecord(EftRTask *task) {
     radius = w->radius;
     a = EftHitArena_AllocSphere();
     b = EftHitArena_AllocSphere();
-    func_002399A0(a, &w->pose.pos, radius);
-    func_002399A0(b, &w->pose.prev, radius);
+    ColSphere_Set(a, &w->pose.pos, radius);
+    ColSphere_Set(b, &w->pose.prev, radius);
     EftHit_SetShapeSpheres(rec, a, b);
     EftHit_Add(rec);
 }
@@ -1586,7 +1586,7 @@ void EftKiBomb_Launch(EftRTask *task) {
     w->spin = spin;
     w->spin = ((f32)rand() / 2147483647.0f < 0.5f) ? spin : -spin;
     Vec3_Scale(&w->pose.dir, &w->pose.dir, w->speed);
-    res = ((EftKiBombMgr *)func_001ADB98(task)->work)->res;
+    res = ((EftKiBombMgr *)BtlTask_GetParent(task)->work)->res;
     Mtx_StoreIdentity(&m);
     w->handle = EftObj_Create(w->handleBuf, res->model);
     if (w->handle != -1) {
@@ -1604,7 +1604,7 @@ void EftKiBomb_Init(EftRTask *task, EftRArg *arg) {
     w->arg.srcId = arg->objId;
     EftKiBomb_Launch(task);
     w->flags |= EFT_KIBOMB_SHOWN | EFT_KIBOMB_HITS;
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term: frees the model instance. */
@@ -1627,7 +1627,7 @@ void EftKiBomb_Update(EftRTask *task) {
             EftKiBomb_AddHitRecord(task);
         }
         if (w->flags & EFT_KIBOMB_KILL) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             dead = 1;
         }
     }
@@ -1635,7 +1635,7 @@ void EftKiBomb_Update(EftRTask *task) {
 
 /* Task reset: dies. */
 void EftKiBomb_Reset(EftRTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update. */
@@ -1908,8 +1908,8 @@ void EftKiObj_AddHitRecord(EftRTask *task) {
     radius = w->b.radius;
     a = EftHitArena_AllocSphere();
     b = EftHitArena_AllocSphere();
-    func_002399A0(a, &w->b.pose.pos, radius);
-    func_002399A0(b, &w->b.pose.prev, radius);
+    ColSphere_Set(a, &w->b.pose.pos, radius);
+    ColSphere_Set(b, &w->b.pose.prev, radius);
     EftHit_SetShapeSpheres(rec, a, b);
     EftHit_Add(rec);
 }
@@ -1958,7 +1958,7 @@ void EftKiObj_Launch(EftRTask *task) {
     Vec3_Scale(&w->b.pose.dir, &w->b.pose.dir, w->b.speed);
     w->b.unkD8 = 0;
     w->unk1D4 = 15;
-    res = ((EftKiBombMgr *)func_001ADB98(task)->work)->res;
+    res = ((EftKiBombMgr *)BtlTask_GetParent(task)->work)->res;
     Mtx_StoreIdentity(&m);
     w->b.handle = EftObj_Create(w->b.handleBuf, res->model);
     if (w->b.handle != -1) {
@@ -1971,8 +1971,8 @@ void EftKiObj_Launch(EftRTask *task) {
 /* Builds the GS TEX0 value of a texture header once. */
 void EftKiObj_StepTex(EftRTexAnim *tex) {
     if (tex != NULL && !(tex->flags & 1)) {
-        u64 a = func_001ADD28(tex, 1, 0);
-        u64 b = func_001ADDC0(tex);
+        u64 a = EftVram_AddImage(tex, 1, 0);
+        u64 b = EftVram_AddClut(tex);
 
         tex->tex0 = a | (b << 37);
         tex->flags |= 1;
@@ -1988,7 +1988,7 @@ void EftKiObj_Init(EftRTask *task, EftRArg *arg) {
     w->b.arg.srcId = arg->objId;
     EftKiObj_Launch(task);
     w->b.flags |= EFT_KIBOMB_SHOWN | EFT_KIBOMB_HITS;
-    func_001ADB78(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Task term: frees the model instance. */
@@ -2012,7 +2012,7 @@ void EftKiObj_Update(EftRTask *task) {
             EftKiObj_AddHitRecord(task);
         }
         if (w->b.flags & EFT_KIBOMB_KILL) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
             dead = 1;
         } else {
             EftKiObj_StepTex(w->tex);

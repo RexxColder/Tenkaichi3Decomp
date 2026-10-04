@@ -34,7 +34,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void BtlFacade_StartCharMoveF(s32 side, s32 type, f32 value, s32 mode) __asm__("BtlFacade_PlayCharMotion");
 
 /* the text module's default window (0x23AC50, not decompiled) */
-extern BtlScriptCmdWindow *func_0023AC50(void);
+extern BtlScriptCmdWindow *Font_GetStyle(void);
 /* start position and direction of a side (0x2427A0, stage code, not decompiled) */
 extern void BtlStage_GetStartPlace(s32 side, Vec4 *pos, Vec4 *rot, s32 arg);
 /* called with a second argument (0) that BtlFacade_SetCpuParam8 does not take */
@@ -497,7 +497,7 @@ s32 BtlScriptCmd_SetWindow(u32 phase, void *taskWork) {
         if (Gsc_GetInt() == 1) {
             Gsc_FindOption('n');
             win = (BtlScriptCmdWindow *)BtlScript_GetWindow(Gsc_GetIntOr(0));
-            *win = *func_0023AC50();
+            *win = *Font_GetStyle();
             Gsc_FindOption('d');
             win->x = Gsc_GetIntOr(0);
             win->y = Gsc_GetIntOr(0);

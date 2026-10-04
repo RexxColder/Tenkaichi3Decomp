@@ -41,7 +41,7 @@ extern void func_00121950(EftSurfVtx *out, f32 *pos, f32 *st, f32 *color);
 
 extern void *BtlTask_CreateChildList(void *task, s32 capacity, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, void *cls, void *arg);
-extern void func_001AD678(void *task);
+extern void BtlTask_DestroyChildList(void *task);
 extern s32 BtlStage_IsReady(void);
 
 /* Stage records (stg_b.c). */
@@ -57,12 +57,12 @@ extern void StgTint_GetColor0(s32 *out);
 extern s32 StgTint_IsOn(s32 arg);
 
 /* Texture tables (0x1AD..0x1AE). */
-extern void func_001AE148(EftTexTbl *tbl, s32 *data);
-extern void func_001AE1F8(EftTexEntry *tex, s32 *data);
+extern void EftTexSet_Load32(EftTexTbl *tbl, s32 *data);
+extern void EftTexSet_Load4(EftTexEntry *tex, s32 *data);
 extern void EftTexSet_Load34(EftSurfTexTbl *tbl, s32 *data);
-extern void func_001ADEA0(EftTexTbl *tbl, s32 a, s32 b);
-extern void func_001ADF20(EftTexEntry *tex, s32 a, s32 b);
-extern u64 func_001ADC68(EftSurfSlot *slot, s32 a, s32 b);
+extern void EftTexSet_Keep32(EftTexTbl *tbl, s32 a, s32 b);
+extern void EftTexSet_Keep4(EftTexEntry *tex, s32 a, s32 b);
+extern u64 EftVram_AddTex(EftSurfSlot *slot, s32 a, s32 b);
 extern void func_0010A5A0(EftSurfBuf *buf, s32 id);
 
 /* Sprite draws of the effect core. */
@@ -89,8 +89,8 @@ extern void func_00121D48(s32 (*xyz)[4], Vec4 *st, EftSurfVtx *poly, s32 count);
 extern void EftMath_CalcTangentFrame(Mtx44 *out, EftVec *a, EftVec *b);
 extern void EftGfx_LightClutDiffuse(EftSurfClut *dst, EftSurfClut *src, Vec4 *light, u8 r, u8 g, u8 b);
 extern void EftGfx_LightClutSpecular(EftSurfClut *dst, EftSurfClut *src, Mtx44 *view, Mtx44 *frame, Vec4 *light, f32 k);
-extern u64 func_001ADD28(EftTexEntry *tex, s32 a, s32 b);
-extern s32 func_001ADDC0(EftTexEntry *tex);
+extern u64 EftVram_AddImage(EftTexEntry *tex, s32 a, s32 b);
+extern s32 EftVram_AddClut(EftTexEntry *tex);
 
 /* eft_d.c */
 extern void EftSurf_DrawPolyOtClipped(EftSurfVtx *poly, s32 unused, u64 *tex, Vec4 *fog, s32 zBias);
@@ -314,7 +314,7 @@ void EftWeather_Init(EftTask *task) {
         gEftWeather->wind.y = rec->wind[1];
         gEftWeather->wind.z = rec->wind[2];
         gEftWeather->flags = rec->ptclFlags;
-        func_001AE148(&gEftWeather->tex, BtlScene_GetPackEntry(pack, 0xB));
+        EftTexSet_Load32(&gEftWeather->tex, BtlScene_GetPackEntry(pack, 0xB));
         gEftWeather->list = BtlTask_CreateChildList(task, 1, EFT_WEATHER_PTCL_MAX * sizeof(EftWeatherPtcl));
         gEftWeather->enabled = 1;
         BtlTaskList_AddTail(gEftWeather->list, &gEftWeatherPtclClass, NULL);
@@ -546,7 +546,7 @@ void EftWeather_Move(EftWeatherPtcl *p, EftWeatherView *view, s32 count) {
 
 /* Particle task update: refreshes the weather textures. */
 void EftWeatherPtcl_Update(void) {
-    func_001ADEA0(&gEftWeather->tex, 1, 0);
+    EftTexSet_Keep32(&gEftWeather->tex, 1, 0);
 }
 
 /* Particle task post-update: nothing. */
@@ -804,7 +804,7 @@ void EftStage_Update(void) {
 void EftStage_FreeKinds(void) {
     if (gEftStage->list != NULL) {
         BtlPool_SetCurrent(2);
-        func_001AD678(gEftStage->task);
+        BtlTask_DestroyChildList(gEftStage->task);
         gEftStage->list = NULL;
     }
 }
@@ -925,7 +925,7 @@ s32 EftStage_LoadSprite(void) {
             gEftStage->flags &= ~EFT_STAGE_FLAG_SUN;
         }
         if (gEftStage->flags & EFT_STAGE_FLAG_SUN) {
-            func_001AE1F8(&gEftStage->sprite, BtlScene_GetPackEntry(pack, 0x14));
+            EftTexSet_Load4(&gEftStage->sprite, BtlScene_GetPackEntry(pack, 0x14));
         }
     }
 }
@@ -933,7 +933,7 @@ s32 EftStage_LoadSprite(void) {
 /* Refreshes the sprite texture. */
 void EftStage_UpdateSprite(void) {
     if (BtlStage_IsReady() && (gEftStage->flags & EFT_STAGE_FLAG_SUN)) {
-        func_001ADF20(&gEftStage->sprite, 1, 0);
+        EftTexSet_Keep4(&gEftStage->sprite, 1, 0);
     }
 }
 
@@ -1107,7 +1107,7 @@ void EftSurf_UpdateTextures(EftSurfFile *file) {
     for (i = 0; i < file->texCount; i++) {
         gEftSurf->u.slot[i + 1].def = tex;
         gEftSurf->u.slot[i + 1].unk0 = tex->unk30;
-        tex->tex0 = func_001ADC68(&gEftSurf->u.slot[i + 1], 1, 0);
+        tex->tex0 = EftVram_AddTex(&gEftSurf->u.slot[i + 1], 1, 0);
         tex++;
     }
     if (rt->flags & EFT_SURF_RT_ON) {
@@ -1872,11 +1872,11 @@ void EftSurf_RenderPalettes(void) {
         view.m[1][2] = 0.5f;
     }
     EftGfx_LightClutSpecular(rt->buf[2].clut, rt->buf[0].clut, &view, &rt->frame, &rt->light, rt->param.unk30);
-    src->tex0 = func_001ADD28(src, 1, 0);
+    src->tex0 = EftVram_AddImage(src, 1, 0);
     dst = EftSurfRt_GetTex(rt, rt->texA + rt->flip);
     dst->def->data->clut = *rt->buf[1].clut;
-    dst->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)func_001ADDC0(dst) << 37);
+    dst->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)EftVram_AddClut(dst) << 37);
     dst2 = EftSurfRt_GetTex(rt, rt->texB + rt->flip);
     dst2->def->data->clut = *rt->buf[2].clut;
-    dst2->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)func_001ADDC0(dst2) << 37);
+    dst2->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)EftVram_AddClut(dst2) << 37);
 }

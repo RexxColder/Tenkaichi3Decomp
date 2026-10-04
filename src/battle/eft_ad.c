@@ -28,12 +28,12 @@ extern void *gEftShockClass[6];
 extern void *memset(void *dst, s32 c, u32 n);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void EftZap_Update(EftAdTask *task);                  /* the zap task's update (file before this one) */
-extern s32 func_001ADD28(EftAdTex *tex, s32 a1, s32 a2);     /* TEX0 of a table entry */
-extern s32 func_001ADDC0(EftAdTex *tex);                     /* palette block of a table entry */
-extern void func_001ADB78(void *task, s32 flag);             /* tags a task with its character (0x800 / 0x1000) */
-extern EftAdTask *func_001ADB98(EftAdTask *task);            /* the task that owns the list this task is in */
-extern void func_001ADA58(EftAdTask *task);                  /* kills the task */
-extern void func_001AE148(EftAdTexSet *set, void *data);     /* builds a texture set */
+extern s32 EftVram_AddImage(EftAdTex *tex, s32 a1, s32 a2);     /* TEX0 of a table entry */
+extern s32 EftVram_AddClut(EftAdTex *tex);                     /* palette block of a table entry */
+extern void BtlTask_SetOwnerTag(void *task, s32 flag);             /* tags a task with its character (0x800 / 0x1000) */
+extern EftAdTask *BtlTask_GetParent(EftAdTask *task);            /* the task that owns the list this task is in */
+extern void BtlTask_SetDead(EftAdTask *task);                  /* kills the task */
+extern void EftTexSet_Load32(EftAdTexSet *set, void *data);     /* builds a texture set */
 extern void *BtlTaskList_AddTail(void *list, void **cls, void *arg);
 extern void *BtlTask_CreateChildList(EftAdTask *task, s32 count, s32 workSize);
 extern s32 BtlPool_GetCurrent(void);
@@ -130,9 +130,9 @@ void EftZap_LoadTex(EftZap *w) {
 
     if (tex != NULL) {
         if (!(tex->loaded & (1U << w->texIdx))) {
-            u64 tex0 = func_001ADD28(&w->texPair[0], 1, 0);
+            u64 tex0 = EftVram_AddImage(&w->texPair[0], 1, 0);
 
-            tex0 |= (u64)func_001ADDC0(&w->texPair[1]) << 37;
+            tex0 |= (u64)EftVram_AddClut(&w->texPair[1]) << 37;
             tex->entry[w->texIdx].tex0 = tex0;
             tex->loaded |= 1U << w->texIdx;
         }
@@ -399,7 +399,7 @@ void EftShock_Init(EftAdTask *task, s32 *arg) {
 
     memset(w, 0, sizeof(EftShock));
     w->objId = arg[0];
-    func_001ADB78(task, arg[0] == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, arg[0] == 0 ? 0x800 : 0x1000);
     w->timer = 2;
 }
 
@@ -422,7 +422,7 @@ void EftShock_Term(EftAdTask *task) {
    apart and ends when both are gone. */
 void EftShock_Update(EftAdTask *task) {
     EftShock *w = task->work;
-    EftShockRes *res = ((EftShockMgr *)func_001ADB98(task)->work)->res;
+    EftShockRes *res = ((EftShockMgr *)BtlTask_GetParent(task)->work)->res;
     s32 *objId = &w->objId;
     s32 alive;
     s32 i;
@@ -447,7 +447,7 @@ void EftShock_Update(EftAdTask *task) {
             BtlCharApi_GetDir(*objId, (Vec4 *)&arg.dir);
             part[w->count + 4] = EftAnimPart_Create(&arg);
             EftAnimPart_SetType(part[w->count + 4], 3);
-            func_001ADB78(part[w->count + 4], *objId == 0 ? 0x800 : 0x1000);
+            BtlTask_SetOwnerTag(part[w->count + 4], *objId == 0 ? 0x800 : 0x1000);
             w->count++;
             w->flags |= EFT_SHOCK_WAIT;
         }
@@ -469,13 +469,13 @@ void EftShock_Update(EftAdTask *task) {
         }
     }
     if (w->flags & EFT_SHOCK_DONE) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
 /* Task reset: kills the task. */
 void EftShock_Reset(EftAdTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Task post-update: nothing. */
@@ -500,7 +500,7 @@ void EftShockMgr_Init(EftAdTask *task, s32 *arg) {
     if (res->pack != NULL) {
         res->anim = BtlScene_GetPackEntry(res->pack, 1);
         res->texData = BtlScene_GetPackEntry(res->pack, 2);
-        func_001AE148(&res->tex, res->texData);
+        EftTexSet_Load32(&res->tex, res->texData);
     }
     list = BtlTask_CreateChildList(task, 2, sizeof(EftShock));
     EftChar_SetList(arg[0], arg[1], list);

@@ -69,7 +69,7 @@ extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z 
 extern void func_00121F08(Vec4 *dst, Vec4 *a, Vec4 *b);       /* per-component product */
 extern void func_001220F0(EftAdScr *dst, Vec4 *src);          /* float vector to integer vector */
 extern s32 func_00122350(EftAdScr *out, Mtx44 *m, Vec4 *pos); /* projects one point; out->w = view depth */
-extern s32 func_001AA7E8(s32 x, s32 y, s32 z);                /* 1 = outside the GS drawing area */
+extern s32 EftSpr_IsOffScreen(s32 x, s32 y, s32 z);                /* 1 = outside the GS drawing area */
 
 /* Queues an upright camera-facing sprite at pos: w x h (half sizes, in screen units at the reference depth,
    scaled by 4096 * view scale / depth), one colour, uv rectangle (u0, v0)-(u1, v1). Dropped when smaller than
@@ -96,16 +96,16 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     if (w < 2 || h < 2) {
         return;
     }
-    if (func_001AA7E8(scr.x - w, scr.y - h, scr.z)) {
+    if (EftSpr_IsOffScreen(scr.x - w, scr.y - h, scr.z)) {
         return;
     }
-    if (func_001AA7E8(scr.x - w, scr.y + h, scr.z)) {
+    if (EftSpr_IsOffScreen(scr.x - w, scr.y + h, scr.z)) {
         return;
     }
-    if (func_001AA7E8(scr.x + w, scr.y + h, scr.z)) {
+    if (EftSpr_IsOffScreen(scr.x + w, scr.y + h, scr.z)) {
         return;
     }
-    if (func_001AA7E8(scr.x + w, scr.y - h, scr.z)) {
+    if (EftSpr_IsOffScreen(scr.x + w, scr.y - h, scr.z)) {
         return;
     }
     p = (EftSprPkt *)gOtCur;
@@ -241,7 +241,7 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
         func_001220F0(&c[i], (Vec4 *)&f[i]);
     }
     for (i = 0; i < 4; i++) {
-        if (func_001AA7E8(scr.x + c[i].x, scr.y + c[i].y, scr.z)) {
+        if (EftSpr_IsOffScreen(scr.x + c[i].x, scr.y + c[i].y, scr.z)) {
             return;
         }
     }

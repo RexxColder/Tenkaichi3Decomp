@@ -108,7 +108,7 @@ typedef struct BtlCtlPose {
     /* 0xA8 [0xB8] */ u8 unkA8[0xF0 - 0xA8];
 } BtlCtlPose; /* 0xF0 */
 
-/* A model node as returned by func_002505A8(obj, index). */
+/* A model node as returned by BtlObj_GetNode(obj, index). */
 typedef struct BtlCtlNode {
     /* 0x00 */ s32 unk0;
     /* 0x04 */ u32 flags;   /* bit 0 cleared by the head tracking */

@@ -93,7 +93,7 @@ typedef struct EftTransRes {
 
 /* The 0x40-byte task of 0x1AD150.. as this module sees it. */
 typedef struct EftSteamTask {
-    /* 0x00 */ u8 flags;            /* bit 0: dead (set by func_001ADA58; the list update then kills the task) */
+    /* 0x00 */ u8 flags;            /* bit 0: dead (set by BtlTask_SetDead; the list update then kills the task) */
     /* 0x01 */ u8 unk1[0x27];
     /* 0x28 */ BtlTaskClass *cls;
     /* 0x2C */ u8 unk2C[0xC];
@@ -122,7 +122,7 @@ typedef struct EftSteamPart {
 /* Texture of the emitters. */
 typedef struct EftSteamTex {
     /* 0x00 */ u8 unk0[0x30];
-    /* 0x30 */ u64 tex0;       /* GS TEX0, renewed every frame by func_001ADC68(&tex0, 1, 0) */
+    /* 0x30 */ u64 tex0;       /* GS TEX0, renewed every frame by EftVram_AddTex(&tex0, 1, 0) */
 } EftSteamTex; /* size 0x38 */
 
 /* Shared state of the emitters: BtlPool_Alloc(0x90), gEftSteam (gp 0x2FE9DC). */
@@ -220,7 +220,7 @@ typedef struct EftWater {
     /* 0x6C */ u8 blastWait[2];         /* per character: splashes its technique records of kind 3 / 4 still skip */
     /* 0x6E */ u8 unk6E[2];
     /* 0x70 */ Mtx44 camMtx;            /* func_001202A0 of the view matrix with the translation zeroed */
-    /* 0xB0 */ u8 tex[0x210];           /* texture set built by func_001AE148 from stage pack entry 0x12 */
+    /* 0xB0 */ u8 tex[0x210];           /* texture set built by EftTexSet_Load32 from stage pack entry 0x12 */
 } EftWater; /* size 0x2C0 */
 
 /* The task that owns a hit record ("EftHitTask" in eft_a.h). */

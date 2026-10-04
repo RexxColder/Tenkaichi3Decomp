@@ -129,7 +129,7 @@ typedef struct EftJPieceArg {
 /* Work of the manager task of effect type 5, "multi" (class 0x2C3868). */
 typedef struct EftMultiMgr {
     /* 0x000 */ u8 unk0[8];
-    /* 0x008 */ u8 tex[0x204]; /* filled by func_001AE148 for ids 0x158 / 0x202 */
+    /* 0x008 */ u8 tex[0x204]; /* filled by EftTexSet_Load32 for ids 0x158 / 0x202 */
     /* 0x20C */ s32 unk20C;
     /* 0x210 */ EftJSet set;
     /* 0x34C */ u8 unk34C[0x1E4];

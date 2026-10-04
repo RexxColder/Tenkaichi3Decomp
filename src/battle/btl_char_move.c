@@ -90,7 +90,7 @@ extern s32 BtlParam_GetFlags2(BtlMoveChr *chr);
 extern s32 BtlChar_IsDead(BtlMoveChr *chr);
 extern s32 BtlChar_IsFree(BtlMoveChr *chr);
 extern s32 BtlChar_IsStage4Or27(void);
-extern void func_002398F0(BtlMoveSeg *seg, Vec4 *a, Vec4 *b);
+extern void ColSeg_Set(BtlMoveSeg *seg, Vec4 *a, Vec4 *b);
 extern s32 StgCol_TraceSegment(BtlMoveSeg *seg);
 extern void StgCol_GetHitPos(Vec4 *out);
 
@@ -1007,7 +1007,7 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
     scale = BtlCharApi_GetHeight(chr->objId);
     oppScale = BtlOpp_GetHeight(chr);
     tgt.y += BtlOpp_GetHalfHeightDiff(chr);
-    func_002398F0(&seg, &opp, &tgt);
+    ColSeg_Set(&seg, &opp, &tgt);
     if (StgCol_TraceSegment(&seg)) {
         f32 len3;
         f32 lenXZ;

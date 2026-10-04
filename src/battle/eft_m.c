@@ -52,8 +52,8 @@ extern void func_00120B80(Mtx44 *m);                        /* load the matrix *
 extern void func_00120AC8(void);                            /* pop */
 extern void func_00121950(void *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col);
 extern void EftGfx_DrawPolyAvgZFront(void *prim, s32 blend, s32 a2, s32 a3, s32 inView, s32 t1, u64 tex, s32 t3);
-extern void func_001AE1F8(EftSpdTex *tex, s32 *entry);
-extern void func_001ADF20(EftSpdTex *tex, s32 a, s32 b);
+extern void EftTexSet_Load4(EftSpdTex *tex, s32 *entry);
+extern void EftTexSet_Keep4(EftSpdTex *tex, s32 a, s32 b);
 extern EftMBattleWork *Battle_GetWork(void);
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -126,7 +126,7 @@ void EftSpdLine_Init(void) {
         gEftSpdLine = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftSpdLineWork));
         memset(gEftSpdLine, 0, sizeof(EftSpdLineWork));
     }
-    func_001AE1F8(gEftSpdLine->tex, BtlScene_GetCommonEntry(0x237));
+    EftTexSet_Load4(gEftSpdLine->tex, BtlScene_GetCommonEntry(0x237));
 }
 
 /* Frees the work. */
@@ -495,7 +495,7 @@ void EftSpdLine_DrawQuad(Vec4 *quad, Mtx44 *mtx, EftSpdTex *tex, f32 r, f32 g, f
 /* Keeps the textures referenced while any segment is alive. */
 void EftSpdLine_UpdateTexture(s32 a, s32 b) {
     if (gEftSpdLine->trailCount + gEftSpdLine->streakCount != 0) {
-        func_001ADF20(gEftSpdLine->tex, a, b);
+        EftTexSet_Keep4(gEftSpdLine->tex, a, b);
         gEftSpdLine->texReady = 1;
     } else {
         gEftSpdLine->texReady = 0;

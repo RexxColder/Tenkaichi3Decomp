@@ -40,14 +40,14 @@ typedef struct EftDetMtx {
     /* 0x00 */ EftDetVec row[4];
 } EftDetMtx; /* size 0x40 */
 
-/* Sphere as func_002399A0 fills it (EftHitSphere of battle/eft_a.h). */
+/* Sphere as ColSphere_Set fills it (EftHitSphere of battle/eft_a.h). */
 typedef struct EftDetSphere {
     /* 0x00 */ EftDetVec pos;
     /* 0x10 */ f32 radius;
     /* 0x14 */ f32 unk14[3];
 } EftDetSphere; /* size 0x20 */
 
-/* Capsule as func_00239588 fills it: a segment and a radius (EftHitBox of battle/eft_a.h, which calls it a box). */
+/* Capsule as ColCapsule_Set fills it: a segment and a radius (EftHitBox of battle/eft_a.h, which calls it a box). */
 typedef struct EftDetCapsule {
     /* 0x00 */ EftDetVec start;
     /* 0x10 */ EftDetVec end;
@@ -143,7 +143,7 @@ typedef struct EftDetList {
     /* 0x6400 */ s32 count;
 } EftDetList;
 
-/* Context of the stage test of one record: the swept volume func_00239620 builds from a capsule, then ours. */
+/* Context of the stage test of one record: the swept volume ColSweep_FromCapsule builds from a capsule, then ours. */
 typedef struct EftDetStageCtx {
     /* 0x00 */ EftDetVec unk0[2];
     /* 0x20 */ f32 radius;
@@ -202,8 +202,8 @@ typedef struct StgGroundCtx {
 typedef struct EftDetPart {
     /* 0x000 */ s32 flags;      /* bit 0: last part of the list */
     /* 0x004 */ u8 unk4[0x1C];
-    /* 0x020 */ u8 box[0x20];   /* oriented volume tested by func_00237A10 / func_00237838 (projectiles) */
-    /* 0x040 */ u8 vol[0x190];  /* volume tested by func_00236B10 / ColObb_Overlaps (strikes) */
+    /* 0x020 */ u8 box[0x20];   /* oriented volume tested by ColSphere_SweepSphere / ColSphere_TestSphere (projectiles) */
+    /* 0x040 */ u8 vol[0x190];  /* volume tested by ColSphere_ContactObb / ColObb_Overlaps (strikes) */
 } EftDetPart; /* size 0x1D0 */
 
 /* Work buffer of a fighter object (BtlCollObjWork of battle/btl_char_coll.h). */
@@ -228,7 +228,7 @@ typedef struct EftDetBodyPos {
     /* 0x4 */ f32 y;
 } EftDetBodyPos;
 
-/* Model node as func_002505A8 returns it (BtlObjPart of battle/btl_obj.h). */
+/* Model node as BtlObj_GetNode returns it (BtlObjPart of battle/btl_obj.h). */
 typedef struct EftDetNodeMtx {
     /* 0x00 */ u8 unk0[0x10];
     /* 0x10 */ f32 mtx[4][4];   /* row 3 = position */
@@ -256,7 +256,7 @@ typedef struct EftDetObj {
     /* 0x1660 */ EftDetObjWork *work;
 } EftDetObj;
 
-/* Entry of a "texture set" (see func_001AE148 in the file before): GS TEX0 value and image. */
+/* Entry of a "texture set" (see EftTexSet_Load32 in the file before): GS TEX0 value and image. */
 typedef struct EftTexSetEntry {
     /* 0x0 */ u64 tex0;
     /* 0x8 */ void *image;

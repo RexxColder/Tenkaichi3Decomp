@@ -261,6 +261,32 @@ follow), check first that the new name is not used anywhere, then reconfigure an
   name (`gEftZapMgr`): fdiff does not need the address of a `$gp` global, the linker does. Find it from the
   `$gp` offset in the original (`_gp` = start of `.lit4` + 0x7FF0) and add it to the defining module's file.
 
+- Lessons of the last integration (eft_ae, col_b / col_c, bobj, the AI sequence; build/scratch_integrate6/):
+  - Mechanical merge when the SECOND part defines functions that the first part declared with other types and the
+    second part's header also declares them: `merge5.py` then hides the header's declarations and adds cast
+    macros, which rewrite the definitions (parse errors at each definition). Give it the aliased declarations
+    instead: `WORKDIR/sub1.txt` replaces each such `extern` of part 1 by
+    `extern T f_a(args) __asm__("f");` / `#define f f_a`, and `WORKDIR/pre2.txt` puts the `#undef f` lines (and
+    the `#undef` of any macro constant both headers define, `BOBJ_NODE_MAX`) at the top of part 2
+    (`src/battle/bobj_a.c`). The copy of merge5.py in scratch_integrate6 accepts `\n` in the replacement text.
+  - Replacing a block of INCLUDE_ASM lines at the top of a linked file with their C (btl_ai_seq_a.c into
+    btl_ai_seq.c) moves only the START of the file's `.lit4`: the assembly chunk in front of it was those
+    functions' constants. List the file's `.lit4` at the chunk's start and delete the old line; `.rodata` does
+    not move (the jump tables were already in the object through the INCLUDE_ASM .s files), and an
+    `INCLUDE_RODATA` table becomes the local initialiser of the function that owns it.
+  - An empty function (a stripped assert) that callers in ANOTHER file need to be known as side-effect free:
+    declare it `__attribute__((const))` in the callers' file, and give the defining file the same prototype in
+    front of the definition (`EftTexSet_CheckCount`, eft_ae.c / eft_det_a.c). It replaces a merge.
+  - `place.py` cannot place a `.rodata` that is mostly jump tables (every word is a relocation, so it "matches"
+    everywhere): take the address from the `jtbl_` labels of the assembly chunk that the file's code range owns,
+    link, and check the object's section size against the span. For a file with an `INCLUDE_RODATA` the `.rodata`
+    subsegment has to be listed (with a provisional end) before the object can be assembled at all.
+  - `enable.py` / `tryall.py` / `stub.py` expect `#if 0` alone on its line; an attempt written as
+    `#if 0 /* comment` ... `#else` INCLUDE_ASM `#endif` (eft_ae.c) has to be tried by hand.
+  - With every symbol file listed, `scripts/apply_names.py` runs as is. Order that worked: list the new symbol
+    files in both yamls, check duplicates over ALL symbol files, run the name pass, pass the gate, and only then
+    add the new `c` subsegments. All five new objects then linked byte-identical at the first attempt.
+
 ## Scratch files
 Each agent uses its own subfolder for scratch scripts. Run Python scratch files with
 `python3 file.py`, never as `./file.py` or `sh file.py` (a shell runs `import` as ImageMagick's

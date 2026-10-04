@@ -24,9 +24,9 @@
  *     EftHit_HasDefFlag200000(rec)   1 when rec+0x68 is 0 and rec+0x64 points at a task without flag 0x200000
  *   0x1C-byte block at gp 0x2FE9B0: EftCam_Init init / EftCam_Term term / EftCam_Clear clear /
  *     EftCam_Update per-frame / EftCam_IsActive returns its word +0xC
- *   func_001ADBA8 init / func_001ADC00 term: 0x80C-byte block at gp 0x2FEAF4
- *   func_001AA818 init / func_001AA850 term: 0xC200-byte block at gp 0x2FEAE8
- *   EftSurf_BuildPalettes, func_001AE0A0, func_001AE118, EftGfx_UpdateClipPlanes   draw work shared by all tasks
+ *   EftVram_Init init / EftVram_Term term: 0x80C-byte block at gp 0x2FEAF4
+ *   EftSprAnim_InitPool init / EftSprAnim_TermPool term: 0xC200-byte block at gp 0x2FEAE8
+ *   EftSurf_BuildPalettes, EftVram_UploadAll, EftVram_Reset, EftGfx_UpdateClipPlanes   draw work shared by all tasks
  *   EftChar_Kill / EftChar_Create, EftShot_DestroyChar / EftShot_CreateChar   free / create a character's task in
  *     layer 2 and in layer 1
  *   EftWater_UpdateBlast, EftBubble_OnBlastRecord   per-record update
@@ -96,12 +96,12 @@ extern void EftShot_DestroyChar(s32 chr);
 extern void EftShot_CreateChar(s32 chr);
 extern void EftChar_Kill(s32 chr);
 extern void EftChar_Create(s32 chr);
-extern void func_001AA818(void);
-extern void func_001AA850(void);
-extern void func_001ADBA8(void);
-extern void func_001ADC00(void);
-extern void func_001AE0A0(void);
-extern void func_001AE118(void);
+extern void EftSprAnim_InitPool(void);
+extern void EftSprAnim_TermPool(void);
+extern void EftVram_Init(void);
+extern void EftVram_Term(void);
+extern void EftVram_UploadAll(void);
+extern void EftVram_Reset(void);
 extern s32 BtlChars_IsTimeStopped(void);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 BtlCharApi_IsFighter(s32 objId);
@@ -136,11 +136,11 @@ void BtlScene_Init(s32 layerMask) {
         BtlScene_SetSingleView(1);
     }
     BtlPool_Init(0);
-    func_001ADBA8();
+    EftVram_Init();
     EftHit_Init();
     EftCam_Init();
     BtlScene_InitRates();
-    func_001AA818();
+    EftSprAnim_InitPool();
     gBtlScene->root = BtlTaskList_Create(NULL, 1, 0);
     BtlTaskList_AddFirst(gBtlScene->root, &gBtlSceneRootClass, NULL);
 }
@@ -151,9 +151,9 @@ void BtlScene_Term(void) {
     BtlTaskList_Destroy(gBtlScene->root);
     EftHit_Term();
     EftCam_Term();
-    func_001ADC00();
+    EftVram_Term();
     BtlScene_TermRates();
-    func_001AA850();
+    EftSprAnim_TermPool();
     BtlPool_Term();
     BtlPool_SetInitArg(0);
     if (gBtlScene != NULL) {
@@ -212,9 +212,9 @@ void BtlScene_Draw(s32 first) {
     if (first) {
         EftSurf_BuildPalettes();
         if (BtlStage_IsReady()) {
-            func_001AE0A0();
+            EftVram_UploadAll();
         }
-        func_001AE118();
+        EftVram_Reset();
     }
     EftGfx_UpdateClipPlanes();
     BtlTaskList_Draw(gBtlScene->root);

@@ -45,7 +45,7 @@ extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
 extern void *BtlTask_CreateChildList(void *task, s32 count, s32 workSize);
-extern void func_001ADA58(EftXTask *task);                       /* kills a task */
+extern void BtlTask_SetDead(EftXTask *task);                       /* kills a task */
 extern s32 BtlScene_IsEffectStopped(s32 objId, s32 kind);
 extern s32 BtlScene_IsEffectHidden(s32 objId, s32 kind);
 extern s32 BtlScene_IsCharInView(s32 objId);
@@ -193,7 +193,7 @@ void EftQuad_Update(EftXTask *task) {
             em->flags |= EFT_PART9_DEAD;
         }
         if (em->flags & EFT_PART9_DEAD) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
         if (em->flags & EFT_PART9_KEYANIM) {
             EftQuad_CalcKeyDeltas(task);
@@ -242,7 +242,7 @@ void EftQuad_Draw(EftXTask *task) {
 
 /* Emitter reset callback: the emitter does not survive a scene reset. */
 void EftQuad_Reset(EftXTask *task) {
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Emitter term callback: frees its particles. */

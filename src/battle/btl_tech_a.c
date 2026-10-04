@@ -74,7 +74,7 @@ extern s32 BtlCharApi_GetButtonIcon(BtlTechChr *chr, s32 cmd);  /* button 0..3 t
 extern s32 BtlSuper_GetPromptRowIndex(BtlTechChr *chr, s32 idx);  /* (obj + 0x92C)[0x227 + idx], signed */
 /* Animation events of layer `layer` whose attribute word has a bit of `mask`: what 2 = frame of the last one,
    3 = how many there are. */
-extern s32 func_0024D610(BtlTechObj *obj, s32 mask, s32 layer, s32 what);
+extern s32 BtlObjAnim_QueryEvent(BtlTechObj *obj, s32 mask, s32 layer, s32 what);
 
 /* ---- queries by side -------------------------------------------------------------------------------------------- */
 
@@ -716,7 +716,7 @@ s32 BtlAtk_GetId(BtlTechChr *chr) {
         return BtlAtk_GetActionRow(action - 0x70)->atkId;
     }
     frame = BtlAnim_GetFrame(chr);
-    last = func_0024D610(obj, 1, 0, 2);
+    last = BtlObjAnim_QueryEvent(obj, 1, 0, 2);
     switch (action) {
         case 0x46:
             switch (anim) {
@@ -982,7 +982,7 @@ s32 BtlAtk_GetDamage(BtlTechChr *chr) {
 
     val = val * BtlStat_GetMeleeDamageScale(chr);
     val = BtlAtk_ApplyAbilities(chr, val, id);
-    hits = func_0024D610(obj, 1, 0, 3);
+    hits = BtlObjAnim_QueryEvent(obj, 1, 0, 3);
     if (hits >= 2) {
         val /= hits;
     }
@@ -1003,7 +1003,7 @@ s32 BtlAtk_GetGuardDamage(BtlTechChr *chr) {
         }
     }
     val = BtlAtk_ApplyAbilities(chr, val, id);
-    hits = func_0024D610(obj, 1, 0, 3);
+    hits = BtlObjAnim_QueryEvent(obj, 1, 0, 3);
     if (hits >= 2) {
         val /= hits;
     }
@@ -1031,7 +1031,7 @@ s32 BtlAtk_GetKiGain(BtlTechChr *chr) {
     } else if (BtlMember_HasAbility(chr, 0x20)) {
         val += val / 4;
     }
-    hits = func_0024D610(obj, 1, 0, 3);
+    hits = BtlObjAnim_QueryEvent(obj, 1, 0, 3);
     if (hits > 0) {
         val /= hits;
     }
@@ -1055,7 +1055,7 @@ s32 BtlAtk_GetGuardKiCost(BtlTechChr *chr) {
 s32 BtlAtk_GetUnk10(BtlTechChr *chr) {
     BtlTechObj *obj = BtlChar_GetObj(chr);
     s32 val = BtlAtk_GetRecord(chr, NULL)->unk10;
-    s32 hits = func_0024D610(obj, 1, 0, 3);
+    s32 hits = BtlObjAnim_QueryEvent(obj, 1, 0, 3);
 
     if (hits > 0) {
         val /= hits;
@@ -1429,7 +1429,7 @@ s32 BtlParam_GetUnkB1(BtlTechChr *chr, s32 n) {
     return BtlChar_GetObj(chr)->param->fusionSeq[n];
 }
 
-/* Aura kind (passed to func_0024FE78 on the object): parameter +0x03, replaced by 0..10 when the member has one of
+/* Aura kind (passed to BtlObj_SetColorPreset on the object): parameter +0x03, replaced by 0..10 when the member has one of
    abilities 0x4D..0x53, 0x74, 0x54..0x56 (first match in that order). */
 s32 BtlParam_GetAuraKind(BtlTechChr *chr) {
     s32 v = BtlChar_GetObj(chr)->param->auraKind;

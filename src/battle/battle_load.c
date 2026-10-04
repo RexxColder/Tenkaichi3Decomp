@@ -93,8 +93,8 @@ extern s32 BtlRes_Request(s32 arg, s32 file, s32 file8, s32 file9);
 extern s32 BtlRes_GetSlot(s32 handle);
 extern void BtlRes_Reload(s32 id, s32 file, s32 file8, s32 file9);
 extern void BtlRes_CommitReload2(void);
-extern void func_0024D330(s32 obj, s32 arg, s32 arg2);
-extern void func_0024D390(s32 obj, s32 arg, s32 arg2);
+extern void BtlObjAnim_PlayAuto(s32 obj, s32 arg, s32 arg2);
+extern void BtlObjAnim_PlayModel(s32 obj, s32 arg, s32 arg2);
 
 /* Script / message objects. */
 extern void Gsc_InitDefault(s32 *tbl);
@@ -343,7 +343,7 @@ s32 BtlLoad_StepObject(BtlJob *job) {
         switch (job->kind) {
         case 0:
             gBtlLoadObj = BtlObj_Create(2, BtlRes_GetSlot(gBtlLoadHandle), 1);
-            func_0024D390(BtlObj_Get(gBtlLoadObj), 0, 2);
+            BtlObjAnim_PlayModel(BtlObj_Get(gBtlLoadObj), 0, 2);
             break;
         case BTL_JOB_KIND_OBJECT:
             gBtlLoadObj = BtlObj_Create(job->costume, BtlRes_GetSlot(gBtlLoadHandle), 1);
@@ -436,7 +436,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         BtlObj_Rebind(BattleSide_GetObjId(job->side), BattleSide_GetModelSlot(job->side));
         switch (job->kind) {
         case 0:
-            func_0024D330(BtlObj_Get(BattleSide_GetObjId(job->side)), 0, 2);
+            BtlObjAnim_PlayAuto(BtlObj_Get(BattleSide_GetObjId(job->side)), 0, 2);
             break;
         case BTL_JOB_KIND_CHANGE:
             BtlChars_OnModelLoaded(job->side);

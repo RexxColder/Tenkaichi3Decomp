@@ -78,7 +78,7 @@ extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out); /* world posi
 extern s32 BtlParam_GetFlags(BtlCollChr *chr);            /* parameter word +0x10 of the fighter's object */
 extern s32 BtlParam_GetUnk2(BtlCollChr *chr);
 extern f32 BtlParam_GetUnkC7Scale(BtlCollChr *chr);
-extern s32 func_0024D610(BtlCollObj *obj, s32 arg1, s32 arg2, s32 arg3);
+extern s32 BtlObjAnim_QueryEvent(BtlCollObj *obj, s32 arg1, s32 arg2, s32 arg3);
 extern s32 BtlStage_GetWaterLevel(f32 *height);
 extern s32 EftHit_GetHitCount(BtlCollHit *hit);
 
@@ -638,7 +638,7 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
         if (n > 0 && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {
             react = BTL_REACT_NOFLINCH;
         } else if ((stFlags & 0x100) && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {
-            if (func_0024D610(obj, 1, 0, 3) == 0) {
+            if (BtlObjAnim_QueryEvent(obj, 1, 0, 3) == 0) {
                 react = BTL_REACT_NOFLINCH;
             } else if (obj->unkCAD != ~obj->unkCAC) {
                 react = BTL_REACT_NOFLINCH;

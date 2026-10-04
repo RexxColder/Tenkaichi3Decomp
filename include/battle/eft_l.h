@@ -32,7 +32,7 @@ typedef struct EftTask {
     /* 0x00 */ u8 unk0;
     /* 0x01 */ u8 step;      /* state of the module's update switch */
     /* 0x02 */ u16 unk2;
-    /* 0x04 */ u32 flags;    /* 0x800 / 0x1000: belongs to character 0 / 1 (func_001ADB78). Written by the hit record
+    /* 0x04 */ u32 flags;    /* 0x800 / 0x1000: belongs to character 0 / 1 (BtlTask_SetOwnerTag). Written by the hit record
                                 code: 1 = the record hit something, 2 = it is over, 4 = (also ends the effect) */
     /* 0x08 */ u16 hit;      /* written by the hit record code: 1 = the volume was moved (hitPos is its new head),
                                 4 = start the end timer */
@@ -51,8 +51,8 @@ typedef struct EftTechDef {
     /* 0x04 */ s8 unk4;       /* not 0: the term callback sets the fighter's held flag 0xA8 (rush shot) / 0xA9
                                  (ring shot) */
     /* 0x05 */ u8 unk5[3];
-    /* 0x08 */ s8 hitShape;   /* 0: two spheres (func_002399A0, EftHit_SetShapeSpheres), 1: two boxes
-                                 (func_00239588, EftHit_SetShapeBoxes) */
+    /* 0x08 */ s8 hitShape;   /* 0: two spheres (ColSphere_Set, EftHit_SetShapeSpheres), 1: two boxes
+                                 (ColCapsule_Set, EftHit_SetShapeBoxes) */
     /* 0x09 */ s8 unk9;       /* multiplied by count: total number of shots */
     /* 0x0A */ u8 unkA[0x28 - 0xA];
     /* 0x28 */ s32 unk28;     /* frames; / 30 is the blast objects' delay in variant 2 */

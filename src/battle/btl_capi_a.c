@@ -16,8 +16,8 @@
  *     makes with jal;
  *   - the action-id tests are switches (slti ladders), not range compares.
  *
- * Callees still named by address: func_002505A8(obj, node) model node or NULL, func_00250570(obj, n),
- * func_00250940(obj, node, out), func_00250B88(obj, vec, arg), func_00121E18 / func_00121E20 zero a vector (the
+ * Callees still named by address: BtlObj_GetNode(obj, node) model node or NULL, BtlObj_FindBound(obj, n),
+ * BtlObj_GetNodeVelocity(obj, node, out), BtlObj_AddPush(obj, vec, arg), func_00121E18 / func_00121E20 zero a vector (the
  * first is used for positions, the second for directions and rotations), func_00120230 copies a matrix,
  * func_00122698(out, v, axis, angle) turns v about axis.
  */
@@ -49,10 +49,10 @@ extern s32 BtlAnim_GetFlags(s32 anim);
 extern s32 BtlParam_GetFlags(BtlCapiChr *chr);    /* parameter word +0x10 */
 extern s32 BtlParam_GetAuraKind(BtlCapiChr *chr); /* parameter byte +3, replaced by abilities 0x4D.. */
 extern s32 BtlSuper_GetFlags(BtlCapiChr *chr, s32 slot); /* attribute word of technique `slot` */
-extern BtlCapiNode *func_002505A8(BtlCapiObj *obj, s32 node);
-extern BtlCapiPart *func_00250570(BtlCapiObj *obj, s32 n);
-extern void func_00250940(BtlCapiObj *obj, s32 node, Vec4 *out);
-extern void func_00250B88(BtlCapiObj *obj, Vec4 *v, f32 arg);
+extern BtlCapiNode *BtlObj_GetNode(BtlCapiObj *obj, s32 node);
+extern BtlCapiPart *BtlObj_FindBound(BtlCapiObj *obj, s32 n);
+extern void BtlObj_GetNodeVelocity(BtlCapiObj *obj, s32 node, Vec4 *out);
+extern void BtlObj_AddPush(BtlCapiObj *obj, Vec4 *v, f32 arg);
 
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -423,7 +423,7 @@ void BtlCharApi_GetModelRot(s32 objId, Vec4 *out) {
         obj = BtlObj_Get(objId);
         if (obj != NULL) {
             Vec4_Copy(out, &obj->rot);
-            node = func_002505A8(obj, 0);
+            node = BtlObj_GetNode(obj, 0);
             if (node != NULL) {
                 Vec4_Copy((Vec4 *)&q, (Vec4 *)&node->rot);
                 Quat_ToEuler(&euler, &q);
@@ -528,7 +528,7 @@ void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out) {
     BtlCapiNode *n;
 
     if (obj != NULL) {
-        n = func_002505A8(obj, node);
+        n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
             Vec4_Copy(out, (Vec4 *)&n->mtx.m[3]);
             return;
@@ -547,7 +547,7 @@ void BtlCharApi_GetNodeUnk90(s32 objId, s32 node, Vec4 *out) {
     BtlCapiNode *n;
 
     if (obj != NULL) {
-        n = func_002505A8(obj, node);
+        n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
             Vec4_Copy(out, &n->unk90);
             return;
@@ -566,7 +566,7 @@ void BtlCharApi_GetNodeMtx(s32 objId, s32 node, Mtx44 *out) {
     BtlCapiNode *n;
 
     if (obj != NULL) {
-        n = func_002505A8(obj, node);
+        n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
             func_00120230(out, &n->mtx);
             return;
@@ -585,7 +585,7 @@ void BtlCharApi_GetNodeMtx50(s32 objId, s32 node, Mtx44 *out) {
     BtlCapiNode *n;
 
     if (obj != NULL) {
-        n = func_002505A8(obj, node);
+        n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
             func_00120230(out, &n->unk50);
             return;
@@ -598,12 +598,12 @@ void BtlCharApi_GetNodeMtx50(s32 objId, s32 node, Mtx44 *out) {
     }
 }
 
-/* func_00250940(obj, node, out) on the object, zero for no object. No caller. */
+/* BtlObj_GetNodeVelocity(obj, node, out) on the object, zero for no object. No caller. */
 void BtlCharApi_GetNodeRot(s32 objId, s32 node, Vec4 *out) {
     BtlCapiObj *obj = BtlObj_Get(objId);
 
     if (obj != NULL) {
-        func_00250940(obj, node, out);
+        BtlObj_GetNodeVelocity(obj, node, out);
         return;
     }
     func_00121E20(out);
@@ -615,7 +615,7 @@ void BtlCharApi_GetNodeQuat(s32 objId, s32 node, Quat *out) {
     BtlCapiNode *n;
 
     if (obj != NULL) {
-        n = func_002505A8(obj, node);
+        n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
             Vec4_Copy((Vec4 *)out, (Vec4 *)&n->rot);
             return;
@@ -628,13 +628,13 @@ void BtlCharApi_GetNodeQuat(s32 objId, s32 node, Quat *out) {
     }
 }
 
-/* Float +0x5C of what func_00250570(obj, n) returns, 1.0 when there is none. */
+/* Float +0x5C of what BtlObj_FindBound(obj, n) returns, 1.0 when there is none. */
 f32 BtlCharApi_GetPartUnk5C(s32 objId, s32 n) {
     BtlCapiObj *obj = BtlObj_Get(objId);
     BtlCapiPart *part;
 
     if (obj != NULL) {
-        part = func_00250570(obj, n);
+        part = BtlObj_FindBound(obj, n);
         if (part != NULL) {
             return part->unk5C;
         }
@@ -852,7 +852,7 @@ s32 BtlCharApi_GetRushFinishPhase(s32 objId) {
     return (BtlAct_GetMotionLevel(chr, BtlAnim_GetId(chr)) >= level) ? 1 : 2;
 }
 
-/* func_00250B88(obj, (sin yaw, 0, cos yaw) * len, arg). No caller. */
+/* BtlObj_AddPush(obj, (sin yaw, 0, cos yaw) * len, arg). No caller. */
 void BtlCharApi_ObjPushYaw(s32 objId, f32 yaw, f32 len, f32 arg) {
     Vec4 v;
     BtlCapiObj *obj = BtlObj_Get(objId);
@@ -862,11 +862,11 @@ void BtlCharApi_ObjPushYaw(s32 objId, f32 yaw, f32 len, f32 arg) {
         v.y = 0.0f;
         v.z = Mathf_Cos(yaw) * len;
         v.w = 0.0f;
-        func_00250B88(obj, &v, arg);
+        BtlObj_AddPush(obj, &v, arg);
     }
 }
 
-/* func_00250B88(obj, dir scaled to length len, arg); nothing for a direction shorter than 0.0001. No caller. */
+/* BtlObj_AddPush(obj, dir scaled to length len, arg); nothing for a direction shorter than 0.0001. No caller. */
 void BtlCharApi_ObjPushDir(s32 objId, Vec4 *dir, f32 len, f32 arg) {
     Vec4 v;
     BtlCapiObj *obj = BtlObj_Get(objId);
@@ -879,7 +879,7 @@ void BtlCharApi_ObjPushDir(s32 objId, Vec4 *dir, f32 len, f32 arg) {
         }
         Vec4_Scale(&v, dir, 1.0f / l);
         Vec4_Scale(&v, &v, len);
-        func_00250B88(obj, &v, arg);
+        BtlObj_AddPush(obj, &v, arg);
     }
 }
 

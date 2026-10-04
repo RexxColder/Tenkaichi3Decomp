@@ -141,10 +141,10 @@ extern s32 BtlParam_GetMaxPowerSound(BtlActChr *chr);
 extern f32 BtlMoveParam_GetSpeed(BtlActChr *chr, s32 arg);
 extern f32 BtlStage_GetTop(void);
 extern f32 BtlStage_GetBottom(void);
-extern s32 func_0024D610(void *obj, s32 a, s32 b, s32 c);
-extern void func_002500E8(void *obj, s32 a, s32 b);
-extern void func_00250B88(void *obj, Vec4 *v, f32 arg);
-extern void func_00250C38(void *obj, f32 a, f32 b);
+extern s32 BtlObjAnim_QueryEvent(void *obj, s32 a, s32 b, s32 c);
+extern void BtlObj_SetColorMode(void *obj, s32 a, s32 b);
+extern void BtlObj_AddPush(void *obj, Vec4 *v, f32 arg);
+extern void BtlObj_AddSway(void *obj, f32 a, f32 b);
 
 extern BtlActRoster *gBtlChars;
 extern BtlActHandler gBtlActHandlers[BTLACT_COUNT];
@@ -461,7 +461,7 @@ void BtlAct_PushAngle(BtlActChr *chr, f32 angle, f32 speed, f32 arg) {
     v.y = 0.0f;
     v.z = Mathf_Cos(angle) * speed;
     v.w = 0.0f;
-    func_00250B88(BtlChar_GetObj(chr), &v, arg);
+    BtlObj_AddPush(BtlChar_GetObj(chr), &v, arg);
 }
 
 /* Gives the fighter's object a push of `speed` along a direction (ignored when the direction is null). */
@@ -473,13 +473,13 @@ void BtlAct_PushDir(BtlActChr *chr, Vec4 *dir, f32 speed, f32 arg) {
     if (!(len < 0.0001f)) {
         Vec4_Scale(&v, dir, 1.0f / len);
         Vec4_Scale(&v, &v, speed);
-        func_00250B88(BtlChar_GetObj(chr), &v, arg);
+        BtlObj_AddPush(BtlChar_GetObj(chr), &v, arg);
     }
 }
 
-/* Forwards two floats to func_00250C38 on the fighter's object. */
+/* Forwards two floats to BtlObj_AddSway on the fighter's object. */
 void BtlAct_SetObjUnk(BtlActChr *chr, f32 a, f32 b) {
-    func_00250C38(BtlChar_GetObj(chr), a, b);
+    BtlObj_AddSway(BtlChar_GetObj(chr), a, b);
 }
 
 /* Whether an action id is one of the table-driven attacks (0x70..0xAD). */
@@ -658,7 +658,7 @@ void BtlAct_EndFlag98(BtlActChr *chr) {
     if (BtlChar_TestFlag(chr, 0x98)) {
         obj = BtlChar_GetObj(chr);
         BtlChar_ClearFlag(chr, 0x98);
-        func_002500E8(obj, 2, 0);
+        BtlObj_SetColorMode(obj, 2, 0);
         BtlStat_EndKind4(chr);
     }
 }
@@ -1145,7 +1145,7 @@ void BtlAct_UpdateTimers(BtlActChr *chr) {
         chr->unk1000 = 0;
     }
     if (BtlChar_IsDead(chr) && (obj->flags & 0x40000)) {
-        func_002500E8(obj, 2, 0);
+        BtlObj_SetColorMode(obj, 2, 0);
     }
     if (Battle_GetMode() == 1 && chr->unk1580 > 0) {
         chr->unk1580--;
@@ -1233,8 +1233,8 @@ s32 BtlAct_Action01(BtlActChr *chr, s32 phase) {
         BtlMove_Step(chr, 6, 6, 7, 0.0f, 0.9259258f);
         BtlMove_ApplyGravity(chr);
         obj = BtlChar_GetObj(chr);
-        frameA = func_0024D610(obj, 0x200, 0, 0);
-        frameB = func_0024D610(obj, 0x400, 0, 0);
+        frameA = BtlObjAnim_QueryEvent(obj, 0x200, 0, 0);
+        frameB = BtlObjAnim_QueryEvent(obj, 0x400, 0, 0);
         frame = BtlAnim_GetFrame(chr);
         if (0.0f <= frameA && frameA < frame && (frameB < 0.0f || frame < frameB)) {
             BtlChar_SetFxBit(chr, 7);
@@ -1266,7 +1266,7 @@ s32 BtlAct_Action02(BtlActChr *chr, s32 phase) {
         BtlChar_GetPos(chr)->unk9C = 0.0f;
         chr->unkFE0 = 0;
         if (obj->flags & 0x40000) {
-            func_002500E8(obj, 2, 0);
+            BtlObj_SetColorMode(obj, 2, 0);
         }
     }
     if (phase == BTLACT_PHASE_RUN) {

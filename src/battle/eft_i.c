@@ -67,13 +67,13 @@ extern void *EftHitArena_AllocSphere(void);                              /* sphe
 extern void *EftHitArena_AllocBox(void);                              /* box from the hit arena */
 extern void EftHit_SetShapeSpheres(EftIHitRec *rec, void *a, void *b);  /* record shape: two spheres */
 extern void EftHit_SetShapeBoxes(EftIHitRec *rec, void *a, void *b);  /* record shape: two boxes */
-extern void func_002399A0(void *sphere, Vec4 *center, f32 radius);
-extern void func_00239588(void *box, Vec4 *from, Vec4 *to, f32 radius);
+extern void ColSphere_Set(void *sphere, Vec4 *center, f32 radius);
+extern void ColCapsule_Set(void *box, Vec4 *from, Vec4 *to, f32 radius);
 extern void EftAim_GetDir(Vec4 *dir, Vec4 *from, s32 objId);   /* aim direction of the fighter from a point */
 extern void EftAim_GetDirKeep(EftOwner *owner, Vec4 *dir, Vec4 *from, s32 objId);
-extern EftTask *func_001ADB98(EftTask *task);                  /* task that owns the list the task is in */
-extern void func_001ADB78(EftTask *task, s32 flags);           /* ors into the task flags */
-extern void func_001ADA58(EftTask *task);                      /* kills the task */
+extern EftTask *BtlTask_GetParent(EftTask *task);                  /* task that owns the list the task is in */
+extern void BtlTask_SetOwnerTag(EftTask *task, s32 flags);           /* ors into the task flags */
+extern void BtlTask_SetDead(EftTask *task);                      /* kills the task */
 
 /* Stage. */
 typedef struct EftISegment {
@@ -86,7 +86,7 @@ typedef struct EftIStageHit {
     /* 0x20 */ u8 unk20[0x20];
     /* 0x40 */ s32 obj;  /* stage object that was hit, < 0 none */
 } EftIStageHit;
-extern void func_002398F0(EftISegment *seg, Vec4 *a, Vec4 *b); /* builds a segment */
+extern void ColSeg_Set(EftISegment *seg, Vec4 *a, Vec4 *b); /* builds a segment */
 extern s32 StgCol_TraceSegment(EftISegment *seg);                    /* segment against the stage */
 extern EftIStageHit *StgCol_GetHit(void);                      /* result of the last stage line test */
 extern void BtlStage_DestroyObj(s32 objId, s32 obj, Vec4 *dir); /* stage (stg_a): destroys a stage object */
@@ -1482,8 +1482,8 @@ void EftSweep_AddHit(EftTask *task) {
         void *a = EftHitArena_AllocBox();
         void *b = EftHitArena_AllocBox();
 
-        func_00239588(a, &w->nodes.n[1][0].pos, &w->pose.cur, width);
-        func_00239588(b, &w->nodes.n[1][0].pos, &w->pose.prev, width);
+        ColCapsule_Set(a, &w->nodes.n[1][0].pos, &w->pose.cur, width);
+        ColCapsule_Set(b, &w->nodes.n[1][0].pos, &w->pose.prev, width);
         EftHit_SetShapeBoxes(rec, a, b);
         break;
     }
@@ -1491,8 +1491,8 @@ void EftSweep_AddHit(EftTask *task) {
         void *a = EftHitArena_AllocSphere();
         void *b = EftHitArena_AllocSphere();
 
-        func_002399A0(a, &w->pose.cur, width);
-        func_002399A0(b, &w->pose.prev, width);
+        ColSphere_Set(a, &w->pose.cur, width);
+        ColSphere_Set(b, &w->pose.prev, width);
         EftHit_SetShapeSpheres(rec, a, b);
         break;
     }
@@ -1534,7 +1534,7 @@ void EftSweep_Emit(s32 objId, EftTask *task, EftEmitSet *set, s32 reset) {
 
 /* Instance init: clears the work, takes the technique's scale and speed, attaches the group's effect pack. */
 void EftSweep_Init(EftTask *task, EftOwner *owner) {
-    EftTask *group = func_001ADB98(task);
+    EftTask *group = BtlTask_GetParent(task);
     EftSweepWork *w = task->work;
     EftEmitSet *set = &((EftSetWork *)group->work)->set;
     EftOwnerParam *p;
@@ -1554,7 +1554,7 @@ void EftSweep_Init(EftTask *task, EftOwner *owner) {
     }
     w->life = EftEmit_GetEndFrames(w->set);
     EftSweep_InitPath(task);
-    func_001ADB78(task, owner->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, owner->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Instance term. */
@@ -1609,7 +1609,7 @@ void EftSweep_Update(EftTask *task) {
             Vec4_Copy(&w->pose.prev, &w->pose.cur);
             Vec4_Copy(&w->pos, &w->nodes.n[1][0].pos);
             EftSweep_Move(task);
-            func_002398F0(&seg, &w->pos, &w->pose.cur);
+            ColSeg_Set(&seg, &w->pos, &w->pose.cur);
             if (StgCol_TraceSegment(&seg)) {
                 EftSweep_AddMark(task);
             }
@@ -1639,7 +1639,7 @@ void EftSweep_Update(EftTask *task) {
         w->time += 1.0f;
     }
     if (!any && (w->flags & EFT_SWEEP_DEAD)) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (w->flags & EFT_SWEEP_ENDING) {
@@ -1679,7 +1679,7 @@ void EftSweep_Reset(EftTask *task) {
         w->flags |= EFT_SWEEP_KILLED;
         EftEmit_KillAll(w->set, &w->state);
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Instance draw: nothing. */
@@ -1724,8 +1724,8 @@ void EftFollow_AddHit(EftTask *task) {
     rec->flags |= 0x40;
     a = EftHitArena_AllocSphere();
     b = EftHitArena_AllocSphere();
-    func_002399A0(a, &w->pose.cur, width);
-    func_002399A0(b, &w->pose.prev, width);
+    ColSphere_Set(a, &w->pose.cur, width);
+    ColSphere_Set(b, &w->pose.prev, width);
     EftHit_SetShapeSpheres(rec, a, b);
     EftHit_Add(rec);
 }
@@ -1801,7 +1801,7 @@ void EftFollow_Emit(s32 objId, EftTask *task, EftEmitSet *set, s32 reset) {
 
 /* Instance init. */
 void EftFollow_Init(EftTask *task, EftOwner *owner) {
-    EftTask *group = func_001ADB98(task);
+    EftTask *group = BtlTask_GetParent(task);
     EftFollowWork *w = task->work;
     EftEmitSet *set = &((EftSetWork *)group->work)->set;
     EftOwnerParam *p;
@@ -1820,7 +1820,7 @@ void EftFollow_Init(EftTask *task, EftOwner *owner) {
         w->flags |= EFT_FOLLOW_OWN_WIDTH;
     }
     w->life = EftEmit_GetEndFrames(w->set);
-    func_001ADB78(task, owner->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, owner->objId == 0 ? 0x800 : 0x1000);
 }
 
 /* Instance term. */
@@ -1899,7 +1899,7 @@ void EftFollow_Update(EftTask *task) {
         w->time += 1.0f;
     }
     if (flags & EFT_FOLLOW_DEAD) {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
         return;
     }
     if (flags & EFT_FOLLOW_ENDING) {

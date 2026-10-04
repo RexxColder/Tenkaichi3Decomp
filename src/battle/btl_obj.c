@@ -70,20 +70,20 @@ extern void BtlStage_GetLightVecB(Vec4 *dir);
 extern u8 *BtlStage_GetLightColors(void);
 extern void BtlStage_GetAmbient(s32 *rgb);
 /* Object passes of the following files. */
-extern void func_0024C958(BtlObj *obj);
-extern void func_0024CC88(BtlObj *obj);
-extern void func_0024D410(BtlObj *obj);
-extern void func_0024E3F8(BtlObj *obj);
-extern void func_0024E5A0(BtlObj *obj);
-extern void func_0024E6B0(BtlObj *obj);
-extern void func_0024E790(BtlObj *obj);
-extern void func_0024E810(BtlObj *obj, Vec4 *out);
-extern void func_0024F428(BtlObj *obj);
-extern BtlObjPart *func_002505A8(BtlObj *obj, s32 node);
-extern s32 func_002505D0(BtlObj *obj, s32 arg);
-extern void func_00250888(BtlObj *obj, s32 arg);
-extern void func_00250CD0(BtlObj *obj);
-extern void func_00250D38(BtlObj *obj);
+extern void BtlObjAnim_SamplePose(BtlObj *obj);
+extern void BtlObjAnim_UpdateEvents(BtlObj *obj);
+extern void BtlObjAnim_Step(BtlObj *obj);
+extern void BtlObjPose_CalcMatrices(BtlObj *obj);
+extern void BtlObjFlash_Reset(BtlObj *obj);
+extern void BtlObjFlash_Step(BtlObj *obj);
+extern void BtlObjFade_Step(BtlObj *obj);
+extern void BtlObjFade_Get(BtlObj *obj, Vec4 *out);
+extern void BtlObj_UpdateFace(BtlObj *obj);
+extern BtlObjPart *BtlObj_GetNode(BtlObj *obj, s32 node);
+extern s32 BtlObj_IsNodeShown(BtlObj *obj, s32 arg);
+extern void BtlObj_SaveNodePositions(BtlObj *obj, s32 arg);
+extern void BtlObj_InitChains(BtlObj *obj);
+extern void BtlObj_UpdateChains(BtlObj *obj);
 /* Drawing modules. */
 extern void func_00105C58(void);
 extern void func_00105CB0(void);
@@ -452,7 +452,7 @@ void BtlObj_Setup(BtlObj *obj, s32 type, BtlResSlot *res, s32 id, s32 active) {
     obj->active = active;
     obj->id = id;
     obj->chara = (res->file[0].id - 0x590) / 10;
-    func_00250CD0(obj);
+    BtlObj_InitChains(obj);
 }
 
 /* Creates an object from a loaded model; returns its id or -1 when the table is full. */
@@ -467,7 +467,7 @@ s32 BtlObj_Create(s32 type, BtlResSlot *res, s32 active) {
     BtlObj_Setup(obj, type, res, id, active);
     if (type == BTL_OBJ_TYPE_CHARA) {
         obj->charaWork = BtlObj_GetCharaWork(id);
-        func_0024E5A0(obj);
+        BtlObjFlash_Reset(obj);
     }
     return id;
 }
@@ -499,7 +499,7 @@ void BtlObj_Rebind(s32 id, s32 slot) {
 
     BtlObj_Setup(obj, BTL_OBJ_TYPE_CHARA, res, id, 1);
     obj->charaWork = BtlObj_GetCharaWork(id);
-    func_0024E5A0(obj);
+    BtlObjFlash_Reset(obj);
 }
 
 /* Returns the model resource slot block. */
@@ -575,8 +575,8 @@ void BtlObj_UpdateBounds(BtlObj *obj, BtlObjState *state) {
     StgAabb_SetEmpty(&state->box);
     while (1) {
         if (bound->enabled != 0) {
-            part = func_002505A8(obj, bound->node);
-            if (func_002505D0(obj, part->unk08) == 1) {
+            part = BtlObj_GetNode(obj, bound->node);
+            if (BtlObj_IsNodeShown(obj, part->unk08) == 1) {
                 part->active = 1;
                 Vec3_Sub(&rel, &bound->center, &bound->unk10);
                 Mtx_MulVec4(&center, &part->mtx, &rel);
@@ -905,18 +905,18 @@ void BtlObj_UpdateAll(void) {
             state = &node->obj.state;
             state->viewFlags = 0;
             if (obj->noAnim == 0) {
-                func_00250888(obj, 0);
-                func_0024D410(obj);
-                func_0024C958(obj);
-                func_0024CC88(obj);
-                func_0024E3F8(obj);
-                func_00250D38(obj);
-                func_0024E3F8(obj);
+                BtlObj_SaveNodePositions(obj, 0);
+                BtlObjAnim_Step(obj);
+                BtlObjAnim_SamplePose(obj);
+                BtlObjAnim_UpdateEvents(obj);
+                BtlObjPose_CalcMatrices(obj);
+                BtlObj_UpdateChains(obj);
+                BtlObjPose_CalcMatrices(obj);
             }
             BtlObj_UpdateBounds(obj, state);
-            func_0024F428(obj);
-            func_0024E6B0(obj);
-            func_0024E790(obj);
+            BtlObj_UpdateFace(obj);
+            BtlObjFlash_Step(obj);
+            BtlObjFade_Step(obj);
             func_001143A0(obj);
             BtlObj_UpdateAlpha(obj);
         }
@@ -991,7 +991,7 @@ void BtlObj_FillAlphaRow(u8 *table, BtlObj *obj) {
         Vec4 value;
         u8 alpha;
 
-        func_0024E810(obj, &value);
+        BtlObjFade_Get(obj, &value);
         alpha = (u32)(value.x * 128.0f);
         for (i = 0; i < 15; i++) {
             table[row + i] = alpha;

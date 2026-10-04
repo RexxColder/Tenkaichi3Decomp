@@ -52,3 +52,33 @@ simulation input: fighter and effect code query animation events, hit-event coun
 and model node positions through it every frame. Schedule it with the stage collision queries,
 the projectile hit detection (0x1AE200..0x1B4140) and the stage rigid bodies, before the
 headless build.
+
+## Status 2026-10-04 (evening): simulation code decompiled and linked
+
+Linked and byte-identical: 68.41% of the main executable's game code (152 C files, 5405
+functions diff clean, 185 functions in linked files still INCLUDE_ASM, all but two with a C
+attempt). Everything identified as fight simulation is in that set: battle loop and sequence,
+input and replay, fighters (actions, movement, hits, damage, gauges, techniques), AI, story
+script, effect scene core (task tree, hit records, projectile types, technique events, hit
+detection, beam struggle), stage (bounds, zones, collision, destructible objects, way-points),
+collision primitives, battle object (animation player, nodes, hit volumes).
+
+Next, in order:
+1. Near-miss cleanup, simulation first: `BtlObjAnim_SamplePosRot`, `BtlObjAnim_SamplePose`,
+   `BtlObjXf_Update`, `BtlStage_UpdateObjs`, `BtlStage_BreakObj`, `EftHit_ClashTech`,
+   `EftHit_SetTaskFlag`, `EftHit_IsStoppedByHit`, `EftDisc_Home`, `EftDisc_Update`,
+   `EftBlastObj_Init`, `EftSweep_AddMark`, `StgCol_SplitStep`, `StgCol_FighterBreakObj`,
+   `StgCol_TraceZone`, `StgNav_FindPath`, `BtlAiSeq_PushRule`, the six `AiThink_*`,
+   `BtlAct_GuardHandler`, `BtlAct_GrabDash`, `BtlActB_TickMemberChange`. Their behaviour is
+   described from disassembly today.
+2. One unified fighter header and one battle-object header (every file has its own view).
+3. The hand-written VU0 vector / matrix routines (0x11FA40..0x122900): exact C equivalents.
+4. Extract the two large archives from the ISO (PZS3US1.AFS, PZS3US2.AFS) and document the
+   asset formats the simulation loads (character packs, animations, stage files, effect packs,
+   AI data).
+5. Headless build: 32-bit host build, platform layer (files, jobs, pools), stub renderer and
+   sound, technique timers moved out of the draw callback, separate generators for visual
+   effects; then replay validation.
+
+Not needed for the headless build and still assembly: HUD, model renderer, most of the sound
+and graphics layers, movie playback, and the menu overlay (DBZP.BIN, 0%).

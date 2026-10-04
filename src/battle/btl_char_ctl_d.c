@@ -65,10 +65,10 @@ extern f32 BtlStage_GetTop(void);
 extern BtlCtlPath *BtlStage_GetPath(s32 arg0);
 extern s32 BtlStage_GetStartPlace(s32 player, Vec4 *pos, Vec4 *rot, s32 restart);
 extern s32 BtlStage_GetPlace(Vec4 *pos, Vec4 *rot);
-extern void func_0024DD20(BtlCtlObj *obj);
-extern void func_0024E2B0(BtlCtlObj *obj);
-extern void func_0024E3F8(BtlCtlObj *obj);
-extern BtlCtlNode *func_002505A8(BtlCtlObj *obj, s32 node);
+extern void BtlObjBody_Reset(BtlCtlObj *obj);
+extern void BtlObjXf_Update(BtlCtlObj *obj);
+extern void BtlObjPose_CalcMatrices(BtlCtlObj *obj);
+extern BtlCtlNode *BtlObj_GetNode(BtlCtlObj *obj, s32 node);
 
 /* Reads the object's position, rotation and root node back into the pose. */
 void BtlChar_ObjToPose(BtlCtlChr *chr) {
@@ -79,7 +79,7 @@ void BtlChar_ObjToPose(BtlCtlChr *chr) {
 
     Vec4_Sub(&pose->pos, &obj->outPos, &pose->move);
     Vec4_Copy(&pose->rot, &obj->rot);
-    node = func_002505A8(obj, 0);
+    node = BtlObj_GetNode(obj, 0);
     if (node != NULL) {
         Vec4_Copy(&pose->rootPos, &node->pos);
         Vec4_Copy((Vec4 *)&q, (Vec4 *)&node->rot);
@@ -125,7 +125,7 @@ void BtlChar_PoseToObj(BtlCtlChr *chr, s32 keepRoot) {
     if (Vec3_Length((Vec4 *)&m) < 0.001f) {
         Vec4_Copy(&obj->pos, &old);
     }
-    func_0024E2B0(obj);
+    BtlObjXf_Update(obj);
 }
 
 /* Under flag 0x33 (and not 0x94): turns the yaw by the root node's yaw and scales the speed by its cosine. */
@@ -178,7 +178,7 @@ void BtlChar_Place(BtlCtlChr *chr, Vec4 *pos, Vec4 *rot, s32 area) {
     BtlChar_SetFlag(chr, 0xCD);
     BtlChar_SetFlag(chr, 0x24);
     BtlChar_SetFlag(chr, 0x3F);
-    func_0024DD20(obj);
+    BtlObjBody_Reset(obj);
 }
 
 /* Places the fighter at its player's start position of the stage. */
@@ -403,7 +403,7 @@ void BtlChars_UpdateHold(void) {
             }
             Vec4_Add(&BtlChar_GetPos(holder)->pos, &BtlChar_GetPos(holder)->pos, &delta);
             BtlChar_PoseToObj(holder, 0);
-            func_0024E3F8(holderObj);
+            BtlObjPose_CalcMatrices(holderObj);
             BtlChar_ObjToPose(holder);
         } else {
             Vec4_Sub(&delta, &holderPos, &heldPos);
@@ -412,7 +412,7 @@ void BtlChars_UpdateHold(void) {
             }
             Vec4_Add(&BtlChar_GetPos(held)->pos, &BtlChar_GetPos(held)->pos, &delta);
             BtlChar_PoseToObj(held, 0);
-            func_0024E3F8(heldObj);
+            BtlObjPose_CalcMatrices(heldObj);
             BtlChar_ObjToPose(held);
             BtlChar_SetFlag(held, 0x23);
         }

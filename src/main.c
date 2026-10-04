@@ -44,8 +44,8 @@ extern void func_00121DA8(void);
 extern void Dbg_Init(void);
 extern void Pad_Init(void);
 extern void func_00116BA8(void);
-extern void func_00239FF0(s32);
-extern void func_0023D0E0(void);
+extern void Font_Init(s32);
+extern void FontIcon_Init(void);
 extern void Fade_Init(void);
 extern void PadWatch_Init(void);
 extern void Sys_InitIopHeap(void);
@@ -148,8 +148,8 @@ void Game_Main(void) {
     Dbg_Init();
     Pad_Init();
     func_00116BA8();
-    func_00239FF0(1);
-    func_0023D0E0();
+    Font_Init(1);
+    FontIcon_Init();
     Fade_Init();
     PadWatch_Init();
     for (;;) {

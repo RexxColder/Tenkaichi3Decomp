@@ -130,7 +130,7 @@ extern s32 BtlSkill_GetFrames(HitChr *chr, s32 dir);
 extern f32 BtlCharApi_GetHeight(s32 objId);                             /* body size, obj + 0xFF4 */
 extern f32 BtlCharApi_GetRadius(s32 objId);                             /* body radius */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);       /* world position of a model node */
-extern s32 func_0024D610(HitObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(HitObj *obj, s32 a, s32 b, s32 c);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
 extern f32 BtlUtil_WrapAngle(f32 a);
@@ -1192,7 +1192,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
         } else if (st & 0x800) {
             react = BtlAtk_GetReactionB(atk);
         } else if (st & 0x100) {
-            if (back || (func_0024D610(dobj, 1, 0, 3) && dobj->hitNo == ~dobj->unkCAC)) {
+            if (back || (BtlObjAnim_QueryEvent(dobj, 1, 0, 3) && dobj->hitNo == ~dobj->unkCAC)) {
                 react = BtlAtk_GetReaction(atk);
             } else {
                 react = BtlAtk_GetReactionF(atk);

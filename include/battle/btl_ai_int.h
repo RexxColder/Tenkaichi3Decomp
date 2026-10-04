@@ -36,8 +36,8 @@ extern s32 BtlSeq_GetState(void);
 extern s32 BtlChar_IsStage4Or27(void);
 extern void BtlCharApi_SetInjectedInput(s32 objId, u32 buttons, f32 stickX, f32 stickY);
 extern s32 BtlCharApi_GetUnk974(s32 objId); /* the fighter's current action id */
-extern s32 func_001B5838(BtlAiWork *ai);
-extern s32 func_001B5B78(BtlAiWork *ai);
+extern s32 BtlAiStep_ReachClass(BtlAiWork *ai);
+extern s32 BtlAiStep_NotHit(BtlAiWork *ai);
 extern void BtlAiPad_Clear(BtlAiOutput *out, s32 keep);
 extern void BtlAiPad_EndFrame(BtlAiOutput *out);
 extern void BtlAiMove_Dispatch(BtlAiWork *ai);

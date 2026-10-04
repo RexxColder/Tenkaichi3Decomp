@@ -33,7 +33,7 @@ extern f32 Vec3_Dot(ColVec *a, ColVec *b);
 extern void func_00120230(void *dst, void *src);      /* copies a 4x4 matrix (128-bit moves) */
 extern void func_00121FB8(ColVec *dst, ColVec *src);  /* copies x, y, z and leaves w (VU0) */
 extern f32 func_001221E0(ColVec *v);                  /* squared length of x, y, z (VU0) */
-extern void func_00239938(ColSeg *seg, ColVec *out);  /* middle of a segment, w = 1 */
+extern void ColSeg_GetMidpoint(ColSeg *seg, ColVec *out);  /* middle of a segment, w = 1 */
 
 /* Sets a box from its centre and half extents. */
 void ColBox_SetCenterHalf(ColBox *box, ColVec *center, ColVec *half) {
@@ -333,7 +333,7 @@ s32 ColBox_TestSegment(ColBox *box, ColSeg *seg) {
 
     ColBox_GetCenter(box, &center);
     ColBox_GetHalf(box, &half);
-    func_00239938(seg, &mid);
+    ColSeg_GetMidpoint(seg, &mid);
     Vec4_Sub(&dir, &seg->b, &mid);
     Vec4_Sub(&mid, &mid, &center);
     ax = __builtin_fabsf(dir.x);

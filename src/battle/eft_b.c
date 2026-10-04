@@ -128,9 +128,9 @@ extern void EftMesh_SetRepeat(void *model, s32 on);
 extern void EftMesh_SetUvOfs(void *model, f32 x, f32 y);
 extern void EftMesh_SetUvScale(void *model, f32 size);
 extern void EftMesh_DrawNow(void *model, s32 on);
-extern void func_001ADA58(void *task);                      /* marks a task as dying */
-extern u64 func_001ADC68(EftBTex *tex, s32 a, s32 b);       /* TEX0 of a texture with two mode bits */
-extern void func_001AE148(EftBTexSet *set, void *pack);     /* builds a texture set from a pack */
+extern void BtlTask_SetDead(void *task);                      /* marks a task as dying */
+extern u64 EftVram_AddTex(EftBTex *tex, s32 a, s32 b);       /* TEX0 of a texture with two mode bits */
+extern void EftTexSet_Load32(EftBTexSet *set, void *pack);     /* builds a texture set from a pack */
 
 extern EftBBattle *Battle_GetWork(void);
 extern s32 Battle_IsSplitScreen(void);
@@ -673,12 +673,12 @@ void EftBubble_Init(EftBTask *task) {
     }
     stage = BtlScene_GetStageData();
     if (BtlScene_GetPackEntrySize(stage, 0x12) > 0) {
-        func_001AE148(&gEftBubble->tex, BtlScene_GetPackEntry(stage, 0x12));
+        EftTexSet_Load32(&gEftBubble->tex, BtlScene_GetPackEntry(stage, 0x12));
         if (gEftBubble->tex.count < 6) {
-            func_001ADA58(task);
+            BtlTask_SetDead(task);
         }
     } else {
-        func_001ADA58(task);
+        BtlTask_SetDead(task);
     }
 }
 
@@ -1228,7 +1228,7 @@ void EftBubble_SetTexMode(s32 a, s32 b) {
 
     if (gEftBubble->count != 0) {
         for (i = 5; i < 9; i++) {
-            gEftBubble->tex.tex[i].tex0 = func_001ADC68(&gEftBubble->tex.tex[i], a, b);
+            gEftBubble->tex.tex[i].tex0 = EftVram_AddTex(&gEftBubble->tex.tex[i], a, b);
         }
     }
 }
@@ -1377,7 +1377,7 @@ void EftStageScroll_Load(void) {
     dir.w = 1.0f;
     gEftStageScroll->dirX = dir.x;
     gEftStageScroll->dirY = dir.z;
-    func_001AE148(&gEftStageScroll->tex, texPack);
+    EftTexSet_Load32(&gEftStageScroll->tex, texPack);
     EftMesh_Init(gEftStageScroll->model, p);
     EftMesh_SetTex(gEftStageScroll->model, &gEftStageScroll->tex);
     EftMesh_SetClip(gEftStageScroll->model, 1);
@@ -1416,7 +1416,7 @@ void EftGeyser_Kill(EftBTask *task) {
     if (EFTB_TASK_FLAGS(task)->dying) {
         return;
     }
-    func_001ADA58(task);
+    BtlTask_SetDead(task);
 }
 
 /* Manager init: loads the textures and creates a column for every record of the stage. */
@@ -1431,7 +1431,7 @@ void EftGeyser_MgrInit(EftBTask *task) {
     gEftGeyserMgr = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftGeyserMgr));
     memset(gEftGeyserMgr, 0, sizeof(EftGeyserMgr));
     gEftGeyserMgr->list = BtlTask_CreateChildList(task, count + 1, sizeof(EftGeyser));
-    func_001AE148(&gEftGeyserMgr->tex, BtlScene_GetPackEntry(stage, 0x12));
+    EftTexSet_Load32(&gEftGeyserMgr->tex, BtlScene_GetPackEntry(stage, 0x12));
     res = BtlStage_GetFxResA2();
     if (res != NULL) {
         for (i = 0; i < count; i++) {
@@ -1468,7 +1468,7 @@ void EftGeyser_MgrTerm(void) {
 /* Manager update: refreshes the TEX0 of texture 1 while any column exists. */
 void EftGeyser_MgrUpdate(void) {
     if (((s32 *)gEftGeyserMgr->list)[1] != 0) {
-        gEftGeyserMgr->tex.tex[1].tex0 = func_001ADC68(&gEftGeyserMgr->tex.tex[1], 1, 0);
+        gEftGeyserMgr->tex.tex[1].tex0 = EftVram_AddTex(&gEftGeyserMgr->tex.tex[1], 1, 0);
     }
 }
 

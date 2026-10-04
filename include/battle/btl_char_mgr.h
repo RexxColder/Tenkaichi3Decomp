@@ -159,7 +159,7 @@ typedef struct BtlMgrChr {
     /* 0x12FC */ s32 unk12FC;
     /* 0x1300 */ s32 unk1300;    /* BattleSide.unk1FC */
     /* 0x1304 */ u8 unk1304[0x1310 - 0x1304];
-    /* 0x1310 */ u64 unk1310[2]; /* passed to func_0024DD80 with flag 0x55 */
+    /* 0x1310 */ u64 unk1310[2]; /* passed to BtlObjBody_Warp with flag 0x55 */
     /* 0x1320 */ s32 freeze;     /* > 0: every phase skips this fighter (BtlChar_IsFrozen); counts down per frame */
     /* 0x1324 */ s32 freezeNext; /* freeze to start once freezeDelay has run out */
     /* 0x1328 */ s32 freezeDelay;

@@ -46,7 +46,7 @@
 /* A 3x3 matrix is the upper-left part of a Mtx44: three rows of four floats, w unused. */
 typedef Mtx44 Mat3;
 
-/* Bounding sphere written by func_002399A0 (centre, radius): 0x18 bytes used, 0x20 with padding.
+/* Bounding sphere written by ColSphere_Set (centre, radius): 0x18 bytes used, 0x20 with padding.
    The struct is copied with 64-bit moves, so it is 8-byte aligned in the original. */
 typedef struct RigidSphere {
     /* 0x00 */ Vec4 center;   /* w = 1 */

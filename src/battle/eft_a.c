@@ -56,8 +56,8 @@ typedef struct EftImpactArg {
     /* 0x28 */ s32 unk28;
 } EftImpactArg; /* size 0x30 */
 
-extern void func_001ADB30(EftHitTask *task, s32 bits);       /* task->flags |= bits */
-extern void func_001ADB40(EftHitTask *task, EftVec pos);     /* task->pos = pos */
+extern void BtlTask_SetTagBits(EftHitTask *task, s32 bits);       /* task->flags |= bits */
+extern void BtlTask_SetPos(EftHitTask *task, EftVec pos);     /* task->pos = pos */
 extern void EftTechEvt_RequestStop(s32 side);                         /* beam struggle: sets bit 2 in a per-side word */
 extern void EftKiBomb_SetContact(EftHitTask *task, void *mtx);    /* copies a 0x40-byte block into the blast task's work */
 extern f32 BtlStage_GetInnerRadius(void);                              /* stage radius - 100 */
@@ -187,8 +187,8 @@ void EftHit_SetTaskFlag(u32 idx, s32 bits, EftVec pos) {
     EftHitRec *rec = &list->rec[idx];
 
     if (idx < (u32)list->count && rec->task != NULL) {
-        func_001ADB30(rec->task, bits);
-        func_001ADB40(rec->task, pos);
+        BtlTask_SetTagBits(rec->task, bits);
+        BtlTask_SetPos(rec->task, pos);
     }
 }
 #endif
