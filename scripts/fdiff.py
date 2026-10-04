@@ -36,7 +36,7 @@ def sh(*cmd):
 
 
 def gflag(src):
-    return "-G0" if str(src).startswith("src/cri/") else "-G8"
+    return "-G0" if str(src).startswith(("src/cri/", "src/menu/")) else "-G8"
 
 
 def scratch(src):

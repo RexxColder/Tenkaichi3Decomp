@@ -30,7 +30,7 @@ CC_AS_FLAGS = "-EL -march=r5900 -mabi=o64 -no-pad-sections -mno-pdr -Iinclude"
 # matches as plain C (the original reloads fields after stores), so it is taken as original.
 CC = "tools/ee-gcc2.96/bin/ee-gcc"
 CC_FLAGS = "-O2 -fno-strict-aliasing -Iinclude"
-G_FLAGS = {"src/cri": "-G0"}
+G_FLAGS = {"src/cri": "-G0", "src/menu": "-G0"}
 G_DEFAULT = "-G8"
 
 # Each target is one binary that is split, rebuilt and compared on its own.
