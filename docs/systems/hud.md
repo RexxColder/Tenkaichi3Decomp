@@ -115,3 +115,33 @@ hud_e.c; final name hud_notice.c.
 - (verified) None of the announcement updates checks `BATTLE_FLAG_PAUSE`.
 - Original quirks: the 0.6 s hold of announcements 3 / 8 never happens (the wrong ramp is
   stepped); in the winner announcement copy 1 is always hidden.
+
+## Gauge tail, combo part, sprite library (0x222400..0x226488; src/battle/hud_c.c, hud_c_b.c, hud_c_c.c, not linked yet; names in config/symbols/hud_c.txt)
+
+All 45 functions match. hud_c.c = `HudGauge_Term` / `HudGauge_Reset` (0x222400 / 0x2224C8;
+NOT the timer, which is at 0x22F340), to be appended to the gauge file. hud_c_b.c = combo part
+(final name hud_combo.c). hud_c_c.c + hud_d.c = sprite library (hud_sprite.c).
+
+Combo part (verified; `gHudCombo` 0x2FEB58, 0x18C bytes, sheet 2, 12 sprites, 6 nodes; field
+table in include/battle/hud_c.h):
+- Per side: an event message (texture 3 + n; in 0.1 s, hold 1.2 s, out 0.1 s; `Hud_PreUpdate`
+  maps flag 0x71 -> 0, 6 -> 1, 5 -> 2, 0xE3 -> 3, 0x9C -> 4), a text line (entry of the
+  fighter's skill script, drawn with `BtlText_DrawEntryName`; inferred: the technique name),
+  the combo damage (5 digits) and the hit counter (3 digits, clamped to 999, hidden below 2).
+- Damage counts from the old value to the new in 0.6 s, or difference / 9500 s when the
+  difference exceeds 6000, capped at 1.5 s; stored clamp 199998, shown at most 99999.
+- Not mirrored for side 1: placed at x' = 372 - x. Frozen by `BATTLE_FLAG_PAUSE`.
+- **Random draws**: while a damage number is rolling, the units digit is `Rand_IntRange(0, 9)`
+  (libc `rand()`), redrawn until it differs from the last one: one or more draws per side per
+  HUD update, also in replay HUD modes where nothing is drawn. Third HUD consumer of that
+  stream (gauge shakes / aura, announcement streak, damage digits).
+
+Sprite library (verified): a sprite is a 4-vertex strip transformed by the current VU0 matrix;
+GS coordinate = (x << 4) + 0x7000, (y << 4) + 0x7200; textures upload on first use per frame
+to blocks 0x2A00 (image) / 0x2C80 (palette) plus the entry's offsets (`mark` suppresses a
+second upload). `HudSprite_DrawAt`'s flag argument selects GS context 2 (PRIM bit 9), not
+"additive". `HudTex` fields: +8 imageSize, +0xC clutSize, +0x18 / +0x1C widths, +0x20 / +0x24
+blocks, +0x28 mark, +0x30 tex0, +0x38 / +0x3C pointers; `HudSprite.texSub` is unsigned.
+
+Original quirks: the text line's slide width is always zero (it only fades); a 1.2 s ramp in
+the hit counter that nothing reads; `HudRes_UploadTex` uses the wrong entry's palette width.
