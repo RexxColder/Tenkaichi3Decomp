@@ -98,3 +98,18 @@ settle the three open points in docs/systems/math.md (add / subtract guard bits,
 multiplier quirk, the overflow value). An emulator's own float accuracy settings must be at
 their most accurate for the result to mean anything; a console run is the final word.
 The same harness then covers `Mathf_*` and any other routine whose bits matter.
+
+## Priority change 2026-10-04 (late): finish the matching decompilation first
+
+The user decided: "lets first completely decompile byte by byte then think about it".
+The port work (reference maths validation, headless build) waits until the decompilation is
+complete. Order now:
+1. The rest of the main executable's game code (about 300 KB in seven assembly ranges:
+   0x102F28..0x115170, 0x115478..0x11EC10, 0x2129C8..0x215420, 0x2187E0..0x22FD10,
+   0x252F68..0x254A20, 0x25C2A8..0x263098, 0x268248..0x273CA0), brief in
+   docs/briefs_remaining_main.md.
+2. The near-miss functions inside linked files (cleanup agents).
+3. The menu overlay DBZP.BIN (508 KB, 737 functions).
+4. Only then: unified headers, asset formats, validation harness, headless build.
+The SDK and middleware libraries after 0x273CF0 (Sony libs, CRI ADX) are not game code; they
+are matched as library objects where needed, not decompiled, unless the user asks otherwise.
