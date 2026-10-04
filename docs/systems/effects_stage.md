@@ -725,3 +725,26 @@ matching C. `sqrtf` is the inline FPU instruction.
   `BtlScene_Draw` uploads them and rewinds. Visual only.
 
 With this file the whole effect range 0x12DD80..0x1B4140 has been decompiled.
+
+## Stage model drawing (0x115478..0x116B98; src/battle/stgm_a.c, not linked yet; names in config/symbols/stgm_a.txt)
+
+All 13 functions match. Tail of the stage model code that starts at 0x114C60 (stg_d_b.c is
+the file just before, not btl_seq.c); final name stg_model_draw.c. Layouts in
+include/battle/stgm_a.h. **Visual only**: no pad, clock or random draw; nothing fight code
+reads.
+
+- (verified) Per view: `StgModel_Cull(view)` (0x115950) then `StgModel_Draw(view)` (0x115DE0),
+  called by the battle draw and by the menu character viewer.
+- (verified) Visibility is one byte per mesh, rebuilt for every view from an eight-child
+  culling tree (cell half size = 2 x root size / 2^depth), plus an always-drawn part list,
+  plus the pieces of falling objects. (inferred) frustum test result 0 / 1 / 2 = inside /
+  crossing / outside.
+- (verified) Seven draw groups, in the order: 0 (no depth writes), scrolling stage effect
+  (`EftStageScroll_Draw`), 1, 2 (stage proper), animated objects (not culled; posed from the
+  definition's position and rotation in degrees, ZXY; VU1 program 8), 3 / 4 / 5 (blended),
+  6 (debris, VU1 program 7 with per-mesh alpha). Stage id 8 draws the debris before the
+  blended groups; stage id 5 skips group 3.
+- (verified) Debris alpha = `Stg_FadeByCamDist(pos, Stg_FadeRatio(frame, animEnd))` x 128,
+  capped at 0x80. Stage textures upload one at a time to GS block 0x2A00 / CLUT 0x32C0.
+- Original quirks: material texture animations advance once per `StgModel_Draw` call, so
+  twice per frame in split screen; back-and-forth mode with one frame reads `frames[-1]`.

@@ -96,3 +96,23 @@ library calls in 0x116BA0..0x1190C8 (the neighbouring range).
 
 For linking: define `McFlow *gMcFlow = NULL;` at the top of the file (it is `.sdata` at
 0x2FE940 before "DBZT3" / "DBZT3R"); `.rodata` 0x2EBD30..0x2EC248.
+
+## Memory-card layer (0x116B98..0x1198D8; src/battle/stgm_a_b.c, not linked yet; final name sys/mcard.c)
+
+All 20 functions match (`McCard_*`, names in config/symbols/stgm_a.txt). Polled operations
+over Sony libmc: each call makes one library call or one `sceMcSync` poll; state in
+`gMcCardStep` (0x2FE918) / `gMcCardCmd` (0x2FE91C); per-port record `gMcCardPort[2]` at
+0x331D80 (0x24 bytes). Called by `main()` (`McCard_Init`) and by `McFlow_*`.
+
+- (verified) A save is a directory "BASLUS-21678DBZT3" (system) or "BASLUS-21678DBZT3Rnn"
+  (replay) holding icon.sys (built in code), dbzsm.ico / dbzsmr.ico, and a data file named
+  like the directory. Saving writes the data file first and repairs the icon only if it is
+  missing or has the wrong length.
+- (verified) Space budget in 1024-byte units: 16 + 1 + 40 (system), 107 + 1 + 48 (replay).
+- (verified) **Original bug**: the checksum verify joins its two byte comparisons with `&&`,
+  so a block is rejected only when BOTH stored bytes are wrong. Also: two operations share
+  command code 23; three functions fall off the end without a return value.
+- (inferred) The libmc function identities (0x2A1A48 sceMcInit .. 0x2A2AC8 sceMcFormat, table
+  in the source header), from their arguments.
+- For linking: define `s32 gMcCardStep = 0; s32 gMcCardCmd = 0;` first in the file; `.rodata`
+  at 0x2EBA80, `.sdata` from 0x2FE918.
