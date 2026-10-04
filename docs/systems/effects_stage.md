@@ -83,6 +83,11 @@ and the stage update at 0x243568).
 | 0x15C728..0x15E5D0 | eft_l_b.c | type 4 `EftRingShot*`: up to 20 blast objects placed on rings around a fighter, or fired as a volley | **yes**: creates, places, aims and delays blast objects; hit records; flags 0xA8 / 0xA9; restarts the technique timer | **`BtlScene_RandF`: one per shot, reaching the shot's launch position (rings) or direction (volley)** | 20/20 |
 | 0x15E5D0..0x15EF18 | eft_l_c.c | `EftAbsorb*`: glow for drain and absorb (fighter requests 0x38 / 0x37) | no | none | 13/13 |
 | 0x15EF18..0x15F728 | eft_l_d.c | speed-line spawners (head of eft_m's module) | no | libc `rand()`: 33+ per call on every frame a fighter has request 0xB; 90 per part burst | 2/2 |
+| 0x167E68..0x168600 | eft_o.c | body lightning `EftBolt*`, second half (first half in eft_n) | no | none here | (eft_o.c 35/39) |
+| 0x168600..0x1699D0 | eft_o.c | rays `EftRays*` (effect pack part kind 2) | no | libc `rand()`: 2 per ray at creation and per flicker period | |
+| 0x1699D0..0x16AE78 | eft_o_b.c | **blast object `EftBlastObj*`** (60 per battle; fired by volley, shots and ring-shot techniques) | **yes** | none | 30/32 |
+| 0x16AE78..0x16B4E0 | eft_o_c.c | body effect `EftBodyFx*` (fighter request 0x1A, common effect pack 0x23F) | no | none | (eft_o_c 17/18) |
+| 0x16B4E0..0x16C2E0 | eft_o_c.c | **disc `EftDisc*`, first part** (ki blast discs and technique pieces; rest in eft_p) | **yes** | libc `rand()` once at creation (spin, appearance) | |
 | 0x178AB0..0x1793A8 | eft_s.c | ki blast type 2 `EftKiObj_*`, second half: a thrown model with gravity (first half in eft_r) | **yes**: motion, reacts to hit results (break, deflect / reflect), dies 15 frames after a hit | libc `rand()`: 20 per break (fragments, appearance) | (eft_s 27/31) |
 | 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
 | 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
@@ -475,3 +480,30 @@ whether the opponent has already moved this frame.
   must change it. Not drawn in replays.
 - (verified, eft_aa) 0x19B7F8 starts delayed sound tasks, not sparks (correcting eft_j / eft_l
   comments). Part kind 14's timers run in the update and feed `EftEmit_UpdateAlive`.
+
+## Blast objects (simulation; `eft_o_b.c`, verified unless marked)
+
+A blast object is a task with a 0x620-byte work block, in one list of 60 shared by both
+fighters. Its creators (volley, shots, ring shot) keep the task pointer as a handle.
+
+- Creation: position, direction, speed, scale and life (seconds x 30) from the argument; the
+  previous position starts as the owner's node 0x11, so the first hit shape reaches back to
+  the owner; delay starts at 1 frame.
+- Each frame, unless the owner is stopped: refresh node slots; move (placed by the owner, or
+  optional homing then position += velocity) unless delayed, held by the definition, stuck or
+  frozen; count the delay and the life; the owner's ABORT event stops it; model and parts; then
+  die, or publish one technique hit record (two spheres at position and previous position, or
+  two boxes from the start point; radius = scale x the pack's trail width animation).
+- Hit results from the task: bit 0 snaps the shot to the reported position and it never moves
+  again (but keeps publishing records until its life ends); bit 2 stops it. A stopped shot
+  publishes nothing on the next update and is killed on the one after.
+- Entry points the creators use: stop, set target (the owner writes the position every frame),
+  set previous position, set direction, freeze, no-hit, "held" (only sets record flag 0x80),
+  mark last, set delay.
+- For two specific volley techniques the shot's model animation releases it: one animation
+  step clears "no hit" at the owner's FIRE event and the next clears "frozen" when it ends, so
+  a model's animation length is simulation input there.
+- Oddities: `SetDir` does not recompute the velocity (only the homing branch does); a handle is
+  validated by task class only, so a stale handle to a reused slot passes.
+- No random draws. Records are appended in task list order (creation order across both
+  fighters).
