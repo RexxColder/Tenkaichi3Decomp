@@ -181,3 +181,33 @@ ISO into the gitignored disc/DATA/ when asset-format work starts.
 
 Then continue with docs/roadmap.md, "Status 2026-10-04 (evening)", items 2..5.
 
+
+## Eighth batch: the rest of the main executable (started 2026-10-04, late)
+
+Priority changed by the user: finish the byte-for-byte decompilation before any port work (see
+docs/roadmap.md). Brief: docs/briefs_remaining_main.md. Snapshot for agents:
+scratchpad/snap3/asm. Both vu0 agents have reported and their files are committed but NOT
+linked or listed in the yamls yet (config/symbols/vu0_a.txt, vu0_b.txt; src/sys/vu0_a_c.c,
+vu0_a_c_b.c, vu0_a_c_c.c cover 0x11FA10..0x121008 with no gap; src/sys/vu0_b_c.c holds 25
+non-contiguous functions of 0x121008..0x122940 and needs INCLUDE_ASM or a split for the gaps).
+Link them after the four cleanup agents report (they are editing linked sources).
+
+Launched (10 running with the four cleanup agents):
+
+| Stem | Range | Lead |
+|---|---|---|
+| src/battle/hud_a | 0x2187E0..0x21CA60 | battle HUD (update 0x218D88) |
+| src/battle/hud_b | 0x21CA60..0x222400 | battle HUD continued (one very large function) |
+| src/sys/gfxm_a | 0x102F28..0x106D60 | low-level graphics, screen-effect group members |
+| src/sys/gfxm_b | 0x106D60..0x10AD58 | depth-to-alpha, blended rectangle, texture upload helpers |
+| src/battle/view_a | 0x25C2A8..0x2600B0 | code after the script commands (viewer / demo loop?) |
+| src/sys/lib_a | 0x268248..0x26C050 | 516 tiny functions before the CRI library: first establish whether it is library code |
+
+Still to launch (function-boundary cuts): 0x10AD58..0x10EC18, 0x10EC18..0x112A30,
+0x112A30..0x115170 (suggested stems gfxm_c, gfxm_d, gfxm_e); 0x115478..0x1198D8,
+0x1198D8..0x11EC10 (stage model / draw: stgm_a, stgm_b); 0x2129C8..0x215420 (hud_0);
+0x222400..0x226488, 0x226488..0x22A750, 0x22A750..0x22FD10 (hud_c, hud_d, hud_e; the last
+includes 0x22F9A8.. pause check and 0x22FC20..0x22FD10 before stg_d.c); 0x252F68..0x254A20
+(the second Mersenne Twister / menu codec area: misc_a); 0x2600B0..0x263098 (view_b);
+0x26C050..0x26FE90, 0x26FE90..0x273CA0 (lib_b, lib_c: only if lib_a turns out to be game code).
+After the main executable: the menu overlay DBZP.BIN (0x7C204 bytes, 737 functions).
