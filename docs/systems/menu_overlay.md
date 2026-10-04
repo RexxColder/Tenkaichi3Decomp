@@ -766,3 +766,56 @@ head of `DcPass` (password screen, mode 54; continues in chunk 27).
 - (verified, `DcPass_Decode` from the attempt) Password entry: 34 cells; 32 characters ->
   `OldPass_DecodeChar`, validity check, conversion; 34 -> `ChrPass_Decode`, validity check.
 - Random: `Rand_Range` only (greeting lines, blink). Pad 0 only.
+
+## Options tail and Data Center character list (chunk 25, 0x3A3848..0x3A7D98; src/menu/menu_y.c, menu_y_b.c; 42 of 43 match)
+
+`Option_Draw` (0x3A3848, 2153 instructions) is INCLUDE_ASM: 14 instructions differ, register
+choices only; no link check was run on menu_y.c (wrapped up early). menu_y.c appends to
+menu_x_c.c; menu_y_b.c is the head of `DcList` (continues in menu_z.c).
+- (verified) `Option_UpdateReset` (the "reset?" dialogs): screen position and +0x1694 /
+  +0x1698 to 0; sound mode 0, both volumes 9; controller: flags bits 8 / 0x10 cleared, bits
+  2 / 4 set, `keyEdit` = {2, 1, 0, 3, 4, 5, 6, 7}.
+- (verified) Data Center list: the 14 saved custom characters `gSaveData->rec[14]` (+0x2D40,
+  0x1C each: u16 item[8], s32, u16 level, s32 chara, negative = empty); details menu: item
+  list, password (the password builder 0x3AEA28), delete.
+
+## Password screens, replay menu, save helper (chunk 27, 0x3AC440..0x3B0E04; src/menu/menu_za*.c; 75 of 76 match)
+
+`DcPass_DrawRows` (0x3AC858) is INCLUDE_ASM (saved registers). Files: menu_za.c = `DcPass`
+tail (behind menu_z_d.c), menu_za_b.c = `PassWin`, menu_za_c.c = `PassChk`, menu_za_d.c =
+`ReplayMenu` (mode 56), menu_za_e.c = `DcSave`. For the integrator: menu_za_d.c defines an
+`li.d` assembler macro at the top (the project's first `double` constant: add `li.d` to
+include/gcc_prelude.inc and delete the block); the compiler's soft-float calls `litodp` /
+`dptoli` are named `__floatsidf` / `__fixdfsi` in lib.txt (alias them); `gPassChk` is in the
+main executable's `.sbss`.
+
+**How a replay is started from the menu** (ReplayMenu verified by matching C; `Dc_Main` from
+its attempt; McFlow / `BattleReplay_Load` from linked main-executable source):
+1. Mode 56: `Dc_Main` calls `ReplayMenu_Run(4)`. Init runs `McFlow_Init`, registers the
+   per-mode callbacks (McFlow modes 5..9) and `Progress_ClearTeams()`; the first frame starts
+   `McFlow_Start(7)`, the card scan, which fills `gProgress + 0x69C` (7 slots of 0x2C bytes:
+   flags bit 0 = has a replay, `chara[2][5]`).
+2. Confirm on a slot with a replay: `McFlow_SetSlot(cursor)`, `McFlow_Start(6)`.
+3. McFlow mode 6 reads the 0x1AC00-byte file, checks its checksum, then `Battle_ClearWork()`
+   and `BattleReplay_Load(buf + 0x38, 0x1ABA8)`: this copies the recorded 0x5A8-byte battle
+   setup into the battle setup, copies the block into `gBattleReplay` and sets
+   `active = loaded = 1`.
+4. The done callback sets result 1; after a 30-frame fade `ReplayMenu_Run` returns 1,
+   `Dc_Main` returns 1 with mode still 56, `Progress_Main` returns and `Game_Main` runs
+   `Battle_Main(0)`.
+**The menu writes nothing to the battle setup: the hand-off is entirely the loaded replay
+block** (setup + recorded inputs). This is the path a headless simulation would be validated
+through: load a 0x1ABA8-byte replay block, run the battle, compare.
+
+**Where a replay is saved**: the mode-0 result menu's "save replay" item sets
+`BattleResult_Set(8, 0x1000)`; `Progress_Main` then sets mode 56 and `gProgress + 0x68C |= 1`;
+the same `ReplayMenu` opens in save mode (`McFlow_Init` snapshots `gBattleReplay`); confirm
+on a slot: `McFlow_SetSlot`, `McFlow_Start(5)` writes the file to "BASLUS-21678DBZT3Rnn";
+afterwards the mode becomes 39 or 40 (the character or team select reopens).
+
+Other verified facts: `PassChk_IsValid` (character id <= 160; item ids < 350, no gaps, no
+duplicates, no two of the same type and kind; a type 2 item only in the eighth place; slot
+sums within the character's slots plus extra); old 32-character passwords are converted to
+one of 6 x 3 preset item sets (the old items are not carried over); `PassWin_Open` calls
+`ChrPass_Encode` (two libc `rand()` draws); `DcSave` = `McFlow_Start(0)` on leaving a mode
+whose `gProgress->flags` bit 0 says the save changed.
