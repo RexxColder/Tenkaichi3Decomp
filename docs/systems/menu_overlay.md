@@ -60,3 +60,40 @@ item; +0x34 sub menu; +0x38 last sub-menu item.
 - Menu asset layout: a pack is a table of byte offsets; a screen's section is compressed
   (`Sprite_Unpack`) into an inner pack of texture lists, one movie, text and subtitles.
 - Original oddity: an unhandled mode value hangs `Progress_Main` in a busy loop.
+
+## Story mode ("Hist"), modes 6..10 and 3 (chunk 2, 0x339610..0x33E108; src/menu/menu_b*.c; all 22 functions match)
+
+Names are guesses from behaviour. Files: menu_b.c = ModeMenu tail (must be appended to
+menu_a_d.c: one source file, shared string; merged test in build/scratch_menu_b/), menu_b_b.c
+= `ModeBg` (scrolling backdrop), menu_b_c.c = `HistOutro` + `Hist_Main`, menu_b_d.c = head of
+`HistSel` (continues in chunk 3).
+
+`Hist_Main` (0x33CBF8; verified) loads archive 2 (file baseFile + 0xC) and runs:
+
+| Mode | Screen | Next |
+|---|---|---|
+| 6 | saga select (`HistSel`, 0x33F440) | 0 -> mode 4; 1 -> 7; 2 -> 3 |
+| 7 | episode list (`ModeMenu_Run`) | non-zero -> mode 8 and RETURN 1 (battle); 0 -> 6 |
+| 8 | result (`HistResult_Run`) | 0 -> 7; 1 -> 10; 2 -> 9 |
+| 9 | saga outro (`HistOutro_Run`) | 0 -> 10; 1 -> 3 |
+| 10 | save (`HistSave_Run`) | 0 -> 6; 1 -> 7 |
+| 3 | ending movie | back to 6 or 10 |
+
+`gProgress->subMenu` is the saga (0..7; episodes per saga 3, 4, 7, 5, 16, 5, 4, 4 = 48).
+
+**Battle hand-off (verified)**: `BattleSetup_Clear()` then
+`BattleSetup_SetScript(ModeMenu_GetLine(saga, episode))` (`setup.script` = the episode's
+running index + 1). Nothing else is written to the battle setup: a story battle is defined
+entirely by its script number. The episode's "new" bit (`slot[saga].val[2]`) is cleared.
+
+Other verified facts: saga pack = file baseFile + 0x10 + saga (sections: 1 picture, 2/3
+textures, 4 message text, 5 subtitles, 6 description table of 0x20-byte entries, 7/8 guide
+faces, 9 movie, 10 backdrop textures); episode pictures = file imageBase + episode.
+`SaveSlot.flags`: 1 saga unlocked, 4 outro seen, 0x10 outro script started, 0x20 excluded
+from the random event, 0x40 first-visit greeting; `slot[n].val[1]` cleared bits give the
+completion percentage. Saga select random event: `Rand_Range(100) < 4` per eligible saga per
+visit when `unlockFlags & 0x80`. All random draws are `Rand_Range`; pad 0 only.
+
+Correction to the note above: the overlay's `.rodata` is per source file, but its `.data`
+(the work pointers) is grouped per group of modules (0x3B12F0..0x3B1310 holds the six story
+work pointers; 0x3B0E80 those of MainMenu / Title and the archive pointers).
