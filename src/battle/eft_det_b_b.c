@@ -139,10 +139,9 @@ s32 StgNav_FindNearest(StgColVec *pos) {
 }
 
 /* Clears a node: no object, no links. No caller. */
-/* NON-MATCHING: two adjacent `li` (v0 = -1, v1 = 7) come out in the other order. */
-#if 0
 void StgNavNode_Clear(StgNavNode *node) {
     s32 i;
+    s16 none;
 
     Vec4_Set((StgColVec *)node, 0.0f, 0.0f, 0.0f, 0.0f);
     node->flags = 0;
@@ -150,13 +149,11 @@ void StgNavNode_Clear(StgNavNode *node) {
     for (i = 2; i >= 0; i--) {
         node->unk18[i] = 0;
     }
-    i = 7;
-    do {
-        node->link[i] = -1;
-    } while (--i >= 0);
+    none = -1;
+    for (i = 7; i >= 0; i--) {
+        node->link[i] = none;
+    }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b_b", StgNavNode_Clear);
 
 /* Swaps two search entries. */
 void StgNav_SwapEntries(StgNavEntry *a, StgNavEntry *b) {
@@ -190,8 +187,6 @@ void StgNav_SortEntries(s32 lo, s32 hi, StgNavEntry *list) {
 /* Path from the node nearest `from` to the node nearest `to`, fewest links first. path->pts[0] is `to` itself,
    then the goal node and the nodes back towards the start (16 points at most: a longer path loses its start
    side). path->count stays 0 when there is no graph, no usable node or no connection. */
-/* NON-MATCHING: two instructions: the node address is `addu v0,nodes,index*0x30` in the original and `addu v0,index*0x30,nodes` here, in both path copies. */
-#if 0
 void StgNav_FindPath(StgColVec *from, StgNavPoint *to, StgNavPath *path) {
     s32 closedCount = 0;
     s32 openCount;
@@ -200,6 +195,7 @@ void StgNav_FindPath(StgColVec *from, StgNavPoint *to, StgNavPath *path) {
     StgNavEntry *e;
     StgNavEntry *p;
     StgNavNode *node;
+    StgNavNode *n; /* one variable for both path copies: the node address is formed as a value, base first */
     s32 found;
     s32 i;
     s32 j;
@@ -227,14 +223,16 @@ void StgNav_FindPath(StgColVec *from, StgNavPoint *to, StgNavPath *path) {
             if (path->count >= 16) {
                 return;
             }
-            path->pts[path->count++] = gStgNav->data->nodes[e->node].pos;
+            n = &gStgNav->data->nodes[e->node];
+            path->pts[path->count++] = n->pos;
             p = e;
             while (p->from != NULL) {
                 p = p->from;
                 if (path->count >= 16) {
                     return;
                 }
-                path->pts[path->count++] = gStgNav->data->nodes[p->node].pos;
+                n = &gStgNav->data->nodes[p->node];
+                path->pts[path->count++] = n->pos;
             }
             return;
         }
@@ -277,8 +275,6 @@ void StgNav_FindPath(StgColVec *from, StgNavPoint *to, StgNavPath *path) {
         e = &gStgNav->open[openCount - 1];
     } while (openCount != 0);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b_b", StgNav_FindPath);
 
 /* Clears node flag 2 of the nodes of object idx (-1: of every node). Called when the object breaks. */
 void StgNav_UnblockObj(s32 idx) {

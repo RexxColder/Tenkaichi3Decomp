@@ -49,7 +49,7 @@ extern void ColMesh_SetBase(void *arg);
 extern void StgRigid_Reset(void);                           /* stage rigid bodies: reset */
 extern void StgRigid_Init(void);                           /* stage rigid bodies: init */
 extern void StgRigid_Term(void);                           /* stage rigid bodies: term */
-extern s32 StgRigid_Create(Vec4 *pos, s32 arg, f32 radius);  /* new rigid body, handle or < 0 */
+extern s32 StgRigid_Create(Vec4 *pos, f32 radius, s32 arg);  /* new rigid body, handle or < 0 */
 extern void StgRigid_Launch(s32 body, Vec4 *hitPos, s32 material);
 extern void StgRigid_Release(s32 body);                       /* release a rigid body */
 extern void StgRigid_GetMatrix(StgNode *node, s32 body);        /* node matrix = body transform */
@@ -88,6 +88,13 @@ void StgVu_RotateZ(f32 angle);
 void StgVu_RotateX(f32 angle);
 void StgVu_RotateY(f32 angle);
 
+/* Both are defined in stg_a.c, the first half of the same original source file, so the original compiler had seen
+ * their bodies before it reached the callers here and knew what they touch. The attributes stand in for that:
+ * Stg_WrapRange is pure arithmetic on its arguments (StgPart_Animate only matches when its calls are scheduled as
+ * calls that read and write no memory); StgNode_IsRigid only reads memory (BtlStage_UpdateObjs). */
+extern f32 Stg_WrapRange(f32 lo, f32 hi, f32 v) __attribute__((const));
+extern s32 StgNode_IsRigid(StgNode *node) __attribute__((pure));
+
 
 /* Node matrix = rotation X, Y, Z then translation, through the VU0 matrix registers; returns the position. */
 #define STG_NODE_BUILD()                          \
@@ -104,9 +111,6 @@ void StgVu_RotateY(f32 angle);
 /* Poses a debris piece at `frame` of its key animation (position linear, angles through +3600 so that they
  * interpolate the short way), stores the matrix in its node and returns the position. Does nothing when the
  * frame falls between no pair of keys. */
-#if 0 /* 29 of 288 instructions differ, register allocation only, all inside the interpolation block: the original has
-    3600 in $f21 and pi in $f22 (here swapped) and the key frame difference in $f0 (here $f2). Block order, tests,
-    constants and the merged tails are identical. */
 void StgPart_Animate(StgPart *part, f32 frame, Vec4 *out) {
     Vec4 pos;
     Vec4 rot;
@@ -169,8 +173,6 @@ void StgPart_Animate(StgPart *part, f32 frame, Vec4 *out) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/stg_a_b", StgPart_Animate);
 
 /* Material of an object for its break effects: 0, 1 or 2 from type bits 0, 1, 2. */
 #define STG_MATERIAL_OF(obj) \
@@ -233,9 +235,6 @@ s32 StgObj_GetItemPos(Vec4 *out, StgObj *obj, s32 idx) {
 
 /* Breaks object idx and, recursively, every object that names it as parent: swaps the whole model for the
  * broken one, starts the debris animation, shakes cameras and pads near it. Returns 0 if it was already broken. */
-#if 0 /* does not match in the shake section: the original keeps the far distance (1500) in a saved register and
-    reloads 1500 / 1000 in the small-shake arm; this C lets the compiler treat them as constants (7 saved float
-    registers instead of 8). The integer half (flags, state, recursion) is identical. */
 s32 BtlStage_BreakObj(s32 idx, Vec4 *hitPos, StgBreakInfo *info) {
     Vec4 pos;
     StgObj *objs = gBtlStage->objs;
@@ -264,10 +263,13 @@ s32 BtlStage_BreakObj(s32 idx, Vec4 *hitPos, StgBreakInfo *info) {
     obj->frame = 0;
     Vec4_Copy(&obj->hitPos, hitPos);
     if (part != NULL) {
+        /* Declaration order and the repeated `far` / `rumbleFar` assignments in every arm below are what the
+         * original code generation shows (which register holds which value, and 1500 / 1000 being reloaded in
+         * the small-shake arm only): do not simplify them. */
         s32 shake = 0;
         f32 time = 0.0f;
-        f32 rumbleTime = 0.0f;
         f32 power = 0.0f;
+        f32 rumbleTime = 0.0f;
         f32 rumblePower = 0.0f;
         f32 near = 100.0f;
         f32 far = 1500.0f;
@@ -288,6 +290,8 @@ s32 BtlStage_BreakObj(s32 idx, Vec4 *hitPos, StgBreakInfo *info) {
                 shake = 1;
                 rumbleTime = 0.3f;
                 near = 300.0f;
+                far = 1500.0f;
+                rumbleFar = 1000.0f;
             }
             if (obj->type & STG_OBJ_SHAKE_M) {
                 power = 2.0f;
@@ -296,6 +300,8 @@ s32 BtlStage_BreakObj(s32 idx, Vec4 *hitPos, StgBreakInfo *info) {
                 rumblePower = 0.8f;
                 rumbleTime = 0.2f;
                 near = 100.0f;
+                far = 1500.0f;
+                rumbleFar = 1000.0f;
             }
             if (obj->type & STG_OBJ_SHAKE_S) {
                 time = 0.3f;
@@ -323,17 +329,6 @@ s32 BtlStage_BreakObj(s32 idx, Vec4 *hitPos, StgBreakInfo *info) {
     }
     return 1;
 }
-#endif
-/* Its eight float constants sit between StgObj_GetDust's and BtlStage_DestroyObj's in the pool. */
-LIT4_WORD(D_002FE5C8, 0x44BB8000);
-LIT4_WORD(D_002FE5CC, 0x3F333333);
-LIT4_WORD(D_002FE5D0, 0x3E999999);
-LIT4_WORD(D_002FE5D4, 0x3F4CCCCC);
-LIT4_WORD(D_002FE5D8, 0x3E4CCCCC);
-LIT4_WORD(D_002FE5DC, 0x3E999999);
-LIT4_WORD(D_002FE5E0, 0x3DCCCCCC);
-LIT4_WORD(D_002FE5E4, 0x44BB8000);
-INCLUDE_ASM("asm/nonmatchings/battle/stg_a_b", BtlStage_BreakObj);
 
 /* Puts every object in one state: broken != 1 restores them whole (hit points, type and parent reloaded from the
  * stage data); broken == 1 marks them all broken without any animation. */
@@ -441,16 +436,16 @@ s32 BtlStage_GetObjType(s32 idx) {
 }
 
 /* Per frame (not while paused): advances the debris of every object that is falling. */
-#if 0 /* not matched: same calls, tests and constants in the same order, but the original runs out of saved registers
-    (the object index and its byte offset live on the stack at sp+0x34 / sp+0x38) and this C does not reproduce
-    that allocation. Read it as a description. */
+/* Written as the original was, which the code generation shows: the object is indexed (`objs[i]`) at every use
+ * instead of through an element pointer (the compiler then keeps several copies of that pointer and runs out of
+ * saved registers: the index and its byte offset live on the stack), `first` is set in both arms of an if / else,
+ * and the dust cases 0 and 1 are separate although identical. */
 void BtlStage_UpdateObjs(void) {
     Vec4 pos;
     Vec4 prev;
     Vec4 center;
     f32 scale;
     StgObj *objs = gBtlStage->objs;
-    StgObj *obj;
     StgPart *part;
     StgNode *node;
     u32 i;
@@ -461,23 +456,23 @@ void BtlStage_UpdateObjs(void) {
         return;
     }
     for (i = 0; i < gBtlStage->objCount; i++) {
-        obj = &objs[i];
-        if (!(obj->state & STG_OBJ_FALLING)) {
+        if (!(objs[i].state & STG_OBJ_FALLING)) {
             continue;
         }
-        first = 0;
-        if ((f32)obj->frame == 0.0f) {
+        if ((f32)objs[i].frame == 0.0f) {
             first = 1;
+        } else {
+            first = 0;
         }
-        obj->frame = (f32)obj->frame + 2.0f;
-        if (obj->animEnd == 0) {
-            obj->animEnd = 0x94;
+        objs[i].frame = (f32)objs[i].frame + 2.0f;
+        if (objs[i].animEnd == 0) {
+            objs[i].animEnd = 0x94;
         }
-        if ((f32)obj->animEnd <= (f32)obj->frame) {
-            obj->frame = 0;
-            obj->state ^= STG_OBJ_FALLING;
-            for (j = 0; j < obj->pieceCount; j++) {
-                part = obj->pieces[j];
+        if ((f32)objs[i].animEnd <= (f32)objs[i].frame) {
+            objs[i].frame = 0;
+            objs[i].state ^= STG_OBJ_FALLING;
+            for (j = 0; j < objs[i].pieceCount; j++) {
+                part = objs[i].pieces[j];
                 node = part->node;
                 if (StgNode_IsRigid(node)) {
                     if (node->body >= 0) {
@@ -489,17 +484,17 @@ void BtlStage_UpdateObjs(void) {
         }
         if (first) {
             Vec4_Copy(&center, &D_002EC2C0);
-            for (j = 0; j < obj->pieceCount; j++) {
-                part = obj->pieces[j];
+            for (j = 0; j < objs[i].pieceCount; j++) {
+                part = objs[i].pieces[j];
                 if (part->node != NULL) {
                     StgPart_Animate(part, 0.0f, &pos);
                     Vec4_Add(&center, &center, &pos);
                 }
             }
-            Vec3_Scale(&center, &center, 1.0f / (f32)obj->pieceCount);
+            Vec3_Scale(&center, &center, 1.0f / (f32)objs[i].pieceCount);
         }
-        for (j = 0; j < obj->pieceCount; j++) {
-            part = obj->pieces[j];
+        for (j = 0; j < objs[i].pieceCount; j++) {
+            part = objs[i].pieces[j];
             node = part->node;
             if (node == NULL) {
                 continue;
@@ -510,19 +505,23 @@ void BtlStage_UpdateObjs(void) {
             if (StgNode_IsRigid(node)) {
                 if (first) {
                     StgPart_Animate(part, 0.0f, &pos);
-                    node->body = StgRigid_Create(&pos, 0, part->radius);
+                    node->body = StgRigid_Create(&pos, part->radius, 0);
                     if (node->body >= 0) {
-                        StgRigid_Launch(node->body, &obj->hitPos, StgObj_GetMaterial(obj));
+                        StgRigid_Launch(node->body, &objs[i].hitPos, StgObj_GetMaterial(&objs[i]));
                     }
                 }
                 StgRigid_GetMatrix(node, node->body);
             } else {
                 node->body = 0;
-                StgPart_Animate(part, (f32)obj->frame, &pos);
+                StgPart_Animate(part, (f32)objs[i].frame, &pos);
             }
             if (first) {
                 switch (StgObj_GetDust(&objs[i], &scale)) {
                 case 0:
+                    if ((j & 3) == 0) {
+                        EftGndDust_SpawnDebris(&pos, 1.0f, 1.0f, scale);
+                    }
+                    break;
                 case 1:
                     if ((j & 3) == 0) {
                         EftGndDust_SpawnDebris(&pos, 1.0f, 1.0f, scale);
@@ -539,7 +538,7 @@ void BtlStage_UpdateObjs(void) {
                 }
             }
             StgPart_GetPos(part, &pos);
-            if (obj->type & STG_OBJ_SPLASH) {
+            if (objs[i].type & STG_OBJ_SPLASH) {
                 if (prev.y < 0.0f && 0.0f < pos.y) {
                     EftWater_AddSplashAt(&prev, 3.0f);
                 }
@@ -547,8 +546,6 @@ void BtlStage_UpdateObjs(void) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/stg_a_b", BtlStage_UpdateObjs);
 
 /* Asks the loader for the stage this one changes into (BtlStage_GetChangeTarget). */
 void BtlStage_RequestChange(void) {

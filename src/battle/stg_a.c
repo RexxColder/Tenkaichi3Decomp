@@ -20,9 +20,8 @@
  * type bits). The frustum functions, the fades, the light vectors and the debris animation only feed drawing,
  * except that debris pieces of rigid kind are handed to the stage rigid bodies (battle/stg_d.c).
  *
- * 70 functions match. INCLUDE_ASM: the three VU0 macro-code rotations (hand-written assembly in the original),
- * StgFrustum_Build, Stg_FadeByCamDist, StgPart_Animate, BtlStage_BreakObj and BtlStage_UpdateObjs, each with
- * its C above it in `#if 0` and a note on what differs.
+ * Every C function matches. Not C: the three VU0 macro-code rotations (hand-written assembly in the original),
+ * which stay an assembly chunk between this file and stg_a_b.c.
  */
 #include "common.h"
 #include "sys/math3d.h"
@@ -70,7 +69,7 @@ extern void ColMesh_SetBase(void *arg);
 extern void StgRigid_Reset(void);                           /* stage rigid bodies: reset */
 extern void StgRigid_Init(void);                           /* stage rigid bodies: init */
 extern void StgRigid_Term(void);                           /* stage rigid bodies: term */
-extern s32 StgRigid_Create(Vec4 *pos, s32 arg, f32 radius);  /* new rigid body, handle or < 0 */
+extern s32 StgRigid_Create(Vec4 *pos, f32 radius, s32 arg);  /* new rigid body, handle or < 0 */
 extern void StgRigid_Launch(s32 body, Vec4 *hitPos, s32 material);
 extern void StgRigid_Release(s32 body);                       /* release a rigid body */
 extern void StgRigid_GetMatrix(StgNode *node, s32 body);        /* node matrix = body transform */
@@ -363,10 +362,9 @@ void BtlStage_ClearZoneMarks(void) {
     fr->plane[4].w = 1.0f
 
 /* Builds the culling frustum of a view: side plane normals, view matrix, projection. Drawing only. */
-#if 0 /* 8 of 164 instructions differ, all the same register swap: the original keeps near / screenDist in $f6 and the
-    constant 256 in $f5, this C the other way round. Everything else (stores, order, constants) is identical. */
 void StgFrustum_Build(StgView *view, StgFrustum *fr) {
-    f32 k, left, right, top, bottom, inv;
+    f32 k; /* near / screenDist, then each reciprocal in turn: one variable in the original (register allocation) */
+    f32 left, right, top, bottom;
     s32 i;
 
     memset(fr, 0, sizeof(StgFrustum));
@@ -388,29 +386,27 @@ void StgFrustum_Build(StgView *view, StgFrustum *fr) {
         right = k * 256.0f * 1.1666667f;
         left = k * -256.0f * 1.1666667f;
     }
-    inv = 1.0f / (right - left);
-    fr->proj.m[0][0] = (view->nearZ + view->nearZ) * inv;
+    k = 1.0f / (right - left);
+    fr->proj.m[0][0] = (view->nearZ + view->nearZ) * k;
     fr->proj.m[1][0] = 0.0f;
-    fr->proj.m[2][0] = (right + left) * inv;
+    fr->proj.m[2][0] = (right + left) * k;
     fr->proj.m[3][0] = 0.0f;
-    inv = 1.0f / (top - bottom);
+    k = 1.0f / (top - bottom);
     fr->proj.m[0][1] = 0.0f;
-    fr->proj.m[1][1] = (view->nearZ + view->nearZ) * inv;
-    fr->proj.m[2][1] = (top + bottom) * inv;
+    fr->proj.m[1][1] = (view->nearZ + view->nearZ) * k;
+    fr->proj.m[2][1] = (top + bottom) * k;
     fr->proj.m[3][1] = 0.0f;
     fr->proj.m[0][2] = 0.0f;
     fr->proj.m[1][2] = 0.0f;
-    inv = 1.0f / (view->farZ - view->nearZ);
-    fr->proj.m[2][2] = -view->nearZ * inv;
-    fr->proj.m[3][2] = -(view->farZ * view->nearZ) * inv;
+    k = 1.0f / (view->farZ - view->nearZ);
+    fr->proj.m[2][2] = -view->nearZ * k;
+    fr->proj.m[3][2] = -(view->farZ * view->nearZ) * k;
     fr->proj.m[0][3] = 0.0f;
     fr->proj.m[1][3] = 0.0f;
     fr->proj.m[2][3] = -1.0f;
     fr->proj.m[3][3] = 0.0f;
     func_00120230(&fr->view, &view->mtx);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/stg_a", StgFrustum_Build);
 
 /* Frustum test of the cube (x, y, z) +- r: 0 inside, 1 crossing, 2 outside. Drawing only. */
 s32 StgFrustum_TestBox(StgFrustum *fr, f32 x, f32 y, f32 z, f32 r) {
@@ -648,8 +644,6 @@ f32 Stg_FadeRatio(f32 a, f32 b) {
 
 /* Fades `value` in with the distance from the current camera beyond its near plane: 0 up to 75, full from 100.
  * Reads the camera; used only by the stage draw at 0x115A78. */
-#if 0 /* 4 of 54 instructions differ: the original computes (dist - 75) / 25 in $f0 and multiplies into $f2, this C
-    divides straight into $f2. Same operations and constants. */
 f32 Stg_FadeByCamDist(Vec4 *pos, f32 value) {
     Vec4 d;
     StgView *view = gBtlCamView;
@@ -669,15 +663,15 @@ f32 Stg_FadeByCamDist(Vec4 *pos, f32 value) {
         return r;
     }
     if (dist > 75.0f) {
-        r = (dist - 75.0f) / 25.0f;
-        r *= value;
+        /* The first assignment is dead, but needed to match: without it the compiler still knows r == value
+         * here, multiplies r itself and keeps both in one register. The original had some equivalent statement. */
+        r = 0.0f;
+        r = (dist - 75.0f) / 25.0f * value;
     } else {
         r = 0.0f;
     }
     return r;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/stg_a", Stg_FadeByCamDist);
 
 /* Position of a part's node (row 3 of its matrix). */
 void StgPart_GetPos(StgPart *part, Vec4 *out) {

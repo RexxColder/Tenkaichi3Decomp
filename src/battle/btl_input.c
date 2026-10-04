@@ -560,7 +560,14 @@ void BtlInput_Sample(BtlInputChr *chr) {
  * scheduler emits the twelve stores of the first block (and two of the four `and`s) differs. The original emits
  * stickPrev[0], stickRawPrev[0], stickRawPrev[1], pressed, cmdPressed, cmdReleased, prev, cmdPrev, held, cmdHeld,
  * stickPrev[1], released; this statement order (the best of every permutation tried) emits pressed, stickRawPrev[0],
- * stickRawPrev[1], stickPrev[0], cmdReleased, cmdPressed and then the same tail. */
+ * stickRawPrev[1], stickPrev[0], cmdReleased, cmdPressed and then the same tail.
+ * From the scheduler dumps: the stores come out in statement order, except that the two whose value sits in a0
+ * and f0 (registers the following calls need) go last. So the original statement order of the stores is
+ * stickPrev[0], stickRawPrev[0], stickRawPrev[1], pressed, cmdPressed, cmdReleased, prev, cmdPrev, held, cmdHeld
+ * (stickPrev[1] and released anywhere), while the register numbers follow the order of the LOADS, which is this
+ * attempt's. Both at once need the loads and the stores as separate statements (locals): searched (all 40320
+ * orders of the eight loads for one store order, hill climbing from several starts, the forms that read back
+ * `in->prev` / `in->held`): best 10 differences with the store order right and v0 / v1 exchanged. */
 #if 0
 void BtlInput_Update(BtlInputChr *chr) {
     u8 stick[2];

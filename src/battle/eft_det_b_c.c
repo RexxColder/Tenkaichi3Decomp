@@ -27,17 +27,13 @@ void BtlAiSeq_Reset(DetAiSeq *seq) {
    argument byte 0x80 is dropped while the skip counter is positive; the counter goes down by one per call and is
    reloaded from a table by cpu level / 6 (2, 3, 4, 5, 99999) when it runs out. Action 0x3D arms a 90-frame timer
    in the plan block. */
-/* NON-MATCHING: the original does not reduce the two byte lists to walking pointers (it indexes rule + 4 and
-   rule + 8 with i + 0x10 and keeps a pointer to the stack entry); 66 of 85 instructions differ. Read from the
-   disassembly, the behaviour is what this C does. */
-#if 0
+/* The two byte lists are read as the fields at rule + 4 and rule + 8 indexed with i + 16 (written through a local
+   pointer the compiler turns them into walking pointers, which the original does not have). */
 void BtlAiSeq_PushRule(DetAiWork *ai, DetAiRule *rule) {
     DetAiSeq *seq = &ai->seq;
-    s32 skips[5] = { 2, 3, 4, 5, 99999 };
+    s32 skips[5] = { 2, 3, 4, 5, 99999 }; /* D_002ED8A0 */
     DetAiPlan *plan = (DetAiPlan *)ai->plan;
     DetAiSeqEntry *entry;
-    u8 *ids;
-    u8 *args;
     s32 i;
 
     seq->depth = 0;
@@ -47,24 +43,19 @@ void BtlAiSeq_PushRule(DetAiWork *ai, DetAiRule *rule) {
     if (seq->skip < 0) {
         seq->skip = skips[ai->level >= 0 ? ai->level / 6 : 0];
     }
-    ids = (u8 *)rule + 4;
-    args = (u8 *)rule + 8;
-    entry = &seq->stack[seq->depth];
-    for (i = 0; ids[i + 0x10] != 0xFF; entry = &seq->stack[seq->depth]) {
-        if (ids[i + 0x10] != 2 || seq->skip <= 0 || args[i + 0x10] != 0x80) {
-            if (ids[i + 0x10] == 0x3D) {
-                plan->timerA4 = 90;
-            }
-            entry->id = ids[i + 0x10];
-            entry->arg = args[i + 0x10] + 0x81;
-            seq->depth++;
-        }
-        i++;
-        if (i >= 4) {
+    for (i = 0; i < 4; i++) {
+        entry = &seq->stack[seq->depth];
+        if (rule->unk4[i + 16] == 0xFF) {
             break;
         }
+        if (rule->unk4[i + 16] == 2 && seq->skip > 0 && rule->unk8[i + 16] == 0x80) {
+            continue;
+        }
+        if (rule->unk4[i + 16] == 0x3D) {
+            plan->timerA4 = 90;
+        }
+        entry->id = rule->unk4[i + 16];
+        entry->arg = rule->unk8[i + 16] + 0x81;
+        seq->depth++;
     }
 }
-#endif
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_det_b_c", D_002ED8A0); /* the skip table { 2, 3, 4, 5, 99999 } */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b_c", BtlAiSeq_PushRule);

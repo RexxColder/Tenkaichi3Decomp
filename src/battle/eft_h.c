@@ -5,7 +5,7 @@
  * Technique effects, second part: 0x14B108..0x14F230. See include/battle/eft_h.h for the layouts.
  * Everything called outside the file is declared here with this file's own view types.
  *
- * Seven functions are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
+ * Six functions are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
  * every `#if 0` into `#if 1` and dropping the INCLUDE_ASM lines gives a file that fdiff can compile.
  */
 
@@ -128,7 +128,7 @@ static inline s32 EftShot_TypeRow(s32 type) {
 
 /* Fills the parameter block of technique slot `slot` of character `chr`: defaults when `blank`, otherwise a
    flat copy of the fields the effects use out of the character's skill (slots 0, 1) or technique data. */
-#if 0 /* not matched (499 instructions against 502). The defaults branch is identical except for the order of six stores; the skill and technique branches read the same fields into the same places, but the original keeps a copy of the slot index (move t8,t9 / addiu t8,t9,-2) and shares the address arithmetic of the structure-of-arrays fields differently (it spills 34 intermediate addresses to the stack, this C 30). */
+#if 0 /* not matched (499 instructions against 502). The defaults branch is identical except for the order of six stores; the skill and technique branches read the same fields into the same places, but the original keeps a copy of the slot index (move t8,t9 / addiu t8,t9,-2) and shares the address arithmetic of the structure-of-arrays fields differently (it spills 34 intermediate addresses to the stack, this C 30). Behaviour verified: both versions were run in an interpreter for every slot 0..4, blank 0 / 1 and 40 random source tables; the parameter block and the memory around it come out byte-identical (build/scratch_cleanup_eft/emu_buildparam.py; a deliberately wrong field is caught). */
 void EftShot_BuildParam(s32 chr, s32 slot, EftShotParam *p, s32 blank) {
     s32 i;
 
@@ -366,13 +366,15 @@ void EftShot_CreateChar(s32 chr) {
 
 /* Frames between the start of a technique's effect and its first shot, by kind of technique: 0.85 s; a technique
    (kind 1) with unk5 == 5: 0.8 s; an ultimate (kind 2): 0.8 s with unk5 == 5, else 1.3 s, 0.7 s for technique
-   0x268 and none for 0x290. */
-#if 0 /* same code path and constants, different registers: the original loads every constant into $f1 and copies it to $f0 (lwc1 f1 / mov.s f0,f1) where this C loads $f0 directly; no source form tried reproduces the copy. */
+   0x268 and none for 0x290. (Two `return t;` statements: with a single return at the end the value sits in $f0
+   from the start; the early return keeps it in $f1 and copies it at the exit.) */
 f32 EftShot_GetLeadTime(EftHSlot *slot) {
     f32 t = 0.85f * 30.0f;
     EftShotParam *p = slot->param;
 
-    if (p != NULL) {
+    if (p == NULL) {
+        return t;
+    }
         switch (p->kind) {
         case 0:
             break;
@@ -394,11 +396,8 @@ f32 EftShot_GetLeadTime(EftHSlot *slot) {
             }
             break;
         }
-    }
     return t;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftShot_GetLeadTime);
 
 /* The effect pack of a technique slot, from the fighter object. */
 s32 EftShot_GetCharPack(s32 chr, s32 slot) {
@@ -711,7 +710,7 @@ void EftVolley_UpdateParts(s32 objId, EftHTask *task, EftSet *set, s32 reset) {
 }
 
 /* Instance init: clears the work, takes the shot parameters of the slot and the group's emitter set. */
-#if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. */
+#if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. That is gcse's PRE (dump: "PRE: redundant insn ... in bb 2"); the original has PRE between the second and third test (as here) but not between the first and second, the same thing as in EftBlast_Init (eft_j.c). Compiled with -fno-gcse the first test matches and the third does not. Behaviour is identical (run against the original in an interpreter on random data: same calls, same memory). */
 void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
     EftSet *set = BtlTask_GetParent(task)->data;
     EftVolleyWork *w = task->data;

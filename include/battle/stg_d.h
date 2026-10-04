@@ -82,7 +82,7 @@ void StgRigidList_EndFrame(StgRigidNode *head);
 void StgRigid_Reset(void);
 void StgRigid_Init(void);
 void StgRigid_Term(void);
-s32 StgRigid_Create(Vec4 *pos, s32 user, f32 radius);
+s32 StgRigid_Create(Vec4 *pos, f32 radius, s32 user);
 void StgRigid_Launch(s32 id, Vec4 *push, s32 material);
 void StgRigid_LaunchSpin(s32 id, Vec4 *push, Vec4 *angVel);
 void StgRigid_Release(s32 id);

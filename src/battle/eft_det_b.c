@@ -240,23 +240,23 @@ s32 StgCol_TraceSphere(s32 zoneIdx, StgColSweep *seg, StgColVec *hitPos, f32 *fr
 }
 
 /* Splits a movement of length `dist` into steps of at most half a radius: writes one step, returns how many. */
-/* NON-MATCHING: same instructions, but the original loads the constant 1.0f (into $f1) before the division and the branch; here it is loaded after the branch (15 of 31 instructions shifted). */
-#if 0
+/* The `do { } while (0)` is needed to match: the original keeps `scale = 1.0f` in front of the branch although its
+   only use is in the other block; without loop notes around that use the compiler moves the load next to it. */
 s32 StgCol_SplitStep(StgColVec *out, StgColVec *delta, f32 radius, f32 dist) {
     s32 n = dist / (radius * 0.5f);
     f32 scale = 1.0f;
 
-    if (n == 0) {
-        Vec4_Copy(out, delta);
-        return 1;
-    }
-    n++;
-    scale /= n;
-    Vec3_Scale(out, delta, scale);
+    do {
+        if (n == 0) {
+            Vec4_Copy(out, delta);
+            return 1;
+        }
+        n++;
+        scale /= n;
+        Vec3_Scale(out, delta, scale);
+    } while (0);
     return n;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b", StgCol_SplitStep);
 
 /* Advances the sphere by one step and rebuilds its bounds (radius + 0.1). */
 void StgCol_StepSphere(StgColSphere *sphere, StgColBox *box, StgColVec *step) {
@@ -439,12 +439,9 @@ void StgCol_UpdateFighter(StgColFighter *obj, s32 keepSphere, s32 grow) {
 }
 
 /* A fighter's body touched unbroken stage object idx. */
-/* NON-MATCHING: one instruction: the branch on BtlCharApi_TestStageBreakA's result is `bnez` in the original and `bnezl` here (the delay slot holds `andi v0,type,0x100` in both). */
-#if 0
 void StgCol_FighterBreakObj(StgColFighter *obj, s32 idx, StgColVec *hitPos) {
     StgColObjWork *work = obj->work;
     s32 type;
-    s32 doBreak;
 
     if (idx < 0) {
         return;
@@ -453,15 +450,17 @@ void StgCol_FighterBreakObj(StgColFighter *obj, s32 idx, StgColVec *hitPos) {
         return;
     }
     type = BtlStage_GetObjType(idx);
-    doBreak = BtlCharApi_TestStageBreakA(obj->objId);
-    if (doBreak == 0) {
-        doBreak = BtlCharApi_TestStageBreakB(obj->objId);
+    /* Written out twice, as the original was: the compiler merges the two bodies after register allocation. */
+    if (BtlCharApi_TestStageBreakA(obj->objId)) {
+        if (type & 0x100) {
+            BtlStage_DestroyObj(obj->objId, idx, hitPos);
+            work->flags |= STGCOL_HIT_BROKE;
+        }
     } else {
-        doBreak = type & 0x100;
-    }
-    if (doBreak) {
-        BtlStage_DestroyObj(obj->objId, idx, hitPos);
-        work->flags |= STGCOL_HIT_BROKE;
+        if (BtlCharApi_TestStageBreakB(obj->objId)) {
+            BtlStage_DestroyObj(obj->objId, idx, hitPos);
+            work->flags |= STGCOL_HIT_BROKE;
+        }
     }
     if (work->flags & STGCOL_HIT_BROKE) {
         if (type & 0x800) {
@@ -475,8 +474,6 @@ void StgCol_FighterBreakObj(StgColFighter *obj, s32 idx, StgColVec *hitPos) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b", StgCol_FighterBreakObj);
 
 /* StgCol_FirstBit as a function not yet seen by the compiler: StgCol_TraceZone and StgCol_CollectZone only match
    that way (branch-likely choice), so in the original it was not defined earlier in their source file. */
@@ -610,22 +607,21 @@ void StgCol_ClipSegToZone(StgColBox *out, s32 cur, s32 from, s32 to, StgColCtx *
 /* Segment trace, one zone: tests the zone when the segment passes through it; without a hit goes on to every
    neighbour that contains the point where the segment entered this zone... The first zone with a hit ends the
    walk. */
-/* NON-MATCHING: register allocation only: the original keeps ctx in $s2 and zone in $s3, this C swaps them (15 of 111 instructions). */
-#if 0
 void StgCol_TraceZone(s32 cur, s32 from, s32 to, StgColCtx *ctx) {
     StgColResult res;
     StgColBox zoneBox;
     StgColBox box;
     StgColVec entry;
-    StgColZone *zone = &gBtlStage->zones[cur];
+    StgColZone *zones = gBtlStage->zones; /* indexed at every use, as the original was: no element pointer */
     s32 last;
     s32 obj;
     s32 *near;
+    s32 i;
 
-    if (zone->mark & 1) {
+    if (zones[cur].mark & 1) {
         return;
     }
-    zone->mark |= 1;
+    zones[cur].mark |= 1;
     last = to == cur;
     gStgColZoneVisits++;
     StgCol_GetZoneBox(&zoneBox, cur);
@@ -637,7 +633,7 @@ void StgCol_TraceZone(s32 cur, s32 from, s32 to, StgColCtx *ctx) {
     }
     StgCol_ClipSegToZone(&box, cur, from, to, ctx, &zoneBox, &entry);
     StgCol_SetModeAll();
-    if (StgCol_QueryZone(&res, zone, &box, ctx, (StgColCb)StgCol_SegCb)) {
+    if (StgCol_QueryZone(&res, &zones[cur], &box, ctx, (StgColCb)StgCol_SegCb)) {
         obj = StgCol_FirstBit_(res.objMask);
         if (obj >= 0) {
             if (!BtlStage_IsObjBroken(obj)) {
@@ -647,18 +643,16 @@ void StgCol_TraceZone(s32 cur, s32 from, s32 to, StgColCtx *ctx) {
     } else {
         gStgColZoneMisses++;
         if (!last) {
-            near = zone->near;
-            for (cur = 0; cur < zone->nearCount; cur++) {
-                StgCol_GetZoneBox(&zoneBox, near[cur]);
+            near = zones[cur].near;
+            for (i = 0; i < zones[cur].nearCount; i++) {
+                StgCol_GetZoneBox(&zoneBox, near[i]);
                 if (ColBox_ContainsPoint(&zoneBox, &entry)) {
-                    StgCol_TraceZone(near[cur], from, to, ctx);
+                    StgCol_TraceZone(near[i], from, to, ctx);
                 }
             }
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_det_b", StgCol_TraceZone);
 
 /* Triangle collection in one zone. */
 void StgCol_CollectZone(s32 zoneIdx, StgColCtx *ctx) {

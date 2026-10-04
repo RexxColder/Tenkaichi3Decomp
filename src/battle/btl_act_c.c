@@ -771,6 +771,13 @@ s32 BtlAct_ChargeHandler(Chr *chr, s32 phase) {
  * original order is what it gives when only ONE call follows in the block (see the same statement in
  * BtlAct_DashChargedKiBlastHandler, which matches), so the original source had a block boundary between the
  * two BtlChar_SetFlag calls that leaves no trace in the code. Not found.
+ * Checked this pass: removing the second BtlChar_SetFlag of the recoil case gives the original order (so the
+ * boundary is behind SetFlag(0x95)); `goto` into a shared SetFlag(0x41) gives the order too but leaves a second
+ * copy of the head (the cross-jump pass cannot merge it: the compiler puts a dummy `(use 0)` behind a call that
+ * ends a block, and that stops the comparison); three identical case bodies (0xF0 / 0xF2 / 0xF4 written out) are
+ * merged completely, but only AFTER the scheduling, so the order stays wrong. The scheduler's rule: with equal
+ * priority it prefers the instruction more later instructions depend on; `move a2,zero` is depended on by every
+ * later call of the block (three), `addiu a1` by the call and the next a1 load (two).
  */
 #if 0
 s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {

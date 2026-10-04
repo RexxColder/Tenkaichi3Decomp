@@ -342,8 +342,6 @@ s32 BtlAiCond_Rate4(BtlAiWork *ai, u8 arg) {
 }
 
 /* Condition 31: AI-type rate chosen by which of the opponent actions 0x37..0x3A / 0x3C..0x3F is running. */
-#if 0
-/* Best attempt. 5 of 50 instructions differ: the range test result goes to v1 instead of s0, and the two pointer adds come after it. */
 s32 BtlAiCond_TypeRateByOppAction(BtlAiWork *ai, u8 arg) {
     BtlAiSeq *seq = &ai->seq;
     s32 action = BtlCharApi_GetUnk974(ai->objId ^ 1);
@@ -353,19 +351,15 @@ s32 BtlAiCond_TypeRateByOppAction(BtlAiWork *ai, u8 arg) {
     s32 idx = action < 0x3C ? action - 0x37 : action - 0x3C;
     s32 roll = Rand_Range(100);
     s32 chance;
-    s8 *l = lo + idx;
-    s8 *h = hi + idx;
 
     if ((u32)idx >= 4) {
         return 0;
     }
-    chance = BtlAi_ScaleByLevel(ai->level, *l, *h);
+    chance = RATE(ai, lo, hi, idx);
     seq->roll = roll;
     seq->threshold = chance;
     return roll < chance;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", BtlAiCond_TypeRateByOppAction);
 
 /* Condition 32: character rate 2; raises reaction bit 0x400. */
 s32 BtlAiCond_Rate2(BtlAiWork *ai, u8 arg) {
@@ -455,87 +449,120 @@ f32 BtlAi_GetLowGaugeFactor(BtlAiWork *ai) {
     return (f32)BtlAi_ScaleByLevel(ai->level, lo, hi) * 0.1f;
 }
 
+/* A 16-byte row of a rate table as the two functions below read it: four byte columns at 0, 4, 8 and 12. They
+ * match only when the columns are read as FIELDS of a row at (table + offset); with plain `table[i + 8]` the loads
+ * and the stores to lo / hi come out interleaved. Each case also needs its own block-local index variable. */
+typedef struct AiRateRow {
+    /* 0x0 */ s8 c0;
+    /* 0x1 */ s8 pad1[3];
+    /* 0x4 */ s8 c4;
+    /* 0x5 */ s8 pad5[3];
+    /* 0x8 */ s8 c8;
+    /* 0x9 */ s8 pad9[3];
+    /* 0xC */ s8 c12;
+    /* 0xD */ s8 padD[3];
+} AiRateRow;
+
 /* Picks one of 14 lo/hi byte pairs (rows of 16, columns 0 and 8), scales them by gauge and returns the value for
  * the level. */
-#if 0
-/* Best attempt. The original keeps a separate copy of the row code in every even case and shares one tail for the odd ones; this collapses differently (75 of 90 instructions differ). */
 s32 BtlAi_GetPairRate(BtlAiWork *ai, u32 kind, s32 off, s8 *base_lo, s8 *base_hi, s32 byGauge) {
     BtlAiPlan *plan = &ai->plan;
     s32 lo = 0;
     s32 hi = 0;
-    s32 i;
 
     switch (kind) {
     case 0:
-        i = off;
-        lo = base_lo[i];
-        hi = base_hi[i];
+        lo = ((AiRateRow *)(base_lo + off))->c0;
+        hi = ((AiRateRow *)(base_hi + off))->c0;
         break;
     case 1:
-        i = off;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+        lo = ((AiRateRow *)(base_lo + off))->c8;
+        hi = ((AiRateRow *)(base_hi + off))->c8;
         break;
-    case 2:
-        i = off + 0x10;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    case 2: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 3:
-        i = off + 0x10;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 3: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 4:
-        i = off + 0x20;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 4: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 5:
-        i = off + 0x20;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 5: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 6:
-        i = off + 0x30;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 6: {
+        s32 i = off + 0x30;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 7:
-        i = off + 0x30;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 7: {
+        s32 i = off + 0x30;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 8:
-        i = off + 0x40;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 8: {
+        s32 i = off + 0x40;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 9:
-        i = off + 0x40;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 9: {
+        s32 i = off + 0x40;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 10:
-        i = off + 0x50;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 10: {
+        s32 i = off + 0x50;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 11:
-        i = off + 0x50;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 11: {
+        s32 i = off + 0x50;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 12:
-        i = off + 0x60;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 12: {
+        s32 i = off + 0x60;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 13:
-        i = off + 0x60;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 13: {
+        s32 i = off + 0x60;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
+    }
     default:
         return 0;
     }
@@ -550,89 +577,99 @@ s32 BtlAi_GetPairRate(BtlAiWork *ai, u32 kind, s32 off, s8 *base_lo, s8 *base_hi
     }
     return BtlAi_ScaleByLevel(ai->level, lo, hi);
 }
-#endif
-RODATA_ALIGN16(); /* the jump table is at 0x2EDFA0; the data before it ends at 0x2EDF98 */
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", BtlAi_GetPairRate);
 
 /* Same with rows of four pairs (columns 0, 4, 8, 12) and no low-gauge factor. */
-#if 0
-/* Best attempt. Same problem as BtlAi_GetPairRate. */
 s32 BtlAi_GetQuadRate(BtlAiWork *ai, u32 kind, s32 off, s8 *base_lo, s8 *base_hi, s32 byGauge) {
     s32 lo = 0;
     s32 hi = 0;
-    s32 i;
 
     switch (kind) {
     case 0:
-        i = off;
-        lo = base_lo[i];
-        hi = base_hi[i];
+        lo = ((AiRateRow *)(base_lo + off))->c0;
+        hi = ((AiRateRow *)(base_hi + off))->c0;
         break;
     case 1:
-        i = off;
-        lo = base_lo[i + 4];
-        hi = base_hi[i + 4];
+        lo = ((AiRateRow *)(base_lo + off))->c4;
+        hi = ((AiRateRow *)(base_hi + off))->c4;
         break;
     case 2:
-        i = off;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+        lo = ((AiRateRow *)(base_lo + off))->c8;
+        hi = ((AiRateRow *)(base_hi + off))->c8;
         break;
     case 3:
-        i = off;
-        lo = base_lo[i + 12];
-        hi = base_hi[i + 12];
+        lo = ((AiRateRow *)(base_lo + off))->c12;
+        hi = ((AiRateRow *)(base_hi + off))->c12;
         break;
-    case 4:
-        i = off + 0x10;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    case 4: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 5:
-        i = off + 0x10;
-        lo = base_lo[i + 4];
-        hi = base_hi[i + 4];
+    }
+    case 5: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c4;
+        hi = ((AiRateRow *)(base_hi + i))->c4;
         break;
-    case 6:
-        i = off + 0x10;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 6: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 7:
-        i = off + 0x10;
-        lo = base_lo[i + 12];
-        hi = base_hi[i + 12];
+    }
+    case 7: {
+        s32 i = off + 0x10;
+
+        lo = ((AiRateRow *)(base_lo + i))->c12;
+        hi = ((AiRateRow *)(base_hi + i))->c12;
         break;
-    case 8:
-        i = off + 0x20;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 8: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 9:
-        i = off + 0x20;
-        lo = base_lo[i + 4];
-        hi = base_hi[i + 4];
+    }
+    case 9: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c4;
+        hi = ((AiRateRow *)(base_hi + i))->c4;
         break;
-    case 10:
-        i = off + 0x20;
-        lo = base_lo[i + 8];
-        hi = base_hi[i + 8];
+    }
+    case 10: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c8;
+        hi = ((AiRateRow *)(base_hi + i))->c8;
         break;
-    case 11:
-        i = off + 0x20;
-        lo = base_lo[i + 12];
-        hi = base_hi[i + 12];
+    }
+    case 11: {
+        s32 i = off + 0x20;
+
+        lo = ((AiRateRow *)(base_lo + i))->c12;
+        hi = ((AiRateRow *)(base_hi + i))->c12;
         break;
-    case 12:
-        i = off + 0x30;
-        lo = base_lo[i];
-        hi = base_hi[i];
+    }
+    case 12: {
+        s32 i = off + 0x30;
+
+        lo = ((AiRateRow *)(base_lo + i))->c0;
+        hi = ((AiRateRow *)(base_hi + i))->c0;
         break;
-    case 13:
-        i = off + 0x30;
-        lo = base_lo[i + 4];
-        hi = base_hi[i + 4];
+    }
+    case 13: {
+        s32 i = off + 0x30;
+
+        lo = ((AiRateRow *)(base_lo + i))->c4;
+        hi = ((AiRateRow *)(base_hi + i))->c4;
         break;
+    }
     default:
         return 0;
     }
@@ -641,8 +678,6 @@ s32 BtlAi_GetQuadRate(BtlAiWork *ai, u32 kind, s32 off, s8 *base_lo, s8 *base_hi
     }
     return BtlAi_ScaleByLevel(ai->level, lo, hi);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", BtlAi_GetQuadRate);
 
 /* ---- 0x1B80F8..0x1BB128 ---- */
 /*
@@ -1130,7 +1165,17 @@ s32 AiThink_TestMove(AiThWork *ai) {
 /* Conditions 101..107 (functions 94..100) and 113, 114 (106, 107): picks a usable skill slot, then the weighted
  * test. Slots are scanned from the last (2 only with fighter flag 6) to the first. */
 #if 0
-/* Best attempt (about 260 of 308 instructions differ). The entry block up to the first test matches; the slot loop does not: the original keeps eight strength-reduced pointers and offsets (four of them on the stack) and this allocates them differently. */
+/* Best attempt (about 260 of 308 instructions differ as fdiff counts them; about 130 with the shift removed). The
+ * entry block up to the first test matches; the slot loop does not. What is known from the disassembly and the
+ * RTL dumps: (1) the original frame is 144 bytes, this one 160: here the loop pass also strength-reduces
+ * `&list[count]` into a walking pointer (a fifth stack slot at 64(sp)); the original recomputes it from `count`
+ * at the store, i.e. its loop was too large for that reduction to pay (the heuristic compares the benefit with
+ * the number of instructions in the loop), so the original loop body had MORE code at that stage than this
+ * one; (2) the base constants of the original (skills + 5 with i + 352, skills + 12 with 4i + 400, 8 with
+ * 2i + 16) are this compiler's split of a field offset into a multiple of 16 and a rest, which the plain
+ * `skills->kind[i]` gives, so the member accesses are right; (3) reload takes registers up to t1 here, a sign
+ * that the choice of spill registers differs from the first instruction that needs one (see AiThink_EvalRules).
+ * Behaviour checked line by line against the disassembly. */
 s32 AiThink_TestSkill(AiThWork *ai) {
     s32 list[4];
     s32 gauge;
@@ -1167,7 +1212,11 @@ s32 AiThink_TestSkill(AiThWork *ai) {
     } else if (D_002EDA70[plan->cond] == 0x6A) {
         beatOpp = 1;
         if (oppSlot != -1) {
-            strict = !(opp->state[oppSlot] & 0x100);
+            if (opp->state[oppSlot] & 0x100) {
+                strict = 0;
+            } else {
+                strict = 1;
+            }
         }
     }
     if ((u32)kind >= 7 && anyBasic == 0 && beatOpp == 0) {
@@ -1879,38 +1928,34 @@ s32 AiThink_SumSubRates(AiThWork *ai, s32 sub) {
     return sum;
 }
 
-/* Fills plan.total / plan.total3 for the fighter's kit and level. Called when the type or level is set. */
-#if 0
-/* Best attempt. 12 of 80 instructions differ: the pointer for the last table (the original forms it as work + 0x2F1 and adds 0x8A) is computed three instructions earlier and in a0 instead of v0. */
+/* Fills plan.total (rows 0..2 by class, row 3 by sub) for the fighter's kit and level. Called when the type or
+ * level is set. The table is reached through a `plan` pointer: this compiler splits every field offset into a
+ * multiple of 16 and a rest, so `ai->plan.total[..]` and `plan->total[..]` give different base constants (the
+ * original's work + 0x2F1 is plan + 9, the rest of total's offset 0x69). */
 void AiThink_BuildTotals(AiThWork *ai) {
+    AiThPlan *plan = &ai->plan;
     u8 *prof = PROFILE(ai);
-    s8 *p = (s8 *)ai + 0x2F1;
     s32 i;
     s32 j;
 
     for (i = 0; i < 14; i++) {
-        ai->plan.total[0][i] = AiThink_SumPairRates(ai, i, (s8 *)prof + 0x74, (s8 *)prof + 0x334, D_002EDCE0);
-        ai->plan.total[1][i] = AiThink_SumPairRates(ai, i, (s8 *)prof + 0xE4, (s8 *)prof + 0x3A4, D_002EDD50);
-        ai->plan.total[2][i] = AiThink_SumQuadRates(ai, i, (s8 *)prof + 0x178, (s8 *)prof + 0x438, D_002EDDD8);
+        plan->total[0][i] = AiThink_SumPairRates(ai, i, (s8 *)prof + 0x74, (s8 *)prof + 0x334, D_002EDCE0);
+        plan->total[1][i] = AiThink_SumPairRates(ai, i, (s8 *)prof + 0xE4, (s8 *)prof + 0x3A4, D_002EDD50);
+        plan->total[2][i] = AiThink_SumQuadRates(ai, i, (s8 *)prof + 0x178, (s8 *)prof + 0x438, D_002EDDD8);
     }
     for (j = 0; j < 4; j++) {
-        p[0x8A + j] = AiThink_SumSubRates(ai, j);
+        plan->total[3][j] = AiThink_SumSubRates(ai, j);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_BuildTotals);
 
 /* Range of the rolls for the rule list in hand (tbl = list - 1, or 3 for list 7): the total of the usable rates,
  * 100 when that is zero. */
-#if 0
-/* Best attempt. 25 of 64 instructions differ: registers only (s0 / s1 swapped, the near bonus in a1 instead of a0, the class in a0 instead of v1) and the order of two byte loads. */
 s32 AiThink_GetRollRange(AiThWork *ai, s32 tbl) {
     AiThPlan *plan = &ai->plan;
     s32 idx;
     s8 total;
     s32 dist;
     s32 near;
-    s32 cls;
 
     if (tbl != 3) {
         idx = plan->cls;
@@ -1929,11 +1974,12 @@ s32 AiThink_GetRollRange(AiThWork *ai, s32 tbl) {
     if (tbl != 1) {
         return total;
     }
-    cls = plan->cls;
-    if ((u32)cls < 8) {
-        return total;
-    }
-    if ((u32)cls >= 10 && cls != 13) {
+    switch ((u32)plan->cls) {
+    case 8:
+    case 9:
+    case 13:
+        break;
+    default:
         return total;
     }
     if (dist < 10001) {
@@ -1941,8 +1987,6 @@ s32 AiThink_GetRollRange(AiThWork *ai, s32 tbl) {
     }
     return total;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_GetRollRange);
 
 /* Range of the rolls for a group whose first condition is function 38: 100 stretched by the low-gauge factor. */
 s32 AiThink_GetCond38Range(AiThWork *ai) {
@@ -1959,13 +2003,14 @@ s32 AiThink_GetCond38Range(AiThWork *ai) {
 
 /* Gate of the groups 0x1D, 0x24 and 0x25: 1 (skip the group this frame) unless a roll is under the summed
  * rates of row plan.sub of weight table 5. */
-#if 0
-/* Best attempt. 50 of 112 instructions differ: the value of plan.sub is in v0 instead of v1 in the first switch, and the three calls of the second switch each load a0 themselves where the original shares one load in a delay slot. */
+/* plan.sub is read into one function-scope variable for both switches (two separate `switch (plan->sub)` give
+ * the other register in the first one). AiThink_EvalRules below needs this definition in front of it. */
 s32 AiThink_RollGroupGate(AiThWork *ai) {
     AiThPlan *plan = &ai->plan;
     s32 sum = 0;
     s32 c = 0;
     s32 i;
+    s32 sub;
     s32 roll = Rand_Range(100);
     u8 *prof = PROFILE(ai);
     s8 *lo0 = (s8 *)prof + 0x288;
@@ -1974,7 +2019,8 @@ s32 AiThink_RollGroupGate(AiThWork *ai) {
     s8 *hi1 = (s8 *)prof + 0x550;
 
     for (; c < 8; c++) {
-        switch (plan->sub) {
+        sub = plan->sub;
+        switch (sub) {
         case 0:
             sum += BtlAi_ScaleByLevel(ai->level, lo0[c], hi0[c]);
             break;
@@ -1992,7 +2038,8 @@ s32 AiThink_RollGroupGate(AiThWork *ai) {
     if (roll < sum) {
         return 0;
     }
-    switch (plan->sub) {
+    sub = plan->sub;
+    switch (sub) {
     case 0:
         BtlAi_NoteOpponent(ai, 0x200);
         break;
@@ -2005,16 +2052,14 @@ s32 AiThink_RollGroupGate(AiThWork *ai) {
     }
     return 1;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_RollGroupGate);
 
 /* Evaluates one rule list: the first rule whose situation group is active and whose conditions all pass is
  * executed, and evaluation stops there (except that a rule with no conditions never passes). */
-#if 0
-/* Best attempt. 83 of 270 instructions differ, all of them register choices that follow from one: the original keeps a1 unused for temporaries from the entry on (the status pointer goes through a2, the stored list is reloaded into v1), this uses a1. Blocks, branches, stack slots and saved registers agree. */
-void AiThink_EvalRules(AiThWork *ai, AiThRuleList *arg) {
+/* The order of the three stores in front of BtlAiSeq_PushRule (firedRule, firedGroup, firedSet) decides whether
+ * the argument registers are already loaded when the store of `n` is reloaded, and with that which registers
+ * reload uses for spilled values in the WHOLE function (a2 instead of a1). */
+void AiThink_EvalRules(AiThWork *ai, AiThRuleList *list) {
     s32 res[8];
-    AiThRuleList *list;
     AiThSeq *seq = &ai->seq;
     s32 n;
     s32 lastGroup = -1;
@@ -2026,8 +2071,6 @@ void AiThink_EvalRules(AiThWork *ai, AiThRuleList *arg) {
     s32 i;
     s32 pass;
     s32 range;
-
-    list = arg;
 
     for (n = 0; n < list->count; n++) {
         plan->ruleNo = n;
@@ -2125,21 +2168,23 @@ void AiThink_EvalRules(AiThWork *ai, AiThRuleList *arg) {
             BtlAi_NoteOpponent(ai, 0x2000);
         }
         seq->firedRule = n;
-        seq->firedSet = seq->ruleSet;
         seq->firedGroup = rule->group;
+        seq->firedSet = seq->ruleSet;
         BtlAiSeq_PushRule(ai, rule);
         return;
     next:;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_EvalRules);
 
 /* For the fighter's own action: 1 when its class is 15; otherwise, for the actions 0x3C..0x3F, the step to
  * continue at (action - 0x3A with sequence flag 0x100, else action - 0x3B); 0 for anything else. Called by step
  * handler BtlAiPick_ComboBranch (the call is at 0x1B5098). */
 #if 0
-/* Best attempt. 11 of 32 instructions differ: registers only (the original sets v0 = 1 before the class test and has the action id in a2). */
+/* Best attempt. 11 of 32 instructions differ: registers only (the original sets v0 = 1 before the class test and has the action id in a2).
+ * The original has `li v0,1` (the hoisted `return 1`) scheduled directly behind the copy of the call result, so
+ * v0 is taken when the temporaries are allocated; here the first scheduling pass gives that instruction the
+ * lowest priority and puts it last. Tried without effect: a result variable (ends in a2 with a move), nested
+ * if / else, the range test first, a switch on the action, an inline helper. */
 s32 AiThink_GetBlastStep(AiThWork *ai) {
     AiThActTable *act = gBtlAi->data->act;
     s32 action = BtlCharApi_GetUnk974(ai->objId);

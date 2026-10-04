@@ -318,15 +318,11 @@ void EftDisc_SetTex(EftDisc *w, EftPTexSet *tex, s32 a, s32 b) {
     w->texB = *(b + tex->entry);
 }
 
-/* NON-MATCHING: 42 of 180 instructions, in the banking term only. The original keeps the constant 0.0 of the `d > 0` test in the
-   register that later holds the clamped value (f4), loads the clamp's upper bound 1.0 into f0 and copies it, and
-   computes `1.0 - |c|` into f4 before the multiply; this code tests against f1, loads 1.0 straight into f4 and
-   subtracts into f12. The control flow and every value are the same. */
-#if 0
 /*
  * Homing: EftAim_Home with a banking term. Turns dir toward the opponent's node 0x11 (led by half its frame
  * movement times the frames to impact, at most 15) by at most maxTurn, reduced by |cur.y * to.z - cur.z * to.y|
  * x bank (clamped to 1). No turn when the owner is not locked on or the target is behind.
+ * The clamp is written out as a conditional expression here: the inline EftDisc_Clamp gives other registers.
  */
 void EftDisc_Home(EftPVec *out, EftPVec *pos, EftPVec *dir, s32 objId, f32 speed, f32 maxTurn, f32 bank) {
     EftPVec target;
@@ -376,17 +372,16 @@ void EftDisc_Home(EftPVec *out, EftPVec *pos, EftPVec *dir, s32 objId, f32 speed
         Vec3_Cross(&axis, &cur, &to);
         Vec3_Normalize(&axis, &axis);
         k = (cur.y * to.z - cur.z * to.y) * bank;
-        c = EftDisc_Clamp(k, -1.0f, 1.0f);
+        c = (k < -1.0f) ? -1.0f : ((1.0f < k) ? 1.0f : k);
         k = __builtin_fabsf(c);
-        EftDisc_RotateAboutAxis(&newDir, &cur, &axis, t * (1.0f - k));
+        c = 1.0f - k;
+        EftDisc_RotateAboutAxis(&newDir, &cur, &axis, t * c);
         Vec3_Normalize(&newDir, &newDir);
     } else {
         Vec4_Copy(&newDir, &cur);
     }
     Vec4_Copy(out, &newDir);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_p", EftDisc_Home);
 
 /* Rotates v about the unit vector axis by angle (Rodrigues' formula); w is copied. */
 void EftDisc_RotateAboutAxis(EftPVec *out, EftPVec *v, EftPVec *axis, f32 angle) {

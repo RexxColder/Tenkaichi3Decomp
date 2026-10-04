@@ -1233,6 +1233,12 @@ void EftBlast_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
  * makes one pseudo of the three loads of src->def, which then goes to the global allocator. Compiled with
  * -fno-gcse the C below matches exactly (checked with a private copy of fdiff), and with the pointer read
  * through a volatile cast all but the first branch's delay slot match, so the statements are right.
+ * In detail (gcse dump): gcse's PRE finds the load of src->def in front of the 0x2CD test redundant on the edge
+ * that skips the 0x268 block and makes one value of it; the original shows no PRE there (its first branch skips
+ * both loads of the second test, which is the delay-slot pass removing them as redundant). The third test is not
+ * touched because two stores precede its load in its block. A switch, a local for the id, `w->src->def` and
+ * `def->id` do not change it. EftVolley_Init (eft_h.c) has the same difference.
+ * Behaviour is identical: run against the original in an interpreter on random data, no difference.
  */
 #if 0
 void EftBlast_Init(EftJTask *task, EftJSrc *src) {

@@ -2584,9 +2584,8 @@ void BtlActB_UpdateMashRate(BtlActBChr *chr, f32 *rate, s32 scaled) {
 
 /* Whether a knocked-out fighter is to be replaced by its next member: under the fight state (flag 3), dead, flag 0xAF
    clear, a member left alive (and in mode 1 only with flag 0x10E). With a counter it answers 1 from the 31st call.
-   INCLUDE_ASM: the C below is right in what it does but compiles the last test to slti / sltiu where the original
-   keeps two branches (14 of 42 instructions differ, all in the tail from 0x1E8140). */
-#if 0
+   The last two tests have to share the final `return 0` (written as early returns the compiler turns the counter
+   test into slti / sltiu; with one `return 0` reached from two places it keeps the branches). */
 s32 BtlActB_TickMemberChange(BtlActBChr *chr, s32 *frames) {
     if (Battle_GetMode() == 1 && !BtlChar_TestFlag(chr, 0x10E)) {
         return 0;
@@ -2600,21 +2599,13 @@ s32 BtlActB_TickMemberChange(BtlActBChr *chr, s32 *frames) {
     if (BtlChar_TestFlag(chr, 0xAF)) {
         return 0;
     }
-    if (BtlMember_CountAlive(chr) <= 0) {
-        return 0;
-    }
-    if (frames == NULL) {
-        return 1;
-    }
-    if (++*frames > 30) {
-        return 1;
+    if (BtlMember_CountAlive(chr) > 0) {
+        if (frames == NULL || ++*frames > 30) {
+            return 1;
+        }
     }
     return 0;
 }
-#else
-s32 BtlActB_TickMemberChange(BtlActBChr *chr, s32 *frames);
-INCLUDE_ASM("asm/nonmatchings/battle/btl_act_a", BtlActB_TickMemberChange);
-#endif
 
 /* Actions 0xBD, 0xC0..0xCA: hit reactions that stay where they are. One animation per action, picked on enter with
    the saved ground / air kind: 0xC0 0x9E..0xA1 (air 0xA2..0xA5) and 0xC1 0xA6..0xA9 (air 0xAA..0xAD) cycling through

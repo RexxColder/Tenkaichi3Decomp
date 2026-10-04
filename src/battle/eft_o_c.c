@@ -419,9 +419,8 @@ void EftDisc_Init(EftOTask *task, EftODiscArg *arg) {
     BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
 }
 
-/* NON-MATCHING: 10 of 517 instructions, register allocation only, in the roll decay block: the original
-   keeps the clamp result in f3 and rollLeft in f2, this the other way round. */
-#if 0
+/* The roll decay block needs its own zero / clamp variable `k` (not the function-wide `t`) and the clamp written
+   as an `if` around a ?: so that rollLeft is allocated before the clamp result (f2 / f3). */
 #define EFT_O_CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : ((hi) < (x) ? (hi) : (x)))
 
 /* Update callback of a disc: see the notes at the top of the file. */
@@ -517,12 +516,17 @@ void EftDisc_Update(EftOTask *task) {
                 w->fadeLeft -= 1.0f;
             }
             if (arg->kind < 3) {
-                t = 0.0f;
-                if (t < w->rollLeft) {
-                    r = w->rollLeft / w->rollTime;
-                    t = EFT_O_CLAMP(r, t, 1.0f);
-                    w->rollAngle = w->rollAngle * t;
-                    w->rollLeft -= 1.0f;
+                {
+                    f32 k = 0.0f;
+
+                    if (k < w->rollLeft) {
+                        r = w->rollLeft / w->rollTime;
+                        if (!(r < k)) {
+                            k = (1.0f < r) ? 1.0f : r;
+                        }
+                        w->rollAngle = w->rollAngle * k;
+                        w->rollLeft -= 1.0f;
+                    }
                 }
                 if (BtlCharApi_IsLockedOn(arg->objId)) {
                     f32 side;
@@ -600,12 +604,3 @@ void EftDisc_Update(EftOTask *task) {
         EftDisc_StepTex(w);
     }
 }
-#else
-LIT4_WORD(D_002FCB00, 0x3D23D70A); /* 0.04f */
-LIT4_WORD(D_002FCB04, 0x40490FDA); /* 3.14159265f */
-LIT4_WORD(D_002FCB08, 0x40490FDA); /* 3.14159265f */
-LIT4_WORD(D_002FCB0C, 0x3F999999); /* 1.2f */
-LIT4_WORD(D_002FCB10, 0xBF490FDA); /* -0.78539816f */
-LIT4_WORD(D_002FCB14, 0x3F490FDA); /* 0.78539816f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o_c", EftDisc_Update);
-#endif

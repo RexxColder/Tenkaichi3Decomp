@@ -1135,7 +1135,12 @@ void BtlAiSense_NoteOppState(AiActSide *s) {
 #if 0
 /* Not matching: 8 of 48 instructions. The original fills the delay slot of the "not in class 15..17" branch from
    its target (beqzl + move v0,zero, straight to the epilogue); this C gives beqz to the final "move v0,zero"
-   with "li v1,1" hoisted into the slot. Same instructions otherwise, same behaviour. */
+   with "li v1,1" hoisted into the slot. Same instructions otherwise, same behaviour.
+   Tried without effect (all give these 8 or more): an early `if (!down) return 0;`, both nestings of the two
+   tests, `return 0` inside the `down` block, the countdown written as `<= 0`, an if / else chain, a `switch`
+   on the class (gives slti chains). The delay-slot pass takes the first instruction of the fall-through path
+   unless it believes v1 is live at the branch target or a label follows the branch; neither can be produced
+   from C forms tried here. */
 s32 BtlAiSense_IsBusy(AiActSide *s) {
     AiActTables8 *tbl = (AiActTables8 *)((u8 *)gBtlAi->data->tables + 8);
     s32 state = BtlCharApi_GetUnk974(s->side);

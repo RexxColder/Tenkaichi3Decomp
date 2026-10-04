@@ -410,23 +410,15 @@ void EftStruggleMgr_Update(void) {
 
 /* Task init: keeps the two records, publishes both sides' powers (technique definition +0x88), places the
    struggle point from the fighters' clash bias and starts the spark there. */
-#if 0
-/* Not matching: 5 of 104 instructions, register allocation only. The original keeps the two source pointers and
- * the two definitions in four registers (v0 / a1 and v1 / a2, with the manager in a0); this C reuses v0 for the
- * first definition and v1 / a1 for the second pair. Everything else is identical, including the comparison of the
- * two radii whose result is not used: it survives only when both arms of the `if` hold code (the two arms are
- * identical and the compiler merges them), which is why the two loads are written twice. Tried: every split of the
- * loads and stores between "before the if", "in both arms" and "after it" (about 250 variants), locals for the
- * sources, definitions and powers, and dead swaps as in EftStruggle_Step. */
+/* The comparison of the two radii decides nothing: both arms of the `if` hold the same code (each with its own
+ * locals), the compiler merges them after register allocation and only the compare is left. The arms must hold the
+ * whole block, down to maxPower, with block-local variables: that is what makes the sources and definitions
+ * block-local values (v0 / a1 / v1 / a2). */
 void EftStruggle_Init(EftRTask *task, EftStruggleArg *arg) {
     EftClashSparkArg spark;
     EftStruggle *w = task->work;
     EftRRec *r0;
     EftRRec *r1;
-    EftRSrc *s0;
-    EftRSrc *s1;
-    EftRDef *d0;
-    EftRDef *d1;
     f32 p0;
     f32 p1;
     f32 one;
@@ -439,21 +431,32 @@ void EftStruggle_Init(EftRTask *task, EftStruggleArg *arg) {
     p0 = EftStruggle_GetRecRadius(r0);
     p1 = EftStruggle_GetRecRadius(r1);
     if (p1 < p0) {
-        s0 = r0->src;
-        s1 = r1->src;
+        EftRSrc *s0 = r0->src;
+        EftRSrc *s1 = r1->src;
+        EftRDef *d0 = s0->def;
+        EftRDef *d1 = s1->def;
+
+        gEftStruggle->side[0].power = d0->power;
+        gEftStruggle->side[0].objId = r0->objId;
+        gEftStruggle->side[1].power = d1->power;
+        gEftStruggle->side[1].objId = r1->objId;
+        gEftStruggle->maxPower = gEftStruggle->side[0].power > gEftStruggle->side[1].power
+                                     ? gEftStruggle->side[0].power
+                                     : gEftStruggle->side[1].power;
     } else {
-        s0 = r0->src;
-        s1 = r1->src;
+        EftRSrc *s0 = r0->src;
+        EftRSrc *s1 = r1->src;
+        EftRDef *d0 = s0->def;
+        EftRDef *d1 = s1->def;
+
+        gEftStruggle->side[0].power = d0->power;
+        gEftStruggle->side[0].objId = r0->objId;
+        gEftStruggle->side[1].power = d1->power;
+        gEftStruggle->side[1].objId = r1->objId;
+        gEftStruggle->maxPower = gEftStruggle->side[0].power > gEftStruggle->side[1].power
+                                     ? gEftStruggle->side[0].power
+                                     : gEftStruggle->side[1].power;
     }
-    d0 = s0->def;
-    d1 = s1->def;
-    gEftStruggle->side[0].power = d0->power;
-    gEftStruggle->side[0].objId = r0->objId;
-    gEftStruggle->side[1].power = d1->power;
-    gEftStruggle->side[1].objId = r1->objId;
-    gEftStruggle->maxPower = gEftStruggle->side[0].power > gEftStruggle->side[1].power
-                                 ? gEftStruggle->side[0].power
-                                 : gEftStruggle->side[1].power;
     one = 1.0f;
     w->bias = (BtlCharApi_GetClashBias() + one) * 0.5f;
     if (w->bias < 0.0f) {
@@ -471,8 +474,6 @@ void EftStruggle_Init(EftRTask *task, EftStruggleArg *arg) {
     spark.objId = 0;
     w->spark = EftClashSpark_Create(spark);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_r", EftStruggle_Init);
 
 /* Task term: lets the spark end. */
 void EftStruggle_Term(EftRTask *task) {

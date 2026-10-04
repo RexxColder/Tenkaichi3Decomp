@@ -189,59 +189,51 @@ s32 BtlCharApi_GetCostume(s32 objId) {
     return 0;
 }
 
-/* NON-MATCHING (both ki blast functions): same instructions, different block layout. The original enters the loop
-   with an unconditional jump to the test at its bottom (the test register then still holds the table pointer, so a
-   NULL table leaves at once) and keeps `return 1` as a block in front of the loop body; this compiler output tests
-   the pointer in front of the loop and puts `return 1` after it. The C that makes ee-gcc leave the loop test
-   unduplicated was not found (tried: for / while / do-while, a condition variable, `&&` conditions, inline
-   helpers, early returns, goto). */
+/* Both ki blast functions need three plain early returns (object NULL, table NULL, found): the `return 0` of the
+   NULL table then keeps a jump with a barrier in front of the loop, the `return 1` block is moved behind it, and
+   cross-jumping turns the entry into a jump to the test at the bottom of the loop. A nested `if (e != NULL)` gives
+   the same instructions in another block layout. */
 /* Whether one of the character's 13 ki blast records (object +0x924) has type 2. */
-#if 0
 s32 BtlCharApi_HasKiBlastType2(s32 objId) {
     BtlCapiObj *obj = BtlObj_Get(objId);
     BtlCapiKiBlast *e;
     s32 i;
 
-    if (obj != NULL) {
-        e = obj->kiBlasts;
-        if (e != NULL) {
-            for (i = 0; i < 13; i++) {
-                if (e[i].type == 2) {
-                    return 1;
-                }
-            }
-        }
+    if (obj == NULL) {
         return 0;
+    }
+    e = obj->kiBlasts;
+    if (e == NULL) {
+        return 0;
+    }
+    for (i = 0; i < 13; i++) {
+        if (e[i].type == 2) {
+            return 1;
+        }
     }
     return 0;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/btl_capi_a", BtlCharApi_HasKiBlastType2);
-#endif
 
 /* Whether one of the character's 13 ki blast records has type 3. */
-#if 0
 s32 BtlCharApi_HasKiBlastType3(s32 objId) {
     BtlCapiObj *obj = BtlObj_Get(objId);
     BtlCapiKiBlast *e;
     s32 i;
 
-    if (obj != NULL) {
-        e = obj->kiBlasts;
-        if (e != NULL) {
-            for (i = 0; i < 13; i++) {
-                if (e[i].type == 3) {
-                    return 1;
-                }
-            }
-        }
+    if (obj == NULL) {
         return 0;
+    }
+    e = obj->kiBlasts;
+    if (e == NULL) {
+        return 0;
+    }
+    for (i = 0; i < 13; i++) {
+        if (e[i].type == 3) {
+            return 1;
+        }
     }
     return 0;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/btl_capi_a", BtlCharApi_HasKiBlastType3);
-#endif
 
 /* Whether the object id is a fighter's. No caller. */
 s32 BtlCharApi_IsFighter(s32 objId) {

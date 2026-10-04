@@ -259,10 +259,12 @@ void BtlObjAnim_SampleRot(BobjTrack *trk, Quat *out, u16 *cursor, f32 frame) {
 }
 
 /* Samples a full (translation + rotation) track at a frame. */
-#if 0
-/* best attempt (does not match): the original re-reads the first key's frame from memory at every use (four
-   loads per iteration) and keeps a pointer to it in a1; this C keeps the value in a register. With the frame
-   read through a volatile lvalue the code is the same up to the registers a1 / a3. */
+/* A key's frame as a float. The original had a helper like this one (inlined): each use of the previous key's
+   frame computes `key - 1` and loads the frame again, which only an inlined argument reproduces. */
+static inline f32 BobjKey_GetFrame(BobjKey *key) {
+    return (f32)key->frame;
+}
+
 void BtlObjAnim_SamplePosRot(BobjTrack *trk, Vec4 *pos, Quat *rot, u16 *cursor, f32 frame) {
     Quat next;
     Quat prev;
@@ -274,52 +276,57 @@ void BtlObjAnim_SamplePosRot(BobjTrack *trk, Vec4 *pos, Quat *rot, u16 *cursor, 
     s32 j;
     s32 found;
     f32 t;
+    u64 qa;
+    u64 qb;
 
     n = trk->count;
     if (n == 1) {
-        a = trk->u.key;
-        pos->x = a->x;
-        pos->y = a->y;
-        pos->z = a->z;
+        b = trk->u.key;
+        pos->x = b->x;
+        pos->y = b->y;
+        pos->z = b->z;
         pos->w = 1.0f;
-        Quat_Unpack(rot, QUAT64(a->rot));
+        Quat_Unpack(rot, QUAT64(b->rot));
         return;
     }
-    keys = trk->u.key;
     i = *cursor;
     if (i >= n - 1) {
         *cursor = 0;
         i = 0;
     }
+    keys = trk->u.key;
     found = 0;
-    for (;;) {
+    while (1) {
+        b = &keys[i];
         for (j = i + 1; j < n; j++) {
-            a = &keys[j - 1];
-            b = &keys[j];
-            if ((f32)a->frame == frame) {
+            b++;
+            a = b - 1;
+            if (BobjKey_GetFrame(b - 1) == frame) {
                 pos->x = a->x;
                 pos->y = a->y;
                 pos->z = a->z;
                 pos->w = 1.0f;
-                Quat_Unpack(rot, QUAT64(a->rot));
+                Quat_Unpack(rot, QUAT64(b[-1].rot));
                 *cursor = j - 1;
                 found = 1;
                 break;
             }
-            if ((f32)a->frame < frame && frame < (f32)b->frame) {
-                t = (frame - (f32)a->frame) / (f32)(b->frame - a->frame);
+            if (BobjKey_GetFrame(b - 1) < frame && frame < BobjKey_GetFrame(b)) {
+                t = (frame - BobjKey_GetFrame(b - 1)) / (f32)(b->frame - (b - 1)->frame);
                 pos->x = (b->x - a->x) * t + a->x;
                 pos->y = (b->y - a->y) * t + a->y;
                 pos->z = (b->z - a->z) * t + a->z;
                 pos->w = 1.0f;
-                Quat_Unpack(&next, QUAT64(b->rot));
-                Quat_Unpack(&prev, QUAT64(a->rot));
+                qa = QUAT64(b->rot);
+                qb = QUAT64(b[-1].rot);
+                Quat_Unpack(&next, qa);
+                Quat_Unpack(&prev, qb);
                 Quat_Slerp(rot, &prev, &next, t);
                 *cursor = j - 1;
                 found = 1;
                 break;
             }
-            if ((f32)b->frame == frame) {
+            if (BobjKey_GetFrame(b) == frame) {
                 pos->x = b->x;
                 pos->y = b->y;
                 pos->z = b->z;
@@ -337,34 +344,30 @@ void BtlObjAnim_SamplePosRot(BobjTrack *trk, Vec4 *pos, Quat *rot, u16 *cursor, 
             Vec4_Copy((Vec4 *)rot, &D_002EC2C0);
             Vec4_Copy(pos, &D_002EC2C0);
             return;
+        } else {
+            *cursor = 0;
+            i = 0;
         }
-        *cursor = 0;
-        i = 0;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_a", BtlObjAnim_SamplePosRot);
 
 /* Returns motion `anim` of an object: ids below 0x19E are decompressed into buf, the others (the model's own
    motions, which follow in the same table) are returned in place. */
-#if 0
-/* best attempt (does not match, 8 of 29 instructions): the original keeps obj + 0x18 in v0 and obj + anim * 4
-   in v1 (here the two are swapped) and loads the table entry before it stores *size. */
 BobjAnim *BtlObjAnim_Load(BobjObj *obj, void *buf, s32 anim, s32 *size) {
     void **tbl = (void **)&obj->mdl;
+    void *ret;
 
     if (anim >= BOBJ_ANIM_MAX) {
+        ret = (tbl + anim)[0x2A]; /* mdl->anims[anim]: runs on into modelAnims[] and the tables behind it */
         *size = 1;
-        return (tbl + anim)[0x2A]; /* mdl->anims[anim]: runs on into modelAnims[] and the tables behind it */
-    }
-    if (obj->mdl.anims[anim] != NULL) {
+    } else if (obj->mdl.anims[anim] != NULL) {
         Bpe_Decode(obj->mdl.anims[anim], buf, size);
-        return buf;
+        ret = buf;
+    } else {
+        ret = NULL;
     }
-    return NULL;
+    return ret;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_a", BtlObjAnim_Load);
 
 /* Initial player state: default step, identity extra rotations, volume scale 1. */
 void BtlObjAnim_Init(BobjObj *obj) {
@@ -496,10 +499,6 @@ void BtlObjAnim_ClearNodeRot(BobjAnim *anim, s32 node) {
 
 /* Fills every node's local translation and rotation for the current frame: layer 0, then layer 1 mixed in by
    anim.mix, then the blend from the pose stored by BtlObjAnim_StartBlend (not for node 0). */
-#if 0
-/* best attempt (does not match): same blocks, calls and frame size; the original copies &pos / &rot into two
-   saved registers (s0, s2) in each arm of the layer 1 sampling and hoists &pos out of the loop, which changes
-   the register of nearly every instruction. */
 void BtlObjAnim_SamplePose(BobjObj *obj) {
     BobjAnimLayer *layer[2];
     Vec4 pos;
@@ -512,8 +511,6 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
     f32 w;
     f32 frame;
     Vec4 *dst;
-    Vec4 *p;
-    Quat *q;
 
     ap = &obj->anim;
     layer[1] = &obj->anim.layer[1];
@@ -559,17 +556,15 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
                 }
                 if (layer[1]->data->track[id] != 0) {
                     trk = TRACK_AT(layer[1]->data, layer[1]->data->track[id]);
-                    q = &rot;
-                    p = &pos;
                     if (BOBJ_TRACK_ROT_ONLY(trk)) {
-                        BtlObjAnim_SampleRot(trk, q, &layer[1]->cursor[id], frame);
-                        Vec4_Copy(p, &bone->rest);
+                        BtlObjAnim_SampleRot(trk, &rot, &layer[1]->cursor[id], frame);
+                        Vec4_Copy(&pos, &bone->rest);
                     } else {
-                        BtlObjAnim_SamplePosRot(trk, p, q, &layer[1]->cursor[id], frame);
+                        BtlObjAnim_SamplePosRot(trk, &pos, &rot, &layer[1]->cursor[id], frame);
                     }
-                    func_00122168(dst, p, dst, ap->mix);
+                    func_00122168(dst, &pos, dst, ap->mix);
                     part->pos.w = 1.0f;
-                    Quat_Slerp(&part->rot, &part->rot, q, ap->mix);
+                    Quat_Slerp(&part->rot, &part->rot, &rot, ap->mix);
                 }
             }
             if (id != 0 && 0.0f < w) {
@@ -580,9 +575,9 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
         } else {
             Vec4_Copy(&part->pos, &bone->rest);
             part->rot.x = 0.0f;
-            part->rot.w = 1.0f;
             part->rot.y = 0.0f;
             part->rot.z = 0.0f;
+            part->rot.w = 1.0f;
         }
         if (bone->last != 0) {
             break;
@@ -591,8 +586,6 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_a", BtlObjAnim_SamplePose);
 
 /* Reads the events of layer 0 for this frame: the hit window that is open (its volume and nodes), the number of
    hit windows, and up to eight distinct events whose frame lies in (previous frame, frame]. */
@@ -1337,23 +1330,21 @@ void BtlObjXf_Reset(BobjObj *obj) {
 
 /* Rebuilds the object's matrix and its inverse from pos / rot / scale. The model faces -Z, so the yaw is turned
    by pi. */
-#if 0
-/* best attempt (does not match, 23 of 65 instructions): the original holds &xf.rot and later &xf.mtx in s0 and
-   the object in s1; here the registers are s2 / s0 / s1 for rot+mtx / obj / xf. */
 void BtlObjXf_Update(BobjObj *obj) {
     Vec4 *rot = &obj->xf.rot;
     BobjXf *xf = &obj->xf;
     Vec4 *mtxRot = &obj->xf.mtxRot;
     Vec4 *mtxPos = &obj->xf.mtxPos;
     f32 scale = xf->scale;
+    Mtx44 *mtx;
     s32 changed;
 
     changed = memcmp(rot, mtxRot, sizeof(Vec4)) != 0;
-    obj->xf.rot.w = 0.0f;
     obj->xf.pos.w = 1.0f;
+    obj->xf.rot.w = 0.0f;
     Vec4_Copy(mtxPos, &xf->pos);
     Vec4_Copy(mtxRot, rot);
-    rot = (Vec4 *)&obj->xf.mtx;
+    mtx = &obj->xf.mtx;
     xf->mtxRot.y += 3.14159265f;
     if (3.14159265f < xf->mtxRot.y) {
         xf->mtxRot.y -= 6.2831853f;
@@ -1362,14 +1353,10 @@ void BtlObjXf_Update(BobjObj *obj) {
     func_00120F88(scale);
     func_00120F00(mtxRot);
     func_00120C18(mtxPos);
-    func_00120B98((Mtx44 *)rot);
-    func_001202A0(&obj->xf.inv, (Mtx44 *)rot);
+    func_00120B98(mtx);
+    func_001202A0(&obj->xf.inv, mtx);
     obj->xf.same = ~changed;
 }
-#endif
-LIT4_WORD(D_002FE658, 0x40490FDA); /* the function's 3.14159265f */
-LIT4_WORD(D_002FE65C, 0x40C90FDA); /* the function's 6.2831853f */
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_a", BtlObjXf_Update);
 
 /* Sets the object's matrix directly, and its inverse. */
 void BtlObjXf_SetMtx(BobjObj *obj, Mtx44 *m) {
@@ -2282,16 +2269,26 @@ void *BObjFile_GetEntry(BObjFile *file, s32 n) {
     return NULL;
 }
 
-#if 0
-/* NOT MATCHING: 43 of 213 instructions. Same calls, loops and stores; the differences are the callee-saved
-   registers given to mdl / &slot->file[1] / the second loop counter, and the base of the three-entry loop, which
-   the original addresses as (obj + 0x20) + 0x90 and this as (obj + 0x10) + 0xA0. */
 /* Fills the object's table pointers from the files of its resource slot. */
+/* The original's object type nests the model block: the two arrays written through `obj` are addressed as
+   (obj + 0x20) + 0xA0 / + 0x90, and this compiler splits every member offset into a multiple of 16 (added to the
+   index) and a remainder (added to the base), so the remainders along the member chain sum to 0x20. One level
+   (mdl at 0x18, arrays at 0xA8 / 0x98) gives 0x10; a block at 0xC holding the model block at 0xC gives 0x20.
+   Only the nesting is verified, not where the outer block really starts or ends. */
+typedef struct BObjBindView {
+    /* 0x00 */ u8 unk00[0xC];
+    /* 0x0C */ struct {
+        /* 0x00 */ u8 unk0C[0xC]; /* the slot pointer is the last word (object + 0x14) */
+        /* 0x0C */ BObjMdl mdl;   /* object + 0x18 */
+    } res;
+} BObjBindView;
+
 void BtlObj_BindTables(BObj *obj) {
     BObjMdl *mdl;
     BObjSlot *slot;
     s32 i;
     s32 j;
+    s32 base;
 
     mdl = &obj->mdl;
     slot = obj->slot;
@@ -2300,7 +2297,7 @@ void BtlObj_BindTables(BObj *obj) {
     mdl->unk3C = BObjFile_GetEntry(&slot->file[0], 2);
     if (slot->file[1].buf != NULL) {
         for (i = 0; i < 0x19E; i++) {
-            obj->mdl.anims[i] = BObjFile_GetEntry(&slot->file[1], i + 1);
+            ((BObjBindView *)obj)->res.mdl.anims[i] = BObjFile_GetEntry(&slot->file[1], i + 1);
         }
     }
     for (i = 0; i < 8; i++) {
@@ -2319,7 +2316,7 @@ void BtlObj_BindTables(BObj *obj) {
     }
     mdl->eyes = BObjFile_GetEntry(&slot->file[0], 0xD);
     for (i = 0; i < 3; i++) {
-        obj->mdl.unk98[i] = BObjFile_GetEntry(&slot->file[0], i + 0x29);
+        ((BObjBindView *)obj)->res.mdl.unk98[i] = BObjFile_GetEntry(&slot->file[0], i + 0x29);
     }
     for (i = 0; i < 8; i++) {
         mdl->unk8D0[i] = BObjFile_GetEntry(&slot->file[0], i + 0x1D);
@@ -2328,12 +2325,12 @@ void BtlObj_BindTables(BObj *obj) {
         mdl->unk8F0[i] = BObjFile_GetEntry(&slot->file[0], i + 0x25);
     }
     mdl->unkA4 = BObjFile_GetEntry(&slot->file[0], gProgress->unk00 + 0x2D);
-    j = 0x64;
+    base = 0x64;
     if (!(gSaveData->flags & 1)) {
-        j = 0;
+        base = 0;
     }
     for (i = 0; i < 100; i++) {
-        mdl->lip[i] = BObjFile_GetEntry(&slot->file[0], j + 0x35 + i);
+        mdl->lip[i] = BObjFile_GetEntry(&slot->file[0], base + 0x35 + i);
     }
     if (slot->file[2].buf != NULL) {
         for (i = 0; i < 5; i++) {
@@ -2356,8 +2353,6 @@ void BtlObj_BindTables(BObj *obj) {
     mdl->unk920 = BObjFile_GetEntry(&slot->file[0], 0x1C);
     mdl->chain = BObjFile_GetEntry(&slot->file[0], 0x17);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_a", BtlObj_BindTables);
 
 /* Sets the object's initial flags from its type and model header, then the colour preset. */
 void BtlObj_InitFlags(BObj *obj) {

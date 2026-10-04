@@ -96,16 +96,24 @@ extern void StgBlur_SetColor1Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
 extern void StgBlur_SetColor2Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
 extern void StgBlur_SetColor3Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
 
-/* Argument of the impact effect 0x187BE0. */
+/* Vector as the impact argument holds it: a 16-byte aligned union with an array view (the same shape as EftVec in
+   eft_a.h; only this shape makes the compound literal below copy it with two doubleword moves). */
+typedef union EftIVecU {
+    struct {
+        f32 x, y, z, w;
+    };
+    f32 v[4];
+} __attribute__((aligned(16))) EftIVecU;
+
+/* Argument of the impact effect 0x187BE0 (EftImpactArg in eft_a.c), passed by value. */
 typedef struct EftIMarkArg {
-    /* 0x00 */ EftIVec4A pos;
-    /* 0x10 */ Vec4 dir;
+    /* 0x00 */ EftIVecU pos;
+    /* 0x10 */ EftIVecU dir;
     /* 0x20 */ s32 effect;
     /* 0x24 */ s32 objId;
     /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 pad2C;
-} __attribute__((aligned(8))) EftIMarkArg; /* size 0x30 */
-extern void EftImpact_SpawnBlast(EftIMarkArg *arg, f32 size, f32 unk);
+} EftIMarkArg; /* size 0x30 */
+extern s32 EftImpact_SpawnBlast(EftIMarkArg arg, f32 size, f32 unk);
 
 /* Spawners of the other particle modules (previous file), same shape as the four in this file. */
 extern void EftEmit_SpawnType0(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
@@ -1328,8 +1336,8 @@ f32 EftEmit_GetWidth2(EftEmitState *state) {
 
 /* Drops a mark where the last stage line test hit: 10 frames later the mark effect starts there. The beam end
    is pulled back onto the surface and the stage object that was hit, if any, is destroyed. */
-/* Not matching: the original keeps the constant 1 of 'active = 1' inside the loop; this C hoists it in front of the loop (one extra li + nop, which shifts everything after). Otherwise the same instructions. */
-#if 0
+/* (The flag is read into a local that is then set to 1 and stored: a variable set twice is not hoisted out of the
+   loop, a plain `active = 1` is.) */
 void EftSweep_AddMark(EftTask *task) {
     Vec4 dir;
     Vec4 v;
@@ -1338,11 +1346,14 @@ void EftSweep_AddMark(EftTask *task) {
     s32 i;
 
     for (i = 0; i < 15; i++) {
-        if (w->mark[i].active == 0) {
+        s32 active = w->mark[i].active;
+
+        if (active == 0) {
             f32 width;
 
             w->mark[i].timer = 10.0f;
-            w->mark[i].active = 1;
+            active = 1;
+            w->mark[i].active = active;
             Vec4_Copy((Vec4 *)&w->mark[i].pos, &hit->pos);
             width = w->width * EftEmit_GetTrailWidth(&w->state) * 0.5f;
             Vec3_Sub(&v, &w->pos, (Vec4 *)&w->mark[i].pos);
@@ -1361,21 +1372,20 @@ void EftSweep_AddMark(EftTask *task) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftSweep_AddMark);
 
 /* Counts the marks down and starts the mark effect of the ones that reach zero; returns whether any is left. */
-/* Not matching: the original loads 1.0f where it is used; this C hoists it in front of the loop into f21 (so 0.0f moves to f22 and the frame is 16 bytes larger). Otherwise the same instructions. */
-#if 0
+/* (The argument is a compound literal, as in EftHit_SpawnBlastImpact, and the address of the mark's position is
+   taken before the `active` test: that decides which address the loop's walking pointer holds, +0x10 here.) */
 s32 EftSweep_UpdateMarks(EftTask *task) {
     EftIMarkArg arg;
-    EftIMarkArg tmp;
     s32 any = 0;
     EftSweepWork *w = task->work;
     EftOwner *owner = w->owner;
     s32 i;
 
     for (i = 0; i < 15; i++) {
+        EftIVecU *pos = (EftIVecU *)&w->mark[i].pos;
+
         if (w->mark[i].active) {
             if (w->mark[i].timer <= 0.0f) {
                 s32 effect = w->owner->param->markEffect;
@@ -1383,17 +1393,11 @@ s32 EftSweep_UpdateMarks(EftTask *task) {
                 if (effect >= 0) {
                     f32 size;
 
-                    ((u64 *)&tmp.pos)[0] = ((u64 *)&w->mark[i].pos)[0];
-                    ((u64 *)&tmp.pos)[1] = ((u64 *)&w->mark[i].pos)[1];
-                    memset(&tmp.dir, 0, sizeof(Vec4));
-                    tmp.effect = effect;
-                    tmp.objId = owner->objId;
-                    tmp.unk28 = 0;
-                    arg = tmp;
+                    arg = (EftIMarkArg){ *pos, { 0.0f, 0.0f, 0.0f, 0.0f }, effect, owner->objId, 0 };
                     size = owner->param->markSize;
-                    Vec4_Sub(&arg.dir, &w->pose.cur, &w->pos);
-                    Vec3_Normalize(&arg.dir, &arg.dir);
-                    EftImpact_SpawnBlast(&arg, size, 1.0f);
+                    Vec4_Sub((Vec4 *)&arg.dir, &w->pose.cur, &w->pos);
+                    Vec3_Normalize((Vec4 *)&arg.dir, (Vec4 *)&arg.dir);
+                    EftImpact_SpawnBlast(arg, size, 1.0f);
                 }
                 w->mark[i].active = 0;
             } else {
@@ -1404,8 +1408,6 @@ s32 EftSweep_UpdateMarks(EftTask *task) {
     }
     return any;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftSweep_UpdateMarks);
 
 /* Radius of the sweep (distance between the fighters' node 3, plus 50, at most 800) and its start angle. */
 void EftSweep_InitPath(EftTask *task) {

@@ -86,11 +86,10 @@ typedef struct AiThPlan {
     /* 0x54 */ s32 sub;        /* (m) 0..3 for the groups 0x1D, 0x24, 0x26, 0x25; written by condition 17 too */
     /* 0x58 */ s8 rate[14];    /* (m) per class: rate of condition 38 (written by BtlAiMgr_BuildRates) */
     /* 0x66 */ u8 pad66[3];
-    /* 0x69 */ s8 total[3][14]; /* (m) per weight table 0..2 and class: sum of the rates of the usable columns */
-    /* 0x93 */ s8 total3[4];   /* row 3 of the same array as GetRollRange indexes it: weight table 5, by sub.
-                                  AiThink_BuildTotals reaches these four tables from work + 0x2F1 (+0x60, +0x6E,
-                                  +0x7C, +0x8A); what that base stands for is not known */
-    /* 0x97 */ u8 pad97[0xD];
+    /* 0x69 */ s8 total[4][14]; /* (m) per weight table and class: sum of the rates of the usable columns. Rows 0..2 are
+                                  the weight tables 0..2 by class; row 3 is weight table 5 by `sub` (four entries
+                                  written, AiThink_BuildTotals; read by AiThink_GetRollRange with tbl 3) */
+    /* 0xA1 */ u8 padA1[3];
     /* 0xA4 */ s32 cooldown;   /* (m) counted down once per frame */
     /* 0xA8 */ u8 ruleNo;      /* (m) index of the rule being tested */
     /* 0xA9 */ u8 unkA9;       /* (m) low byte of the roll of the last basic condition that passed */

@@ -178,21 +178,19 @@ s32 EftHit_GetTaskFlags(u32 idx) {
 }
 
 /* Reports an event of record idx to its task: ors bits into the task's flags and stores where it happened. */
-#if 0
-/* Not matching (13 of 29 instructions, same operations): the original copies the by-value vector to the stack in
- * the order 0, 8 and loads gEftHitList (into $t0) between the two halves; this loads the list after the copy
- * (into $v1) and copies 8, 0. A pointer argument with a local copy, and a local for the list, give the same code. */
+/* (Matches only with the two tests nested, the global used directly and `rec` assigned inside: a local for the list
+ * or `rec` computed up front changes the order of the by-value vector's entry copy.) */
 void EftHit_SetTaskFlag(u32 idx, s32 bits, EftVec pos) {
-    EftHitList *list = gEftHitList;
-    EftHitRec *rec = &list->rec[idx];
+    EftHitRec *rec;
 
-    if (idx < (u32)list->count && rec->task != NULL) {
-        BtlTask_SetTagBits(rec->task, bits);
-        BtlTask_SetPos(rec->task, pos);
+    if (idx < (u32)gEftHitList->count) {
+        rec = &gEftHitList->rec[idx];
+        if (rec->task != NULL) {
+            BtlTask_SetTagBits(rec->task, bits);
+            BtlTask_SetPos(rec->task, pos);
+        }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftHit_SetTaskFlag);
 
 /* Spawns the impact effect of every record whose task was hit this frame, once per task. */
 void EftHit_SpawnImpacts(void) {
@@ -287,37 +285,24 @@ s32 EftHit_CanHit(EftHitRec *rec, s32 mode) {
 }
 
 /* 0 for a technique of class 0 kind 4, or of another class and kind 9 or 7; else 1. */
-#if 0
-/* Not matching (14 of 24 instructions, same logic): the original tests kind 9 then kind 7 with two separate
- * branch-likely tests and keeps the definition in $a0; every if / switch form tried here merges the two tests into
- * beq + xori/sltu, and a two-case switch emits 7 before 9. */
+/* (An if / else on the class with `kind == 9 || kind == 7` in one condition; a switch on the class, or two separate
+ * `if`s for 9 and 7, compile to other code.) */
 s32 EftHit_IsStoppedByHit(EftHitRec *rec) {
     s32 result = 1;
     EftHitDef *def;
-    s32 kind;
 
     if (rec->type == EFT_HIT_TECH) {
         def = rec->src->def;
-        switch (def->cls) {
-        case 0:
+        if (def->cls == 0) {
             if (def->kind == 4) {
                 result = 0;
             }
-            break;
-        default:
-            kind = def->kind;
-            if (kind == 9) {
-                result = 0;
-            } else if (kind == 7) {
-                result = 0;
-            }
-            break;
+        } else if (def->kind == 9 || def->kind == 7) {
+            result = 0;
         }
     }
     return result;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftHit_IsStoppedByHit);
 
 /* Lets a multi-hit technique spawn an impact effect again on its next hit. */
 s32 EftHit_RearmImpact(EftHitRec *rec) {
@@ -330,9 +315,10 @@ s32 EftHit_RearmImpact(EftHitRec *rec) {
 }
 
 /* Clash of two technique records: 4 = head-on (beam struggle), 1 / 2 = which one is passed, 3 = no clash rule. */
-#if 0
-/* Not matching (same instructions except one): the original copies `a` to $a2 on entry (and so uses $a0 as the
- * temporary for the constant 8 of the kind test); this keeps `a` in $a0 and is one instruction shorter. */
+/* A head-on pair (a moves toward b's previous position and the two movements oppose) stops the technique timers of
+ * fighters 0 and 1 by literal id (EftTechEvt_RequestStop), whoever owns the records; the caller does not gate this
+ * by contact. The kind test is a range test on the signed byte (`kind >= 0 && kind <= 2`) in an `if` of its own:
+ * that is what gives lbu / sltiu and the later sign extension. */
 s32 EftHit_ClashTech(EftHitRec *a, EftHitRec *b) {
     EftHitDef *defA = a->src->def;
     EftHitDef *defB = b->src->def;
@@ -341,14 +327,14 @@ s32 EftHit_ClashTech(EftHitRec *a, EftHitRec *b) {
     EftVec d;
     f32 t;
     s32 result;
-    u8 kind;
 
     if (defA->cls == 0 || defB->cls == 0) {
         return 3;
     }
-    kind = defA->kind;
-    if (!(kind < 3 || (s8)kind == 8) || (defA->flags & 0x100) || (defB->flags & 0x100) || defA->unk9 >= 2 ||
-        defB->unk9 >= 2) {
+    if (!((defA->kind >= 0 && defA->kind <= 2) || defA->kind == 8)) {
+        return 3;
+    }
+    if ((defA->flags & 0x100) || (defB->flags & 0x100) || defA->unk9 >= 2 || defB->unk9 >= 2) {
         return 3;
     }
     Vec4_Sub(&moveA, &a->pos, &a->prevPos);
@@ -373,8 +359,6 @@ s32 EftHit_ClashTech(EftHitRec *a, EftHitRec *b) {
     }
     return result;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftHit_ClashTech);
 
 /* Compares the levels of two records: 2 = a is stronger, 1 = b is stronger, 3 = equal. */
 static inline s32 EftHit_CompareLevel(EftHitRec *a, EftHitRec *b) {
@@ -865,8 +849,15 @@ f32 EftHit_GetScale(EftHitRec *rec) {
 
 /* Marks the owning task as multi-hit when the definition has a hit limit, and drops a stale "hit a fighter". */
 #if 0
-/* Not matching (3 of 20 instructions): the original keeps rec->src in $v0 and loads the definition into $v1
- * (lw v1,0x24(v0); lb v0,0xA(v1)); this reuses $v0 for the definition. */
+/* Not matching (3 of 20 instructions, registers only): the original keeps rec->src in $v0 and loads the definition
+ * into $v1 (lw v1,0x24(v0); lb v0,0xA(v1)); this reuses $v0 for the definition and puts the count in $v1.
+ * What the register dumps say: the definition and the count are values local to the block after the null test, and
+ * the allocator gives the first of them $v0 unless a third value local to that block holds $v0 when the definition
+ * is loaded, i.e. the original had its own copy (or a second load) of rec->src in that block, which later
+ * disappeared because it sat in the same register. About 60 forms tried (locals for each value, in the block or at
+ * function level, a variable set twice, early returns, && / nested, inline helpers, loop / goto / switch around the
+ * test): all give these 3 instructions or more. The C is exact in behaviour (checked by running both versions in
+ * an interpreter on random records, build/scratch_cleanup_eft/emu_generic.py). */
 void EftHit_InitMultiHit(EftHitRec *rec) {
     s32 n;
 

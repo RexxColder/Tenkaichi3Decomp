@@ -48,13 +48,8 @@ void BtlActThrow_SetReleaseHeading(BtlActHChr *chr) {
  * 0xB4, 0xB5, 0xB6: dash at the opponent to grab (animation 0x94 -> 0x95; 0xB6: 0x186 -> 0x187 at double rate).
  * Flag 0x7A (missed) plays 0x9D and ends in action 0xB; flag 0x5B (caught) starts the throw: 0xB4 / 0xB5 -> 0xB7,
  * or 0xBB when the character parameter flag 0x200 is set; 0xB6 -> 0xB9.
- */
-#if 0
-/*
- * Not matching: 18 of 146 instructions. The original keeps the yaw mode choice as a branch
- * (`move v1,v0 / li v0,0xB5 / beql v1,v0 / li s2,2`); this compiler turns every plain form tried into a conditional
- * move (`li v1,2 / xori v0,v0,0xB5 / movz s2,v1,v0`), which is one instruction shorter. Everything else is identical,
- * and the float constants (0.15f at 0x2FDEB4, BTL_KMH(100.0f) at 0x2FDEB8) have the original bits.
+ * The yaw mode switch needs its redundant cases (0xB4 and 0xB6 assign the 6 the variable already has, behind an
+ * empty default): with them the compiler keeps the branch; reduced to `case 0xB5` alone it makes a conditional move.
  */
 s32 BtlAct_GrabDash(BtlActHChr *chr, s32 phase) {
     s32 yawMode;
@@ -68,6 +63,14 @@ s32 BtlAct_GrabDash(BtlActHChr *chr, s32 phase) {
         switch (BtlAct_GetCurrent(chr)) {
         case 0xB5:
             yawMode = 2;
+            break;
+        default:
+            break;
+        case 0xB4:
+            yawMode = 6;
+            break;
+        case 0xB6:
+            yawMode = 6;
             break;
         }
         switch (BtlAnim_GetId(chr)) {
@@ -114,5 +117,3 @@ s32 BtlAct_GrabDash(BtlActHChr *chr, s32 phase) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_act_h", BtlAct_GrabDash);

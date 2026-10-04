@@ -139,11 +139,6 @@ f32 BObjChainB_WrapAngle(f32 a) {
     return a;
 }
 
-#if 0
-/* NOT MATCHING: 492 of 600 instructions. The calls and their order agree with the original; frame size, register
-   allocation and the scheduling of the float code do not (the original keeps the clamp limits and several
-   parameters in $f26..$f31 from the top of the function, and addresses the parameter bytes as
-   (param + 8) + (slot + 0x2F0)). Written from the disassembly; treat the arithmetic as read, not verified. */
 /* Steps one link of a type B chain and writes the node's rotation. `parent` is the frame the link hangs in, `out`
    receives the link's own frame for its child. */
 void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
@@ -162,8 +157,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Quat q1;
     Quat q2;
     Quat q3;
-    f32 angle0;
-    f32 angle1;
+    f32 angle[2];
     Mtx44 mtx;
     BObjChainParam *param;
     BObjNode *node;
@@ -181,10 +175,15 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     f32 sum;
     f32 k;
     f32 t;
+    f32 ang;
     f32 lo;
     f32 hi;
     s32 slot;
     s32 id;
+    f32 limA;
+    f32 limB;
+    f32 rate;
+    f32 half;
 
     scale = 1.0f;
     mult = 1.0f;
@@ -196,17 +195,22 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
         scale = 0.5f;
     }
     param = obj->mdl.chain;
+    /* The original keeps these four in variables set here (30 and 5 degrees, the lag factor, the damping). */
+    limA = 0.52359875f; /* 0x3F060A91: one bit below the nearest float to pi / 6 */
+    limB = 0.08726646f;
+    rate = 0.3f;
+    half = 0.5f;
     slot = link->slot;
     axis.x = 0.0f;
     axis.y = Mathf_Cos(param->yaw[slot] * 3.14159265f / 180.0f);
     axis.z = Mathf_Sin(param->yaw[slot] * 3.14159265f / 180.0f);
     axis.w = 0.0f;
-    yawMax = param->yawMax[slot] * 3.14159265f / 180.0f;
-    yawMin = param->yawMin[slot] * 3.14159265f / 180.0f;
     gravity = param->gravityB[slot];
     swing = param->swingB[slot];
+    yawMax = param->yawMax[slot] * 3.14159265f / 180.0f;
+    yawMin = param->yawMin[slot] * 3.14159265f / 180.0f;
     Vec4_Copy((Vec4 *)&prev, (Vec4 *)&link->rot);
-    node = BtlObj_GetNode(obj, link->node);
+    node = BtlObj_GetNode(obj, id);
     if (node == NULL) {
         return;
     }
@@ -214,17 +218,17 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     func_00121E20(&pull);
     func_00121E20(&vel);
     func_00121E20(&force);
-    k = mult * 0.3f;
     if (link->parent == NULL) {
         BtlObj_GetNodeVelocity(obj, id, &tmp);
         tmp.w = 0.0f;
         Mtx_MulVec4(&tmp, &obj->pose.world, &tmp);
-        Vec4_Scale(&tmp, &tmp, k);
+        Vec4_Scale(&tmp, &tmp, mult * rate);
         Vec4_Add(&vel, &vel, &tmp);
     }
-    Vec4_Scale(&tmp, &obj->move, k);
+    Vec4_Scale(&tmp, &obj->move, mult * rate);
     Vec4_Add(&vel, &vel, &tmp);
-    if (1388.8888f / fps < Vec3_Length(&vel)) {
+    len = Vec3_Length(&vel);
+    if (1388.8888f / fps < len) {
         func_00121E20(&vel);
     }
     Vec4_Sub(&pull, &pull, &vel);
@@ -251,7 +255,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     sum += Mathf_Sin(link->idle[1]) * 0.125f + 0.125f;
     sum += Mathf_Sin(link->idle[2]) * 0.125f + 0.125f;
     Vec4_Scale(&force, &force, sum);
-    Vec4_Scale(&tmp, &vel, 0.5f * mult);
+    Vec4_Scale(&tmp, &vel, half * mult);
     Vec4_Sub(&force, &force, &tmp);
     Vec4_Add(&force, &force, &obj->push);
     Vec4_Scale(&tmp, &axis, obj->sway);
@@ -267,38 +271,37 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     amount += Vec3_Length(&obj->push) * 4.0f;
     amount += obj->sway * 4.0f;
     if (link->depthB & 1) {
-        k = amount * 0.1f;
-        link->swing[0] = BObjChainB_WrapAngle(link->swing[0] + k * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f) * scale);
-        link->swing[1] = BObjChainB_WrapAngle(link->swing[1] + k * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f) * scale);
-        link->swing[2] = BObjChainB_WrapAngle(link->swing[2] + k * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f) * scale);
+        link->swing[0] = BObjChainB_WrapAngle(link->swing[0] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f) * scale);
+        link->swing[1] = BObjChainB_WrapAngle(link->swing[1] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f) * scale);
+        link->swing[2] = BObjChainB_WrapAngle(link->swing[2] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f) * scale);
     } else {
-        k = amount * 0.1f;
-        link->swing[0] = BObjChainB_WrapAngle(link->swing[0] - k * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f));
-        link->swing[1] = BObjChainB_WrapAngle(link->swing[1] - k * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f));
-        link->swing[2] = BObjChainB_WrapAngle(link->swing[2] - k * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f));
+        link->swing[0] = BObjChainB_WrapAngle(link->swing[0] - amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f));
+        link->swing[1] = BObjChainB_WrapAngle(link->swing[1] - amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f));
+        link->swing[2] = BObjChainB_WrapAngle(link->swing[2] - amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f));
     }
+    scale = 0.5f; /* the variable is reused: weight of the two swing phases and upper limit of the blend below */
     sum = 0.0f;
-    sum += Mathf_Sin(link->swing[0]) * 0.5f;
-    sum += Mathf_Sin(link->swing[1]) * 0.5f;
-    k = amount * swing * 0.5f;
-    t = sum * k;
-    if (t < -0.5235988f) {
-        t = -0.5235988f;
+    sum += Mathf_Sin(link->swing[0]) * scale;
+    sum += Mathf_Sin(link->swing[1]) * scale;
+    k = amount * swing * scale;
+    ang = sum * k;
+    if (ang < -limA) {
+        ang = -limA;
     }
-    if (0.5235988f < t) {
-        t = 0.5235988f;
+    if (limA < ang) {
+        ang = limA;
     }
-    func_00122698(&force, &force, &side, t);
+    func_00122698(&force, &force, &side, ang);
     sum = 0.0f;
     sum += Mathf_Sin(link->swing[2]);
-    t = sum * k;
-    if (t < -0.08726646f) {
-        t = -0.08726646f;
+    ang = sum * k;
+    if (ang < -limB) {
+        ang = -limB;
     }
-    if (0.08726646f < t) {
-        t = 0.08726646f;
+    if (limB < ang) {
+        ang = limB;
     }
-    func_00122868(&force, &force, t);
+    func_00122868(&force, &force, ang);
     Vec4_Add(&pull, &pull, &force);
     pull.w = 0.0f;
     pull.y += gravity;
@@ -307,8 +310,8 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (t < 0.1f) {
         t = 0.1f;
     }
-    if (0.5f < t) {
-        t = 0.5f;
+    if (scale < t) {
+        t = scale;
     }
     Quat_ConjugateBy((Quat *)&side, (Quat *)&axis, &prev);
     len = Vec3_Length(&pull);
@@ -324,9 +327,9 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Quat_Mul(&q3, &q2, (Quat *)&link->offset);
     Quat_ConjugateBy((Quat *)&dir, (Quat *)&dir, &q3);
     Vec4_Copy(&link->offset, (Vec4 *)&q1);
-    angle0 = atan2f(axis.z, axis.y);
-    angle1 = atan2f(dir.z, dir.y);
-    t = BObjChainB_WrapAngle(angle1 - angle0);
+    angle[0] = atan2f(axis.z, axis.y);
+    angle[1] = atan2f(dir.z, dir.y);
+    t = BObjChainB_WrapAngle(angle[1] - angle[0]);
     if (t < yawMax) {
         func_00122790(&dir, &dir, yawMax - t);
     }
@@ -350,41 +353,8 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Quat_ToMtx(&mtx, &rot);
     func_001201B8(out, parent, &mtx);
 }
-#endif
 /* The function's 28 float constants, 0x2FE698..0x2FE708, in the middle of this file's pool. */
-LIT4_WORD(D_002FE698, 0x40490FDA);
-LIT4_WORD(D_002FE69C, 0x3F060A91);
-LIT4_WORD(D_002FE6A0, 0x3DB2B8C1);
-LIT4_WORD(D_002FE6A4, 0x3E999999);
-LIT4_WORD(D_002FE6A8, 0x44AD9C71);
-LIT4_WORD(D_002FE6AC, 0x3A83126E);
-LIT4_WORD(D_002FE6B0, 0x3E4CCCCC);
-LIT4_WORD(D_002FE6B4, 0x3DCCCCCC);
-LIT4_WORD(D_002FE6B8, 0x3E6B851E);
-LIT4_WORD(D_002FE6BC, 0x3E8A3D70);
-LIT4_WORD(D_002FE6C0, 0x3F666666);
-LIT4_WORD(D_002FE6C4, 0x3E999999);
-LIT4_WORD(D_002FE6C8, 0x3F666666);
-LIT4_WORD(D_002FE6CC, 0x3DCCCCCC);
-LIT4_WORD(D_002FE6D0, 0x3F333333);
-LIT4_WORD(D_002FE6D4, 0x3FA66666);
-LIT4_WORD(D_002FE6D8, 0x3E999999);
-LIT4_WORD(D_002FE6DC, 0x3F666666);
-LIT4_WORD(D_002FE6E0, 0x3DCCCCCC);
-LIT4_WORD(D_002FE6E4, 0x3F333333);
-LIT4_WORD(D_002FE6E8, 0x3FA66666);
-LIT4_WORD(D_002FE6EC, 0x3F060A91);
-LIT4_WORD(D_002FE6F0, 0x3DB2B8C1);
-LIT4_WORD(D_002FE6F4, 0x3E4CCCCC);
-LIT4_WORD(D_002FE6F8, 0x3DCCCCCC);
-LIT4_WORD(D_002FE6FC, 0x38D1B717);
-LIT4_WORD(D_002FE700, 0xBDCCCCCC);
-LIT4_WORD(D_002FE704, 0x3DCCCCCC);
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_b_b", BObjChainB_Step);
 
-#if 0
-/* NOT MATCHING: 9 of 122 instructions (operand order of four address additions, the order of two byte loads and
-   one temporary register, all around the id stack `ids`). */
 /* Builds the type B link table: one link per bounds record whose node (id >= 0x47) is listed in the model's
    chain parameters, with its depth in the chain and its parent link. */
 void BObjChainB_Build(BObj *obj) {
@@ -416,17 +386,17 @@ void BObjChainB_Build(BObj *obj) {
         }
     }
     if (obj->mdl.chain != NULL) {
-        p = ids;
+        p = ids; /* only this store goes through the pointer; every other access indexes the array */
         p[0] = -1;
         while (1) {
             BtlObj_GetNode(obj, bound->node);
             level++;
-            p[level] = bound->node;
+            ids[level] = bound->node;
             slot = -1;
-            if (p[level] >= 0x47) {
+            if (ids[level] >= 0x47) {
                 param = obj->mdl.chain;
                 for (i = 0; i < 8; i++) {
-                    if (param->nodeB[i] == p[level]) {
+                    if (param->nodeB[i] == ids[level]) {
                         slot = i;
                         break;
                     }
@@ -463,8 +433,6 @@ void BObjChainB_Build(BObj *obj) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_b_b", BObjChainB_Build);
 
 /* Steps every type B link in table order (a parent always comes before its children). */
 void BObjChainB_StepAll(BObj *obj) {
@@ -504,8 +472,17 @@ f32 BObjChainA_WrapAngle(f32 a) {
 }
 
 #if 0
-/* NOT MATCHING: 521 of 711 instructions; same situation as BObjChainB_Step. Its 19 float constants
-   (0x2FE718..0x2FE764) are the end of the pool and stay in the assembly .lit4 chunk. */
+/* NOT MATCHING: 2 of 711 instructions, one swapped pair. In the branch `up != NULL` of the swing phases the
+   original loads up->swing[0] and then the constant (lwc1 $f12,0x34(s0) / lwc1 $f20,<1.5707963>); this C gives
+   the constant first. Both loads are independent, so the attempt is behaviourally exact; every other instruction,
+   the frame layout and the 19 constants (values and order checked against 0x2FE718..0x2FE764) agree. The
+   scheduler puts the constant first because three subtractions depend on it and one on the load; the usual
+   forms were tried (a variable for the constant, a second pointer, the branches exchanged, the parent tested
+   without the variable). The 19 constants are the end of the pool and stay in the assembly .lit4 chunk.
+   What made the rest match is the same as for BObjChainB_Step (see there), plus: `stiff` declared before `scale`
+   / `mult` (it ties with `mult` in the allocator's priority and the lower pseudo wins), the order of the spilled
+   variables' declarations (it is the order of their stack slots), `limit` read before `hingeOfs`, a variable of
+   its own for the first sum, and the variables `sum` / `t` / `k` reused as written below. */
 /* Steps one link of a type A chain and writes the node's rotation; arguments as BObjChainB_Step. */
 void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Mtx44 inv;
@@ -526,29 +503,34 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     BObjNode *node;
     BObjNode *chest;
     BObjLink *up;
+    s32 hinge;
+    f32 follow;
+    f32 rest;
+    f32 gravity;
+    f32 limit;
+    f32 hingeOfs;
+    f32 inertia;
+    f32 damping;
+    f32 stiff;
     f32 scale;
     f32 mult;
     f32 fps;
-    f32 hingeOfs;
-    f32 limit;
     f32 hingeLimit;
     f32 speed;
     f32 phase;
     f32 swingMax;
-    f32 stiff;
-    f32 follow;
-    f32 rest;
-    f32 gravity;
-    f32 inertia;
-    f32 damping;
     f32 swing;
     f32 amount;
     f32 angle;
     f32 len;
     f32 sum;
+    f32 idle;
     f32 k;
     f32 t;
-    s32 hinge;
+    f32 ang;
+    f32 eps;
+    f32 rate;
+    f32 half;
     s32 slot;
     s32 id;
 
@@ -563,12 +545,16 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
         scale = 0.5f;
     }
     param = obj->mdl.chain;
+    /* As in BObjChainB_Step, the original keeps these in variables set here. */
+    eps = 0.001f;
+    rate = 0.2f;
+    half = 0.5f;
     axis.x = param->axisX[slot];
     axis.y = -param->axisY[slot];
     axis.z = -param->axisZ[slot];
     axis.w = 0.0f;
-    hingeOfs = param->hingeOfs[slot] * 3.14159265f / 180.0f;
     limit = param->limit[slot] * 3.14159265f / 180.0f;
+    hingeOfs = param->hingeOfs[slot] * 3.14159265f / 180.0f;
     hingeLimit = param->hingeLimit[slot] * 3.14159265f / 180.0f;
     hinge = param->hinge[slot];
     speed = param->speed[slot] * 3.14159265f / 180.0f;
@@ -582,7 +568,7 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     damping = param->damping[slot];
     swing = param->swing[slot];
     len = Vec3_Length(&axis);
-    if (0.001f < len) {
+    if (eps < len) {
         Vec4_Scale(&axis, &axis, 1.0f / len);
     }
     Vec4_Copy((Vec4 *)&prev, (Vec4 *)&link->rot);
@@ -594,26 +580,26 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     func_00121E20(&pull);
     func_00121E20(&vel);
     func_00121E20(&force);
-    k = mult * 0.2f;
     if (link->parent == NULL) {
         BtlObj_GetNodeVelocity(obj, id, &tmp);
         tmp.w = 0.0f;
         Mtx_MulVec4(&tmp, &obj->pose.world, &tmp);
-        Vec4_Scale(&tmp, &tmp, k);
+        Vec4_Scale(&tmp, &tmp, mult * rate);
         Vec4_Add(&vel, &vel, &tmp);
     }
-    Vec4_Scale(&tmp, &obj->move, k);
+    Vec4_Scale(&tmp, &obj->move, mult * rate);
     Vec4_Add(&vel, &vel, &tmp);
-    if (1388.8888f / fps < Vec3_Length(&vel)) {
+    len = Vec3_Length(&vel);
+    if (1388.8888f / fps < len) {
         func_00121E20(&vel);
     }
     Vec4_Sub(&pull, &pull, &vel);
     BtlStage_GetLightDir(&wind);
     len = Vec3_Length(&wind);
-    if (0.001f < len) {
-        force.x = wind.x / len * wind.w * 0.2f;
-        force.y = wind.y / len * wind.w * 0.2f;
-        force.z = wind.z / len * wind.w * 0.2f;
+    if (eps < len) {
+        force.x = wind.x / len * wind.w * rate;
+        force.y = wind.y / len * wind.w * rate;
+        force.z = wind.z / len * wind.w * rate;
         force.w = 0.0f;
     }
     up = link->parent;
@@ -626,12 +612,12 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
         link->idle[1] = BObjChainA_WrapAngle(up->idle[1] - 0.9f);
         link->idle[2] = BObjChainA_WrapAngle(up->idle[2] - 0.9f);
     }
-    sum = 0.0f;
-    sum += Mathf_Sin(link->idle[0] + phase) * 0.25f + 0.25f;
-    sum += Mathf_Sin(link->idle[1] + phase) * 0.125f + 0.125f;
-    sum += Mathf_Sin(link->idle[2] + phase) * 0.125f + 0.125f;
-    Vec4_Scale(&force, &force, sum);
-    Vec4_Scale(&tmp, &vel, 0.5f * mult);
+    idle = 0.0f;
+    idle += Mathf_Sin(link->idle[0] + phase) * 0.25f + 0.25f;
+    idle += Mathf_Sin(link->idle[1] + phase) * 0.125f + 0.125f;
+    idle += Mathf_Sin(link->idle[2] + phase) * 0.125f + 0.125f;
+    Vec4_Scale(&force, &force, idle);
+    Vec4_Scale(&tmp, &vel, half * mult);
     Vec4_Sub(&force, &force, &tmp);
     Vec4_Add(&force, &force, &obj->push);
     Vec4_Scale(&tmp, &axis, obj->sway);
@@ -648,10 +634,9 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     amount += obj->sway * 3.0f;
     up = link->parent;
     if (up == NULL) {
-        k = amount * 0.1f;
-        link->swing[0] = BObjChainA_WrapAngle(link->swing[0] + k * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f) * scale);
-        link->swing[1] = BObjChainA_WrapAngle(link->swing[1] + k * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f) * scale);
-        link->swing[2] = BObjChainA_WrapAngle(link->swing[2] + k * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f) * scale);
+        link->swing[0] = BObjChainA_WrapAngle(link->swing[0] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.9f) * scale);
+        link->swing[1] = BObjChainA_WrapAngle(link->swing[1] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 0.7f) * scale);
+        link->swing[2] = BObjChainA_WrapAngle(link->swing[2] + amount * 0.1f * (BtlObj_ChaosRand(obj) * 0.3f + 1.3f) * scale);
     } else {
         link->swing[0] = BObjChainA_WrapAngle(up->swing[0] - 1.5707963f);
         link->swing[1] = BObjChainA_WrapAngle(up->swing[1] - 1.5707963f);
@@ -661,24 +646,24 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     sum += Mathf_Sin(link->swing[0]) * 0.5f;
     sum += Mathf_Sin(link->swing[1]) * 0.5f;
     k = amount * swing * 0.1f;
-    t = sum * k;
-    if (t < -swingMax) {
-        t = -swingMax;
+    ang = sum * k;
+    if (ang < -swingMax) {
+        ang = -swingMax;
     }
-    if (swingMax < t) {
-        t = swingMax;
+    if (swingMax < ang) {
+        ang = swingMax;
     }
-    func_00122698(&force, &force, &side, t);
+    func_00122698(&force, &force, &side, ang);
     sum = 0.0f;
     sum += Mathf_Sin(link->swing[2]);
-    t = sum * k;
-    if (t < -swingMax) {
-        t = -swingMax;
+    ang = sum * k;
+    if (ang < -swingMax) {
+        ang = -swingMax;
     }
-    if (swingMax < t) {
-        t = swingMax;
+    if (swingMax < ang) {
+        ang = swingMax;
     }
-    func_00122868(&force, &force, t);
+    func_00122868(&force, &force, ang);
     Vec4_Add(&pull, &pull, &force);
     func_00122168(&link->offset, &vel, &link->offset, damping);
     Vec4_Scale(&tmp, &link->offset, inertia);
@@ -696,14 +681,16 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
         Quat_SetIdentity(&target);
     }
     if (0.0f < stiff) {
-        t = (1.0f - stiff) * 0.5f + Vec3_Length(&pull) * 0.05f * stiff;
-        if (t < 0.05f) {
-            t = 0.05f;
+        k = 0.5f;
+        t = Vec3_Length(&pull) * 0.05f * stiff;
+        ang = (1.0f - stiff) * k + t;
+        if (ang < 0.05f) {
+            ang = 0.05f;
         }
-        if (0.5f < t) {
-            t = 0.5f;
+        if (k < ang) {
+            ang = k;
         }
-        Quat_Slerp(&rot, &prev, &target, t);
+        Quat_Slerp(&rot, &prev, &target, ang);
     } else {
         Quat_Slerp(&rot, &prev, &target, 0.5f);
     }
@@ -729,23 +716,24 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
             side.w = 0.0f;
             break;
         }
+        sum = 0.0f;
         Quat_FromVectors(&twist, &side, (Vec4 *)&rot, 1.0f);
         angle = Quat_GetAngle(&twist);
-        if (Vec3_Dot(&axis, (Vec4 *)&twist) < 0.0f) {
+        if (Vec3_Dot(&axis, (Vec4 *)&twist) < sum) {
             angle = -angle;
         }
         angle = BObjChainA_WrapAngle(angle + hingeOfs);
         t = 3.14159265f - hingeLimit;
         if (t < __builtin_fabsf(angle)) {
-            if (!(0.0f < angle)) {
+            if (!(sum < angle)) {
                 t = -t;
             }
             angle = t - angle;
-            t = Mathf_Cos(angle);
-            if (0.0f < t) {
+            sum = Mathf_Cos(angle);
+            if (0.0f < sum) {
                 Quat_FromAxisAngle(&fix, axis.x, axis.y, axis.z, angle);
                 Quat_ConjugateBy(&rot, &rot, &fix);
-                Quat_SlerpIdentity(&rot, &rot, t);
+                Quat_SlerpIdentity(&rot, &rot, sum);
             } else {
                 Quat_SetIdentity(&rot);
             }

@@ -288,7 +288,14 @@ void EftBlastObj_TermModel(EftOTask *task) {
    sel[] pairs (a part on node slot 5 matches any pair of its kind). Visual. */
 /* NON-MATCHING: 70 of 115 instructions, same logic: the original branches to the loop exit from both node
    tests (`beql ..., exit` with `skip = 0` in the delay slot) and falls through to `i++`; this falls through
-   to `skip = 0`. The loop counter and the part count also swap registers (a3 / t0). */
+   to `skip = 0`. The loop counter and the part count also swap registers (a3 / t0).
+   So in the original the `skip = 0; break;` block stood outside the loop body (one block, reached from both
+   tests, later absorbed into the two delay slots). Tried: `||`, nested ifs, `&&`, continue, a flag tested after
+   the ifs, goto to a label behind the loop (80 of 115), a local part pointer; two separate `skip = 0; break;`
+   blocks make the loop pass give the loop up ("multiple entry points": no walking pointer at all).
+   Checked against the disassembly line by line (reloads of *set->mask per group, of grp[g].first and selCount
+   per part, of the group's count after the calls; argument order of the three calls) and by running both
+   versions in an interpreter on random data (build/scratch_cleanup_eft/emu_generic.py): no difference. */
 #if 0
 void EftBlastObj_UpdateParts(s32 objId, EftOTask *task, EftOSet *set, s32 reset) {
     EftBlastObj *w = task->work;
@@ -336,7 +343,15 @@ INCLUDE_ASM("asm/nonmatchings/battle/eft_o_b", EftBlastObj_UpdateParts);
 /* Init callback: see the notes at the top of the file. */
 /* NON-MATCHING: 6 instructions, register allocation only, in the copy of the node slots: the original keeps
    the end pointer of the block copy in v0 and copies through t1 / v1 / a1 / a2; this keeps it in a1 and
-   copies through t1 / v0 / v1 / a2. */
+   copies through t1 / v0 / v1 / a2.
+   Cause (from the -da dumps and -fsched-verbose): the end pointer `arg->nodes + 0x240` gets v0 only when it is
+   computed AFTER `&slots[w->sel[0].node]`; the first scheduling pass here puts it before, because the load of
+   arg->nodes becomes ready two cycles earlier than the load of w->sel[0].node (a load through the parameter
+   `arg` is known not to alias the two table initialisers on the stack, a load through `w` is not). In the
+   original both loads became ready together, the one with the longer chain (the node) went first. No source form
+   found that does it: reading the node or the nodes pointer before / between the table initialisers changes the
+   order of the copies (29 to 130 instructions), a local for the pointer, memcpy and other spellings give these 6.
+   Behaviour is identical (registers only; also run against the original in the interpreter). */
 #if 0
 void EftBlastObj_Init(EftOTask *task, EftBlastObjArg *arg) {
     EftBlastObj *w = task->work;

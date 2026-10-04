@@ -356,7 +356,10 @@ typedef struct DetAiWork {
 
 /* AiThRule of battle/btl_ai_think.h: the action part. */
 typedef struct DetAiRule {
-    /* 0x00 */ u8 unk0[0x14];
+    /* 0x00 */ u8 unk0[4];
+    /* 0x04 */ u8 unk4[4];     /* BtlAiSeq_PushRule reads the action ids as unk4[i + 16] (it matches only so) */
+    /* 0x08 */ u8 unk8[4];     /* and their arguments as unk8[i + 16] */
+    /* 0x0C */ u8 unkC[8];
     /* 0x14 */ u8 act[4];      /* action (sequence) ids, 0xFF ends the list */
     /* 0x18 */ u8 arg[4];      /* argument + 0x7F */
 } DetAiRule;

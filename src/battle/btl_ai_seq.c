@@ -1008,7 +1008,13 @@ s32 BtlAiStep_Charged(BtlAiWork *ai) {
  * in front of the `bne id,0x45` branch and `li a1,0x10` in its delay slot; this C gives them the other way round
  * (an ordering of the first block by the scheduler; everything else, registers included, is the same). Forms that
  * were tried and give 12 or more differences: `ret = !(...)`, an if / else pair, a switch, a ternary, the test
- * written inside the `timer == -1` branch. */
+ * written inside the `timer == -1` branch.
+ * What decides it (RTL dumps): the first scheduling pass moves `li 16` up from the next block with priority 2 (it
+ * feeds that block's branch) and gives the flag instruction priority 1, because nothing in the first block depends
+ * on it; the second pass then keeps that order and the delay slot takes the last one. The original order needs a
+ * dependent of the flag in the first block at that time (one that is gone afterwards). Also tried without
+ * effect: an inline helper returning the flag (`if (..) return 0; return 1;` and `!`), a copy through a second
+ * variable, a result variable with one `return` at the end (25 differences). */
 s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
     BtlAiSeqA *seq = SEQA(ai);
     BtlAiSeqActTable *act = AI_DATA->act;
@@ -1247,7 +1253,16 @@ s32 BtlAiStep_WaitNear2(BtlAiWork *ai) {
 
 /* Step handler 17: waits for a skill (plan.unk8) to become affordable or usable against the opponent's action. */
 #if 0
-/* Best attempt. 63 of 154 instructions differ: same blocks, but the branch layout of the first half and the registers of the class comparisons at the end are off. */
+/* Best attempt (the function comes out 4 instructions longer; compared with the branch targets masked and the
+ * shift removed, about 21 instructions differ). What is right now: the last test stays a branch (the three
+ * `return 1` of the nested tail share one block, so the compiler cannot turn `if (..) return 0; return 1;` into
+ * slt / sltiu). What is still off: (1) the original places the common `return 0` block directly behind
+ * `seq->step = 2` and the class tail LAST (falling into the epilogue); here the tail comes first and the
+ * `return 0` last; (2) `flags & 0x40` goes to a second register with a branch-likely; (3) the unsigned copy of
+ * cls[1] is loaded once in a delay slot (`lbu a3,17(sp)`) instead of in front of the range test. Tried: a flat
+ * version with early returns (first half then loads 0 early and uses other registers), a `goto` to the tail
+ * behind the `return 0`, explicit `return 0` in either half. Behaviour checked line by line against the
+ * disassembly. */
 s32 BtlAiStep_Unk17(BtlAiWork *ai) {
     BtlAiSeq *seq = &ai->seq;
     BtlAiPlan *plan = &ai->plan;
@@ -1306,23 +1321,19 @@ s32 BtlAiStep_Unk17(BtlAiWork *ai) {
             if (cls[1] == 0x1C) {
                 return 1;
             }
-            if (cls[1] == cls[0]) {
-                return 1;
-            }
-            if (cls[1] == 0x17) {
-                return 1;
-            }
-            if (cls[1] == 0x19) {
-                return 1;
-            }
-            if (cls[1] == 0x18) {
-                return 1;
-            }
-            if ((u32)((u8)cls[1] - 0xF) < 3) {
-                return 1;
-            }
-            if ((s32)(rate * 100.0f) < seq->timer) {
-                return 0;
+            if (cls[1] != cls[0] && cls[1] != 0x17) {
+                if (cls[1] == 0x19) {
+                    return 1;
+                }
+                if (cls[1] == 0x18) {
+                    return 1;
+                }
+                if ((u32)((u8)cls[1] - 0xF) < 3) {
+                    return 1;
+                }
+                if ((s32)(rate * 100.0f) < seq->timer) {
+                    return 0;
+                }
             }
             return 1;
         }

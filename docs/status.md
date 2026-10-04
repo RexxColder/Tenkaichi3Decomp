@@ -241,3 +241,30 @@ bytes of .lit4 (the fighter agent matched something), so `[0x1FDEB4, lit4, cod/1
 go (btl_act_h's pool then runs 0x1FDEB0..0x1FDEBC) once that agent reports; check its report
 for other pools. Then: `.venv/bin/python configure.py && ninja`, gate, fdiff sweep, commit,
 stop. Linking the new-range files is the next session's first job (one integrator).
+
+## STOPPED HERE (2026-10-04): cleanup linked, build identical, waiting for the user
+
+All agents have finished; none are running. The four cleanup agents' work is linked and
+committed: ninja exit 0, both .ok files, both images identical, fdiff sweep clean (the two
+"not OK" a grep for "Error" reports are the function names `Movie_CbError` and
+`File_AdxErrorCallback`). Main executable 69.83% (was 68.41%); INCLUDE_ASM in linked files
+147 (was 185).
+
+Cleanup results: battle object 7 of 8 (both pose samplers match; `BObjChainA_Step` left);
+stage 10 of 10; projectiles 9 of 16 (the agent's "10 and 6" headline was miscounted: 7 left,
+all checked by a differential interpreter in build/scratch_cleanup_eft/); fighter / AI 12
+matched, 7 left (`AiThink_TestSkill`, `AiThink_GetBlastStep`, `BtlAiStep_GuardUntilSafe`,
+`BtlAiStep_Unk17`, `BtlAiSense_IsBusy`, `BtlAct_GuardHandler`, `BtlInput_Update`). No
+semantic errors found in the old attempts except the one-bit clamp constant in
+`BObjChainB_Step` and the `StgRigid_Create(pos, radius, user)` argument order (fixed in
+stg_d.c / stg_d.h). The agents' matching lessons are in their reports only (transcript): add
+them to docs/decomp_guide.md next session; docs/open_questions.md still lists functions that
+now match.
+
+Next session, in order (ask the user before launching anything; keep to 10 agents):
+1. One integrator to link the committed-but-unlinked files: vu0_a / vu0_b, lib_a (dialog),
+   hud_a* + hud_b, gfxm_a + gfxm_b*, view_a*. Each agent's "for the integrator" notes are
+   summarised in docs/systems/{math,graphics,hud,menu_support,audio}.md.
+2. The queued chunks of the main executable (list in the "Eighth batch" section above, minus
+   lib_b / lib_c which are the CRI library).
+3. The menu overlay DBZP.BIN.

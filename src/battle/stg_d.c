@@ -259,7 +259,7 @@ void StgRigid_Term(void) {
 }
 
 /* New body at `pos`, unrotated and at rest, appended to the active list. Returns its id, -1 when the pool is full. */
-s32 StgRigid_Create(Vec4 *pos, s32 user, f32 radius) {
+s32 StgRigid_Create(Vec4 *pos, f32 radius, s32 user) {
     Mtx44 rot;
     StgRigidNode *n;
     StgRigidNode **link;
