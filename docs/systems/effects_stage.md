@@ -83,6 +83,13 @@ and the stage update at 0x243568).
 | 0x15C728..0x15E5D0 | eft_l_b.c | type 4 `EftRingShot*`: up to 20 blast objects placed on rings around a fighter, or fired as a volley | **yes**: creates, places, aims and delays blast objects; hit records; flags 0xA8 / 0xA9; restarts the technique timer | **`BtlScene_RandF`: one per shot, reaching the shot's launch position (rings) or direction (volley)** | 20/20 |
 | 0x15E5D0..0x15EF18 | eft_l_c.c | `EftAbsorb*`: glow for drain and absorb (fighter requests 0x38 / 0x37) | no | none | 13/13 |
 | 0x15EF18..0x15F728 | eft_l_d.c | speed-line spawners (head of eft_m's module) | no | libc `rand()`: 33+ per call on every frame a fighter has request 0xB; 90 per part burst | 2/2 |
+| 0x178AB0..0x1793A8 | eft_s.c | ki blast type 2 `EftKiObj_*`, second half: a thrown model with gravity (first half in eft_r) | **yes**: motion, reacts to hit results (break, deflect / reflect), dies 15 frames after a hit | libc `rand()`: 20 per break (fragments, appearance) | (eft_s 27/31) |
+| 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
+| 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
+| 0x182CE8..0x1853C8 | eft_u_b.c | particle emitter `EftPtcl_*`, head (effect pack part kind 5; pool of 500) | no | libc `rand()`: 25..30 per particle | 9/9 |
+| 0x1B16F0..0x1B3510 | eft_det_b.c | **stage collision queries `StgCol_*`** (fighter body sweep, segment trace, camera sweep, debris, shadow) | **yes** | none | 30/33 |
+| 0x1B3510..0x1B3F78 | eft_det_b_b.c | stage way-point graph `StgNav_*` and path search (AI only) | yes (AI input) | none | 10/12 |
+| 0x1B3F78..0x1B4140 | eft_det_b_c.c | head of the AI sequence object (`BtlAiSeq_Reset`, `PushRule`) | yes | none | 1/2 |
 | 0x22FD10..0x230B38 | stg_d.c | stage debris rigid bodies `StgRigid_*` (pool of 128) | **no**: bodies touch nothing, not even the stage | libc `rand()` x6 and VU0 x4..7 per body launched (the VU0 count depends on the libc bits) | 20/20 |
 | 0x115170..0x115478 | stg_d_b.c | stage object animations `StgModel_*` | no | VU0: one per animated object at every stage reset | 5/5 |
 | 0x23FB20..0x242D28 | stg_a.c | **stage core `BtlStage_*`**: file binding, bounds, zones, start placements, paths, water level, destructible objects; plus frustum and fade helpers (visual) and an unreachable stage viewer | **yes** | libc `rand()`: one in `BtlStage_DestroyObj`, hidden-item case only | 70/78 |
@@ -361,3 +368,35 @@ First wave complete: all sixteen agents reported; every file was re-diffed.
 - Each launched body draws 6 libc `rand()` and 4 to 7 VU0 values, so breaking a stage object
   advances both shared streams by an amount that depends on the libc bits.
 - The object really starts at 0x22FC40 (two list helpers, still unnamed).
+
+## Stage collision (simulation; `eft_det_b.c`, verified unless marked)
+
+- **Data**: each zone has one static collision mesh and a list of records for destructible
+  objects. An object has a "whole" record, tested while unbroken, and a "remains" record,
+  tested once broken: breaking needs no collision update (correcting the stg_a note). Objects
+  touched come back as a 64-bit mask (at most 64 colliding objects per stage); callers take the
+  lowest set bit. Polygon flags mark non-solid polygons and ones the camera or shadow skip.
+- **Fighter against the stage** (`StgCol_UpdateFighter`, once per fighter per frame, fighter 0
+  first): the body sphere is swept from last frame's position in steps of half a radius; after
+  each step every solid triangle touching it pushes it out, in mesh-walk order (the result
+  depends on that order). Only the fighter's current zone is tested, never neighbours. The
+  collision radius grows by 1 per frame up to the body radius. Contact bits last one frame.
+- **Breaking objects by flying through them**: in each sub-step the lowest-index unbroken
+  object touched is considered. With `BtlCharApi_TestStageBreakA` true it breaks only if its
+  type has bit 0x100; otherwise it breaks if `TestStageBreakB` is true. Breaking sets contact
+  bit 0x40, and the object's type picks the damage bit: 200, 600 or 1000 (applied by
+  `BtlColl_UpdateGround` only while fighter flag 0xA is up).
+- **Order dependence**: if both fighters would touch the same object in one frame, fighter 0
+  breaks it and takes the damage; fighter 1 collides with the remains and takes none.
+- **Segment trace** (`StgCol_TraceSegment`: lock-on sight, AI, approach point, sweeping beam):
+  walks zones from the start point; the first zone with any hit ends the walk; the result is in
+  one static block (not re-entrant, and overwritten by the debris update). (inferred hazard)
+  The object index returned is the lowest-index unbroken object accepted as "nearest so far"
+  during the walk, not necessarily the object of the final nearest hit; the sweeping beam
+  destroys that index.
+- **AI way-point graph** (`StgNav_*`): a per-stage graph of 0x30-byte nodes; path search by
+  fewest links, at most 16 points. Original bug: sibling entries get increasing step counts, so
+  it is not a true breadth-first search (still deterministic). Hazard: open and closed lists of
+  256 entries with no bound check. The search ignores destructible objects.
+- No random draws; no camera, pad or screen-mode input.
+- Ring-out is decided in `BtlColl_UpdateGround`, not here.
