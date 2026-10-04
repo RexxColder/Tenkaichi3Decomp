@@ -224,3 +224,7 @@ bobj_b_b.c from the battle-object cleanup agent are edited and re-diffed but NOT
 yet). The new-range files stay unlinked and get committed as they are. Then stop and wait for
 the user. Not to be done until the user says so: linking the vu0 files, launching the queued
 chunks, the menu overlay, any port work.
+
+lib_a reported (2026-10-04): 0x268248..0x269228 is game code (confirmation dialog, 18 of 19
+match, committed unlinked); 0x269228..0x273CA0 is the CRI ADX library, so the queued chunks
+lib_b / lib_c are NOT needed (naming only, if ever).

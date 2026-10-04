@@ -145,3 +145,28 @@ draws, no pad, camera or sound input.
 - Corrections: `func_0023A458` / `func_0023A2D0` (used in pad_watch.c, btl_seq.c) are
   `Font_GetCmdCount` / `Font_Flush`; the "unidentified inits" at boot, `func_00239FF0` and
   `func_0023D0E0`, are `Font_Init` and `FontIcon_Init`; `func_0023D160` is `FontIcon_Tick`.
+
+## Confirmation dialog (0x268248..0x269228; src/sys/lib_a.c, not linked yet; names in config/symbols/lib_a.txt)
+
+A two-choice confirmation window ("Yes / No"), one instance, `gDialog` at 0x2FF160 (0x8C bytes
+on heap 2). 18 of 19 functions match; `Dialog_SetCursor` differs in registers only. The
+`Dialog_` prefix is our choice. Proper file name: `src/sys/dialog.c`.
+
+- (verified) It is a UI animation object with clips `mc_dummy_text_1..4` (text anchors) and
+  `mc_menu_plate_1/2` (the two choices), and labels `fl_window_{s,l}_{in,out,open}`,
+  `fl_on_start`, `fl_off_start`, `fl_ok`. Struct layout in include/sys/lib_a.h.
+- (verified) `Dialog_Input` returns 1 for the first choice, -2 for the second, -1 for cancel,
+  0 otherwise. Pad: game-button repeat bits 1 / 2 move the cursor, pressed 0x200 confirms,
+  pressed 0x400 cancels. Blocked while `gProgress->flags & 0x100`, while the window is not
+  fully open, or when there are no choices.
+- (verified) Sound effects, `Snd_PlaySe(1, n)`: 0 cursor, 1 confirm, 2 cancel, 4 open, 5 close.
+- (verified) Message tables are `u32` offset tables: text i starts at
+  `table + (table[i+1] & ~3)`, UTF-16 strings for the Font module.
+- (verified) Resource file: a table of byte offsets; words 1, 4, 2, 3 are texture parts
+  (relocated with `Res_RelocateOffsets`), word 5 the animation data, word 6 the title table.
+- (inferred) Its callers at 0x119FB8..0x11E1E8 are the memory-card / save confirmation flows.
+- Original oddities kept in the matching C: `Dialog_DrawBody` reads its text from the title
+  table, not the caller's message table; `Dialog_Term` uses the animation before its NULL
+  check.
+- For linking: `gDialog` must be defined as initialised data (it sits in `.sdata` before
+  `"fl_ok"`); `.rodata` at 0x2F35B0, size 0x145; `Snd_PlaySe` must be declared `void` here.
