@@ -115,3 +115,34 @@ then use identical modes and compiler flags; PS2 replays would not reproduce).
 VU0 R register (the generator behind `Rand_Float01`), rule from emulator documentation:
 init R = 0x3F800000 | (bits(x) & 0x7FFFFF); next: b = ((R >> 4) ^ (R >> 22)) & 1;
 R = 0x3F800000 | (((R << 1) | b) & 0x7FFFFF). `Vu0_Init` seeds it from 0.1234141f at boot.
+
+## Vector / matrix library, first half (0x11FA10..0x121008; names in config/symbols/vu0_a.txt)
+
+84 functions. All 84 match in three files (`src/sys/vu0_a_c*.c`, not linked yet): 36 are
+compiled C and 48 are the original hand-written VU0 routines kept as top-level assembly blocks
+inside those files. Exact portable references are in `src/port/vu0_a.c`: each routine executes
+the original instruction sequence on a register model (vf0..31, ACC, Q, vi, flags, VU0 memory),
+with arithmetic through an integer-only model of PS2 floats that gives the same bits on every
+host. Compiled and self-tested on the host; not validated against a console or emulator.
+
+- (verified) The library is Sony's libvu0 under other names plus a matrix stack: the camera,
+  light, view-screen, drop-shadow and rotation matrix builders matched from the Sony source.
+- (verified) Matrices are row-vector with the translation in row 3. `Mtx_Mul(dst, a, b)`: the
+  FIRST argument is the destination, and b is applied first. `Mtx_RotateX/Y/Z(dst, src, angle)`
+  = src x R. Euler order: `RotateZXY` applies Z, X, Y; `RotateXYZ` applies X, Y, Z.
+- (verified) The current matrix is vf16..19 with a stack of 64 matrices in VU0 data memory and
+  no overflow check. Identity matrices are written from registers vf1..vf3, which hold the unit
+  axes only because `Vu0_InitAxisRegs` ran at boot.
+- (verified) **Rotation sine / cosine come from `Vu0_SinCos`**: a degree-9 polynomial for the
+  cosine, sine = sqrt(1 - cos^2) with the angle's sign, and no range reduction (callers must
+  pass |angle| <= pi). It gives different bits from `Mathf_Sin` and from libm, and the sine is
+  coarsely quantised near 0 and +-pi.
+- (verified) The "scale" routines multiply only the three diagonal elements (not a scale on a
+  rotated matrix); 15 call sites. `IVec4_InGsRange4` tests its third point twice and never
+  reads the fourth.
+- (inferred, emulator knowledge) PS2 float rules beyond rounding toward zero: add / subtract
+  keep one guard bit and no sticky bit, so they can differ from IEEE round-toward-zero by one
+  unit; the multiplier can be one unit low on real hardware (NOT modelled: x * 1.0 may not be
+  exactly x, which touches every rotation and dot product); the overflow / divide-by-zero
+  value is 0x7FFFFFFF or 0x7F7FFFFF (unsettled). These need an emulator or console trace to
+  settle before the reference can be called bit-exact.
