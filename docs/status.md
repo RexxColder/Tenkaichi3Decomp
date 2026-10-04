@@ -268,3 +268,19 @@ Next session, in order (ask the user before launching anything; keep to 10 agent
 2. The queued chunks of the main executable (list in the "Eighth batch" section above, minus
    lib_b / lib_c which are the CRI library).
 3. The menu overlay DBZP.BIN.
+
+## Ninth batch (started 2026-10-04, user said "continue now")
+
+Running: 10 agents (the cap).
+- Integrator: linking vu0_a / vu0_b, lib_a (dialog), hud_a* + hud_b, gfxm_a + gfxm_b*, view_a*;
+  also refreshing docs/open_questions.md. It edits yamls and linked sources: commit nothing of
+  its work until it reports and the gate passes here.
+- New ranges (new files only; snapshot scratchpad/snap3/asm; brief docs/briefs_remaining_main.md):
+  gfxm_c 0x10AD58..0x10EC18 (movie player), gfxm_d 0x10EC18..0x112A30, gfxm_e
+  0x112A30..0x115170, stgm_a 0x115478..0x1198D8 (stage model), mcflow_a 0x1198D8..0x11EC10
+  (memory-card dialog flows), hud_0 0x2129C8..0x215420 (battle glue?), hud_c
+  0x222400..0x226488, hud_d 0x226488..0x22A750, hud_e 0x22A750..0x22FD10.
+Still to launch when slots free: misc_a 0x252F68..0x254A20, view_b 0x2600B0..0x263098; then
+the unexplored tail before the SDK (check the yaml for what lies between 0x263098 and the
+linked sys files, and 0x2BDCE8..0x2BF488 result-screen code mentioned by the view_a report),
+then DBZP.BIN.
