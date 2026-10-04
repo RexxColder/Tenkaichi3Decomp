@@ -261,3 +261,29 @@ the player's side only; the rule and the opposing side are set by the preceding 
 `gProgress + 0x648`, same related-character refusal), guides Android 17 / 18 (clip names),
 voice base 0x8765; unlike TeamSel it has no random-cell draw. Random draws: blink timers and
 `FlashAnim_*` only. Pad 0 only.
+
+## Character reference (mode 60) and training handler (modes 44..45) (chunk 8, 0x356090..0x35A558; src/menu/menu_h*.c; all 41 functions match)
+
+Files: menu_h.c = `DuelMenu_Run` (last function of the duel menu object), menu_h_b.c =
+`CharRef` (a whole object), menu_h_c.c = the two handlers, menu_h_d.c = head of `Train`
+(continues in chunk 9; merge with menu_i's first file).
+
+- (verified) **Mode 60 = Character Reference** (`CharRefMode_Main` 0x3590A8; archive 9 = file
+  baseFile + 15): Chi-Chi guides ("mc_guide_a/b_chichi"); a list of the characters set in
+  `gSaveData->charaBits`; per character a profile, a voice sample
+  (`Voice_PlayChara(0, chara, rand() % 2)`: libc `rand()`), her comment, and the model viewer
+  (`ChrView_Show(chara, costume, 0)`; the frame loop runs `ChrView_Update` in that state).
+  Never starts a battle; writes nothing to the save. Pack: 29 sections (table in the source).
+- (verified) **Modes 44..45 = training** (`TrainMode_Main` 0x3591C8; archive 6 = file
+  baseFile + 13; names from clip strings "mc_icon_training_clear", "fl_class_menu_*"): mode 44
+  `Train_Run(1)` (0 -> mode 4; 1 -> leave for the battle; 45 -> mode 45); mode 45
+  `CharSel_Run(2)` (the battle mode 6 branch of the versus hand-off). The lesson battle
+  hand-off is inside `Train_Run` (chunk 9).
+- (verified) `gSaveData + 0xE0C`: `s32 trainClear[3]`, one "lesson cleared" bit per lesson per
+  class (three classes of up to 15 lessons).
+- (verified) `DuelMenu_Run` copies `gDuelMenu->pick[0..2]` to `gProgress + 0x620 / 0x624 /
+  0x630` on leaving.
+- (verified) `gCharRefState` (0x31EA80) is in the MAIN executable's `.bss`: an uninitialised
+  global of overlay source placed as a common symbol, so the overlay was linked together with
+  the main executable.
+- For the integrator: `Snd_PlaySe` returns `s32` (menu_a.h declares it `void`: fix).
