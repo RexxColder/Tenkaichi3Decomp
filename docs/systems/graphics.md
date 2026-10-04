@@ -321,3 +321,36 @@ proven object boundary (`beqz` / `beqzl`). Layouts in include/sys/gfxm_e.h.
   `BtlObjBound` records are the mesh list (VIF stream at +0x60), `BtlObjPool3Work` is the
   shadow pool.
 - No pad, clock or random draw; nothing feeds back into the simulation.
+
+## Movie player (0x10AD58..0x10EC18; src/sys/gfxm_c.c, not linked yet; names in config/symbols/gfxm_c.txt)
+
+73 of 74 functions match; `Flash_Advance` (0x10D6F0) is INCLUDE_ASM, one `move` short, with a
+behaviourally exact attempt. Final name sys/flash.c together with gfxm_b_c.c (readers) and
+gfxm_d.c (clip setters). Layouts in include/sys/gfxm_c.h (they collide with the local views
+in gfxm_d.h, dialog and view_a*: unify before including both).
+
+File format (verified by matching C): a movie is a **converted SWF**. Header 'F' 'O' 'D' 0x11
+"LIT\0", then tags (u8 code, u8, u16 record count, u32 size; code 0 ends):
+- tag 2 sprite list; tag 3 images (u16 width, height; image i draws with texture entry i);
+  tag 4 shapes (u16 count + 0x18-byte quads: s16 image or negative for flat, u32 rgba, s32 x0,
+  x1, y0, y1); tag 6 sprite frame records; tag 7 the root's frame record.
+- A frame record is a list of named blocks (label, u16 size, frame tags ended by code 1).
+  Frame tags keep SWF codes: 4 PlaceObject, 5 RemoveObject, 12 DoAction, 26 PlaceObject2,
+  28 RemoveObject2. Actions keep SWF codes: 0x81 GotoFrame, 4 NextFrame, 5 PrevFrame, 6 Play,
+  7 Stop, 0x83 GetURL, 0x8B SetTarget, 0x8C GotoLabel.
+- **GetURL is the movie-to-game channel**: "pad" "true" / "false" sets / clears `Flash.flags`
+  bit 2; "trig" "n" and "se" "n" set bit n of `Flash.trig` / `Flash.se`; "trigger" "end" sets
+  flags bit 8. (inferred) "pad" gates input and "se" asks for a sound effect.
+- Colour transform: flag byte, 4-bit field width, signed fields, multipliers 8.8.
+
+Runtime (verified): `Flash` is 0x2C bytes (data, tex, flags 1 play / 2 pad / 4 hide / 8 end,
+trig, se, speed, offset, root timeline, clip list, shape pool). `Flash_Advance` runs `speed`
+frames of the root; a label jump replays frames up to the target with actions suppressed.
+Drawing: per depth the shape then the sprite, properties combined with the parent's; each
+quad is its own GS packet (12.4 coordinates offset by 0x7000 / 0x7200), textured quads upload
+their texture to block 0x3000 every time; alpha 0x44 normal, 0x48 additive, 0x42
+subtractive; masks use the frame's alpha plane. Game overrides on a clip: position, scale,
+alpha, colour, texture rectangle / index, flips, blend, mask; callbacks preDraw / drawOver /
+postDraw. `Flash_FindLabel` (existing name) actually finds a clip instance by name.
+No random draw, no pad, clock or camera read. Original bug: a sprite placed by tag 4 has no
+name and `FlashClip_Start` calls `strlen(NULL)`.
