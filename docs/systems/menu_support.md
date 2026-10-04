@@ -49,3 +49,37 @@ label strings reproduces `.sdata` 0x2FF0D0..0x2FF110; `.rodata` 0x2F30E0 (view_a
 (view_a_b.c), 0x2F3250 (view_a_e.c); `.lit4` 0x2FE7A4 (view_a_d.c). `Num_ToDigits` and
 `Res_RelocateOffsets` return nothing; the declarations in sys/loading.c and the window files
 were corrected.
+
+## Text box tail, character / item tables, menu utilities, dragon scene (0x2600B0..0x263098; src/battle/view_b.c .. view_b_e.c, not linked yet; names in config/symbols/view_b.txt)
+
+68 functions, 66 match; `TextBox_DrawClip` (0x260158) and `ShenScene_StepSeq` (0x261ED8) are
+INCLUDE_ASM with behaviourally exact attempts. Final names: view_b.c appends to view_a_e.c
+(text_box.c); menu/chr_table.c; menu/menu_util.c; menu/shen_scene.c; view_b_e.c (20 empty
+debug stubs) prepends to sys/debug.c. Layouts in include/battle/view_b.h.
+
+Verified by matching C:
+- **Common file 4** = header {?, charaOffset, itemOffset}; character entries 0x3C bytes
+  (`ChrTblEntry`: +0 aiType, +8 flags, +0xA costumes, +0xC cost, +0xE baseLevel, +0x10
+  exp[7], +0x2C link[4], +0x30 / +0x34 viewer camera) and item entries 0x28 bytes
+  (`ItemTblEntry`: +0 type 1 slot item / 2 AI item, +3 slots, +0xC s16 stat[4], +0x14 flags,
+  +0x18 s32 ability[4]). Field meanings are inferred from how the overlay uses them.
+- **`ItemSet_GetStats(ids, stats, ability, chara)` (0x261130) is what `BtlMember_ApplyItems`
+  calls**: four stat sums, OR of the ability bits, `stats[4]` = AI type (item id - 0x87 for a
+  type 2 item, else the character's own). This is part of the battle set-up the simulation
+  starts from.
+- **`Demo_SetupBattle`** (0x2617F0): nine fixed pairings {chara, chara, stage}, picked with
+  `Rand_Range(9)` until different from the last one, one more `Rand_Range(9)` for the music;
+  `BattleSetup_SetRule(0, 7, bgm, 5, 4, stage, 0)`, both sides CPU level 13, one member each.
+- Difficulty settings 0..4 map to CPU levels 0, 6, 13, 21, 29 (`CpuLevel_FromSetting`).
+- Menu voice: `Voice_Play(0, base + line, 0x80, 0)`, + 0x55C when save flag bit 0 is set
+  (second language); mouth movement is key data {u16 frame, u16 open} advanced once per call
+  after the voice starts, frozen by progress flag 0x100.
+- Text box: a line hangs on a movie clip through the clip's "draw over" callback; flags
+  1 clip, 2 colour, 4 shadow colour, 8 max width, 0x10 max height, 0x20 per-row y offsets,
+  0x40 spacing; default clip is the 512x448 screen. Text files: word[n+1] = offset of line n;
+  16-bit characters, high byte first.
+- `ShenScene_*` (0x261ED8..0x262FF0): the 3D backdrop of the dragon wish screen, a second
+  user of the battle object / stage / scene modules outside a battle (backdrop file 0x194 +
+  dragon; models 0xD3C / 0xD3D / 0xD45). Step contents come from the attempt.
+- Original quirks: `TextBox_DrawClip` accumulates position and tint in place (a line must be
+  re-attached before every draw); `ItemSet_GetStats` ORs the ability words four times.
