@@ -287,3 +287,31 @@ Files: menu_h.c = `DuelMenu_Run` (last function of the duel menu object), menu_h
   global of overlay source placed as a common symbol, so the overlay was linked together with
   the main executable.
 - For the integrator: `Snd_PlaySe` returns `s32` (menu_a.h declares it `void`: fix).
+
+## Dragon World Tour, modes 33..35: tournament menu tail and bracket screen (chunk 11, 0x364358..0x368C18; src/menu/menu_k*.c; all 16 functions match)
+
+`Tour_Main` (0x362160, chunk 10) is main-menu item 2: mode 33 tournament menu (`TourMenu`),
+34 entrant select, 35 bracket screen (`Bracket`, `gBracket` 0x3B5918, 0x2090 bytes).
+menu_k.c appends to menu_j_b.c (one source file); menu_k_f.c (`Bracket_Load`) is the head of
+the object that continues in menu_l (it starts at 0x368068, not 0x3673F8 as menu_l's notes
+say). Module names "Bracket" / "TourBg" are guesses.
+
+Verified by matching C:
+- The tournament menu writes `gProgress + 0x80` (0 real tournament, 1 free play), `+0x84`
+  tournament 0..4 (World / Big / Cell Games / Otherworld / Yamcha Game: names from music ids
+  and clip names, partly inferred), `+0x88` level 0..2, `+0x8C` entrants 1..8.
+- Bracket state lives in `gProgress`: +0x90 round, +0x94 match, +0x98 17 entrants (0x28
+  each), +0x340 16 matches (0x10 each: flags 4 winner to left slot / 8 right / 0x10 final,
+  `ent[2]`, next, pos). `gProgress->flags` 0x10 = a tournament is in progress.
+- New tournament: fill entrants, shuffle, build matches; back from a battle: apply the result,
+  play out the CPU-only matches, advance to the next match with a player entrant.
+- **Battle hand-off**: `Bracket_Run` result 1 writes the bracket back to `gProgress` and calls
+  `Bracket_SetupBattle` (0x36A720, chunk 12): the only place this mode writes the battle
+  setup. Result 0 clears the bracket (tournament over).
+- Winning the real tournament (or finishing runner-up) gives prizes (`Bracket_GivePrizes`,
+  chunk 12), shows reward windows, then runs the save flow `McFlow_Start(0)`.
+- Assets: pack = file baseFile + 6 + tournament; backdrop = file 0x3C9 + tournament.
+- **Random draws**: a cheer line from `Rand_Range(14)` (7 for the Big Tournament) on the
+  shared Mersenne Twister immediately before a battle hand-off; `rand() & 1` (libc) for a
+  round-announcement line; `FlashAnim_*` every frame.
+- Pad 0 only; `gameHeld` scrolls the tree.
