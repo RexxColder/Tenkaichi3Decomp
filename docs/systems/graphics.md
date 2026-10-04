@@ -199,3 +199,44 @@ include/sys/gfxm_a.h. Suggested final name: sys/gfx_post.c (with gfxm_b).
   `BATTLE_FLAG_PAUSE` freezes the pan blur update. Nothing feeds back into the simulation.
 - For linking: `GfxPostQuad` duplicates `GfxQuad` of include/sys/gfxm_b.h; stg_c.c / btl_obj.c
   declare some of these with other argument types (the definitions here are what match).
+
+## Screen passes, texture files, movie data (0x106D60..0x10AD58; src/sys/gfxm_b.c, gfxm_b_b.c, gfxm_b_c.c; not linked yet; names in config/symbols/gfxm_b.txt)
+
+63 functions, 53 match; 10 are INCLUDE_ASM with attempts (`GfxPost_DrawTintRect`,
+`GfxLens_DrawAll`, `GfxLens_PutCapture`, `GfxWater_DrawView`, `GfxWater_Draw`,
+`GfxPost_ShiftHighWord`, `TexChain_Build`, `TexChain_BuildPair`, `GfxClut_InitPacket`,
+`Flash_SkipNamed`). Layouts in include/sys/gfxm_b*.h. Suggested final names: gfx_post_b.c /
+gfx_lens.c / gfx_water.c / gfx_depth_fog.c, tex_file.c, flash_data.c.
+
+Depth-buffer tricks (verified):
+- The depth buffer is 24-bit (page 0xE0, block 0x1C00); its spare top byte is an 8-bit scratch
+  channel. `GfxPost_CopyAlphaToDepth` copies the colour buffer's alpha into it (every frame,
+  from `BtlObj_BeginDraw`). `GfxPost_DrawDepthClut(mode, tbp, cbp, alpha)` draws that byte
+  through a 256-entry CLUT over the screen (16 strips of 32x448).
+- Depth fog (`GfxDepthFog_*`, name inferred): CLUT black with alpha 255 - index, indexed by the
+  high depth bits. Alpha key (`GfxAlphaKey_*`, purpose inferred): pixels whose frame alpha is
+  0xF4..0xFE get a wash of one of eleven fixed colours.
+- Lenses (`GfxLens_*`, use unknown): 8 slots that distort a captured copy of the screen around
+  a world point; nothing in the decompiled code starts one.
+- Underwater wobble (`GfxWater_*`): when the camera is under the stage's water level the view
+  is redrawn through a 6 x 10 grid displaced by two cosine waves (speeds 0.06 / 0.04 per
+  frame), tinted by the stage's water colour. (from disassembly) original bug: the border test
+  uses row index 9 on a 6-row grid, so only the top row is pinned.
+
+Texture files (verified): count at +0, entry-table offset in words at +4, 0x40-byte entries
+(`TexEntry`: pixel / CLUT offsets, sizes, block steps, BITBLTBUF bits, TEX0, pointers);
+`Res_RelocateOffsets(&file, base, hdr)` returns nothing. Uploads queue the 0x30-byte packet at
+0x2C3410 then a DMA REF to the entry's ready packet. `TexFile_UploadOne(file, index, tbp,
+cbp)` (0x10A218; btl_obj.c's older declaration and comment are wrong), `Tex_Upload` (0x10A288;
+arguments are block pointers, not x / y), `TexFile_UploadAll` (0x10A480), `Tex_Log2Size`
+(0x109F50), `GfxClut_InitPacket` (0x10A5A0: a complete 256-entry CLUT upload packet, CLUT
+bytes at +0x70).
+
+Movie ("Flash-like") data (verified code, format names inferred): header bytes 'F' 'O' 'D'
+0x11 and the string "LIT"; a list of 8-byte tag headers (code u8, record count u16 +2, size
+u32 +4), code 0 ends; named blocks (NUL-terminated name, u16 size, data); a bit reader, most
+significant bit first; `Flash_ReadMtx` reads the SWF MATRIX record with an explicit flag byte
+(scale and skew / 65536, translation in twentieths).
+
+No pad, clock or random draw anywhere in the range; the lens and water passes read the camera
+and the split-screen mode. Nothing feeds back into the simulation.
