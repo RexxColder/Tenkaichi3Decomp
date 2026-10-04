@@ -595,3 +595,27 @@ Verified by matching C:
   overlay modules' uninitialised globals (`gCharRefState` as declared by chunk 8 overlaps
   UbMenu's word, three sim outcome words and `gSimCardShown`): chunk 8's nine-pointer reading
   of it is wrong or these are merged common symbols; resolve at integration.
+
+## Mission select tail, mission result, family top menu, score sheet head (chunk 16, 0x37AFF8..0x37F430; src/menu/menu_p*.c; all 30 functions match)
+
+Files: menu_p.c = `MisSel` tail (appends to menu_o_d.c), menu_p_b.c = `MisResult` (mode 16),
+menu_p_c.c = `UbMenu` (mode 13), menu_p_d.c = head of `UbScore` (menu_q.c appends; both
+define `gUbRewardItems`: keep one).
+
+Verified by matching C:
+- `UbMenu` (mode 13): four plates, guides Android 17 / 18; cursor in `gProgress + 0x638`;
+  plate 3 (mode 17; inferred Survival) is closed until `gSaveData + 0x208` bit 0, which 30
+  cleared missions set.
+- `MisSel` (mode 14): 100 missions as pages of five; choice in `gProgress + 0x63C` (page) and
+  `+0x640` (plate); it calls `MisSel_SetupBattle` after the fade-out.
+- `MisResult` (mode 16): rewards by missions cleared: 30 -> `+0x208 |= 1`; 50 -> an item;
+  100 -> an item and `+0x208 |= 4`. Money gained = the sheet total, capped at 9999999.
+- **Score sheet `UbScore`** (0x2A8 bytes; shared by all result screens of the family):
+  `UbScore_Fill(kind, ...)` reads `BattleResult_GetPtr()`: outcome 0 won (`winner & 1`), 1
+  lost, 2 aborted; lines = remaining health, `result + 0x24` (capped at 100), `result + 0x1C`
+  (capped at 99990), and for kind 2 `result + 0x18`; **one bonus per set bit 0..47 of
+  `BattleResult.eventSummary`**; prices from the screen pack's section 13 (0x18-byte entries);
+  rank 1..4 by total against {1599, 2199, 2799, 9999} (or {2099, 2499, 3199, 9999} for kinds
+  2 and 4). So the simulation's outputs that the menus consume are: winner, abort flag,
+  health, three counters, the event summary bits and the battle clock.
+- `Snd_PlaySe` is non-void in the original (several pad handlers depend on it).
