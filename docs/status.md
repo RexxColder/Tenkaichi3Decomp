@@ -129,20 +129,31 @@ stg_a..stg_c, and nineteen decomp agents:
 | eft_ab | 0x19E0C0..0x1A21A8 |
 | eft_ac | 0x1A21A8..0x1A62C8 |
 
-Reported, re-diffed and documented so far (not linked): stg_d, eft_det_b (three files), eft_s,
-eft_u (two files), eft_w, eft_x (three files). Also launched: eft_ae, col_c.
-The user asked (2026-10-04) for at most 10 subagents at a time from now on: launch nothing
-new until fewer than 10 are running.
+ALL nineteen relaunched effect / detection / stage agents and eft_ad have reported; every file
+was re-diffed and is documented in docs/systems/effects_stage.md (not linked): stg_d (2 files),
+eft_det_a, eft_det_b (3), eft_n, eft_o (3), eft_p (2), eft_q, eft_r, eft_s, eft_t (3),
+eft_u (2), eft_v (3), eft_w, eft_x (3), eft_y, eft_z (3), eft_aa, eft_ab (3), eft_ac, eft_ad (3),
+col_a.
 
-Launched later, as slots freed: eft_ad 0x1A62C8..0x1AA7E8; bobj_a 0x24BBE8..0x24F1F0 and
-bobj_b 0x24F1F0..0x2527B0 (battle object: animation player, model nodes; continues btl_obj.c);
-col_a 0x230B38..0x236190 and col_b 0x236190..0x239EA0 (collision primitive library).
+Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), col_b, col_c, bobj_a, bobj_b,
+btl_ai_seq_a (0x1B4140..0x1B6008, new file to merge into btl_ai_seq.c).
+The user asked (2026-10-04) for at most 10 subagents at a time.
 
-NOT launched yet: eft_ae 0x1AA7E8..0x1AE200 (task helpers 0x1ADA58 / 0x1ADB78 / 0x1ADB98,
-texture sets 0x1ADC68 / 0x1ADF20 / 0x1AE148 / 0x1AE1F8); col_c 0x239EA0..0x23D1E8 (rest of the
-assembly before btl_demo_cam.c); the AI sequence file's first half 0x1B4140..0x1B6008 (its
-object really starts at 0x1B3F78, in eft_det_b_c.c); 0x22FC40..0x22FD10 (two stage rigid list
-helpers).
+Merge evidence for the next integration: eft_m + eft_n (+ eft_o.c: aura, lightning);
+eft_o_c + eft_p.c (disc); eft_p_b + eft_q head (glow); eft_s (chain) + eft_t.c head
+(`EftChain_SetRes` needs 0x1793A8); eft_t_c + eft_u.c (teleport lines; eft_u needs eft_t's
+tables non-const); eft_u_b + eft_v.c (particle emitter; `EftPtcl_SetTexture`); eft_v_c +
+eft_w head (sprite chain; `EftLink_SetTex`); eft_w tail + eft_x.c (part kind 10); eft_x_c +
+eft_y head (quads); eft_y tail + eft_z.c head (`EftBill_SetTexture` needs 0x195038; unify the
+EftLine / EftBill names); eft_ab_c + eft_ac (ribbon: four functions); eft_ac tail + eft_ad.c
+(zap); eft_ae + eft_det_a head (`func_001AE140`); stg_d may extend back to 0x22FC40; col_a
+probably starts at 0x230B10. Renames to apply: `BtlFx_SpawnDamageSparks` -> ki blast launcher
+name; the eft_a.h task flag names (see effects_stage.md "Projectile hit detection").
+Also check files with repeated identical constant initialisers for merged rodata (eft_e,
+eft_l_d, eft_z, eft_aa, eft_u): compare each object's .rodata size with the original.
+
+NOT launched yet: 0x22FC40..0x22FD10 (two stage rigid list helpers plus one function of
+another module).
 
 ## Known follow-ups
 
