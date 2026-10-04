@@ -92,6 +92,12 @@ and the stage update at 0x243568).
 | 0x16B4E0..0x16C2E0 | eft_o_c.c | **disc `EftDisc*`, first part** (ki blast discs and technique pieces; rest in eft_p) | **yes** | libc `rand()` once at creation (spin, appearance) | |
 | 0x16C2E0..0x16DCA0 | eft_p.c | **disc `EftDisc*`, rest** (ki blast types 4 / 5 and the pieces of the multi-piece technique) | **yes**: hit record per flying frame; dies on a hit result | none here | 28/29 |
 | 0x16DCA0..0x170A50 | eft_p_b.c | power-up glow particles `EftGlow*`, first part (fighter requests 4 / 5) | no | libc `rand()`: 34 sites, up to 14 spawns per fighter per frame | 18/22 |
+| 0x170A50..0x1716A0 | eft_q.c | power-up glow `EftGlow_*`: tasks, manager, entry points | no | none | (eft_q 98/99) |
+| 0x1716A0..0x171D80 | eft_q.c | rush burst `EftRushBurst_*` (fighter requests 0x28..0x2A) | no | none | |
+| 0x171D80..0x1722E8 | eft_q.c | **scene layer 2: per-character effect root `EftChar*`** | infrastructure: decides which effect kinds (ki blasts included) a character has | none | |
+| 0x172480..0x172D80 | eft_q.c | full-screen flash `EftFlash_*` | no (reads fight state; nothing reads it back) | none | |
+| 0x172D80..0x174220 | eft_q.c | point trail `EftTrail_*`: dead code (no reference to its class) | no | none | |
+| 0x174220..0x174A70 | eft_q.c | body effect of characters 0x37, 0x98, 0x99 | no | none | |
 | 0x174AB8..0x175660 | eft_r.c | **beam struggle `EftStruggle_*`** | **yes**: writes both beams' hit position; on its end resets the loser's effect tasks | none | (eft_r 104/105) |
 | 0x175660..0x175CA0 | eft_r.c | spark at the struggle point | no | none | |
 | 0x175CA0..0x1763E8 | eft_r.c | charge aura (fighter requests 7 / 8) | no | VU0 through a shock wave (20) | |
@@ -635,3 +641,18 @@ C: no VU0 code in the range, no random draws, no inputs. The object probably sta
   directions.
 - (read from callee disassembly) Dot products go through hand-written VU0 routines with the
   order (x*x' + y*y') + z*z'; a port must reproduce that order.
+
+## Scene layers, complete picture (verified)
+
+| Layer | What | Simulation? |
+|---|---|---|
+| 0 | stage effect manager and its per-stage kinds | no |
+| 1 | shot layer: technique events, shot slots, technique effect types | yes |
+| 2 | per-character effect root: one task per character with one manager per effect kind from table 0x2C3BE0 (0 charge, 1 / 2 ki blast, 3 blast charge, 4 shock, 5 rush burst, 7 body effect, 9 absorb) | holds the ki blasts |
+| 3 | root of the 31 common effect managers (table 0x2C3FB0) | holds blast objects, discs, beam struggle |
+| 4 | stage-change transition | timing only |
+
+Which kinds a character gets comes from its character pack; type 2 / 3 ki blasts replace the
+class of kind 1 / 2. When a character is streamed out, its layer-2 task is killed and
+`BtlScene_Reset(2 or 3)` runs, (inferred) ending its effect tasks, ki blasts in flight
+included.
