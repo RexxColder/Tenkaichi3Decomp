@@ -373,3 +373,42 @@ Verified by matching C:
   25; `Rand_Range(100) < chance`, then `Rand_Range(missing)`.
 - All random draws are `Rand_Range` (shared Mersenne Twister): boss, entrants, shuffle, CPU
   matches, stage, music, dragon ball.
+
+## Training menu, boot sequence, entrant select head (chunk 9, 0x35A558..0x35F650; src/menu/menu_i*.c; 33 of 34 match)
+
+`Train_BuildLists` (0x35A610) is INCLUDE_ASM (11 of 118 instructions, a folded compare).
+`Train_Update` and `Train_Input` match only when compiled in one file with menu_h_d.c (one
+object, 0x359358..0x35D660; standalone they differ in 1 and 4 instructions): merge at
+integration using menu_i.h's complete `Train` (0x1BE0 bytes). menu_i_d.c is the head of the
+`EntrySel` object (continues in menu_j.c).
+
+Verified by matching C:
+- **First run** (`FirstRun_Main`, 0x35DF70, when `gProgress->flags & 0x40`): start loading
+  partition 2 in the background; wait for pad 0 to be connected; `BootCard_Run(2)` (the boot
+  save check: `McFlow_Start(2)` on a black screen); the six logo pictures (`Logo_ShowAll`,
+  120 frames each with 60-frame fades, skippable with start / confirm except the last); wait
+  for partition 2 with the loading screen if needed; `Movie_PlayOpening()`. Archive 0 = file
+  baseFile + 0x19.
+- **Training menu** (mode 44, `Train_Run`): levels 0 top (0 = character select -> mode 45,
+  1 = lessons), 1 class, 2 lesson list, 3 the guide's introduction, 4 explanation pages
+  (picture files 0x402 + page id), 5 "cleared" sequence (sets bit `1 << lesson` in
+  `gSaveData + 0xE0C[class]`, the only save write). Lessons are data-driven from pack section
+  22 (0x10-byte records `{u16 id; u8 pageNum; u8 flags; s32 firstPage; s32 voice; u8 stage;
+  u8 bgm; u8 chara[2]}`; 13 + 11 + 14 lessons). `gProgress` training block: +0x7D4 flags
+  (1 tutorial, 2 battle set up, 4 first clear pending, 8 already cleared, 0x10 left for the
+  character select), +0x7DC cursors, +0x7F4 tutorial number.
+- **Training battle hand-off** (`Train_Leave`, lesson flag 2): `Battle_ClearWork()`;
+  `BattleSetup_SetRule(0, 5, rec->bgm, 0, 7, rec->stage, 0)` (battle mode 5, no time limit);
+  side 0 pad, side 1 CPU; `BattleSetup_SetMember(i, 0, rec->chara[i], 0, 0, cpuLevel, 100.0f,
+  items)` for both sides with the same values: cpuLevel -999 and no items by default, or from
+  an 8-row table keyed by lesson id (cpuLevel -1 or 15, one item 0x89 / 0x99 / 0x9A in slot
+  7); `BattleSetup_Finish()`. Lesson flag 1 instead starts a scripted tutorial through
+  `gProgress + 0x7F4` (inferred meaning).
+- **Development asset names**: the Train object carries 20 unreferenced host paths
+  ("host:data/test/ut/..."), one per pack section, e.g. `UltimateTraining_top_PS2_.fod` (so
+  `.fod` is the movie format), `ut_guide_saiyaman` / `ut_guide_bidel` (.dbt textures),
+  `utraining_lips` (lip data), `font_Training_JP` (.pak). Guides: Great Saiyaman and Videl.
+- Entrant select head: in the Yamcha Game every entrant is drawn with `Rand_Range` at Init
+  (cell until a real character, item set of 4, form, costume).
+- Original bug: the training idle-line end test compares against a NEW random draw instead
+  of the line that was said.
