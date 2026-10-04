@@ -506,3 +506,62 @@ Verified by matching C:
   lost or aborted last fight still grants the item.
 (from disassembly) mode 22 result 1 -> mode 23 and the battle; 0 -> mode 13; mode 23 result
 0 -> turn += 1 and mode 22; 1 -> mode 20.
+
+## `Ub_Main`: the modes 13..30 handler, Disc Fusion, mission select head (chunk 15, 0x376920..0x37AFF8; src/menu/menu_o*.c; all 26 functions match)
+
+Files: menu_o.c = `UbResult` tail (behind menu_n_d.c), menu_o_b.c = `DiscFusion` (mode 24),
+menu_o_c.c = `Ub_Main` + three hand-off functions, menu_o_d.c = head of `MisSel` (mode 14;
+continues in chunk 16).
+
+**Mode table of `Ub_Main` (0x379A58; VERIFIED by matching C; replaces the from-disassembly
+sketches above)**; archive 3 = file baseFile + 3:
+
+| Mode | Screen | Next |
+|---|---|---|
+| 13 | `UbMenu_Run(1)` | 0 -> mode 4; 1 -> 20; 2 -> 14; 3 -> 17; 4 -> 24 |
+| 14 | `MisSel_Run(2)` | non-zero -> 15; 0 -> 13 |
+| 15 | `UbTeamSel_Run(4)` if team size >= 2 else `SoloSel_Run(4)` | non-zero -> `Ub_SetupTeam()`, mode 16, battle; 0 -> 14 |
+| 16 | `MisResult_Run(3)` | 14 |
+| 17 | `SurvSel_Run(2)` | non-zero -> 18; 0 -> 13 |
+| 18 | `SoloSel_Run(4)` | non-zero -> `Ub_SetupSolo()`, mode 19, battle; 0 -> 17 |
+| 19 | `SurvResult_Run(3)` | 17 |
+| 20 | `SimTop_Run(5)` | non-zero -> 21; 0 -> 13 |
+| 21 | `SoloSel_Run(4)` | non-zero -> 22; 0 -> 20 |
+| 22 | `SimDay_Run(0)` | non-zero -> mode 23, battle; 0 -> 13 |
+| 23 | `SimResult_Run(3)` | non-zero -> 20; 0 -> 22, turn + 1 |
+| 24 | `DiscFusion_Run(6)` | 0 -> 13; else `gProgress + 0x640` 0 -> 25, 1 -> 28 |
+| 25 | `SoloSel_Run(4)` | non-zero -> 26; 0 -> 24 |
+| 26 | `UbRank_Run(0)` | non-zero -> mode 27, battle; 0 -> 24 |
+| 27 | `UbResult_Run(3)` | 26 |
+| 28 | `UbzSel_Run(0)` | non-zero -> 29; 0 -> 24 |
+| 29 | `SoloSel_Run(4)` | non-zero -> `Ub_SetupSolo2()`, mode 30, battle; 0 -> 28 |
+| 30 | `UbResult_Run(3)` | 28 |
+
+(inferred from labels) the family is the "Ultimate Battle" menu: 14..16 Mission 100
+("mc_mission_plate", "fl_mission100_menu_cansel"), 17..19 Survival, 20..23 Sim Dragon,
+24 Disc Fusion ("mc_disk_plate") with its ladder (25..27) and course (28..30) modes.
+
+- **Mission battle hand-off (verified), in two halves**: `MisSel_SetupBattle` (0x37A060) when
+  a mission is confirmed: `Battle_ClearWork()`; `BattleSetup_SetRule(0, 2, bgm, timeLimit,
+  announcer, stage, flag)` from the 0x34-byte mission entry (0x3E6 = random: announcer
+  `Rand_Range(8)`, stage `Rand_Range(35)`, music passed on as 0x18; 0x3E7 = none);
+  `BattleSetup_SetSide(1, 2, 1, count, flag, 1, 0, NULL)` and up to five
+  `BattleSetup_SetMember(1, i, chara, costume, 0, cpuLevel, 100.0f, items)` from the 0x2C-byte
+  opponent entries; `gProgress + 0x644` = the player's team size (by mission kind),
+  `+0x648` = DP rule. Then, after the character select, `Ub_SetupTeam` (0x379908):
+  `BattleSetup_SetSide(0, 0, 0, teamSize, 1, 1, 0, NULL)`, one `BattleSetup_SetMember(0, i,
+  ...)` per member (CPU level 0, health 100), `BattleSetup_Finish()`.
+- Survival (18) and courses (29): the handler only adds the player's member and finishes; the
+  rest is written by `SurvSel` / `UbzSel` (battle mode 3).
+- **Disc Fusion (verified)**: a dialog state machine over `Disc_GetDriveState` and
+  `Disc_Identify` (swap in an earlier game's disc, then this game's back); "recognised" bits
+  are `gProgress + 0x684` bits 1 / 2, NOT saved (cleared with the session). A PC port has no
+  disc drive: this gate needs a replacement.
+- Result screen pay-out: `UbScore_Transfer` into `gSaveData->money`, capped at 9,999,999.
+- Save: `+0x20C` mission pages shown; `+0x28C` 100 mission records of 12 bytes (rank, three
+  separate time bytes, score). Here the save must be viewed FLAT (the nested `MSAVE` view
+  breaks these accesses).
+- Random: `Rand_Range` (announcer, stage, a guide line); libc `rand() % 32` seeds blink
+  timers.
+- Original oddities: `Ub_SetupSolo` and `Ub_SetupSolo2` are byte-identical; mission kinds 4,
+  5, 8, 9 give team size 0.
