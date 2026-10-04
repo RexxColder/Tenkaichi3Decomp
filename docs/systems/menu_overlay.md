@@ -669,3 +669,23 @@ health). The card game shuffles with ten libc `rand() % 10` swaps; every other a
 `Rand_Range`. Only event 17 writes the save (`gSaveData + 0x20C` += 1, no upper bound).
 Six card-game globals sit in the main executable's `.bss` (0x31EAA0..0x31EAF9): common
 symbols of overlay source again.
+
+## Evolution Z handler, shop tail, top menu head (chunk 23, 0x39A978..0x39EFC0; src/menu/menu_w*.c; all 14 functions match)
+
+Files: menu_w.c = `Shop` tail (one source file with menu_v_d.c: merged test matches),
+menu_w_b.c = `EvoMode_Main` (0x39E940), menu_w_c.c = head of `EvoTop` (mode 48; continues in
+chunk 24; menu_x.c's stand-in for `EvoTop_Wrap` is not the matching form).
+
+Verified by matching C:
+- **Modes 48..50 = "Evolution Z"** (a development path in the data says
+  `host:data/ps2/test/main/evoZ/EvoZ_TEX_PS2_.dbt`): 48 `EvoTop_Run(1)` (1 -> 49; 2 -> 50;
+  0 -> mode 4), 49 `EvoZ_Run(3)` (customising), 50 `Shop_Run(2)`; archive 7 = file
+  baseFile + 4; BGM 0x10B18; never touches the battle setup.
+- Shop: levels 0 two plates (buy / collection), 1 buy list, 2 collection list, 3 item
+  details, 4 confirmation, 5 "got it". Buying = `Save_AddItem(item)` then
+  `money -= items[item].price` (item table +4 = s32 price); `gProgress->flags |= 1` = "the
+  save changed in Evolution Z" (the top menu starts the save flow on leaving when set).
+  `gSaveData->unk100C` = the shop's stock level; `unk1008` bit 0 = "stock grew, announce it",
+  bit 1 = collection bonus given. Guides: Launch (two personalities, swapped after 3600 idle
+  frames) and Oolong (clip names).
+- Original slip: page-up in the buy list reads the collection list's top row.
