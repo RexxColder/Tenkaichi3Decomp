@@ -745,3 +745,24 @@ Verified by matching C:
   if both axes changed.
 For the port / netplay: the key assignment table is an input-mapping layer in front of the
 pad, per controller; peers must apply their own mapping before inputs are exchanged.
+
+## Data Center (modes 53..56) (chunk 26, 0x3A7D98..0x3AC440; src/menu/menu_z*.c; 62 of 68 match)
+
+Wrapped up early (budget): NO relocated byte compare was run on this chunk, so strings and
+call targets are checked by reading only. Six INCLUDE_ASM with attempts (`DcList_Draw`,
+`Dc_Main`, `DcMenu_DrawPlates`, `DcPass_WrapPos`, `DcPass_Decode`, `DcPass_DrawStatus`; notes
+in the source). Files: menu_z.c = `DcList` tail (saved custom characters, mode 55; head in
+chunk 25), menu_z_b.c = `Dc_Main` (0x3A9850), menu_z_c.c = `DcMenu` (mode 53), menu_z_d.c =
+head of `DcPass` (password screen, mode 54; continues in chunk 27).
+
+- (dev paths "host:data/ps2/test/main/DC/"; guide Bulma) Main-menu item 7 is the **Data
+  Center**; archive 8 = file baseFile + 0xB.
+- (from the `Dc_Main` attempt, flow identical to the original) mode 53 `DcMenu_Run(1)` (0 ->
+  mode 4; else 54 / 55 / 56); 54 `DcPass_Run(3)`; 55 `DcList_Run(2)`; 56 `ReplayMenu_Run(4)`:
+  0 -> 53; **1 -> leave the overlay: the replay starts**; other -> that mode.
+- (verified) Save: `+0x1208` bit 0 = introduction heard; deleting a custom character sets
+  `rec[n].chara = -1`; storing a decoded password writes the whole 0x1C-byte `rec` entry
+  ({u16 item[8]; s32; u16 level (= the password's extraSlots); u16; s32 chara}).
+- (verified, `DcPass_Decode` from the attempt) Password entry: 34 cells; 32 characters ->
+  `OldPass_DecodeChar`, validity check, conversion; 34 -> `ChrPass_Decode`, validity check.
+- Random: `Rand_Range` only (greeting lines, blink). Pad 0 only.
