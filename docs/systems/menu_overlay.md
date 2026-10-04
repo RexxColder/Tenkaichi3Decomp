@@ -160,3 +160,25 @@ type (+0x624), stage, music and DP level (+0x630) from `gProgress`. DP battles: 
 15 / 20 by level, `TeamSel_FitsDp` = cost + `ChrTbl_GetCost(chara)` <= limit;
 `TeamSel_IsCharaFree` refuses a character `ChrTbl_IsRelated` to another member. Member record
 (0x30 bytes): +0x18 costume, +0x1C character id (-1 none), +0x20 `BattleItemSet`.
+
+## Character / stage / music select (chunk 4, 0x342588..0x348710; src/menu/menu_d.c; 11 of 12 match)
+
+`CharSel_Input` (0x3456A8, 0x3064 bytes) is INCLUDE_ASM: its attempt differs in 3 of 3097
+instructions (a `lui` in a delay slot), so what is said about input below is from that
+attempt. `gCharSel` = 0x3B38D4, 0x3A4C bytes; layouts in include/menu/menu_d.h. The file only
+lays out correctly merged behind menu_c_e.c (one object 0x342190..0x348D78).
+
+- (verified) Per-side pick record kept in `gProgress` (+0x440 / +0x530, first 0x30 bytes of a
+  0xF0-byte side record): col, row, form, customCol, customRow, item set, costume, picked
+  character id, items[8]. `gProgress + 0x620` pad mode (1 = one pad per side; 0 or 2 = pad 0
+  picks both sides in turn).
+- (verified) Grid markers as this screen uses them: 0xA1 random, 0xA2 locked, 0xA3 saved
+  custom characters, 0xA4 filler (**view_a.h has 0xA1 / 0xA3 swapped**). Music list id 0x18 =
+  random, 0x19 = locked (`bgmBits` confirmed as the music unlock bits).
+- (from the attempt) Side states: 0 grid, 1 form reel, 2 item set, 3 item panel, 4 item info,
+  5 costume, 6 saved custom characters, 7 done; then stage (8) and music (9) on pad 0.
+  Confirming the costume of the random cell draws `Rand_Range(masterCount)` until a real
+  character, then `Rand_Range(formCount)`: drawn on the frame the button is pressed.
+- (from the attempt) Item sets come from `gSaveData->custom[col + row * 7].item[set - 1]`
+  (97 entries of 0x38 bytes, per base character, 3 sets of 8 u16) or `gSaveData->rec[n]`.
+- Original oddities: cancelling the stage phase returns a custom-list side to the wrong state.
