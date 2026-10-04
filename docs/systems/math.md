@@ -71,3 +71,47 @@ Seven sources; the table with reset points and users is in netplay_notes.md.
 The compiler truncates decimal literals: `3.1415925f` gives 0x40490FD9, one bit below the
 original's 0x40490FDA; `3.14159265f` is needed. Same for sqrt(2). The diff tool masks constant
 relocations, so each emitted constant has to be checked against the original data by value.
+
+## Vector / matrix library, second half (0x121008..0x122940; names in config/symbols/vu0_b.txt)
+
+92 functions: 25 are compiled C and match (`src/sys/vu0_b_c.c`, not linked yet); 67 are
+hand-written VU0 code and stay assembly. Every one has an exact portable reference
+implementation, `Ref_<Name>` in `src/port/vu0_b.c` (not part of the matching build; it has been
+compiled and sanity-tested on the host, not checked against a console or emulator). The full
+table "address, name, exact semantics" is in the agent notes at the top of that file.
+
+Register conventions (read from disassembly): vf0 = (0,0,0,1); vf1 / vf2 / vf3 = the z / y / x
+unit vectors, set at boot by 0x120088; vf16..19 the current matrix with a stack in VU0 memory;
+vf20..23, vf24..27, vf28..31 three camera matrices (inferred: world-to-clip, world-to-screen,
+world-to-view).
+
+Exact semantics that matter (read from disassembly unless marked):
+- dot = (x*x' + y*y') + vf3.x * (z*z'); `Vec3_Length` / `Vec3_Dist` use the VU0 square root.
+- Every ".xyz" routine stores four components: out.w = the first input's w, except
+  `Vec3_ScaleAdd` / `ScaleSub` (the second vector's w), `Vec3_Copy` (keeps the destination's w),
+  `Vec3_Normalize` and `Vec3_Cross` (w = 0).
+- `Vec3_Normalize`, `Vec4_Div` / `Vec3_Div` and every projection multiply by a VU0 reciprocal
+  instead of dividing. **A zero vector normalises to (0,0,0,0) on the PS2** (division by zero
+  gives a large finite number, not NaN); 312 call sites.
+- `Vec4_Lerp(dst, a, b, t)` = a*t + b*(1-t), so t = 1 gives a. `Vec4_SetZeroW1` writes
+  (0,0,0,1), not zero.
+- (verified) `Vec3_RotateAxis` / `RotateX` / `RotateY` are Rodrigues rotations with
+  `Mathf_Cos` / `Mathf_Sin`; they copy w from the source after writing the result, so with
+  out == v (which callers do) w is not preserved: an original quirk to reproduce.
+- (verified) `ClipPoly_ClipPlane`: Sutherland-Hodgman against one plane, at most 9 vertices, no
+  bound check.
+- Projection output is GS coordinates (x, y in 12.4 fixed point); "on screen" is 0 < x, y <
+  4096 and w > 0, strict.
+- Trigonometry comes from three different sources depending on the routine: libm `sinf` /
+  `cosf`, the game's `Mathf_Sin` / `Mathf_Cos`, and a VU0 polynomial.
+
+Where the VU0 differs from IEEE (inferred, from emulator documentation; which routines are
+affected is from the disassembly): rounding is toward zero; no NaN, infinity or denormals
+(overflow clamps, underflow gives zero); division by zero gives +/- max; no fused
+multiply-add; float-to-int truncates and saturates; min / max compare bit patterns. A port
+must choose between soft-float (bit-exact with the PS2) and host arithmetic (all peers must
+then use identical modes and compiler flags; PS2 replays would not reproduce).
+
+VU0 R register (the generator behind `Rand_Float01`), rule from emulator documentation:
+init R = 0x3F800000 | (bits(x) & 0x7FFFFF); next: b = ((R >> 4) ^ (R >> 22)) & 1;
+R = 0x3F800000 | (((R << 1) | b) & 0x7FFFFF). `Vu0_Init` seeds it from 0.1234141f at boot.
