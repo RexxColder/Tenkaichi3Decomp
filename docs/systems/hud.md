@@ -94,3 +94,24 @@ steps while paused; the bar-count update runs from a draw callback.
 
 Inferred: status icon bits 0..3 = stat modifiers 0, 3, 1, 2; `kiReserve` is a pulsing red
 layer under the ki bars of unknown meaning; node 10 is the powered-up aura.
+
+## Notice part: announcements (0x226488..0x22A750; src/battle/hud_d.c, hud_d_b.c, not linked yet; names in config/symbols/hud_d.txt)
+
+All 28 functions match. hud_d.c (6 functions) is the tail of the HUD sprite / node library
+(`HudSprite_Draw`, `HudNode_Show / SetPos / SetOfs / SetRot`; `HudNode` +8 / +0xC are two
+floats, not `s32 unk8[2]`). hud_d_b.c is the head of the notice module that continues in
+hud_e.c; final name hud_notice.c.
+
+- (verified) `gHudNotice` (0x2FEB5C, 0x74 bytes; sheet 1, 16 sprites, 4 nodes) shows one
+  announcement at a time. `HudNotice_Show(id)` installs an update / draw pair on node 1 at
+  (256, 224); each update is a state machine on two `Ramp`s. Ids by caller: 0
+  `BtlSeqReady_Update`, 1 `BtlSeqReady_Exit`, 2 K.O., 3 K.O. with
+  `BattleResult_IsWinnerEvent59Clear`, 4 `BattleResult_IsReasonBit2`, 5 time up, 6 winner
+  scene, 7 banner (hud_e.c), 8 from `Hud_PreUpdate` on `BtlCtrl_TestProgressFrameBit`. The
+  wording (READY / FIGHT / K.O. ...) is inferred. Timings are in the source comments.
+- (verified) **Random draws**: `Rand_IntRange(-16, 16)` (libc `rand()`) once per HUD update
+  while the streak shakes (announcements 1, 2 and 6, for 0.45 / 0.55 / 0.8 s). Visual, but it
+  advances the stream the simulation reads; same hazard as the gauge part.
+- (verified) None of the announcement updates checks `BATTLE_FLAG_PAUSE`.
+- Original quirks: the 0.6 s hold of announcements 3 / 8 never happens (the wrong ramp is
+  stepped); in the winner announcement copy 1 is always hidden.
