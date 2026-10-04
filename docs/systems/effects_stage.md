@@ -607,3 +607,31 @@ disc: radius = scale x 4.5. Technique piece: radius = the pack's trail width x 3
 - (inferred by search, eft_n) The aura's sparks are spawned and stepped (consuming `rand()`) but
   their draw function has no caller, so they are never shown. Original bug in the lightning
   draw: one depth term uses the wrong vertex component.
+
+## Collision primitive library (`col_a.c`, 0x230B38..0x236190; verified unless marked)
+
+26 of 27 functions match; the 27th (`ColObb_Contact`, 0x4258 bytes, 77% of the range) is dead
+code with no caller anywhere and stays in assembly. Not linked yet. Everything is compiled FPU
+C: no VU0 code in the range, no random draws, no inputs. The object probably starts at
+0x230B10 (`StgAabb_SetEmpty`).
+
+- **Mesh format** (stage collision): one base pointer for all meshes, set at stage init. A mesh
+  header gives word offsets to nodes, polygons and vertices. Nodes are 0x20 bytes: a box, then
+  `left` and `right`; a leaf has `right == -1` and `left` = polygon index; node 0 is the root.
+  Polygons are 0x20 bytes: flags, three vertex indices, plane. Vertices are 16-byte vectors.
+- **Walk order** (`ColMesh_WalkBox`): depth first, `left` before `right`, subtrees pruned by a
+  closed box overlap test, every overlapping leaf reported to a callback, results OR-ed, no
+  early out. This is the "mesh-walk order" the fighter push-out depends on. The walk keeps its
+  state in globals (not re-entrant) and recurses with no depth limit.
+- **Box tests** are closed and tolerance-free (touching counts; a NaN never separates). The
+  exception is `ColBox_ClipRay`, which accepts an entry point up to 0.001 outside a face; its
+  ray is unbounded.
+- **Oriented boxes** (`ColObb`, 0x190 bytes): the fighter body and attack volumes. Overlap is a
+  fifteen-axis separating test with no epsilon; the exact operand order is in the C. One
+  caller: the melee volume test.
+- `ColBox_AddPoint` writes w = 1 into the point it is given (a side effect on the caller's
+  data).
+- Original bug in dead code: `Col_LineLineParams` has inverted guards and returns 0, 0 for unit
+  directions.
+- (read from callee disassembly) Dot products go through hand-written VU0 routines with the
+  order (x*x' + y*y') + z*z'; a port must reproduce that order.
