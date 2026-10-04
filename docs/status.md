@@ -343,3 +343,16 @@ integrator for the ninth batch files when most have reported; overlay chunks 2..
 free up, AFTER the pilot reports its workflow (add its instructions to the overlay brief).
 Stale chunks under asm/ from earlier splits inflate progress.py's function count (not the
 percentage); deleting them was blocked for the integrator, ask the user before removing.
+
+## State 2026-10-04 (overlay under way)
+
+Main executable reports since the ninth-step link, all committed UNLINKED: mcflow_a, hud_d*,
+stgm_a*, hud_c*, misc_a* (password codec), gfxm_d* (clip setters + battle object renderer; VU0
+chunk 0x10FFD0..0x1101D0 stays asm), gfxm_e* (model binding, shadows, stage relocation),
+gfxm_c (movie player), hud_0* (pause / result menu). Still running in the main executable:
+hud_e (0x22A750..0x22FD10), view_b (0x2600B0..0x263098), late_a (0x2BD230..0x2BF6B0).
+Overlay: pilot done (chunk 1, 25 / 25, committed; overlay is -G0, fdiff.py and configure.py
+now use -G0 for src/menu/); chunks 2..8 running (stems menu_b..menu_h). Chunks 9..27 to
+launch as slots free (table in docs/briefs_menu_overlay.md; give each a lead from the mode
+table in docs/systems/menu_overlay.md). When the three main-executable agents report: one
+integrator for all the unlinked main-executable files (it will take a slot).
