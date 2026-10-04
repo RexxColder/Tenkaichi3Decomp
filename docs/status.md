@@ -329,3 +329,17 @@ Left as it is: asm/ still holds chunks of earlier splits (splat does not delete 
 assembled but not linked, and `scripts/progress.py` counts their labels, so its "functions still
 in assembly" line is too high. Deleting them was not possible in the integrator's session.
 
+
+## State 2026-10-04 (after the ninth-step link, commit 966c9dc; 75.62%)
+
+Reported and committed unlinked: mcflow_a (22 / 22), hud_d + hud_d_b (28 / 28), stgm_a
+(stage model draw, 13 / 13) + stgm_a_b (memory-card layer `McCard_*`, 20 / 20).
+Running (10): gfxm_c, gfxm_d, gfxm_e, hud_0, hud_c, hud_e, misc_a (0x252F68..0x254A20),
+view_b (0x2600B0..0x263098), late_a (0x2BD230..0x2BF6B0, the -G0 game code after the SDK),
+and the menu-overlay PILOT (chunk 1 of docs/briefs_menu_overlay.md; it must establish how to
+verify overlay code with fdiff before chunks 2..27 are launched).
+With these every game-code range of the main executable has been attempted. Next: one
+integrator for the ninth batch files when most have reported; overlay chunks 2..27 as slots
+free up, AFTER the pilot reports its workflow (add its instructions to the overlay brief).
+Stale chunks under asm/ from earlier splits inflate progress.py's function count (not the
+percentage); deleting them was blocked for the integrator, ask the user before removing.
