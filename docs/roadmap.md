@@ -82,3 +82,19 @@ Next, in order:
 
 Not needed for the headless build and still assembly: HUD, model renderer, most of the sound
 and graphics layers, movie playback, and the menu overlay (DBZP.BIN, 0%).
+
+## Requirement added 2026-10-04: input / output equality of the port's maths
+
+The user's bar for the vector / matrix routines: the port's functions must give the same
+outputs as the originals for the same inputs, bit for bit. The Wii cross-check of the maths
+library was dropped as not needed (it cannot answer PS2 rounding questions).
+
+How to prove it (not started): build a small PS2 test program with the project toolchain that
+links the ORIGINAL routines (from the matching build) and runs them over a fixed set of test
+vectors, including the edge cases (zero vectors, x * 1.0, overflow, division by zero, angles
+near 0 and pi), writing the result bits out; run it in an emulator (and on a console if one is
+available); run the same vectors through `src/port/vu0_*.c` on the PC and compare. Differences
+settle the three open points in docs/systems/math.md (add / subtract guard bits, the
+multiplier quirk, the overflow value). An emulator's own float accuracy settings must be at
+their most accurate for the result to mean anything; a console run is the final word.
+The same harness then covers `Mathf_*` and any other routine whose bits matter.
