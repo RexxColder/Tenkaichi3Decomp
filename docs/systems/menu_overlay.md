@@ -342,3 +342,34 @@ Verified by matching C:
   `Rand_Range(formCount)`, at costume confirm.
 - Original oddity: a saved custom character entered with the "no items" plate loses its
   custom flag as well as its items.
+
+## Tournament logic and battle hand-off; solo select (chunk 12, 0x368C18..0x36DBE8; src/menu/menu_l.c, menu_l_b.c; all 30 functions match)
+
+menu_l.c = tail of the Bracket object (append behind menu_k's files); menu_l_b.c = `SoloSel`
+(object 0x36B3E0..0x36E028, the one-character select of modes 15, 18, 21, 25, 29; mode 21
+forbids item sets).
+
+Verified by matching C:
+- **Tree**: 17 entrants, 16 matches: a 16-entrant knock-out (matches 0..14) whose winner meets
+  a seeded boss (entrant 16) in match 15. CPU entrants are drawn from the grid by cost (level
+  0: cost < 4; 1: < 8; 2: >= 7), no duplicates; boss by tournament (0: 0x42 or 0x38; 1: 0x37;
+  2: 0x6B or 0x6C; 3: 0x3D or 6; 4: 0x1A). 16 swaps shuffle the entrants (biased). CPU-only
+  matches are decided by `Rand_Range(2)`.
+- **Tournament battle hand-off (`Bracket_SetupBattle`, 0x36A720)**: `Battle_ClearWork()`; a
+  player entrant is always battle side 0 on pad 0 (two players: side 1 on pad 1, split
+  screen; otherwise side 1 is CPU, control 2); `BattleSetup_SetRule(screenMode, 4, bgm, 0,
+  announcer, stage, 1)` (battle mode 4, no time limit); stage fixed or drawn with
+  `Bracket_PickStage` (`Rand_Range` over the unlocked stages of a fixed list), music
+  `Rand_Range(9) + 8` (tournament 0: 0x12), stage draw before music draw; per side
+  `BattleSetup_SetMember(side, 0, chara, costume, 0, cpu[level * 5 + round].cpuLevel, health,
+  items)`: a CPU's items and level come from the pack's `[level][round]` table (section 31,
+  0x14-byte records), a player's items from the entrant record; health 100 except in the
+  Cell Games (tournament 2), where a player carries over `health + 20` capped at 100 from
+  the previous round. `BattleSetup_Finish()`.
+- After the battle `Bracket_ApplyResult` reads `BattleResult_GetFlags()` (bit 0 side 0 won,
+  bit 1 side 1 won) and stores the winner's `BattleResult.health[side]`.
+- Prizes from `prize[tour].prize[kind][level]` (section 41); dragon ball chance in percent by
+  level: winner 20 / 30 / 40, runner-up 5 / 10 / 15; Yamcha Game 40 / 50 / 60 and 15 / 20 /
+  25; `Rand_Range(100) < chance`, then `Rand_Range(missing)`.
+- All random draws are `Rand_Range` (shared Mersenne Twister): boss, entrants, shuffle, CPU
+  matches, stage, music, dragon ball.
