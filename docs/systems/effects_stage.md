@@ -97,6 +97,10 @@ and the stage update at 0x243568).
 | 0x178530..0x178AB0 | eft_r.c | ki blast type 2 `EftKiObj_*`, first half | **yes** | fighter generator on deflect / reflect; libc `rand()` for spin | |
 | 0x178AB0..0x1793A8 | eft_s.c | ki blast type 2 `EftKiObj_*`, second half: a thrown model with gravity (first half in eft_r) | **yes**: motion, reacts to hit results (break, deflect / reflect), dies 15 frames after a hit | libc `rand()`: 20 per break (fragments, appearance) | (eft_s 27/31) |
 | 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
+| 0x17CB40..0x17D290 | eft_t.c | chain module tail (part kind 18; same source file as eft_s's chain) | no | none | (eft_t.c 41/44) |
+| 0x17D290..0x17EE68 | eft_t.c | ray burst `EftRay_*` (part kind 0; fighter requests 0x15 / 0x18): up to 48 quads around a point | no | libc `rand()`: 5..6 per ray at creation, 1 + count per frame in modes 1..3 | |
+| 0x17EE68..0x1809C0 | eft_t_b.c | streak field `EftStreak_*` (pool of 360; started by technique modules) | no | VU0: 6 per rolled streak | 21/24 |
+| 0x1809C0..0x180BF8 | eft_t_c.c | teleport lines head (same source file as eft_u.c) | no | none | 3/3 |
 | 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
 | 0x182CE8..0x1853C8 | eft_u_b.c | particle emitter `EftPtcl_*`, head (effect pack part kind 5; pool of 500) | no | libc `rand()`: 25..30 per particle | 9/9 |
 | 0x1853C8..0x1871A8 | eft_v.c | particle emitter `EftPtcl_*`, tail (same source file as eft_u_b.c) | no | libc `rand()`: 7..8 per emitter, 1 per emission | 29/31 |
