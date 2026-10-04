@@ -62,3 +62,37 @@ Everything else is unidentified.
   `lui 0x30` / `lw -0xD74`), so grepping for the name misses most menu uses.
 - `func_002BD950`..`func_002BECC0` in the trailing block of the main executable also grant items
   and money (a reward path); not analysed.
+
+## Memory-card flows (0x1198D8..0x11EC10; src/sys/mcflow_a.c, not linked yet; names in config/symbols/mcflow_a.txt)
+
+All 22 functions match. One module (`McFlow_*`, final name sys/mc_flow.c): a heap work area
+`gMcFlow` (0x2FE940, 0x39F90 bytes; layout in include/sys/mcflow_a.h) and eight state machines
+chosen by `McFlow_Start(mode)`: 0 / 4 save, 1 load, 2 boot load, 3 new save, 5 replay save,
+6 replay load, 7 / 9 replay scan, 8 replay question. `McFlow_Update` runs one frame and
+returns the state (0 = finished). The full state tables are in the comments of mcflow_a.c.
+
+Verified by matching C:
+- The system save is the raw 0x4000-byte `SaveData`; its first 8 bytes are a checksum (bytes
+  from +8 summed, odd positions shifted left by 8, 16-bit end-around carry; word 0 = sum >> 8,
+  word 1 = sum & 0xFF), written just before saving and verified after loading. After a load
+  the block is copied into `*gSaveData`; the menu load also calls `Progress_ClearSession()`.
+- Card directories: "DBZT3" (system) and "DBZT3R" + slot (replays); 7 replay slots. Free
+  space needed: 61 clusters for the system save, 160 for a replay.
+- **Replay file on the card: 0x1AC00 bytes** = 0x38 header (`sum[2]` over the file from +8,
+  `hdrSum[2]` over +0x10..+0x38, `chara[2][5]` character ids with 0xA4 = empty), then the
+  0x1ABA8-byte `BtlReplay` block, then 0x20 unused. Replay load calls `Battle_ClearWork()`
+  then `BattleReplay_Load(buf + 0x38, 0x1ABA8)`. `McFlow_Init` snapshots the current replay
+  (`BattleReplay_GetBuffer`) into the image to save.
+- `gProgress + 0x69C`: replay slot list, 0x2C per slot (flag word, 2x5 character ids).
+  `gProgress->flags` bit 2 = "continue without saving" chosen at boot; bit 3 = a save was
+  loaded at boot.
+- Timing is frame counts only (question answers act after 12 frames, busy states wait 120);
+  pad 0 confirm (`gamePressed & 0x200`) and `Dialog_Input`; no random draw, no clock.
+- Original oddities: two-armed tests with identical arms; `McFlow_Term` reads the work before
+  its NULL check; the caller passes an argument `McFlow_Init` does not take.
+
+Inferred: what each message index says (the text was not extracted); the names of the card
+library calls in 0x116BA0..0x1190C8 (the neighbouring range).
+
+For linking: define `McFlow *gMcFlow = NULL;` at the top of the file (it is `.sdata` at
+0x2FE940 before "DBZT3" / "DBZT3R"); `.rodata` 0x2EBD30..0x2EC248.
