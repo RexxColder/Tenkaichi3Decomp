@@ -211,3 +211,25 @@ are separate files (duplicate strings), contrary to the note above.
   exceed it through the random cell; the random stage draw uses `Rand_Range(stageCount - 1)`,
   so the last stage in the list can never be drawn; the CPU level is given to pad-controlled
   members too.
+
+## Duel (versus) mode, modes 38..41 (chunk 7, 0x351C38..0x356090; src/menu/menu_g.c, menu_g_b.c, menu_g_c.c; all 22 functions match)
+
+- (verified) `Duel_Main` (0x352CB8), main-menu item 3; archive 5 = file `gProgress->baseFile`:
+  mode 38 `DuelMenu_Run(1)` (non-zero -> mode 40 if `gProgress + 0x624` else 39; zero -> mode
+  4); 39 `CharSel_Run(2)`; 40 `TeamSel_Run(2)` (non-zero from either = leave the overlay for
+  the battle; zero -> 38); 41 a stub. The battle setup is written by the two selects only.
+- (verified) `DuelMenu` (`gDuelMenu`, 0x194 bytes): levels 0 top (four plates; plate 1 needs
+  `gPad[1].status != 0xFF`), 1 battle type (3 rows), 2 DP limit (3 rows), 3 settings, 4 value
+  picker. Its three cursors are `gProgress + 0x620 / 0x624 / 0x630` (players, battle type, DP
+  level). (inferred) plates = 1P vs COM / 1P vs 2P / COM vs COM / settings; types = single /
+  team / DP.
+- (verified) **`gSaveData->rule[0..5]` are edited only here**: settings rows 0, 1, 2, 3 (rule
+  3 and 4, per side), 4 (rule 5); value counts 5, 5, 7, 2 + 2, 2; reset by `Save_ResetRules`.
+  From the hand-off code: rule 0 time limit, 1 CPU level, 2 announcer, 3 / 4 per-side option,
+  5 a battle flag.
+- (verified) `ItemPanel` (0x351C38..0x352CB8; `gItemPanel[side]`, 0x6C8 bytes): the
+  equipped-item panel of one side of the character selects; `ItemPanel_Input` returns the
+  item id under the cursor (1-based), 0 on an empty row, -1 on cancel.
+- (verified) The `.data` of four objects (CharSel, TeamSel, ItemPanel, DuelMenu) is contiguous
+  at 0x3B38D4..0x3B38F0 and their `.rodata` follows in the same order up to 0x3B4854: the
+  layout rule is per link group.
