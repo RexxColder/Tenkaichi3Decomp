@@ -10,7 +10,7 @@ extern BtlFlagChr *BtlChar_Get(s32 i);
 extern f32 BtlChar_GetSpacing(BtlFlagChr *chr, s32 arg);          /* lock-on range */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);   /* world position of a model node */
 extern void func_002398F0(void *seg, Vec4 *a, Vec4 *b);      /* builds a segment from two points */
-extern s32 func_001B2DF0(void *seg);                         /* segment against the stage */
+extern s32 StgCol_TraceSegment(void *seg);                         /* segment against the stage */
 
 /* Promotes every flag last written in the given stage: previous := current, plain flag cleared. */
 void BtlChar_PromoteFlags(BtlFlagChr *chr, u8 stage) {
@@ -183,7 +183,7 @@ void BtlChars_UpdateSightFlag(void) {
     BtlCharApi_GetNodePos(chr0->objId, 0x2F, &a);
     BtlCharApi_GetNodePos(chr1->objId, 0x2F, &b);
     func_002398F0(seg, &a, &b);
-    if (func_001B2DF0(seg)) {
+    if (StgCol_TraceSegment(seg)) {
         BtlChar_SetHeldFlag(chr0, 0xBA);
         BtlChar_SetHeldFlag(chr1, 0xBA);
     }

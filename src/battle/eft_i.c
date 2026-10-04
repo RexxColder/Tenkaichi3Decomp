@@ -87,8 +87,8 @@ typedef struct EftIStageHit {
     /* 0x40 */ s32 obj;  /* stage object that was hit, < 0 none */
 } EftIStageHit;
 extern void func_002398F0(EftISegment *seg, Vec4 *a, Vec4 *b); /* builds a segment */
-extern s32 func_001B2DF0(EftISegment *seg);                    /* segment against the stage */
-extern EftIStageHit *func_001B2F40(void);                      /* result of the last stage line test */
+extern s32 StgCol_TraceSegment(EftISegment *seg);                    /* segment against the stage */
+extern EftIStageHit *StgCol_GetHit(void);                      /* result of the last stage line test */
 extern void BtlStage_DestroyObj(s32 objId, s32 obj, Vec4 *dir); /* stage (stg_a): destroys a stage object */
 extern void StgBlur_SetCenter(s32 idx, Vec4 *dir, s32 arg);    /* stage blur (stg_c) */
 extern void StgBlur_SetColor0Rgba(s32 idx, s32 r, s32 g, s32 b, s32 a);
@@ -105,7 +105,7 @@ typedef struct EftIMarkArg {
     /* 0x28 */ s32 unk28;
     /* 0x2C */ s32 pad2C;
 } __attribute__((aligned(8))) EftIMarkArg; /* size 0x30 */
-extern void func_00187BE0(EftIMarkArg *arg, f32 size, f32 unk);
+extern void EftImpact_SpawnBlast(EftIMarkArg *arg, f32 size, f32 unk);
 
 /* Spawners of the other particle modules (previous file), same shape as the four in this file. */
 extern void EftEmit_SpawnType0(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
@@ -129,21 +129,21 @@ typedef struct EftArg9 {
     /* 0x38 */ s32 objId;
     /* 0x3C */ s32 pad3C;
 } EftArg9;
-extern void *func_00194970(EftArg9 *arg);
-extern void func_001949D8(void *h);
-extern void func_00194A68(void *h, s32 v);
-extern void func_00194B50(void *h);
-extern void func_00194B90(void *h, Vec4 *pos);
-extern void func_00194BE8(void *h, Vec4 *pos);
-extern void func_00194D10(void *h, Vec4 *dir);
-extern void func_00194D80(void *h, f32 size);
-extern void func_00194E40(void *h, void *tex, s32 a, s32 b);
-extern void func_00194E98(void *h, s32 v);
-extern void func_00194EE0(void *h, s32 v);
-extern void func_00194F28(void *h);
-extern s32 func_00194F70(void *h);
-extern void func_00194FA8(void *h, s32 v);
-extern void func_00195000(void *h, s32 v);
+extern void *EftQuad_Create(EftArg9 *arg);
+extern void EftQuad_Stop(void *h);
+extern void EftQuad_SetFade(void *h, s32 v);
+extern void EftQuad_Kill(void *h);
+extern void EftQuad_SetPos(void *h, Vec4 *pos);
+extern void EftQuad_Warp(void *h, Vec4 *pos);
+extern void EftQuad_SetDir(void *h, Vec4 *dir);
+extern void EftQuad_SetSize(void *h, f32 size);
+extern void EftQuad_SetTexPair(void *h, void *tex, s32 a, s32 b);
+extern void EftQuad_SetDelay(void *h, s32 v);
+extern void EftQuad_SetStopDelay(void *h, s32 v);
+extern void EftQuad_SetViewOnly(void *h);
+extern s32 EftQuad_IsAlive(void *h);
+extern void EftQuad_SetOwnOrigin(void *h, s32 v);
+extern void EftQuad_SetCut(void *h, s32 v);
 
 typedef struct EftArg10 {
     /* 0x00 */ EftEmitRes res;
@@ -158,19 +158,19 @@ typedef struct EftArg10 {
     /* 0x40 */ s32 objId;
     /* 0x44 */ s32 pad44[3];
 } __attribute__((aligned(8))) EftArg10;
-extern void *func_00190610(EftArg10 *arg);
-extern void func_00190658(void *h);
-extern void func_00190708(void *h, s32 v);
-extern void func_00190770(void *h);
-extern void func_001907C8(void *h, Vec4 *pos);
-extern void func_00190838(void *h, Vec4 *pos);
-extern void func_00190950(void *h, Vec4 *dir);
-extern void func_001909C0(void *h, f32 size);
-extern void func_00190AD8(void *h, s32 v);
-extern void func_00190B30(void *h, s32 v);
-extern void func_00190B88(void *h);
-extern void func_00190BE8(void *h, s32 v);
-extern s32 func_00190C48(void *h);
+extern void *EftPart10_Create(EftArg10 *arg);
+extern void EftPart10_Stop(void *h);
+extern void EftPart10_SetFade(void *h, s32 v);
+extern void EftPart10_Kill(void *h);
+extern void EftPart10_SetPos(void *h, Vec4 *pos);
+extern void EftPart10_Warp(void *h, Vec4 *pos);
+extern void EftPart10_SetDir(void *h, Vec4 *dir);
+extern void EftPart10_SetSize(void *h, f32 size);
+extern void EftPart10_SetDelay(void *h, s32 v);
+extern void EftPart10_SetHold(void *h, s32 v);
+extern void EftPart10_SetNoDepth(void *h);
+extern void EftPart10_SetKind(void *h, s32 v);
+extern s32 EftPart10_IsAlive(void *h);
 
 typedef struct EftArg15 {
     /* 0x00 */ EftEmitRes res;
@@ -185,19 +185,19 @@ typedef struct EftArg15 {
     /* 0x40 */ s32 objId;
     /* 0x44 */ s32 pad44[3];
 } __attribute__((aligned(8))) EftArg15;
-extern void *func_0018BB08(EftArg15 *arg);
-extern void func_0018BB50(void *h);
-extern void func_0018BC00(void *h);
-extern void func_0018BC58(void *h, s32 v);
-extern void func_0018BD60(void *h, Vec4 *pos);
-extern void func_0018BDD0(void *h, Vec4 *pos2);
-extern void func_0018BE40(void *h, Vec4 *pos);
-extern void func_0018BE60(void *h, Vec4 *dir);
-extern void func_0018BE80(void *h, f32 size);
-extern void func_0018BF88(void *h, s32 v);
-extern void func_0018BFF8(void *h, s32 v);
-extern void func_0018C0B0(void *h, s32 v);
-extern s32 func_0018C110(void *h);
+extern void *EftLink_Create(EftArg15 *arg);
+extern void EftLink_Stop(void *h);
+extern void EftLink_Kill(void *h);
+extern void EftLink_SetFade(void *h, s32 v);
+extern void EftLink_SetPos(void *h, Vec4 *pos);
+extern void EftLink_SetPos2(void *h, Vec4 *pos2);
+extern void EftLink_Warp(void *h, Vec4 *pos);
+extern void EftLink_SetDir(void *h, Vec4 *dir);
+extern void EftLink_SetSize(void *h, f32 size);
+extern void EftLink_SetDelay(void *h, s32 v);
+extern void EftLink_SetStopDelay(void *h, s32 v);
+extern void EftLink_SetType(void *h, s32 v);
+extern s32 EftLink_IsAlive(void *h);
 
 typedef struct EftArg12 {
     /* 0x00 */ EftEmitRes res;
@@ -212,34 +212,34 @@ typedef struct EftArg12 {
     /* 0x40 */ u8 unk40;
     /* 0x41 */ u8 pad41[15];
 } __attribute__((aligned(8))) EftArg12;
-extern void *func_001A6598(EftArg12 *arg);
-extern void func_001A65E8(void *h);
-extern void func_001A6640(void *h);
-extern void func_001A6700(void *h, Vec4 *pos);
-extern void func_001A6770(void *h, Vec4 *pos);
-extern void func_001A67E0(void *h, Vec4 *dir);
-extern void func_001A6850(void *h, f32 size);
-extern void func_001A6968(void *h, s32 v);
-extern void func_001A69C0(void *h, s32 v);
-extern void func_001A6A18(void *h, s32 v);
-extern void func_001A6A78(void *h);
-extern s32 func_001A6B40(void *h);
+extern void *EftZap_Create(EftArg12 *arg);
+extern void EftZap_Kill(void *h);
+extern void EftZap_Stop(void *h);
+extern void EftZap_SetPos(void *h, Vec4 *pos);
+extern void EftZap_WarpPos(void *h, Vec4 *pos);
+extern void EftZap_SetDir(void *h, Vec4 *dir);
+extern void EftZap_SetSize(void *h, f32 size);
+extern void EftZap_SetDelay(void *h, s32 v);
+extern void EftZap_SetFadeDelay(void *h, s32 v);
+extern void EftZap_SetFadeTime(void *h, s32 v);
+extern void EftZap_SetFlag20000(void *h);
+extern s32 EftZap_IsAlive(void *h);
 
 /* Kill / "is alive" entries of the other seven modules (types 0..8). */
-extern void func_0017D390(void *h);
-extern void func_00168668(void *h);
-extern void func_00196AD0(void *h);
-extern void func_001A36E0(void *h);
-extern void func_0017CD98(void *h);
-extern void func_0019D798(void *h);
-extern void func_00186C20(void *h);
-extern s32 func_0017D448(void *h);
-extern s32 func_001687C8(void *h);
-extern s32 func_00196B20(void *h);
-extern s32 func_001A3740(void *h);
-extern s32 func_0017CDF0(void *h);
-extern s32 func_0019D9F0(void *h);
-extern s32 func_00186C70(void *h);
+extern void EftRay_Kill(void *h);
+extern void EftRays_Kill(void *h);
+extern void EftBill_Kill(void *h);
+extern void EftRibbon_Kill(void *h);
+extern void EftChain_Kill(void *h);
+extern void EftAnimPart_Kill(void *h);
+extern void EftPtcl_Kill(void *h);
+extern s32 EftRay_IsAlive(void *h);
+extern s32 EftRays_IsAlive(void *h);
+extern s32 EftBill_IsAlive(void *h);
+extern s32 EftRibbon_IsAlive(void *h);
+extern s32 EftChain_IsAlive(void *h);
+extern s32 EftAnimPart_IsAlive(void *h);
+extern s32 EftPtcl_IsAlive(void *h);
 
 extern s32 gEftEmitNodeSlot[8];
 
@@ -284,43 +284,43 @@ void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32
             } else {
                 Vec4_Copy(&arg.pos, &p);
             }
-            H(n) = func_00194970(&arg);
-            func_00194E98(H(n), def->unk5);
-            func_00194EE0(H(n), def->unk6);
-            func_00194A68(H(n), def->unk7);
-            func_00194E40(H(n), tex, def->unk2, def->unk2);
+            H(n) = EftQuad_Create(&arg);
+            EftQuad_SetDelay(H(n), def->unk5);
+            EftQuad_SetStopDelay(H(n), def->unk6);
+            EftQuad_SetFade(H(n), def->unk7);
+            EftQuad_SetTexPair(H(n), tex, def->unk2, def->unk2);
             if (def->flags & 0x20) {
-                func_00194F28(H(n));
+                EftQuad_SetViewOnly(H(n));
             }
             if (def->flags2 & 8) {
-                func_00194FA8(H(n), 1);
+                EftQuad_SetOwnOrigin(H(n), 1);
             }
-            func_00195000(H(n), arg3);
+            EftQuad_SetCut(H(n), arg3);
             EftEmit_TagTask(H(n), objId, arg3);
         }
     }
     if (H(n) != NULL) {
         if (flags & EFT_SPAWN_MOVE) {
             if (flags & EFT_SPAWN_WARP) {
-                func_00194BE8(H(n), &p);
+                EftQuad_Warp(H(n), &p);
             } else {
-                func_00194B90(H(n), &p);
+                EftQuad_SetPos(H(n), &p);
             }
         }
         if (flags & EFT_SPAWN_SCALE) {
-            func_00194D80(H(n), size);
+            EftQuad_SetSize(H(n), size);
         }
         if (flags & EFT_SPAWN_DIR) {
-            func_00194D10(H(n), dir);
+            EftQuad_SetDir(H(n), dir);
         }
         if (flags & EFT_SPAWN_KILL) {
-            func_00194B50(H(n));
+            EftQuad_Kill(H(n));
             H(n) = NULL;
         } else if (flags & EFT_SPAWN_STOP) {
             if (flags & EFT_SPAWN_FADE) {
-                func_00194EE0(H(n), 0);
+                EftQuad_SetStopDelay(H(n), 0);
             }
-            func_001949D8(H(n));
+            EftQuad_Stop(H(n));
         }
     }
 }
@@ -364,39 +364,39 @@ void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
             } else {
                 Vec4_Copy(&arg.pos, &p);
             }
-            H(n) = func_00190610(&arg);
-            func_00190AD8(H(n), def->unk5);
-            func_00190B30(H(n), def->unk6);
-            func_00190708(H(n), def->unk7);
+            H(n) = EftPart10_Create(&arg);
+            EftPart10_SetDelay(H(n), def->unk5);
+            EftPart10_SetHold(H(n), def->unk6);
+            EftPart10_SetFade(H(n), def->unk7);
             if (def->flags & 0x20) {
-                func_00190B88(H(n));
+                EftPart10_SetNoDepth(H(n));
             }
-            func_00190BE8(H(n), arg3);
+            EftPart10_SetKind(H(n), arg3);
             EftEmit_TagTask(H(n), objId, arg3);
         }
     }
     if (H(n) != NULL) {
         if (flags & EFT_SPAWN_MOVE) {
             if (flags & EFT_SPAWN_WARP) {
-                func_00190838(H(n), &p);
+                EftPart10_Warp(H(n), &p);
             } else {
-                func_001907C8(H(n), &p);
+                EftPart10_SetPos(H(n), &p);
             }
         }
         if (flags & EFT_SPAWN_SCALE) {
-            func_001909C0(H(n), size);
+            EftPart10_SetSize(H(n), size);
         }
         if (flags & EFT_SPAWN_DIR) {
-            func_00190950(H(n), dir);
+            EftPart10_SetDir(H(n), dir);
         }
         if (flags & EFT_SPAWN_KILL) {
-            func_00190770(H(n));
+            EftPart10_Kill(H(n));
             H(n) = NULL;
         } else if (flags & EFT_SPAWN_STOP) {
             if (flags & EFT_SPAWN_FADE) {
-                func_00190B30(H(n), 0);
+                EftPart10_SetHold(H(n), 0);
             }
-            func_00190658(H(n));
+            EftPart10_Stop(H(n));
         }
     }
 }
@@ -445,39 +445,39 @@ void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
                 Vec4_Copy(&arg.pos, &p);
                 Vec4_Copy(&arg.pos2, &p2);
             }
-            H(n) = func_0018BB08(&arg);
-            func_0018BF88(H(n), def->unk5);
-            func_0018BFF8(H(n), def->unk6);
-            func_0018BC58(H(n), def->unk7);
-            func_0018C0B0(H(n), arg3);
+            H(n) = EftLink_Create(&arg);
+            EftLink_SetDelay(H(n), def->unk5);
+            EftLink_SetStopDelay(H(n), def->unk6);
+            EftLink_SetFade(H(n), def->unk7);
+            EftLink_SetType(H(n), arg3);
             EftEmit_TagTask(H(n), objId, arg3);
         }
     }
     if (H(n) != NULL) {
         if (flags & EFT_SPAWN_MOVE) {
             if (flags & EFT_SPAWN_WARP) {
-                func_0018BE40(H(n), &p);
+                EftLink_Warp(H(n), &p);
             } else {
-                func_0018BD60(H(n), &p);
-                func_0018BDD0(H(n), &p2);
+                EftLink_SetPos(H(n), &p);
+                EftLink_SetPos2(H(n), &p2);
             }
         } else if (flags & EFT_SPAWN_DIR2) {
-            func_0018BDD0(H(n), &p2);
+            EftLink_SetPos2(H(n), &p2);
         }
         if (flags & EFT_SPAWN_SCALE) {
-            func_0018BE80(H(n), size);
+            EftLink_SetSize(H(n), size);
         }
         if (flags & EFT_SPAWN_DIR) {
-            func_0018BE60(H(n), dir);
+            EftLink_SetDir(H(n), dir);
         }
         if (flags & EFT_SPAWN_KILL) {
-            func_0018BC00(H(n));
+            EftLink_Kill(H(n));
             H(n) = NULL;
         } else if (flags & EFT_SPAWN_STOP) {
             if (flags & EFT_SPAWN_FADE) {
-                func_0018BFF8(H(n), 0);
+                EftLink_SetStopDelay(H(n), 0);
             }
-            func_0018BB50(H(n));
+            EftLink_Stop(H(n));
         }
     }
 }
@@ -521,12 +521,12 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
                 Vec4_Copy(&arg.pos, &p);
             }
             Vec4_Copy(&arg.dir, dir);
-            H(n) = func_001A6598(&arg);
-            func_001A6968(H(n), def->unk5);
-            func_001A69C0(H(n), def->unk6);
-            func_001A6A18(H(n), def->unk7);
+            H(n) = EftZap_Create(&arg);
+            EftZap_SetDelay(H(n), def->unk5);
+            EftZap_SetFadeDelay(H(n), def->unk6);
+            EftZap_SetFadeTime(H(n), def->unk7);
             if (def->flags & 0x20) {
-                func_001A6A78(H(n));
+                EftZap_SetFlag20000(H(n));
             }
             EftEmit_TagTask(H(n), objId, arg3);
         }
@@ -534,25 +534,25 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
     if (H(n) != NULL) {
         if (flags & EFT_SPAWN_MOVE) {
             if (flags & EFT_SPAWN_WARP) {
-                func_001A6770(H(n), &p);
+                EftZap_WarpPos(H(n), &p);
             } else {
-                func_001A6700(H(n), &p);
+                EftZap_SetPos(H(n), &p);
             }
         }
         if (flags & EFT_SPAWN_SCALE) {
-            func_001A6850(H(n), size);
+            EftZap_SetSize(H(n), size);
         }
         if (flags & EFT_SPAWN_DIR) {
-            func_001A67E0(H(n), dir);
+            EftZap_SetDir(H(n), dir);
         }
         if (flags & EFT_SPAWN_KILL) {
-            func_001A65E8(H(n));
+            EftZap_Kill(H(n));
             H(n) = NULL;
         } else if (flags & EFT_SPAWN_STOP) {
             if (flags & EFT_SPAWN_FADE) {
-                func_001A69C0(H(n), 0);
+                EftZap_SetFadeDelay(H(n), 0);
             }
-            func_001A6640(H(n));
+            EftZap_Stop(H(n));
         }
     }
 }
@@ -906,67 +906,67 @@ void EftEmit_KillAll(EftEmitSet *set, EftEmitState *state) {
                     switch (type) {
                     case 0:
                         if (handles->h[n] != NULL) {
-                            func_0017D390(handles->h[n]);
+                            EftRay_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 2:
                         if (handles->h[n] != NULL) {
-                            func_00168668(handles->h[n]);
+                            EftRays_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 16:
                         if (handles->h[n] != NULL) {
-                            func_00196AD0(handles->h[n]);
+                            EftBill_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 17:
                         if (handles->h[n] != NULL) {
-                            func_001A36E0(handles->h[n]);
+                            EftRibbon_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 18:
                         if (handles->h[n] != NULL) {
-                            func_0017CD98(handles->h[n]);
+                            EftChain_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 14:
                         if (handles->h[n] != NULL) {
-                            func_0019D798(handles->h[n]);
+                            EftAnimPart_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 5:
                         if (handles->h[n] != NULL) {
-                            func_00186C20(handles->h[n]);
+                            EftPtcl_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 9:
                         if (handles->h[n] != NULL) {
-                            func_00194B50(handles->h[n]);
+                            EftQuad_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 10:
                         if (handles->h[n] != NULL) {
-                            func_00190770(handles->h[n]);
+                            EftPart10_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 15:
                         if (handles->h[n] != NULL) {
-                            func_0018BC00(handles->h[n]);
+                            EftLink_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
                     case 12:
                         if (handles->h[n] != NULL) {
-                            func_001A65E8(handles->h[n]);
+                            EftZap_Kill(handles->h[n]);
                             handles->h[n] = NULL;
                         }
                         break;
@@ -1000,7 +1000,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
 
                     switch (type) {
                     case 0:
-                        if (func_0017D448(handles->h[n])) {
+                        if (EftRay_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1009,7 +1009,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 2:
-                        if (func_001687C8(handles->h[n])) {
+                        if (EftRays_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1018,7 +1018,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 16:
-                        if (func_00196B20(handles->h[n])) {
+                        if (EftBill_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1027,7 +1027,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 17:
-                        if (func_001A3740(handles->h[n])) {
+                        if (EftRibbon_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1036,7 +1036,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 18:
-                        if (func_0017CDF0(handles->h[n])) {
+                        if (EftChain_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1045,7 +1045,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 14:
-                        if (func_0019D9F0(handles->h[n])) {
+                        if (EftAnimPart_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1054,7 +1054,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 5:
-                        if (func_00186C70(handles->h[n])) {
+                        if (EftPtcl_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1063,7 +1063,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 9:
-                        if (func_00194F70(handles->h[n])) {
+                        if (EftQuad_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1072,7 +1072,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 10:
-                        if (func_00190C48(handles->h[n])) {
+                        if (EftPart10_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1081,7 +1081,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 15:
-                        if (func_0018C110(handles->h[n])) {
+                        if (EftLink_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1090,7 +1090,7 @@ s32 EftEmit_UpdateAlive(EftEmitSet *set, EftEmitState *state) {
                         }
                         break;
                     case 12:
-                        if (func_001A6B40(handles->h[n])) {
+                        if (EftZap_IsAlive(handles->h[n])) {
                             if (def->kind != 2) {
                                 result |= 1 << type;
                             }
@@ -1334,7 +1334,7 @@ void EftSweep_AddMark(EftTask *task) {
     Vec4 dir;
     Vec4 v;
     EftSweepWork *w = task->work;
-    EftIStageHit *hit = func_001B2F40();
+    EftIStageHit *hit = StgCol_GetHit();
     s32 i;
 
     for (i = 0; i < 15; i++) {
@@ -1393,7 +1393,7 @@ s32 EftSweep_UpdateMarks(EftTask *task) {
                     size = owner->param->markSize;
                     Vec4_Sub(&arg.dir, &w->pose.cur, &w->pos);
                     Vec3_Normalize(&arg.dir, &arg.dir);
-                    func_00187BE0(&arg, size, 1.0f);
+                    EftImpact_SpawnBlast(&arg, size, 1.0f);
                 }
                 w->mark[i].active = 0;
             } else {
@@ -1610,7 +1610,7 @@ void EftSweep_Update(EftTask *task) {
             Vec4_Copy(&w->pos, &w->nodes.n[1][0].pos);
             EftSweep_Move(task);
             func_002398F0(&seg, &w->pos, &w->pose.cur);
-            if (func_001B2DF0(&seg)) {
+            if (StgCol_TraceSegment(&seg)) {
                 EftSweep_AddMark(task);
             }
             if (EftShot_TestBits(owner->objId, 8)) {

@@ -120,14 +120,14 @@ extern void EftSmoke_SetPos(void *emitter, EftGeyser *work);
 extern void EftGeyser_StartSmoke(EftBTask *task);
 extern void EftGeyser_StartSteam(EftBTask *task);
 extern void func_0010A288(EftBTexImg *img, s32 tbp, s32 cbp);
-extern void func_001A7608(void *model, void *data);
-extern void func_001A7698(void *model, EftBTexSet *tex);
-extern void func_001A76A0(void *model, Mtx44 *m);
-extern void func_001A7718(void *model, s32 on);
-extern void func_001A7740(void *model, s32 on);
-extern void func_001A77C0(void *model, f32 x, f32 y);
-extern void func_001A77E0(void *model, f32 size);
-extern void func_001A7878(void *model, s32 on);
+extern void EftMesh_Init(void *model, void *data);
+extern void EftMesh_SetTex(void *model, EftBTexSet *tex);
+extern void EftMesh_SetMtx(void *model, Mtx44 *m);
+extern void EftMesh_SetClip(void *model, s32 on);
+extern void EftMesh_SetRepeat(void *model, s32 on);
+extern void EftMesh_SetUvOfs(void *model, f32 x, f32 y);
+extern void EftMesh_SetUvScale(void *model, f32 size);
+extern void EftMesh_DrawNow(void *model, s32 on);
 extern void func_001ADA58(void *task);                      /* marks a task as dying */
 extern u64 func_001ADC68(EftBTex *tex, s32 a, s32 b);       /* TEX0 of a texture with two mode bits */
 extern void func_001AE148(EftBTexSet *set, void *pack);     /* builds a texture set from a pack */
@@ -1320,11 +1320,11 @@ void EftStageScroll_Draw(void) {
     m.m[3][0] = 0.0f;
     m.m[3][1] = 0.0f;
     m.m[3][2] = 0.0f;
-    func_001A7740(gEftStageScroll->model, 1);
-    func_001A77E0(gEftStageScroll->model, gEftStageScroll->size);
-    func_001A77C0(gEftStageScroll->model, gEftStageScroll->offX, gEftStageScroll->offY);
-    func_001A76A0(gEftStageScroll->model, &m);
-    func_001A7878(gEftStageScroll->model, 1);
+    EftMesh_SetRepeat(gEftStageScroll->model, 1);
+    EftMesh_SetUvScale(gEftStageScroll->model, gEftStageScroll->size);
+    EftMesh_SetUvOfs(gEftStageScroll->model, gEftStageScroll->offX, gEftStageScroll->offY);
+    EftMesh_SetMtx(gEftStageScroll->model, &m);
+    EftMesh_DrawNow(gEftStageScroll->model, 1);
 }
 
 /* Uploads the sheet's textures one after the other from VRAM block 0x2A20 (palettes from 0x2A00) and rewrites
@@ -1378,9 +1378,9 @@ void EftStageScroll_Load(void) {
     gEftStageScroll->dirX = dir.x;
     gEftStageScroll->dirY = dir.z;
     func_001AE148(&gEftStageScroll->tex, texPack);
-    func_001A7608(gEftStageScroll->model, p);
-    func_001A7698(gEftStageScroll->model, &gEftStageScroll->tex);
-    func_001A7718(gEftStageScroll->model, 1);
+    EftMesh_Init(gEftStageScroll->model, p);
+    EftMesh_SetTex(gEftStageScroll->model, &gEftStageScroll->tex);
+    EftMesh_SetClip(gEftStageScroll->model, 1);
 }
 
 /* Creates one column task from its parameters. */

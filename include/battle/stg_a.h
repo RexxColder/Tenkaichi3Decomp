@@ -166,7 +166,7 @@ typedef struct StgNode {
     /* 0x40 */ s32 keyCount;   /* 1: the piece is driven by a rigid body instead of keys */
     /* 0x44 */ StgKey *keys;
     /* 0x48 */ s32 endFrame;
-    /* 0x4C */ s32 body;       /* rigid body handle (func_002303C8), < 0 none */
+    /* 0x4C */ s32 body;       /* rigid body handle (StgRigid_Create), < 0 none */
 } StgNode;
 
 /* A stage model part. */
@@ -237,13 +237,13 @@ typedef struct StgVec16 {
     f32 x, y, z, w;
 } __attribute__((aligned(16))) StgVec16;
 
-/* Axis-aligned box as func_00230B38 builds it (BtlObjBox in battle/btl_obj.h). */
+/* Axis-aligned box as ColBox_SetCenterHalf builds it (BtlObjBox in battle/btl_obj.h). */
 typedef struct StgBox {
     /* 0x00 */ f32 min[3];
     /* 0x0C */ f32 max[3];
 } StgBox; /* size 0x18 */
 
-/* Result of BtlStage_ProbeGround (filled by func_001B14C0). */
+/* Result of BtlStage_ProbeGround (filled by StgGround_Probe). */
 typedef struct StgGroundHit {
     /* 0x00 */ f32 x, y, z;      /* y = ground height under the probe */
     /* 0x0C */ u8 unkC[0x24];

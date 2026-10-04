@@ -124,7 +124,7 @@ typedef struct AiThWork {
 #define AITH_KIT_UNK4 4  /* BtlCharApi_HasParamBit80(side) is non-zero */
 
 /*
- * A rule. (m) for every field listed; the rest of the record is read by the action starter func_001B3FC8.
+ * A rule. (m) for every field listed; the rest of the record is read by the action starter BtlAiSeq_PushRule.
  */
 typedef struct AiThRule {
     /* 0x00 */ s16 group;      /* situation group: bit index into AiThStatus.flags */

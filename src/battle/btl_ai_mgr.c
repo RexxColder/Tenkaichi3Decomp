@@ -21,7 +21,7 @@
  * The second half of the file (0x1BB730..) is one "action": a table of four phase functions
  * (gBtlAiMovePhases = {Init, Start, Run, End}) indexed by act.phase and called by the dispatcher
  * BtlAiMove_Dispatch. It moves the fighter to a target computed from the opponent's position: straight when the
- * stage does not block the way, otherwise along a path from func_001B3A50. Its only output is the side's
+ * stage does not block the way, otherwise along a path from StgNav_FindPath. Its only output is the side's
  * virtual pad, through BtlAiPad_Clear / BtlAiPad_Set (AI button bits: BTLAI_BTN_* in the header).
  *
  * Randomness: Rand_Range (the shared MT19937) once in BtlAiMove_PickDir (once per start of the action) and
@@ -67,10 +67,10 @@ extern f32 BtlStage_GetTop(void);                        /* second float of that
 extern void BtlStage_GetStartPlace(s32 objId, BtlAiVec *out, BtlAiVec *out2, s32 arg);
 
 /* Other AI code. */
-extern s32 func_001B2DF0(BtlAiSegment *seg);           /* stage line test; fills the BtlAiHit block */
-extern BtlAiHit *func_001B2F40(void);
-extern void func_001B3A50(BtlAiVec *from, BtlAiVec *to, BtlAiMovePath *path);
-extern void func_001B3F78(BtlAiSeq *act);           /* clears the action state */
+extern s32 StgCol_TraceSegment(BtlAiSegment *seg);           /* stage line test; fills the BtlAiHit block */
+extern BtlAiHit *StgCol_GetHit(void);
+extern void StgNav_FindPath(BtlAiVec *from, BtlAiVec *to, BtlAiMovePath *path);
+extern void BtlAiSeq_Reset(BtlAiSeq *act);           /* clears the action state */
 extern s32 AiThink_FindBasicColumn(s32 button, s32 arg);
 extern void AiThink_BuildTotals(BtlAiWork *s);
 extern void AiThink_Think(BtlAiWork *s);
@@ -187,7 +187,7 @@ void BtlAiMgr_SetType(s32 side, s32 aiType) {
     BtlAiMgr_BuildRates(s);
     AiThink_BuildTotals(s);
     memset(s->plan.scratch, 0, 0x188);
-    func_001B3F78(&s->seq);
+    BtlAiSeq_Reset(&s->seq);
 }
 
 /* Returns a side's CPU level. */
@@ -203,7 +203,7 @@ void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel) {
     BtlAiMgr_BuildRates(s);
     AiThink_BuildTotals(s);
     memset(s->plan.scratch, 0, 0x188);
-    func_001B3F78(&s->seq);
+    BtlAiSeq_Reset(&s->seq);
 }
 
 /* Returns 1 when the battle sequence is in neither state 2 (Ready) nor 3 (Fight): the AI does not run. */
@@ -232,9 +232,9 @@ void BtlAiMgr_UpdateSight(void) {
     seg.from = a;
     seg.to = b;
     gBtlAi->sight = 0;
-    if (func_001B2DF0(&seg)) {
+    if (StgCol_TraceSegment(&seg)) {
         gBtlAi->sight |= BTLAI_SIGHT_BLOCKED;
-        if (func_001B2F40()->id != -1) {
+        if (StgCol_GetHit()->id != -1) {
             gBtlAi->sight |= BTLAI_SIGHT_BLOCKED_ID;
         }
     }
@@ -378,9 +378,9 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     }
     seg.from = pos;
     seg.to = m->target;
-    if (func_001B2DF0(&seg)) {
+    if (StgCol_TraceSegment(&seg)) {
         act->flags |= BTLAI_ACT_BLOCKED;
-        if (func_001B2F40()->id != -1) {
+        if (StgCol_GetHit()->id != -1) {
             act->flags |= BTLAI_ACT_BLOCKED_ID;
         }
     }
@@ -398,7 +398,7 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     ahead.y = pos.y;
     seg.from = pos;
     seg.to = ahead;
-    if (func_001B2DF0(&seg)) {
+    if (StgCol_TraceSegment(&seg)) {
         act->flags |= BTLAI_ACT_BLOCKED_AHEAD;
     }
 }
@@ -434,7 +434,7 @@ s32 BtlAiMove_BuildPath(BtlAiWork *s) {
     BtlAiMoveWork *m = &s->move;
 
     BtlCharApi_GetPos(s->objId, &pos);
-    func_001B3A50(&pos, &s->move.target, path);
+    StgNav_FindPath(&pos, &s->move.target, path);
     m->pathTimer = 60;
     if (path->count > 0) {
         Vec3_Sub(&d, (BtlAiVec *)&path->pts[path->count - 1], &pos);
@@ -472,7 +472,7 @@ s32 BtlAiMove_Check(BtlAiWork *s) {
         if (path->count >= 2) {
             seg.from = pos;
             *(BtlAiMovePoint *)&seg.to = path->pts[path->count - 2];
-            skip = func_001B2DF0(&seg) == 0;
+            skip = StgCol_TraceSegment(&seg) == 0;
         }
         if (skip || BtlAiMove_IsNear(s, (BtlAiVec *)&path->pts[path->count - 1], 1)) {
             path->count--;

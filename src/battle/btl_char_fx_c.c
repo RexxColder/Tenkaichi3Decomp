@@ -21,8 +21,8 @@ extern s32 BtlChar_TestFxBit(FxChr *chr, s32 bit);           /* test */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 part, Vec4 *out); /* world position of a model part */
 extern void BtlCharSnd_PlayCommon(FxChr *chr, s32 sound);
 extern void func_002500E8(FxObj *obj, s32 bit, s32 on);
-extern void func_00180A00(s32 objId, s32 kind);
-extern void func_00187B00(FxPosArg *arg);
+extern void EftShotFx_Start(s32 objId, s32 kind);
+extern void EftImpact_SpawnHit(FxPosArg *arg);
 extern s32 *BtlMember_GetActive(FxChr *chr);
 extern void func_0024F568(FxObj *obj, s32 arg);
 extern s32 func_0024F9F0(FxObj *obj);
@@ -145,7 +145,7 @@ void BtlFx_HandleImpactEvents(FxChr *chr) {
                 arg.objId = chr->objId;
                 arg.pos2.w = 0.0f;
                 arg.unk28 = 0;
-                func_00187B00(&arg);
+                EftImpact_SpawnHit(&arg);
             }
             ChrCam_AddShake(chr, strength, time);
         }
@@ -255,7 +255,7 @@ void BtlFx_SpawnPartFlashes(FxChr *chr) {
                 if (bit != 0) {
                     BtlCharApi_GetNodePos(chr->objId, func_0024D518(bit), &arg.pos);
                     arg.pos.w = 1.0f;
-                    func_00187B00(&arg);
+                    EftImpact_SpawnHit(&arg);
                 }
             }
             BtlCharSnd_PlayCommon(chr, 0x4B);
@@ -323,7 +323,7 @@ void BtlFx_VibrateOnEvent(FxChr *chr) {
 /* Object animation events: bit 42 spawns effect 0 of module 0x180A00; 0x20 / 0x40 and bits 43 / 44 set / clear object flags 0x20 and 0x40. */
 void BtlFxObj_HandleFlagEvents(FxObj *obj) {
     if (func_0024D498(obj, 0x40000000000)) {
-        func_00180A00(obj->id, 0);
+        EftShotFx_Start(obj->id, 0);
     }
     if (func_0024D498(obj, 0x20)) {
         obj->flags |= 0x20;
@@ -449,7 +449,7 @@ void BtlFx_UpdateAll(FxChr *chr) {
     BtlFx_UpdateAura(chr);
     BtlFx_UpdateChargeFx(chr);
     BtlChar_SpawnFxBits3C(chr);
-    BtlFx_SpawnDamageSparks(chr);
+    BtlFx_FireKiBlast(chr);
     BtlFx_SpawnHitSparkReq17(chr);
     BtlChar_SpawnFxBits0(chr);
     BtlFx_UpdateObjFlagReq3(chr);
@@ -613,7 +613,7 @@ void BtlPartner_HandleEvents(FxObj *obj, FxChr *chr) {
         arg.objId = obj->id;
         arg.pos2.w = 0.0f;
         arg.unk28 = 0;
-        func_00187B00(&arg);
+        EftImpact_SpawnHit(&arg);
         BtlCharSnd_RequestAt(&pos, 0, sound, 200.0f, 1500.0f);
         BtlChar_PlayVoice(BtlChar_Get(BtlOpp_GetPlayer(chr)), 1);
     }

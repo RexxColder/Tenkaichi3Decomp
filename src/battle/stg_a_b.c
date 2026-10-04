@@ -41,27 +41,27 @@ extern s32 BtlCharApi_IsInputInjected(s32 objId);
 
 /* Stage model code (0x114C60..0x115DE0) and stage code after this file. */
 extern void func_00114C60(void *arg);
-extern void func_00115170(void);
-extern void func_001151A0(void);
-extern void func_00115290(void);
-extern void func_00115368(void);
-extern void func_00230F68(void *arg);
-extern void func_002302F0(void);                           /* stage rigid bodies: reset */
-extern void func_00230328(void);                           /* stage rigid bodies: init */
-extern void func_00230398(void);                           /* stage rigid bodies: term */
-extern s32 func_002303C8(Vec4 *pos, s32 arg, f32 radius);  /* new rigid body, handle or < 0 */
-extern void func_002304C0(s32 body, Vec4 *hitPos, s32 material);
-extern void func_00230908(s32 body);                       /* release a rigid body */
-extern void func_00230AA0(StgNode *node, s32 body);        /* node matrix = body transform */
-extern void func_00230B38(StgBox *out, Vec4 *center, StgVec16 *extent); /* box = center +- extent */
+extern void StgModel_InitStage(void);
+extern void StgModel_ResetAnims(void);
+extern void StgModel_BindAnims(void);
+extern void StgModel_ClearAnims(void);
+extern void ColMesh_SetBase(void *arg);
+extern void StgRigid_Reset(void);                           /* stage rigid bodies: reset */
+extern void StgRigid_Init(void);                           /* stage rigid bodies: init */
+extern void StgRigid_Term(void);                           /* stage rigid bodies: term */
+extern s32 StgRigid_Create(Vec4 *pos, s32 arg, f32 radius);  /* new rigid body, handle or < 0 */
+extern void StgRigid_Launch(s32 body, Vec4 *hitPos, s32 material);
+extern void StgRigid_Release(s32 body);                       /* release a rigid body */
+extern void StgRigid_GetMatrix(StgNode *node, s32 body);        /* node matrix = body transform */
+extern void ColBox_SetCenterHalf(StgBox *out, Vec4 *center, StgVec16 *extent); /* box = center +- extent */
 extern void StgAmb_Start(void);
 extern void StgAmb_Stop(void);
 extern s32 BtlStage_GetChangeTarget(void);
 extern void StgFx_Reset(void);
-extern void func_001B14C0(s32 zone, StgBox *probe, StgGroundHit *out, f32 y);
-extern void func_001B3E10(s32 idx);
+extern void StgGround_Probe(s32 zone, StgBox *probe, StgGroundHit *out, f32 y);
+extern void StgNav_UnblockObj(s32 idx);
 extern void func_0022F928(void);
-extern void func_00196EF8(Vec4 *pos, f32 a, f32 b, f32 scale); /* dust effect */
+extern void EftGndDust_SpawnDebris(Vec4 *pos, f32 a, f32 b, f32 scale); /* dust effect */
 extern void EftWater_AddSplashAt(Vec4 *pos, f32 size);                /* splash effect */
 
 extern s32 gStgDbgState;       /* gStgDbgState */
@@ -384,7 +384,7 @@ s32 BtlStage_DestroyObj(s32 objId, s32 idx, Vec4 *hitPos) {
     BattleResult *result;
 
     memset(&info, 0, sizeof(info));
-    func_001B3E10(idx);
+    StgNav_UnblockObj(idx);
     broke = BtlStage_BreakObj(idx, hitPos, &info);
     if (info.count != 0) {
         BtlCharApi_PlaySoundAt(&info.pos, 1, 8, info.radius + 200.0f, info.radius + 1500.0f);
@@ -481,7 +481,7 @@ void BtlStage_UpdateObjs(void) {
                 node = part->node;
                 if (StgNode_IsRigid(node)) {
                     if (node->body >= 0) {
-                        func_00230908(node->body);
+                        StgRigid_Release(node->body);
                     }
                 }
             }
@@ -510,12 +510,12 @@ void BtlStage_UpdateObjs(void) {
             if (StgNode_IsRigid(node)) {
                 if (first) {
                     StgPart_Animate(part, 0.0f, &pos);
-                    node->body = func_002303C8(&pos, 0, part->radius);
+                    node->body = StgRigid_Create(&pos, 0, part->radius);
                     if (node->body >= 0) {
-                        func_002304C0(node->body, &obj->hitPos, StgObj_GetMaterial(obj));
+                        StgRigid_Launch(node->body, &obj->hitPos, StgObj_GetMaterial(obj));
                     }
                 }
-                func_00230AA0(node, node->body);
+                StgRigid_GetMatrix(node, node->body);
             } else {
                 node->body = 0;
                 StgPart_Animate(part, (f32)obj->frame, &pos);
@@ -525,12 +525,12 @@ void BtlStage_UpdateObjs(void) {
                 case 0:
                 case 1:
                     if ((j & 3) == 0) {
-                        func_00196EF8(&pos, 1.0f, 1.0f, scale);
+                        EftGndDust_SpawnDebris(&pos, 1.0f, 1.0f, scale);
                     }
                     break;
                 case 2:
                     if ((j & 3) == 0) {
-                        func_00196EF8(&pos, 1.0f, 1.0f, scale);
+                        EftGndDust_SpawnDebris(&pos, 1.0f, 1.0f, scale);
                     }
                     break;
                 }
@@ -783,7 +783,7 @@ s32 BtlStage_GetWaterLevel(f32 *level) {
     return gStgHasWater;
 }
 
-/* Ground under pos: finds its zone (starting from `zone`) and asks the collision code (func_001B14C0) for the
+/* Ground under pos: finds its zone (starting from `zone`) and asks the collision code (StgGround_Probe) for the
  * ground point of a unit box around pos. Returns the zone; out is untouched while the stage is not ready. */
 s32 BtlStage_ProbeGround(s32 zone, Vec4 *pos, StgGroundHit *out) {
     StgBox box;
@@ -799,8 +799,8 @@ s32 BtlStage_ProbeGround(s32 zone, Vec4 *pos, StgGroundHit *out) {
     out->x = pos->x;
     out->y = pos->y;
     out->z = pos->z;
-    func_00230B38(&box, pos, e);
-    func_001B14C0(r, &box, out, box.min[1]);
+    ColBox_SetCenterHalf(&box, pos, e);
+    StgGround_Probe(r, &box, out, box.min[1]);
     return r;
 }
 

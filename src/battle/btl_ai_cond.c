@@ -668,7 +668,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", BtlAi_GetQuadRate);
  * below the sum: consecutive rules of one group therefore form a weighted choice with the rates as weights,
  * and `range` is the total of the weights the fighter can actually use (AiThink_BuildTotals), so that one of
  * them is always taken. The first rule that passes ends the evaluation: kind 0 does nothing, kind 4 sets
- * plan.next, any other kind pushes up to four actions (func_001B3FC8).
+ * plan.next, any other kind pushes up to four actions (BtlAiSeq_PushRule).
  *
  * Condition ids: the byte in the rule is an id; D_002EDA70[id] is the index into the function table. The
  * weighted conditions do not look at their argument byte: they identify themselves by plan.cond (the id) and
@@ -696,8 +696,8 @@ extern u64 BtlCharApi_GetUnk1288(s32 objId);
 extern s32 BtlAi_ScaleByLevel(s32 level, s32 lo, s32 hi);
 extern void BtlAiMgr_SetType(s32 side, s32 aiType);
 extern void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel);
-extern void func_001B3F78(AiThSeq *seq);
-extern void func_001B3FC8(AiThWork *ai, AiThRule *rule);
+extern void BtlAiSeq_Reset(AiThSeq *seq);
+extern void BtlAiSeq_PushRule(AiThWork *ai, AiThRule *rule);
 extern s32 BtlAiSense_IsBehindOpponent(AiThWork *ai);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern void BtlCharApi_GetPos(s32 objId, AiThVec *out);
@@ -2127,7 +2127,7 @@ void AiThink_EvalRules(AiThWork *ai, AiThRuleList *arg) {
         seq->firedRule = n;
         seq->firedSet = seq->ruleSet;
         seq->firedGroup = rule->group;
-        func_001B3FC8(ai, rule);
+        BtlAiSeq_PushRule(ai, rule);
         return;
     next:;
     }
@@ -2293,7 +2293,7 @@ void AiThink_ResetSide(s32 side, s32 owned) {
     ai->own &= ~1;
     BtlAiMgr_SetLevel(ai->objId, BtlCharApi_GetCpuLevel(side));
     BtlAiMgr_SetType(ai->objId, BtlCharApi_GetAiType(ai->objId));
-    func_001B3F78(&ai->seq);
+    BtlAiSeq_Reset(&ai->seq);
     gBtlAi->radiusSum = BtlCharApi_GetRadius(ai->objId) + BtlCharApi_GetRadius(ai->objId ^ 1);
     range->dist[0] = gBtlAi->radiusSum;
     d = BtlCharApi_GetCloseRange(side) - BtlCharApi_GetRadius(side);

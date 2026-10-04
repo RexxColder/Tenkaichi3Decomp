@@ -26,7 +26,7 @@
  *   BtlParam_GetDamageTakenScale(chr)                    float at (object + 0x91C) + 0x7C: the character's damage-taken multiplier
  *   BtlStat_GetScale7(chr)                second damage-taken multiplier, from the member's bonus level
  *   BtlColl_NextPoolMember(chr)                    side 1 in mode 3: brings in the next opponent of the pool (BtlMember_Replace)
- *   EftShot_Request / func_001A0D78 / func_001A0DD8 / func_001A0E10 / func_00187B00   effect spawners
+ *   EftShot_Request / EftTransform_Start / EftTransform_Flash / EftTransform_End / EftImpact_SpawnHit   effect spawners
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -68,9 +68,9 @@ extern f32 BtlSuper_GetShotTime(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotSpeed(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
 extern void EftShot_Request(BtlMemberAuraReq *req);
-extern void func_001A0D78(BtlMemberFx0Req *req);
-extern void func_001A0DD8(void);
-extern void func_001A0E10(void);
+extern void EftTransform_Start(BtlMemberFx0Req *req);
+extern void EftTransform_Flash(void);
+extern void EftTransform_End(void);
 extern s32 BtlAtk_GetHitFxKind(BtlMemberChr *chr);
 extern s32 BtlAtk_GetHitSoundLevel(BtlMemberChr *chr);
 extern s32 BtlCharApi_HasWeaponOut(s32 objId);
@@ -79,7 +79,7 @@ extern f32 BtlAtk_GetLaunchAngleA(BtlMemberChr *chr);
 extern f32 BtlAtk_GetLaunchAngleB(BtlMemberChr *chr);
 extern void BtlOpp_GetTargetPos(BtlMemberChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetRadius(BtlMemberChr *chr);
-extern void func_00187B00(BtlMemberHitFxReq *req);
+extern void EftImpact_SpawnHit(BtlMemberHitFxReq *req);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern u32 func_0024D610(BtlMemberObj *obj, s32 a, s32 b, s32 c);
 extern s32 func_0024D518(u32 mask);

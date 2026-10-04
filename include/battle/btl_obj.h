@@ -104,7 +104,7 @@ typedef struct BtlObjVec {
     /* 0x0C */ f32 w;
 } __attribute__((aligned(8))) BtlObjVec; /* size 0x10 */
 
-/* Axis-aligned box as func_00230B10.. keep it: two 12-byte corners (layout not read here). */
+/* Axis-aligned box as StgAabb_SetEmpty.. keep it: two 12-byte corners (layout not read here). */
 typedef struct BtlObjBox {
     /* 0x00 */ f32 min[3];
     /* 0x0C */ f32 max[3];

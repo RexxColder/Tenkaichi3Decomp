@@ -52,16 +52,17 @@ typedef union EftVec {
 /* EftHitTask.flags: what happened to the record(s) of this task. The bits are set by the hit detection through
    EftHit_SetTaskFlag; only what this file tests or writes is listed. */
 #define EFT_TASK_HIT_CHAR    0x0001 /* hit a fighter (result 4, or 5 once a multi-hit ran out) */
-#define EFT_TASK_HIT_2       0x0002 /* result 5 unless multi-hit */
-#define EFT_TASK_HIT_4       0x0004 /* result 5; blocks further hits of a blast; picks the weak impact effect */
-#define EFT_TASK_HIT_8       0x0008 /* result 4 */
+#define EFT_TASK_GUARDED     0x0002 /* guarded: result 5 unless multi-hit */
+#define EFT_TASK_HIT_STAGE   0x0004 /* hit the stage: result 5; blocks further hits of a blast; picks the weak impact effect */
+#define EFT_TASK_LOST_CLASH  0x0008 /* lost a clash against another record: result 4 */
 #define EFT_TASK_OUT         0x0010 /* left the stage (EftHit_ClampToStage) or other end: result 5 */
-#define EFT_TASK_HIT_20      0x0020 /* result 5, no impact effect */
-#define EFT_TASK_DEAD        0x0040 /* cannot hit any more */
-#define EFT_TASK_HIT_100     0x0100 /* result 3 */
+#define EFT_TASK_ABSORBED    0x0020 /* absorbed by the fighter: result 5, no impact effect */
+#define EFT_TASK_DEFLECTED   0x0040 /* deflected by the fighter; the record cannot hit any more */
+#define EFT_TASK_REFLECTED   0x0080 /* reflected by the fighter (set by the hit detection, eft_det_a.c) */
+#define EFT_TASK_STRUGGLE    0x0100 /* beam struggle: result 3 */
 #define EFT_TASK_IMPACT_DONE 0x0200 /* the impact effect was spawned (EftHit_SpawnImpacts) */
 #define EFT_TASK_MULTI       0x4000 /* multi-hit technique (definition maxHits > 0) */
-#define EFT_TASK_FORCE_1     0x8000 /* one-shot: result 1, cleared when read */
+#define EFT_TASK_MULTI_CONTACT 0x8000 /* a multi-hit is still in contact; one-shot: result 1, cleared when read */
 #define EFT_TASK_KEEP        0x10000 /* a multi-hit with definition flag 0x20 hit: stays, cannot hit in mode 0 */
 #define EFT_TASK_NO_MODE1    0x20000
 #define EFT_TASK_NO_MODE2    0x40000

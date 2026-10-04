@@ -106,7 +106,7 @@ typedef struct BtlMoveContact {
     /* 0x10 */ Vec4 normal;
 } BtlMoveContact;
 
-/* Segment for the stage line test (func_002398F0 builds it, func_001B2DF0 tests it, func_001B2F00 gives the hit). */
+/* Segment for the stage line test (func_002398F0 builds it, StgCol_TraceSegment tests it, StgCol_GetHitPos gives the hit). */
 typedef struct BtlMoveSeg {
     /* 0x00 */ Vec4 a;
     /* 0x10 */ Vec4 b;

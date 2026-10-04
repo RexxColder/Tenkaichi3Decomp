@@ -1064,7 +1064,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern s32 BtlStage_GetFxResC(void);
 extern s32 BtlStage_GetFxResA(void);
 extern EftStageMarker *BtlStage_GetFxResC2(void);
-extern void func_001AE2A8(EftSteamTex *tex, s32 *data);
+extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
 extern u64 func_001ADC68(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
 extern void func_00120AB0(void);

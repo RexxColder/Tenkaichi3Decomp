@@ -227,6 +227,39 @@ follow), check first that the new name is not used anywhere, then reconfigure an
   original, never by the name's look.
 - The private copy of `apply_names.py` should select the symbol files by "listed in the yaml", and skip the
   SOURCE files of agents that are still working by stem, not by prefix (stems of different waves share prefixes).
+- A caller that needs a callee DEFINED above it, when the callee itself is still INCLUDE_ASM (second effects
+  wave): compile the callee's C attempt, but let the assembler skip its output.
+  `ASM_STUB_BEGIN();` / the attempt / `ASM_STUB_END();` / `INCLUDE_ASM(...)` (macros in include/include_asm.h;
+  they emit `.if 0` and `.endif` as top-level assembly, which this compiler writes out in source order around
+  the function). The compiler has then seen a definition, the code still comes from the original. It made
+  `EftRibbon_Update`, `EftRibbon_Draw`, `EftRibbon_SetEnd` (callees `EftRibbon_PlaceStrip`, `EftRibbon_DrawStrip`,
+  `EftRibbon_DrawKind1`) and `EftAura_ChangeType` (callee `EftAura_SetType`) match. Use the real attempt, not an
+  empty body: the compiler works out for itself that a function without side effects is `const` and then treats
+  its callers differently. Everything the attempt emits inside its function (jump tables, the constants of
+  local initialisers, `li.s` literals) is skipped with it; a function-local `static` would not be. It only
+  helps callers LATER in the file: wrapping every attempt of the wave this way changed no other function.
+- fdiff masks `$gp`-relative offsets as it masks every relocation, so two small globals stored in the wrong
+  ORDER print OK and only show when the file is linked (`EftAuraMgr_Init`, `EftGlowMgr_Init`: two pointers
+  set to the same value). In `a = b = x;` the store to `a` is emitted FIRST: put the global the original
+  stores first on the left.
+- A whole-file merge changes the alignment base of the second part's read-only data: jump tables are aligned
+  to 16 bytes relative to the START of the object's `.rodata`. If the first part's data starts 8 bytes off a
+  16-byte boundary, a table of the second part that the original had on a boundary moves by 8 (eft_y + eft_z:
+  0x2ED310 became 0x2ED308). That is evidence that the two are not one object beginning at the first part's
+  data; cut the first file where its read-only data ends and merge only the tail (eft_y.c was cut at 0x195038).
+- Tools from the second effects integration (build/scratch_integrate5/): `merge5.py` does the mechanical merge
+  including conflicts that come from a HEADER the second part includes (it hides the header's declaration with
+  `#define N N__p2` around the `#include` and adds the cast macro built from the header's own text);
+  `layout.py` + `spec.py` generate the `.rodata` / `.lit4` / `.sdata` subsegments from each object's measured
+  section size, so only the START address of each file's data has to be found (`place.py`), and the gaps become
+  assembly chunks by themselves. A gap that is only alignment padding in front of a C file's section needs no
+  chunk (the next object's own alignment produces it).
+- After a re-split that creates or changes the .s files of INCLUDE_ASM / INCLUDE_RODATA (a `.rodata` subsegment
+  added or resized), ninja does not rebuild the C object that includes them: delete the object. The symptom
+  is an undefined `jtbl_XXXXXXXX` at link, or a section of the old size.
+- A global that only unlinked files use may have no entry in any symbol file although every agent "knows" its
+  name (`gEftZapMgr`): fdiff does not need the address of a `$gp` global, the linker does. Find it from the
+  `$gp` offset in the original (`_gp` = start of `.lit4` + 0x7FF0) and add it to the defining module's file.
 
 ## Scratch files
 Each agent uses its own subfolder for scratch scripts. Run Python scratch files with

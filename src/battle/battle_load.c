@@ -56,13 +56,13 @@ extern void BtlScene_FreeChar(s32 side);
 extern void BtlScene_CreateChar(s32 side);
 
 /* Stage / scene. */
-extern void func_00115170(void);
+extern void StgModel_InitStage(void);
 extern void EftStage_Recreate(void);
 extern void EftStage_ResetAll(void);
 extern void EftBurst_Start(void);
 extern s32 EftBurst_IsBusy(void);
 extern void EftBurst_End(void);
-extern void func_001B3628(void);
+extern void StgNav_Rebind(void);
 extern void BtlStage_Term(void);
 extern void StgFx_SetDisabled(s32 arg);
 extern void StgFx_Reset(void);
@@ -163,9 +163,9 @@ void BtlLoad_BeginStageSwap(void) {
 
 /* Brings them back up on the new stage. */
 void BtlLoad_EndStageSwap(void) {
-    func_00115170();
+    StgModel_InitStage();
     BtlChars_OnStageLoaded();
-    func_001B3628();
+    StgNav_Rebind();
     EftStage_Recreate();
     StgFx_Reset();
 }

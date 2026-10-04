@@ -5,8 +5,8 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last build verified byte-identical: the working tree after the second effects wave was linked
-  (64.03% of the main executable's game code in C; 146 C files linked; 5034 functions diff clean).
+- Last build verified byte-identical: the commit "Link the second effects wave" (64.03% of the
+  main executable's game code in C; 146 C files linked; 5034 functions diff clean; DBZP 0%).
   Uncommitted by the integrator: commit after checking. The commit before it is "Link the first effects
   wave and the stage" (47.79%).
 - Check at any time: `.venv/bin/python configure.py && ninja`, then

@@ -13,13 +13,13 @@
  * what only the manager file uses.
  */
 
-/* Segment handed to the stage line test func_001B2DF0. */
+/* Segment handed to the stage line test StgCol_TraceSegment. */
 typedef struct BtlAiSegment {
     /* 0x00 */ BtlAiVec from;
     /* 0x10 */ BtlAiVec to;
 } BtlAiSegment; /* size 0x20 */
 
-/* Result of the last stage line test (static block D_0031C0A0, func_001B2F40 returns it). */
+/* Result of the last stage line test (static block gStgColHit, StgCol_GetHit returns it). */
 typedef struct BtlAiHit {
     /* 0x00 */ s32 hit;          /* (n/m) 1 when the segment is blocked */
     /* 0x04 */ u8 unk04[0x0C];

@@ -59,7 +59,7 @@ extern s32 StgTint_IsOn(s32 arg);
 /* Texture tables (0x1AD..0x1AE). */
 extern void func_001AE148(EftTexTbl *tbl, s32 *data);
 extern void func_001AE1F8(EftTexEntry *tex, s32 *data);
-extern void func_001AE408(EftSurfTexTbl *tbl, s32 *data);
+extern void EftTexSet_Load34(EftSurfTexTbl *tbl, s32 *data);
 extern void func_001ADEA0(EftTexTbl *tbl, s32 a, s32 b);
 extern void func_001ADF20(EftTexEntry *tex, s32 a, s32 b);
 extern u64 func_001ADC68(EftSurfSlot *slot, s32 a, s32 b);
@@ -79,7 +79,7 @@ extern s32 EftSteam_Create(EftGeyserSteamArg *arg);
 extern void EftSteam_SetPaused(s32 handle, s32 on);
 extern s32 EftSteam_GetWork(s32 handle);
 
-extern void func_00197658(void);
+extern void EftGndDust_InitTemplate(void);
 
 /* Clip planes and helpers of the effect core. */
 extern void EftGfx_UpdateClipPlanes(void);
@@ -748,7 +748,7 @@ void EftWeather_SetEnabled(s32 on) {
 void EftStage_Recreate(void) {
     BtlScene_FreeLayer0();
     BtlScene_CreateLayer0();
-    func_00197658();
+    EftGndDust_InitTemplate();
 }
 
 /* Resets every effect task and frees the stage effect tasks. */
@@ -976,7 +976,7 @@ void EftSurf_Init(void) {
     for (i = 0; i < count; i++, mesh++) {
         if (mesh->flags & EFT_SURF_REFLECT) {
             if (!(rt->flags & EFT_SURF_RT_READY)) {
-                func_001AE408(&rt->tex, (s32 *)((u8 *)pack + ((u32)pack[0xA] >> 2 << 2)));
+                EftTexSet_Load34(&rt->tex, (s32 *)((u8 *)pack + ((u32)pack[0xA] >> 2 << 2)));
                 func_0010A5A0(&rt->buf[0], 0x3E80);
                 func_0010A5A0(&rt->buf[1], 0x3E84);
                 func_0010A5A0(&rt->buf[2], 0x3E88);

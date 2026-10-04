@@ -37,9 +37,9 @@ extern s32 BtlAct_GetCurrentClass(BtlFlagChr *chr);                            /
 extern void BtlAct_CountAndMarkOpponent(BtlFlagChr *chr);                           /* chr->clashCountB++, opponent +0xD4C = 1 */
 extern f32 BtlCharApi_GetHeight(s32 objId);                                  /* height */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);            /* world position of a model node */
-extern f32 func_00174F68(s32 side, s32 type);
-extern f32 func_00175048(void);
-extern void func_00174CE0(s32 objId);
+extern f32 EftStruggle_GetCamDist(s32 side, s32 type);
+extern f32 EftStruggle_GetMidDist(void);
+extern void EftStruggle_End(s32 objId);
 extern s32 BtlStage_GetPathCount(void);                                       /* number of stage paths */
 extern BtlClashPath *BtlStage_GetPath(s32 n);                            /* stage path n */
 extern s32 BtlSuper_IsThrow(BtlFlagChr *chr, s32 cls);
@@ -146,7 +146,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         pitch = 0.0f;
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
         dist = BtlCharApi_GetHeight(chr->objId);
-        dist += func_00174F68(player, type);
+        dist += EftStruggle_GetCamDist(player, type);
         break;
     case 1:
         if (player == 0) {
@@ -157,7 +157,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         pitch = 0.0f;
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
         dist = BtlCharApi_GetHeight(chr->objId);
-        dist += func_00174F68(player, type);
+        dist += EftStruggle_GetCamDist(player, type);
         break;
     case 2:
         dist = 3.14159265f;
@@ -166,7 +166,7 @@ void BtlClash_SetOrbitCut(s32 player, s32 type) {
         yaw = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - dist);
         pitch = Mathf_Asin(d.y) - 0.2f;
         dist = BtlCharApi_GetHeight(chr->objId) * 0.4f;
-        dist += func_00174F68(player, type);
+        dist += EftStruggle_GetCamDist(player, type);
         break;
     }
     ChrCam_SetCut(chr, &D_002EC2A0, &D_002EC2A0, &D_002EC2A0, &D_002EC2A0, &D_002EC2A0, &D_002EC2A0, nodeA, yaw, 0.0f,
@@ -200,7 +200,7 @@ void BtlClash_SetMidCut(Vec4 *mid, f32 bias) {
     pitch = -Mathf_Asin(d.y);
     pitch *= bias;
     ChrCam_SetCut(chr, mid, &D_002EC2A0, mid, &D_002EC2A0, &look, &D_002EC2A0, -1, yaw, 0.0f, pitch, 0.0f,
-                  func_00175048() + base, 0.0f, -1, -1, -1, 1, 0x45);
+                  EftStruggle_GetMidDist() + base, 0.0f, -1, -1, -1, 1, 0x45);
 }
 
 /* Clash C camera: a one-frame cut placed at the first point of a stage path, looking along its angles. */
@@ -344,7 +344,7 @@ s32 BtlClash_UpdateA(s32 state) {
             if (BtlSuper_IsThrow(winner, cls)) {
                 BtlColl_StartThrow(winner, loser, cls, BtlSuper_GetFlags(winner, cls));
                 BtlChar_SetHeldFlag(winner, 0xA0);
-                func_00174CE0(winner->objId);
+                EftStruggle_End(winner->objId);
             } else {
                 damage = BtlSuper_GetDamage(winner, cls, 0, 1);
                 damage += BtlSuper_GetDamage(loser, loserCls, 0, 1) / 2;
@@ -362,7 +362,7 @@ s32 BtlClash_UpdateA(s32 state) {
                 BtlMember_Damage(loser, damage, flags);
                 BtlChar_PlayVoice(loser, 0x16);
                 BtlCharSnd_PlayStream(loser, 0x8D31);
-                func_00174CE0(-1);
+                EftStruggle_End(-1);
             }
             BtlChar_RaiseFirstClash(winner);
             c->winner = winner->player;

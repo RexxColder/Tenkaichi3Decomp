@@ -1,8 +1,12 @@
 # Effects and stage (seventh batch, in progress)
 
 Sources: `src/battle/eft_*.c`, `src/battle/stg_*.c` with headers under `include/battle/`.
-The first wave (0x12DD80..0x1637A0 and the stage, 0x23FB20..0x248F28) is linked and
-byte-identical; later files are not. File names in the table are as the agents wrote them:
+Everything in the module table is linked and byte-identical except eft_ae (0x1AA7E8..0x1AE2A8),
+which is decompiled and waiting. At the second integration eft_t.c went into eft_s.c, eft_u.c
+into eft_t_c.c, eft_v.c into eft_u_b.c, eft_ac.c into eft_ab_c.c, and eft_y.c's tail into
+eft_z.c; `BtlFx_SpawnDamageSparks` became `BtlFx_FireKiBlast` and the eft_a.h task flags got
+their real names (GUARDED, HIT_STAGE, LOST_CLASH, ABSORBED, DEFLECTED, REFLECTED, STRUGGLE,
+MULTI_CONTACT). File names in the table are as the agents wrote them:
 at integration eft_e.c's transition half moved into eft_d_b.c, eft_f.c into eft_e.c, eft_l.c
 into eft_k.c, and stg_a.c was split into stg_a.c + stg_a_b.c around three assembly-only VU0
 functions. "Match" means per function. **Verified** = matching C;
@@ -547,7 +551,7 @@ fighters. Its creators (volley, shots, ring shot) keep the task pointer as a han
 
 ## Ki blasts (simulation; `eft_r.c`, verified unless marked)
 
-- **Launch**: `BtlFx_SpawnDamageSparks` in btl_char_fx.c is the ki blast launcher (its name is
+- **Launch**: `BtlFx_FireKiBlast` in btl_char_fx.c is the ki blast launcher (its name is
   wrong). On animation event 4 it fires the blast kind's shot count in one frame. In spread
   mode 0 it draws three values from the fighter generator per shot to jitter the direction.
   By blast type: plain blast, type 2 thrown object, type 3 bomb, types 4 / 5 discs.

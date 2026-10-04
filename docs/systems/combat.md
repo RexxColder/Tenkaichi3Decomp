@@ -533,7 +533,7 @@ Fighter +0x15E8: three pointers (per technique slot) to cutscene placement table
 No random draws; nothing depends on player 0. `BtlGame_Init` reads the split-screen setting
 (HUD only).
 
-Suspected misname (inferred): `BtlFx_SpawnDamageSparks` in btl_char_fx_b.c reads the current
+Suspected misname (inferred): `BtlFx_FireKiBlast` in btl_char_fx_b.c reads the current
 ki blast's kind, type, lifetime, speed, turn rate and hit count: it looks like the ki blast
 launcher, not hit sparks. If so its three `BtlChar_RandF` draws are the blast's spread, and
 simulation-relevant.

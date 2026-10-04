@@ -39,7 +39,7 @@ extern s32 BattleSide_GetControl(s32 side);
 extern void BtlCharApi_GetCamPose(s32 objId, Vec4 *pos, Vec4 *rot); /* the fighter camera's pose */
 extern s32 BtlCharApi_HasCamPriority(s32 objId);                /* the fighter camera's priority */
 extern s32 BtlCharApi_GetMgrUnk134(void);
-extern s32 func_001B1A38(s32 obj, void *seg, Vec4 *hitPos, f32 *frac, void *unk);
+extern s32 StgCol_TraceSphere(s32 obj, void *seg, Vec4 *hitPos, f32 *frac, void *unk);
 extern s32 BtlStage_FindZoneNear(s32 arg0, Vec4 *pos);
 extern s32 D_002FF280[2];
 
@@ -373,13 +373,13 @@ s32 BtlCam_TraceStage(Vec4 *out, Vec4 *from, Vec4 *to, f32 *frac, s32 *hitObj) {
     /* The three outcomes are written out separately; a shared `hit:` label allocates registers differently. */
     if (objA != objB) {
         obj = objA;
-        if (func_001B1A38(obj, &seg, &hitPos, &t, unk) != 0) {
+        if (StgCol_TraceSphere(obj, &seg, &hitPos, &t, unk) != 0) {
             Vec4_Copy(out, &hitPos);
             ret = 1;
             f = t;
         } else {
             obj = objB;
-            if (func_001B1A38(obj, &seg, &hitPos, &t, unk) != 0) {
+            if (StgCol_TraceSphere(obj, &seg, &hitPos, &t, unk) != 0) {
                 Vec4_Copy(out, &hitPos);
                 ret = 1;
                 f = t;
@@ -390,7 +390,7 @@ s32 BtlCam_TraceStage(Vec4 *out, Vec4 *from, Vec4 *to, f32 *frac, s32 *hitObj) {
         }
     } else {
         obj = objA;
-        if (func_001B1A38(obj, &seg, &hitPos, &t, unk) != 0) {
+        if (StgCol_TraceSphere(obj, &seg, &hitPos, &t, unk) != 0) {
             Vec4_Copy(out, &hitPos);
             ret = 1;
             f = t;

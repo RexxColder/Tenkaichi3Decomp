@@ -48,7 +48,7 @@
  *        per fighter            BtlChar_UpdateStage7: stage 7, BtlMove_PushOut, BtlMove_ApplyOrbit, matrices
  *        BtlChars_Snapshot(2)
  *        per fighter            BtlChar_UpdateStage8: stage 8, BtlMove_ClampToStage (stage queries), matrices,
- *                               func_001B21A8 / func_001B15B8 on the object
+ *                               StgCol_UpdateFighter / StgGround_UpdateFighter on the object
  *        BtlChars_Snapshot(3)
  *        per fighter            BtlChar_UpdateStage9: stage 9, BtlColl_UpdateGround, matrices
  *        BtlChars_Snapshot(4)
@@ -57,7 +57,7 @@
  *        BtlReplay_UpdateViewer, BtlFx_UpdateRoster, BtlMembers_UpdateQueuedDamage (gauges), BtlChars_UpdateCollision (hits)
  *        per fighter            BtlChar_UpdateStage10: stage 10, BtlPartner_UpdateEvents, BtlFx_UpdateAfterHits
  *        BtlClash_Update
- *      (Battle_Update then runs the effect scene: BtlScene_Update, func_001AF9C0, BtlScene_PostUpdate)
+ *      (Battle_Update then runs the effect scene: BtlScene_Update, EftDet_Update, BtlScene_PostUpdate)
  *   5. BtlChars_PostScene       skipped under PAUSE / LOADING. per fighter: BtlChar_PostScene (ChrCam_Update,
  *                               low-health state, the vector pushed onto the opponent).
  *      (Battle_Update: BtlScene_CheckStageChange, loader polls, stage, both cameras, BtlCam_UpdateOverride)
@@ -113,9 +113,9 @@ extern s32 BtlInput_IsPressed(BtlMgrChr *chr, u32 mask);
 extern s32 BtlCtrl_CanAct(s32 side);
 
 extern void func_00121E20(void *vec);
-extern void func_001AF740(void);
-extern void func_001B15B8(BtlMgrObj *obj);
-extern void func_001B21A8(BtlMgrObj *obj, s32 arg1, s32 arg2);
+extern void BtlBodyHit_Update(void);
+extern void StgGround_UpdateFighter(BtlMgrObj *obj);
+extern void StgCol_UpdateFighter(BtlMgrObj *obj, s32 arg1, s32 arg2);
 extern void BtlStat_ClearFrameMods(BtlMgrChr *chr);
 extern void BtlStat_Reset(BtlMgrChr *chr);
 extern void BtlStat_SetFrameMod(BtlMgrChr *chr, s32 idx, s32 val, s32 add);
@@ -686,7 +686,7 @@ void BtlChars_UpdateCollision(void) {
         }
     }
     if (nobodyFrozen) {
-        func_001AF740();
+        BtlBodyHit_Update();
         BtlColl_Update();
     } else {
         for (i = 0; i < BtlChar_GetCount(); i++) {
@@ -1159,8 +1159,8 @@ void BtlChar_UpdateStage8(BtlMgrChr *chr) {
     if (BtlChars_IsTimeStopped()) {
         started = 0;
     }
-    func_001B21A8(obj, flag, BtlCharApi_IsChanging(chr->objId) ? 0 : started);
-    func_001B15B8(obj);
+    StgCol_UpdateFighter(obj, flag, BtlCharApi_IsChanging(chr->objId) ? 0 : started);
+    StgGround_UpdateFighter(obj);
     BtlChar_ObjToPose(chr);
 }
 

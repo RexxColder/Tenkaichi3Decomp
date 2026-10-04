@@ -33,8 +33,8 @@
  *   Explicit (forward) Euler, one sub-step, no collision between bodies.
  *
  * Users (not decompiled, 0x22FDA0-0x230AA0): the battle stage update (BtlStage_Update) keeps a linked
- * list of bodies at *(D_002FEB78 + 0x12004), each node being 0x10 bytes of links followed by a
- * RigidBody. func_002309A8 steps the list unless BATTLE_FLAG_PAUSE is set, in sub-steps of
+ * list of bodies at *(gStgRigid + 0x12004), each node being 0x10 bytes of links followed by a
+ * RigidBody. StgRigid_Update steps the list unless BATTLE_FLAG_PAUSE is set, in sub-steps of
  * dt = 0.016677 until the accumulated time exceeds 1/6 (10 sub-steps per frame); per sub-step:
  * update centre, contact, gravity + damping, Rigid_Step; then once per frame Rigid_CheckRest.
  *

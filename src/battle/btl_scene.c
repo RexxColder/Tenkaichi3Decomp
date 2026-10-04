@@ -27,7 +27,7 @@
  *   func_001ADBA8 init / func_001ADC00 term: 0x80C-byte block at gp 0x2FEAF4
  *   func_001AA818 init / func_001AA850 term: 0xC200-byte block at gp 0x2FEAE8
  *   EftSurf_BuildPalettes, func_001AE0A0, func_001AE118, EftGfx_UpdateClipPlanes   draw work shared by all tasks
- *   func_001721D0 / func_00172240, EftShot_DestroyChar / EftShot_CreateChar   free / create a character's task in
+ *   EftChar_Kill / EftChar_Create, EftShot_DestroyChar / EftShot_CreateChar   free / create a character's task in
  *     layer 2 and in layer 1
  *   EftWater_UpdateBlast, EftBubble_OnBlastRecord   per-record update
  *   fighter queries, 0x204EA0..0x2080E0 (they take an object id and look the fighter up):
@@ -55,8 +55,8 @@ extern BtlTaskClass gBtlSceneRootClass; /* 0x2C3490: {BtlSceneRoot_Update, BtlSc
 extern BtlTaskClass D_002C3550;         /* layer 0 */
 extern BtlTaskClass D_002C35D0;         /* layer 4 */
 extern BtlTaskClass D_002C36D0;         /* layer 1 */
-extern BtlTaskClass D_002C3BB0;         /* layer 2 */
-extern BtlTaskClass D_002C3F98;         /* layer 3 */
+extern BtlTaskClass gEftCharRootClass;         /* layer 2 */
+extern BtlTaskClass gEftLayer3Class;         /* layer 3 */
 
 /* task system, 0x1AD150..0x1ADB48 */
 extern void BtlTaskList_Update(void *list);
@@ -94,8 +94,8 @@ extern void EftSurf_BuildPalettes(void);
 extern void EftWater_UpdateBlast(BtlBlastRec *rec);
 extern void EftShot_DestroyChar(s32 chr);
 extern void EftShot_CreateChar(s32 chr);
-extern void func_001721D0(s32 chr);
-extern void func_00172240(s32 chr);
+extern void EftChar_Kill(s32 chr);
+extern void EftChar_Create(s32 chr);
 extern void func_001AA818(void);
 extern void func_001AA850(void);
 extern void func_001ADBA8(void);
@@ -404,12 +404,12 @@ void *BtlScene_GetGroup(void) {
 
 /* Frees a character's task in layer 2 (0x1721D0). */
 void BtlScene_FreeCharLayer2(s32 chr) {
-    func_001721D0(chr);
+    EftChar_Kill(chr);
 }
 
 /* Creates a character's task in layer 2 (0x172240). */
 void BtlScene_CreateCharLayer2(s32 chr) {
-    func_00172240(chr);
+    EftChar_Create(chr);
 }
 
 /* Frees a character's tasks in layers 2 and 1; called when the character is streamed out. */
@@ -736,10 +736,10 @@ void BtlScene_CreateLayers(void *group) {
         gBtlScene->layer[1] = BtlTaskList_AddTail(gBtlScene->group, &D_002C36D0, NULL);
     }
     if (gBtlScene->layerMask & 2) {
-        gBtlScene->layer[2] = BtlTaskList_AddTail(gBtlScene->group, &D_002C3BB0, NULL);
+        gBtlScene->layer[2] = BtlTaskList_AddTail(gBtlScene->group, &gEftCharRootClass, NULL);
     }
     if (gBtlScene->layerMask & 1) {
-        gBtlScene->layer[3] = BtlTaskList_AddTail(gBtlScene->group, &D_002C3F98, NULL);
+        gBtlScene->layer[3] = BtlTaskList_AddTail(gBtlScene->group, &gEftLayer3Class, NULL);
     }
     if (gBtlScene->layerMask & 0x10) {
         gBtlScene->layer[4] = BtlTaskList_AddTail(gBtlScene->group, &D_002C35D0, NULL);

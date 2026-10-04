@@ -504,7 +504,7 @@ void EftSpdLine_UpdateTexture(s32 a, s32 b) {
 
 /* ---- aura particles ------------------------------------------------------------------------------------- */
 
-extern void func_001AA188(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
+extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
                           s32 t0, s32 t1, s32 w, s32 h, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
 
 /* Drift direction of a spark: against the fighter's velocity, with a random vertical part. */
@@ -903,7 +903,7 @@ void EftAura_DrawSparks(EftAura *aura, s32 objId, f32 alpha) {
     while (*link != NULL) {
         s = *link;
         if (s->objId == objId) {
-            func_001AA188((u32)(s->color.x * 255.0f), (u32)(s->color.y * 255.0f), (u32)(s->color.z * 255.0f),
+            EftSpr_DrawRot((u32)(s->color.x * 255.0f), (u32)(s->color.y * 255.0f), (u32)(s->color.z * 255.0f),
                           (u32)(s->color.w * 255.0f * a), s->pos.x, s->pos.y, s->pos.z, s->uv.x, s->uv.y, s->uv.z,
                           s->uv.w, s->rot, 0, 0, 0x40, 0x40, 0, (u32)(s->size * 4096.0f), 0, s->unk7, tex);
         }

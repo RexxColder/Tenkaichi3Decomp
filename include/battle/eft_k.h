@@ -93,7 +93,7 @@ typedef struct EftKSet {
     /* 0x0C */ EftKGroup grp[19];
 } EftKSet;
 
-/* A model object of an effect: the argument block of func_001A8C40 (BtlObj_Create) and its result. */
+/* A model object of an effect: the argument block of EftObj_Create (BtlObj_Create) and its result. */
 typedef struct EftKModel {
     /* 0x00 */ s32 *pack;
     /* 0x04 */ u8 arg[0x30];
@@ -225,7 +225,7 @@ typedef struct EftObjTechMgr {
     /* 0x324 */ s32 *ringModel; /* with flag 0x40000: entries 1 and 2 of entry 1 */
     /* 0x328 */ s32 *ringTex;
     /* 0x32C */ s32 unk32C;
-    /* 0x330 */ u8 ringProto[0x90]; /* func_001A7608 */
+    /* 0x330 */ u8 ringProto[0x90]; /* EftMesh_Init */
     /* 0x3C0 */ u8 ringTexSet[0x210]; /* func_001AE148 */
 } EftObjTechMgr; /* size 0x5D0 */
 

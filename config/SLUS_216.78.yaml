@@ -105,6 +105,27 @@ options:
     - config/symbols/stg_a.txt
     - config/symbols/stg_b.txt
     - config/symbols/stg_c.txt
+    - config/symbols/eft_n.txt
+    - config/symbols/eft_o.txt
+    - config/symbols/eft_p.txt
+    - config/symbols/eft_q.txt
+    - config/symbols/eft_r.txt
+    - config/symbols/eft_s.txt
+    - config/symbols/eft_t.txt
+    - config/symbols/eft_u.txt
+    - config/symbols/eft_v.txt
+    - config/symbols/eft_w.txt
+    - config/symbols/eft_x.txt
+    - config/symbols/eft_y.txt
+    - config/symbols/eft_z.txt
+    - config/symbols/eft_aa.txt
+    - config/symbols/eft_ab.txt
+    - config/symbols/eft_ac.txt
+    - config/symbols/eft_ad.txt
+    - config/symbols/eft_det_a.txt
+    - config/symbols/eft_det_b.txt
+    - config/symbols/stg_d.txt
+    - config/symbols/col_a.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 
@@ -168,6 +189,8 @@ segments:
       - [0x001D40, c, sys/gfx]
       - [0x002458, c, sys/gfx_ot]
       - [0x002F28, asm, cod/002F28]
+      - [0x015170, c, battle/stg_d_b]
+      - [0x015478, asm, cod/015478]
       - [0x01EC10, c, sys/iop_heap]
       - [0x01ECB8, c, sys/spu_heap]
       - [0x01F190, c, sys/timer]
@@ -201,9 +224,41 @@ segments:
       - [0x05E5D0, c, battle/eft_l_c]
       - [0x05EF18, c, battle/eft_l_d]
       - [0x05F728, c, battle/eft_m]
-      - [0x0637A0, asm, cod/0637A0]
+      - [0x0637A0, c, battle/eft_n]
+      - [0x067E68, c, battle/eft_o]
+      - [0x0699D0, c, battle/eft_o_b]
+      - [0x06AE78, c, battle/eft_o_c]
+      - [0x06C2E0, c, battle/eft_p]
+      - [0x06DCA0, c, battle/eft_p_b]
+      - [0x070A50, c, battle/eft_q]
+      - [0x074A70, c, battle/eft_r]
+      - [0x078AB0, c, battle/eft_s]
+      - [0x07EE68, c, battle/eft_t_b]
+      - [0x0809C0, c, battle/eft_t_c]
+      - [0x082CE8, c, battle/eft_u_b]
+      - [0x0871A8, c, battle/eft_v_b]
+      - [0x087C50, c, battle/eft_v_c]
+      - [0x0895E8, c, battle/eft_w]
+      - [0x08D618, c, battle/eft_x]
+      - [0x090CC8, c, battle/eft_x_b]
+      - [0x090DA8, c, battle/eft_x_c]
+      - [0x091D28, c, battle/eft_y]
+      - [0x095038, c, battle/eft_z]
+      - [0x098BC0, c, battle/eft_z_b]
+      - [0x099500, c, battle/eft_z_c]
+      - [0x099F28, c, battle/eft_aa]
+      - [0x09E0C0, c, battle/eft_ab]
+      - [0x0A0020, c, battle/eft_ab_b]
+      - [0x0A0E58, c, battle/eft_ab_c]
+      - [0x0A62C8, c, battle/eft_ad]
       - [0x0A7018, c, battle/btl_pool]
-      - [0x0A7608, asm, cod/0A7608]
+      - [0x0A7608, c, battle/eft_ad_b]
+      - [0x0A9D90, c, battle/eft_ad_c]
+      - [0x0AA7E8, asm, cod/0AA7E8]
+      - [0x0AE2A8, c, battle/eft_det_a]
+      - [0x0B16F0, c, battle/eft_det_b]
+      - [0x0B3510, c, battle/eft_det_b_b]
+      - [0x0B3F78, c, battle/eft_det_b_c]
       - [0x0B4140, c, battle/btl_ai_seq]
       - [0x0B6D50, c, battle/btl_ai_cond]
       - [0x0BB128, c, battle/btl_ai_mgr]
@@ -247,6 +302,9 @@ segments:
       - [0x1129C8, asm, cod/1129C8]
       - [0x115420, c, battle/btl_seq]
       - [0x1187E0, asm, cod/1187E0]
+      - [0x12FD10, c, battle/stg_d]
+      - [0x130B38, c, battle/col_a]
+      - [0x136190, asm, cod/136190]
       - [0x13D1E8, c, battle/btl_demo_cam]
       - [0x13E040, c, battle/btl_cam]
       - [0x13F620, c, battle/orbit_cam]
@@ -311,7 +369,24 @@ segments:
       - [0x1ECB60, rodata, cod/1ECB60]
       - [0x1ECBA0, .rodata, battle/eft_l_d]
       - [0x1ECC20, .rodata, battle/eft_m]
-      - [0x1ECC30, rodata, cod/1ECC30]
+      - [0x1ECC30, .rodata, battle/eft_n]
+      - [0x1ECC50, .rodata, battle/eft_o_b]
+      - [0x1ECCA0, .rodata, battle/eft_o_c]
+      - [0x1ECCC0, .rodata, battle/eft_q]
+      - [0x1ECD40, .rodata, battle/eft_r]
+      - [0x1ECD60, .rodata, battle/eft_s]
+      - [0x1ECE60, .rodata, battle/eft_t_b]
+      - [0x1ECEC0, .rodata, battle/eft_t_c]
+      - [0x1ED1D0, .rodata, battle/eft_v_b]
+      - [0x1ED2B8, .rodata, battle/eft_w]
+      - [0x1ED2D8, .rodata, battle/eft_y]
+      - [0x1ED310, .rodata, battle/eft_z]
+      - [0x1ED360, .rodata, battle/eft_aa]
+      - [0x1ED4C0, .rodata, battle/eft_ab_b]
+      - [0x1ED510, .rodata, battle/eft_ab_c]
+      - [0x1ED6E0, .rodata, battle/eft_det_a]
+      - [0x1ED880, .rodata, battle/eft_det_b]
+      - [0x1ED8A0, .rodata, battle/eft_det_b_c]
       - [0x1ED8C0, .rodata, battle/btl_ai_seq]
       - [0x1EDA70, .rodata, battle/btl_ai_cond]
       - [0x1EE250, .rodata, battle/btl_ai_mgr]
@@ -341,6 +416,8 @@ segments:
       - [0x1F19D0, rodata, cod/1F19D0]
       - [0x1F1A50, .rodata, battle/btl_seq]
       - [0x1F1B30, rodata, cod/1F1B30]
+      - [0x1F2170, .rodata, battle/col_a]
+      - [0x1F2198, rodata, cod/1F2198]
       - [0x1F2220, .rodata, battle/stg_a_b]
       - [0x1F2230, .rodata, battle/stg_b]
       - [0x1F2370, .rodata, battle/stg_c]
@@ -380,7 +457,38 @@ segments:
       - [0x1FC838, .lit4, battle/eft_l_b]
       - [0x1FC870, .lit4, battle/eft_l_d]
       - [0x1FC8B0, .lit4, battle/eft_m]
-      - [0x1FC97C, lit4, cod/1FC97C]
+      - [0x1FC97C, .lit4, battle/eft_n]
+      - [0x1FCAAC, .lit4, battle/eft_o]
+      - [0x1FCAC8, .lit4, battle/eft_o_b]
+      - [0x1FCAD0, .lit4, battle/eft_o_c]
+      - [0x1FCB18, .lit4, battle/eft_p]
+      - [0x1FCB30, .lit4, battle/eft_p_b]
+      - [0x1FCBBC, .lit4, battle/eft_q]
+      - [0x1FCC0C, .lit4, battle/eft_r]
+      - [0x1FCC40, .lit4, battle/eft_s]
+      - [0x1FCCAC, .lit4, battle/eft_t_b]
+      - [0x1FCCB0, .lit4, battle/eft_t_c]
+      - [0x1FCD04, .lit4, battle/eft_u_b]
+      - [0x1FCD2C, .lit4, battle/eft_v_b]
+      - [0x1FCD34, .lit4, battle/eft_v_c]
+      - [0x1FCD38, .lit4, battle/eft_w]
+      - [0x1FCD58, .lit4, battle/eft_x]
+      - [0x1FCD6C, .lit4, battle/eft_x_c]
+      - [0x1FCD78, .lit4, battle/eft_z]
+      - [0x1FCDCC, lit4, cod/1FCDCC]
+      - [0x1FCE20, .lit4, battle/eft_z_b]
+      - [0x1FCE28, lit4, cod/1FCE28]
+      - [0x1FCE50, .lit4, battle/eft_z_c]
+      - [0x1FCE54, .lit4, battle/eft_aa]
+      - [0x1FCEA4, .lit4, battle/eft_ab]
+      - [0x1FCEB0, .lit4, battle/eft_ab_b]
+      - [0x1FCEC4, .lit4, battle/eft_ab_c]
+      - [0x1FCEE0, .lit4, battle/eft_ad]
+      - [0x1FCEEC, lit4, cod/1FCEEC]
+      - [0x1FCF14, .lit4, battle/eft_det_a]
+      - [0x1FCFC4, .lit4, battle/eft_det_b]
+      - [0x1FCFD8, .lit4, battle/eft_det_b_b]
+      - [0x1FCFDC, lit4, cod/1FCFDC]
       - [0x1FCFF4, .lit4, battle/btl_ai_seq]
       - [0x1FCFF8, .lit4, battle/btl_ai_cond]
       - [0x1FD008, .lit4, battle/btl_ai_mgr]
@@ -419,6 +527,9 @@ segments:
       - [0x1FE114, .lit4, battle/btl_tech_b]
       - [0x1FE1C0, .lit4, battle/btl_seq]
       - [0x1FE1D8, lit4, cod/1FE1D8]
+      - [0x1FE3CC, .lit4, battle/stg_d]
+      - [0x1FE3F4, .lit4, battle/col_a]
+      - [0x1FE408, lit4, cod/1FE408]
       - [0x1FE4CC, .lit4, battle/btl_cam]
       - [0x1FE550, .lit4, battle/orbit_cam]
       - [0x1FE588, lit4, cod/1FE588]
@@ -439,6 +550,8 @@ segments:
       - [0x1FE880, sdata, cod/1FE880] # .sdata
       - [0x1FE9D0, .sdata, battle/eft_d_b]
       - [0x1FE9DC, sdata, cod/1FE9DC]
+      - [0x1FEA10, .sdata, battle/eft_n]
+      - [0x1FEA18, sdata, cod/1FEA18]
       - [0x1FEB20, .sdata, battle/btl_act_a]
       - [0x1FEB28, sdata, cod/1FEB28]
       - [0x1FF0B8, .sdata, sys/gsc]

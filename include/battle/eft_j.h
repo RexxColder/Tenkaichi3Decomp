@@ -58,7 +58,7 @@ typedef struct EftJDef {
     /* 0x48 */ s16 blurOn;  /* index into the event-bit table: tint starts */
     /* 0x4A */ s16 blurOff; /* tint ends */
     /* 0x4C */ u8 unk4C[0xC];
-    /* 0x58 */ s8 subKind[8]; /* "shots" module: kind of the n-th sub-effect (func_00180760), negative = none */
+    /* 0x58 */ s8 subKind[8]; /* "shots" module: kind of the n-th sub-effect (EftStreak_Start), negative = none */
     /* 0x60 */ f32 subAngle[8]; /* its angle in degrees */
     /* 0x80 */ s16 subArg;
 } EftJDef;
@@ -100,10 +100,10 @@ typedef struct EftJSet {
 /* One of the ten pieces of a multi-part effect. */
 typedef struct EftJPiece {
     /* 0x00 */ s32 flags; /* 1 started, 2 released */
-    /* 0x04 */ void *h;   /* handle from func_0016D858 */
+    /* 0x04 */ void *h;   /* handle from EftDisc_Create */
 } EftJPiece;
 
-/* Parameter block of func_0016D858. */
+/* Parameter block of EftDisc_Create. */
 typedef struct EftJPieceArg {
     /* 0x00 */ EftJSrc *src;
     /* 0x04 */ EftJSet *set;
@@ -169,7 +169,7 @@ typedef struct EftMulti {
 
 /* A battle object (model) that follows a shot: the prop of effect type 6. */
 typedef struct EftProp {
-    /* 0x00 */ u8 objArg[0x30]; /* argument block of BtlObj_Create, filled by func_001A8C40 */
+    /* 0x00 */ u8 objArg[0x30]; /* argument block of BtlObj_Create, filled by EftObj_Create */
     /* 0x30 */ EftJVec pos;
     /* 0x40 */ EftJVec offset;
     /* 0x50 */ f32 scale;
@@ -297,7 +297,7 @@ typedef struct EftJShotSlot {
     /* 0x14 */ s32 unk14;
     /* 0x18 */ f32 timer;
     /* 0x1C */ s32 unk1C;
-    /* 0x20 */ void *h;   /* blast object (func_0016A7D0), NULL when free */
+    /* 0x20 */ void *h;   /* blast object (EftBlastObj_Create), NULL when free */
     /* 0x24 */ u8 unk24[0xC];
 } EftJShotSlot; /* size 0x30 */
 
@@ -334,7 +334,7 @@ typedef struct EftJShotTech {
     /* 0x8F8 */ u8 unk8F8[8];
 } EftJShotTech; /* size 0x900 */
 
-/* Parameter block of func_0016A7D0 (creates one blast object). */
+/* Parameter block of EftBlastObj_Create (creates one blast object). */
 typedef struct EftJShotArg {
     /* 0x00 */ EftJSrc *src;
     /* 0x04 */ EftJShotMgr *mgr;
@@ -350,7 +350,7 @@ typedef struct EftJShotArg {
     /* 0x2C */ f32 speed;
 } EftJShotArg; /* size 0x30 */
 
-/* Parameter block of func_00172480 (screen flash). */
+/* Parameter block of EftFlash_Start (screen flash). */
 typedef struct EftJFlashArg {
     /* 0x00 */ EftJVec color;
     /* 0x10 */ f32 unk10;

@@ -160,7 +160,7 @@ typedef struct EftSmoke {
 typedef struct EftSmokeMgr {
     /* 0x00 */ void *list;     /* child task list of emitters */
     /* 0x04 */ s32 unk4;
-    /* 0x08 */ u8 tex[0x20];   /* written by func_001AE2A8 */
+    /* 0x08 */ u8 tex[0x20];   /* written by EftTexSet_Load8 */
     /* 0x28 */ u64 tex0;
     /* 0x30 */ u8 unk30[0x60];
 } EftSmokeMgr; /* 0x90 */

@@ -12,13 +12,13 @@
  * Callees that have no name yet, from a first read of how they are used here:
  *   func_00122168(out,a,b,t) linear interpolation of two vectors
  *   func_001202A0(out, m)    inverse of a view matrix: gives the camera's world matrix (row 3 = position)
- *   func_001AE148(set, pack) loads a texture set; func_001AE2A8(tex, pack) loads a single texture
+ *   func_001AE148(set, pack) loads a texture set; EftTexSet_Load8(tex, pack) loads a single texture
  *   func_001ADEA0(set, 1, 0) advances every texture of a set; func_001ADC68(entry, 1, 0) advances one, returns TEX0
  *   func_00120AB0() / func_00120AC8()   begin / end of a block of projections; func_00120B80(m) sets the matrix
  *   func_001210D8(out, pos)  projects a point to GS screen coordinates; func_00121140(out, pos, n) projects n
  *                            points and returns 0 when they are rejected
  *   func_00121950(out, pos, st, col)   builds one clip-space vertex (0x30 bytes) for EftGfx_DrawPolyScaledZ
- *   func_001A9D90(...)       queues a camera-facing sprite
+ *   EftSpr_DrawFlat(...)       queues a camera-facing sprite
  *   func_001AD9F8(list)      destroys a task list; func_001ADA58(task) kills a task
  * Named by the neighbouring effect and stage files (config/symbols/eft_c.txt, eft_e.txt, eft_h.txt, eft_j.txt,
  * stg_*.txt): EftWater_GetSurfaceY, EftStage_GetTintScale (brightness 0..1 of the stage effects layer),
@@ -85,7 +85,7 @@ extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
 extern void func_001202A0(Mtx44 *out, Mtx44 *m);
 extern void BtlStage_GetWaterLevel(f32 *y);
 extern void func_001AE148(void *set, void *pack);
-extern void func_001AE2A8(void *tex, void *pack);
+extern void EftTexSet_Load8(void *tex, void *pack);
 extern void func_001ADEA0(void *set, s32 a, s32 b);
 extern u64 func_001ADC68(void *entry, s32 a, s32 b);
 extern f32 EftStage_GetTintScale(void);
@@ -150,7 +150,7 @@ typedef struct EftClipVtx {
 
 extern void func_00121950(EftClipVtx *out, EftVecArg *pos, EftVecArg *st, EftVecArg *col);
 extern void EftGfx_DrawPolyScaledZ(f32 unk, EftClipVtx *v, s32 otZ, s32 a3, s32 a4, s32 a5, s32 a6, u64 tex0);
-extern void func_001A9D90(f32 u0, f32 v0, f32 u1, f32 v1, s32 r, s32 g, s32 b, s32 a, Vec4 *pos, u32 w, u32 h,
+extern void EftSpr_DrawFlat(f32 u0, f32 v0, f32 u1, f32 v1, s32 r, s32 g, s32 b, s32 a, Vec4 *pos, u32 w, u32 h,
                           s32 unk, s32 unkS0, void *tex);
 
 /* GS XYZF2 register value. */
@@ -855,7 +855,7 @@ void EftSmokeMgr_Init(EftTask *task) {
 
     gEftSmokeMgr = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftSmokeMgr));
     memset(gEftSmokeMgr, 0, sizeof(EftSmokeMgr));
-    func_001AE2A8(gEftSmokeMgr->tex, BtlScene_GetPackEntry((s32 *)pack, 18));
+    EftTexSet_Load8(gEftSmokeMgr->tex, BtlScene_GetPackEntry((s32 *)pack, 18));
     gEftSmokeMgr->list = BtlTask_CreateChildList(task, count + BtlStage_GetFxResA(), sizeof(EftSmoke));
     list = BtlStage_GetFxResB2();
     if (list == NULL) {
@@ -1054,7 +1054,7 @@ void EftSmoke_Draw(EftTask *task) {
                 col.z = 255.0f;
             }
             part->pos.w = hi;
-            func_001A9D90(lo, lo, hi, hi, col.x * bright, col.y * bright, col.z * bright, alpha, &part->pos,
+            EftSpr_DrawFlat(lo, lo, hi, hi, col.x * bright, col.y * bright, col.z * bright, alpha, &part->pos,
                           work->arg.size * 128.0f, work->arg.size * 128.0f, 0, 0, tex);
         }
     }

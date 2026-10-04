@@ -59,12 +59,12 @@ extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
 extern void func_00121388(Mtx44 *dst);
 extern void func_00122310(s32 *out, Mtx44 *m, Vec4 *v);
 /* Box helpers: reset, set from centre + half size, add a point, get centre, get half size, contains point. */
-extern void func_00230B10(BtlObjBox *box);
-extern void func_00230B38(BtlObjBox *box, Vec4 *center, Vec4 *extent);
-extern void func_00230BA0(BtlObjBox *box, Vec4 *point);
-extern void func_00230CC8(BtlObjBox *box, Vec4 *center);
-extern void func_00230D20(BtlObjBox *box, Vec4 *extent);
-extern s32 func_00230E10(BtlObjBox *box, Vec4 *point);
+extern void StgAabb_SetEmpty(BtlObjBox *box);
+extern void ColBox_SetCenterHalf(BtlObjBox *box, Vec4 *center, Vec4 *extent);
+extern void ColBox_AddPoint(BtlObjBox *box, Vec4 *point);
+extern void ColBox_GetCenter(BtlObjBox *box, Vec4 *center);
+extern void ColBox_GetHalf(BtlObjBox *box, Vec4 *extent);
+extern s32 ColBox_ContainsPoint(BtlObjBox *box, Vec4 *point);
 /* Stage: light direction, light record (bytes 8..11 = colour), ambient colour as integers. */
 extern void BtlStage_GetLightVecB(Vec4 *dir);
 extern u8 *BtlStage_GetLightColors(void);
@@ -572,7 +572,7 @@ void BtlObj_UpdateBounds(BtlObj *obj, BtlObjState *state) {
     BtlObjBound *bound = obj->mdl.bounds;
     BtlObjPart *part;
 
-    func_00230B10(&state->box);
+    StgAabb_SetEmpty(&state->box);
     while (1) {
         if (bound->enabled != 0) {
             part = func_002505A8(obj, bound->node);
@@ -599,14 +599,14 @@ void BtlObj_UpdateBounds(BtlObj *obj, BtlObjState *state) {
                 Mtx_MulVec4(&out[5], &mtx, &corner[5]);
                 Mtx_MulVec4(&out[6], &mtx, &corner[6]);
                 Mtx_MulVec4(&out[7], &mtx, &corner[7]);
-                func_00230BA0(&state->box, &out[0]);
-                func_00230BA0(&state->box, &out[1]);
-                func_00230BA0(&state->box, &out[2]);
-                func_00230BA0(&state->box, &out[3]);
-                func_00230BA0(&state->box, &out[4]);
-                func_00230BA0(&state->box, &out[5]);
-                func_00230BA0(&state->box, &out[6]);
-                func_00230BA0(&state->box, &out[7]);
+                ColBox_AddPoint(&state->box, &out[0]);
+                ColBox_AddPoint(&state->box, &out[1]);
+                ColBox_AddPoint(&state->box, &out[2]);
+                ColBox_AddPoint(&state->box, &out[3]);
+                ColBox_AddPoint(&state->box, &out[4]);
+                ColBox_AddPoint(&state->box, &out[5]);
+                ColBox_AddPoint(&state->box, &out[6]);
+                ColBox_AddPoint(&state->box, &out[7]);
             } else {
                 part->active = 0;
             }
@@ -627,8 +627,8 @@ void BtlObj_CalcViewDist(BtlObjState *state, BtlObjView *view) {
     f32 dist;
 
     view->dist = gBtlObjFarDist[0];
-    func_00230CC8(&state->box, &center);
-    func_00230D20(&state->box, &ext);
+    ColBox_GetCenter(&state->box, &center);
+    ColBox_GetHalf(&state->box, &ext);
     Vec4_Set(&corner[0], ext.x + center.x, 0.0f, ext.z + center.z, 1.0f);
     Vec4_Set(&corner[1], ext.x + center.x, 0.0f, center.z - ext.z, 1.0f);
     Vec4_Set(&corner[2], center.x - ext.x, 0.0f, ext.z + center.z, 1.0f);
@@ -721,8 +721,8 @@ s32 BtlObj_IsOffscreen(BtlObj *obj) {
 
     memset(count, 0, sizeof(count));
     box = &obj->state.box;
-    func_00230CC8(box, &center);
-    func_00230D20(box, &ext);
+    ColBox_GetCenter(box, &center);
+    ColBox_GetHalf(box, &ext);
     total = 0;
     Vec4_Set(&corner[0], ext.x, ext.y, ext.z, 1.0f);
     Vec4_Set(&corner[1], -ext.x, ext.y, ext.z, 1.0f);
@@ -812,12 +812,12 @@ void BtlObj_UpdateView(BtlObj *obj) {
 
                     func_001202A0(&cam, &gBtlCamView->world2view2);
                     box = body->box;
-                    func_00230CC8((BtlObjBox *)&box, &center);
-                    func_00230D20((BtlObjBox *)&box, &ext);
+                    ColBox_GetCenter((BtlObjBox *)&box, &center);
+                    ColBox_GetHalf((BtlObjBox *)&box, &ext);
                     Vec3_Scale(&ext, &ext, 2.2f);
-                    func_00230B10((BtlObjBox *)&box);
-                    func_00230B38((BtlObjBox *)&box, &center, &ext);
-                    if (func_00230E10((BtlObjBox *)&box, (Vec4 *)cam.m[3])) {
+                    StgAabb_SetEmpty((BtlObjBox *)&box);
+                    ColBox_SetCenterHalf((BtlObjBox *)&box, &center, &ext);
+                    if (ColBox_ContainsPoint((BtlObjBox *)&box, (Vec4 *)cam.m[3])) {
                         view->flags = (view->flags & 0xFF00FFFF) | BTL_OBJ_FLAG_PASS2;
                     }
                 }

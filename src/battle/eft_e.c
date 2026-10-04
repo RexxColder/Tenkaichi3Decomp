@@ -45,7 +45,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern s32 BtlStage_GetFxResC(void);
 extern s32 BtlStage_GetFxResA(void);
 extern EftStageMarker *BtlStage_GetFxResC2(void);
-extern void func_001AE2A8(EftSteamTex *tex, s32 *data);
+extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
 extern u64 func_001ADC68(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
 extern void func_00120AB0(void);
@@ -283,7 +283,7 @@ void EftSteamMgr_Init(void *task) {
     gEftSteam = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftSteamShared));
     memset(gEftSteam, 0, sizeof(EftSteamShared));
     gEftSteam->list = BtlTask_CreateChildList(task, count + BtlStage_GetFxResA(), sizeof(EftSteamWork));
-    func_001AE2A8(&gEftSteam->tex, BtlScene_GetPackEntry(stage, 0x12));
+    EftTexSet_Load8(&gEftSteam->tex, BtlScene_GetPackEntry(stage, 0x12));
     base = BtlStage_GetFxResC2();
     if (base != NULL) {
         for (i = 0; i < count; i++) {

@@ -27,9 +27,9 @@
  *               BATTLE_FLAG_PAUSE and/or BATTLE_FLAG_LOADING. They are the phases of the fighter update.
  *               BtlAiMgr_Init init / BtlAiMgr_Term term / BtlAiMgr_Update update: 0xA60-byte block at gp
  *               0x2FEB10 holding two 0x520-byte entries (one per side)
- *               func_001B3670 init / func_001B35B8 term: 0x14-byte manager at gp 0x2FEB0C with two 0xC00 buffers
- *               func_001AF9C0      four sub-updates (0x1AF8D8, 0x1B0910, 0x1B10F0, 0x1B0030), skipped when paused
- *   stage       func_00115170 binds the stage data from gCommonRes->0x24; BtlStage_Reset reset,
+ *               StgNav_Init init / StgNav_Term term: 0x14-byte manager at gp 0x2FEB0C with two 0xC00 buffers
+ *               EftDet_Update      four sub-updates (0x1AF8D8, 0x1B0910, 0x1B10F0, 0x1B0030), skipped when paused
+ *   stage       StgModel_InitStage binds the stage data from gCommonRes->0x24; BtlStage_Reset reset,
  *               BtlStage_Term term (state at gp 0x2FEBE0); func_00115950(view) and func_00115DE0(view)
  *               draw the stage for one view (skipped under BATTLE_FLAG_LOADING)
  *               BtlStage_Update      per-frame update of the 0x24xxxx stage-side systems (skipped when LOADING)
@@ -87,7 +87,7 @@ extern void Ot_Init(void);
 extern void Ot_Term(void);
 extern void Ot_Draw(void);
 extern void func_0010FF40(void);
-extern void func_00115170(void);
+extern void StgModel_InitStage(void);
 extern void func_00115950(s32 view);
 extern void func_00115DE0(s32 view);
 extern void Snd_StopBankAndResume(s32 arg);
@@ -103,9 +103,9 @@ extern void BtlScene_Reset(s32 arg);
 extern void BtlScene_Draw(s32 first);
 extern void BtlScene_SetSingleView(s32 singleView);
 extern void BtlScene_CheckStageChange(void);
-extern void func_001AF9C0(void);
-extern void func_001B35B8(void);
-extern void func_001B3670(void);
+extern void EftDet_Update(void);
+extern void StgNav_Term(void);
+extern void StgNav_Init(void);
 extern void BtlAiMgr_Init(void);
 extern void BtlAiMgr_Term(void);
 extern void BtlAiMgr_Update(void);
@@ -150,11 +150,11 @@ s32 Battle_Restart(void) {
 s32 Battle_Init(void) {
     Battle_Load();
     StgFx_Init();
-    func_00115170();
+    StgModel_InitStage();
     BtlChar_AllocAll(2);
     BtlAiMgr_Init();
     BtlCam_Init();
-    func_001B3670();
+    StgNav_Init();
     BtlGame_Init();
     Ot_Init();
     BtlScene_Init(0);
@@ -173,7 +173,7 @@ s32 Battle_Term(void) {
     StgFx_Term();
     BtlStage_Term();
     BtlAiMgr_Term();
-    func_001B35B8();
+    StgNav_Term();
     BtlGame_Term();
     Battle_Unload();
     Fade_ResetAll();
@@ -190,7 +190,7 @@ s32 Battle_Update(void) {
     BtlChars_UpdateInput();
     BtlChars_UpdateMain();
     BtlScene_Update();
-    func_001AF9C0();
+    EftDet_Update();
     BtlScene_PostUpdate();
     BtlChars_PostScene();
     BtlScene_CheckStageChange();

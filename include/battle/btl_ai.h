@@ -37,7 +37,7 @@ typedef struct BtlAiSeqEntry {
     /* 0x05 */ u8 pad05[3];
 } BtlAiSeqEntry; /* size 8 */
 
-/* Sequence runner state: work + 0x28. Reset by func_001B3F78. */
+/* Sequence runner state: work + 0x28. Reset by BtlAiSeq_Reset. */
 typedef struct BtlAiSeq {
     /* 0x00 */ s32 flags;      /* (m) BTLAI_ACT_* (the move action); 0x40, 0x80, 0x400, 0x800, 0x1000 are set by the
                                   step handlers and conditions */
@@ -67,7 +67,7 @@ typedef struct BtlAiSeq {
 #define BTLAI_ACT_BLOCKED 0x08       /* the stage blocks the segment from the fighter to the move target */
 #define BTLAI_ACT_BLOCKED_ID 0x10    /* ... and the blocking thing has an id (BtlAiHit.id != -1) */
 
-/* Path built by func_001B3A50 (move + 0x20). The last point is the next one to reach. */
+/* Path built by StgNav_FindPath (move + 0x20). The last point is the next one to reach. */
 typedef struct BtlAiMovePath {
     /* 0x000 */ BtlAiMovePoint pts[16];
     /* 0x100 */ s32 count;

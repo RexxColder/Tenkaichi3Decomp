@@ -125,7 +125,7 @@ typedef struct FxChr {
     /* 0x1360 */ Vec4 unk1360;   /* second vector of the flash of request 0x2E */
 } FxChr;
 
-/* Argument of func_00187B00 / func_00187B70 (the "flash" effects). */
+/* Argument of EftImpact_SpawnHit / EftImpact_SpawnHitScaled (the "flash" effects). */
 typedef struct FxPosArg {
     /* 0x00 */ Vec4 pos;
     /* 0x10 */ Vec4 pos2;
@@ -144,7 +144,7 @@ typedef struct FxHitArg {
     /* 0x1C */ f32 scale;
 } FxHitArg;
 
-/* Argument of the damage hit sparks (func_00176E70 and its four variants). */
+/* Argument of the damage hit sparks (EftKiBlast_Fire and its four variants). */
 typedef struct FxHitArg2 {
     /* 0x00 */ Vec4 pos;
     /* 0x10 */ u16 objId;
@@ -168,7 +168,7 @@ typedef struct FxHitArg2 {
     /* 0x42 */ u8 unk42[0xE];
 } FxHitArg2; /* size 0x50 */
 
-/* Argument of func_0016B418. */
+/* Argument of EftBodyFx_Start. */
 typedef struct FxArg3 {
     /* 0x0 */ s32 objId;
     /* 0x4 */ s32 unk4;
@@ -176,14 +176,14 @@ typedef struct FxArg3 {
     /* 0xC */ s32 unkC;
 } FxArg3;
 
-/* Argument of EftAbsorb_Start / EftAbsorb_StartHands / func_001749F0. */
+/* Argument of EftAbsorb_Start / EftAbsorb_StartHands / EftCharaFx_Start. */
 typedef struct FxArg2 {
     /* 0x0 */ s32 objId;
     /* 0x4 */ f32 scale;
     /* 0x8 */ s32 unk8[2];
 } FxArg2;
 
-/* Argument of func_00171C78. */
+/* Argument of EftRushBurst_Start. */
 typedef struct FxDirArg {
     /* 0x00 */ Vec4 dir;
     /* 0x10 */ s32 objId;
@@ -192,7 +192,7 @@ typedef struct FxDirArg {
     /* 0x1C */ s32 unk1C;
 } FxDirArg;
 
-/* Argument of func_0017D710 (the speed lines of request 0x15). The original's block is 0x60 bytes. */
+/* Argument of EftRay_CreateByValue (the speed lines of request 0x15). The original's block is 0x60 bytes. */
 typedef struct FxLineArg {
     /* 0x00 */ Vec4 pos;      /* (0, 0, 0, 1) */
     /* 0x10 */ s32 r, g, b, a;
@@ -249,7 +249,7 @@ void BtlFx_UpdateOccludedFlag(FxChr *chr);
 void BtlFx_UpdateObjCmdFlag137(FxChr *chr);
 void BtlFx_UpdateSubStateFlag96(FxChr *chr);
 void BtlFx_UpdateObjFlag80(FxChr *chr);
-void BtlFx_SpawnDamageSparks(FxChr *chr);
+void BtlFx_FireKiBlast(FxChr *chr);
 
 /* btl_char_fx_c.c */
 void BtlFx_HandleImpactEvents(FxChr *chr);

@@ -11,11 +11,11 @@
  *   type 7 "follow"     0x1532A0..0x1533B0  the item's reset / draw and the four manager callbacks (the module
  *                                           itself is in eft_i.c)
  *   type 5 "multi"      0x1533B0..0x1542A8  up to ten "pieces" (tasks of class 0x2C3B38, created by
- *                                           func_0016D858) fired one per START or FIRE event
+ *                                           EftDisc_Create) fired one per START or FIRE event
  *   type 6 "prop shot"  0x1542A8..0x155588  one shot that carries a battle-object model (the "prop")
  *   type 0 "blast"      0x155588..0x156450  the plain blast / beam
  *   type 2 "shots"      0x156450..0x157398  helpers of the item whose callbacks are in eft_k.c: up to 14 blast
- *                                           objects (tasks of class 0x2C3AD8, created by func_0016A7D0)
+ *                                           objects (tasks of class 0x2C3AD8, created by EftBlastObj_Create)
  *
  * What every item does (verified by the matching code):
  *   - it reads the fighter's technique events of this frame with EftShot_TestBits(objId, bits) (the bits are the
@@ -45,9 +45,9 @@
  *
  * Callees still named by address: func_001ADB98(task) parent task, func_001ADA58(task) mark a task dead,
  * func_001ADB78(task, bits) or bits into the task's class flags (0x800 / 0x1000 = character 0 / 1, the bits
- * BtlScene_Reset uses); func_001A8C40 / func_001A8CA0 / func_001A8DA0 / func_001A8DD0 / func_001A8E18 create /
- * destroy / place / show a battle object; func_0016D858.. the piece task; func_0016A7D0.. the blast object task;
- * func_00172480 screen flash; func_0019B7F8 node effects; func_00180760 / func_00180810 start / stop a
+ * BtlScene_Reset uses); EftObj_Create / EftObj_Destroy / EftObj_SetMtx / EftObj_SetVisible / EftObj_Nop create /
+ * destroy / place / show a battle object; EftDisc_Create.. the piece task; EftBlastObj_Create.. the blast object task;
+ * EftFlash_Start screen flash; EftDelaySe_Start node effects; EftStreak_Start / EftStreak_Stop start / stop a
  * sub-effect; func_00239588 / func_002399A0 fill a box / sphere shape; func_00120150 / 398 / 428 / 4B8 / 590
  * matrix translate / rotate X / rotate Y / rotate by angles / scale; func_00121FB8 copies a position.
  */
@@ -97,17 +97,17 @@ extern u8 EftEmit_GetHead26(void *set);
 extern s32 EftEmit_GetHead25(void *set);
 extern s32 EftEmit_GetPhaseMask(void *set);
 extern s32 EftEmit_IsPartDeferred(EftJSet *set, s32 group, s32 part);
-extern void func_001A8E18(s32 obj, s32 a1);
-extern void *func_0016A7D0(EftJShotArg *arg);
-extern void func_0016A900(void *h);
-extern s32 func_0016A9C0(void *h);
-extern void func_0016AB08(void *h, s32 a1, void *pos);
-extern void func_0016AC40(void *h, s32 a1);
-extern void func_0016ACA8(void *h, s32 a1);
-extern void func_00172480(EftJFlashArg *arg);
-extern void func_0019B7F8(s32 objId, s32 *tbl, s32 count);
-extern void *func_00180760(s32 objId, s32 kind, s32 arg, f32 angle);
-extern void func_00180810(void *sub);
+extern void EftObj_Nop(s32 obj, s32 a1);
+extern void *EftBlastObj_Create(EftJShotArg *arg);
+extern void EftBlastObj_Stop(void *h);
+extern s32 EftBlastObj_IsAlive(void *h);
+extern void EftBlastObj_SetTarget(void *h, s32 a1, void *pos);
+extern void EftBlastObj_SetFrozen(void *h, s32 a1);
+extern void EftBlastObj_SetNoHit(void *h, s32 a1);
+extern void EftFlash_Start(EftJFlashArg *arg);
+extern void EftDelaySe_Start(s32 objId, s32 *tbl, s32 count);
+extern void *EftStreak_Start(s32 objId, s32 kind, s32 arg, f32 angle);
+extern void EftStreak_Stop(void *sub);
 extern EftJTask *func_001ADB98(EftJTask *task);
 extern void func_001ADA58(EftJTask *task);
 extern void func_001ADB78(EftJTask *task, s32 flags);
@@ -131,10 +131,10 @@ extern void EftEmit_UpdateNodesReq(EftJSrc *src, void *out);
 extern s32 EftEmit_HasWidth2(EftJSet *set);
 extern f32 EftEmit_GetWidth2(void *emit);
 extern f32 EftEmit_GetTrailWidth(void *emit);
-extern s32 func_001A8C40(void *arg, s32 *model);
-extern void func_001A8CA0(s32 obj);
-extern void func_001A8DA0(s32 obj, Mtx44 *m);
-extern void func_001A8DD0(s32 obj, s32 show);
+extern s32 EftObj_Create(void *arg, s32 *model);
+extern void EftObj_Destroy(s32 obj);
+extern void EftObj_SetMtx(s32 obj, Mtx44 *m);
+extern void EftObj_SetVisible(s32 obj, s32 show);
 extern EftJHitRec *EftHit_GetNew(void);
 extern void EftHit_Add(EftJHitRec *rec);
 extern void *EftHitArena_AllocSphere(void);
@@ -153,15 +153,15 @@ extern void EftEmit_UpdateTrailWidth(EftJSet *set, void *emit);
 extern s32 EftAim_GetDir(void *dir, void *from, s32 objId);
 extern void EftAim_GetDirKeep(EftJSrc *src, void *dir, void *from, s32 objId);
 extern void func_001AE148(void *tex, s32 *entry);
-extern void *func_0016D858(EftJPieceArg *arg);
-extern void func_0016D8B8(void *h, Vec4 *dir);
-extern void func_0016DA08(void *h);
-extern void func_0016DA60(void *h, f32 angle);
-extern void func_0016DAB0(void *h, f32 v);
-extern void func_0016DB00(void *h, void *tex, s32 a2, s32 a3);
-extern void func_0016DBA8(void *h, s32 a1);
-extern void func_0016DBF8(void *h);
-extern s32 func_0016DC50(void *h);
+extern void *EftDisc_Create(EftJPieceArg *arg);
+extern void EftDisc_Release(void *h, Vec4 *dir);
+extern void EftDisc_Kill(void *h);
+extern void EftDisc_SetSpin(void *h, f32 angle);
+extern void EftDisc_SetScale(void *h, f32 v);
+extern void EftDisc_SetModelTex(void *h, void *tex, s32 a2, s32 a3);
+extern void EftDisc_SetLastHit(void *h, s32 a1);
+extern void EftDisc_SetFlag200(void *h);
+extern s32 EftDisc_IsAlive(void *h);
 
 /* ---- effect type 7, "follow" (item class 0x2C3850, manager class 0x2C3838): the tail of eft_i.c's module ---- */
 
@@ -316,23 +316,23 @@ void EftMulti_FirePiece(s32 objId, EftJTask *task) {
             break;
         }
     }
-    h = func_0016D858(&arg);
+    h = EftDisc_Create(&arg);
     piece->h = h;
     if (h == NULL) {
         return;
     }
     if (src->def->id == 0x158) {
-        func_0016DB00(h, mgr->tex, 0, 0);
+        EftDisc_SetModelTex(h, mgr->tex, 0, 0);
     }
     if (src->def->id == 0x202) {
-        func_0016DB00(piece->h, mgr->tex, 0, 0);
-        func_0016DA60(piece->h, ((f32)rand() / 2147483647.0f * 0.01f + 0.13f) * -3.14159265f);
+        EftDisc_SetModelTex(piece->h, mgr->tex, 0, 0);
+        EftDisc_SetSpin(piece->h, ((f32)rand() / 2147483647.0f * 0.01f + 0.13f) * -3.14159265f);
     }
     piece->flags |= 1;
     w->count++;
     if (w->count >= src->def->count) {
         if (src->def->count >= 2) {
-            func_0016DBA8(piece->h, 1);
+            EftDisc_SetLastHit(piece->h, 1);
         }
         w->flags |= 0x100;
     }
@@ -364,10 +364,10 @@ s32 EftMulti_UpdatePieces(s32 objId, EftJTask *task) {
             for (i = 0; i < 10; i++) {
                 if (!done) {
                     p = &w->piece[i];
-                    if (func_0016DC50(p->h) && !(p->flags & 2)) {
-                        func_0016D8B8(p->h, &w->dir);
+                    if (EftDisc_IsAlive(p->h) && !(p->flags & 2)) {
+                        EftDisc_Release(p->h, &w->dir);
                         done = 1;
-                        func_0016DAB0(p->h, w->unk18);
+                        EftDisc_SetScale(p->h, w->unk18);
                         p->flags |= 2;
                     }
                 }
@@ -384,18 +384,18 @@ s32 EftMulti_UpdatePieces(s32 objId, EftJTask *task) {
     }
     for (i = 0; i < 10; i++) {
         p = &w->piece[i];
-        if (func_0016DC50(p->h)) {
+        if (EftDisc_IsAlive(p->h)) {
             if (w->flags & 4) {
-                func_0016DBF8(p->h);
+                EftDisc_SetFlag200(p->h);
             }
             if (w->flags & 1) {
-                func_0016DA08(p->h);
+                EftDisc_Kill(p->h);
             }
         }
     }
     for (i = 0; i < 10; i++) {
         p = &w->piece[i];
-        if (func_0016DC50(p->h)) {
+        if (EftDisc_IsAlive(p->h)) {
             alive = 1;
         } else {
             p->h = NULL;
@@ -678,8 +678,8 @@ void EftPropShot_InitProp(EftJTask *task) {
         prop->flags |= 0x18;
         break;
     }
-    prop->obj = func_001A8C40(prop, mgr->model);
-    func_001A8DD0(prop->obj, 0);
+    prop->obj = EftObj_Create(prop, mgr->model);
+    EftObj_SetVisible(prop->obj, 0);
 }
 
 /* Moves the prop: in the hand while charging, on the head of the shot once fired; builds its matrix. */
@@ -734,7 +734,7 @@ void EftPropShot_UpdateProp(EftJTask *task) {
         func_00120428(&m, &m, yaw);
         func_00120150(&m, &m, &prop->offset);
         func_00120150(&m, &m, &prop->pos);
-        func_001A8DA0(prop->obj, &m);
+        EftObj_SetMtx(prop->obj, &m);
     }
 }
 
@@ -746,18 +746,18 @@ void EftPropShot_ShowProp(EftJTask *task) {
 
     if (prop->flags & 0x40) {
         if (!BtlScene_IsEffectHidden(src->objId, 1)) {
-            func_001A8DD0(prop->obj, 1);
+            EftObj_SetVisible(prop->obj, 1);
         } else {
-            func_001A8DD0(prop->obj, 0);
+            EftObj_SetVisible(prop->obj, 0);
         }
     } else {
-        func_001A8DD0(prop->obj, 0);
+        EftObj_SetVisible(prop->obj, 0);
     }
 }
 
 /* Destroys the prop's battle object. */
 void EftPropShot_FreeProp(EftJTask *task) {
-    func_001A8CA0(((EftPropShot *)task->work)->prop.obj);
+    EftObj_Destroy(((EftPropShot *)task->work)->prop.obj);
 }
 
 /* Adds this frame's hit record: two spheres or two capsules at the head and the tail. */
@@ -1513,10 +1513,10 @@ void EftShotTech_InitModel(EftJTask *task) {
     EftJShotModel *model = &w->model;
 
     model->pack = mgr->modelPack;
-    model->objId = func_001A8C40(w->model.arg, model->pack);
+    model->objId = EftObj_Create(w->model.arg, model->pack);
     model->unk36 = -1;
-    func_001A8DD0(model->objId, 0);
-    func_001A8E18(model->objId, 0);
+    EftObj_SetVisible(model->objId, 0);
+    EftObj_Nop(model->objId, 0);
 }
 
 /* Places the model object (scale, rotation, position) and shows it. */
@@ -1530,13 +1530,13 @@ void EftShotTech_SetModelPose(EftJTask *task, void *pos, void *angles) {
     model = &w->model;
     func_001204B8(&m, &m, angles);
     func_00120150(&m, &m, pos);
-    func_001A8DA0(model->objId, &m);
-    func_001A8DD0(model->objId, 1);
+    EftObj_SetMtx(model->objId, &m);
+    EftObj_SetVisible(model->objId, 1);
 }
 
 /* Destroys the model object. */
 void EftShotTech_FreeModel(EftJTask *task) {
-    func_001A8CA0(((EftJShotTech *)task->work)->model.objId);
+    EftObj_Destroy(((EftJShotTech *)task->work)->model.objId);
 }
 
 /* Computes the firing direction for the set's aim mode into `dir` and the velocity from it. */
@@ -1640,11 +1640,11 @@ void EftShotTech_FireShots(s32 objId, EftJTask *task, s32 evt, s32 kind, s32 evt
                 arg.pos = &w->muzzlePos;
                 arg.dir = &w->muzzleDir;
             }
-            slot->h = func_0016A7D0(&arg);
+            slot->h = EftBlastObj_Create(&arg);
             slot->flags |= 1;
-            func_0016ACA8(slot->h, 1);
+            EftBlastObj_SetNoHit(slot->h, 1);
             if (alt) {
-                func_0016AC40(slot->h, 1);
+                EftBlastObj_SetFrozen(slot->h, 1);
             }
             w->flags |= 0x40000;
             w->shotCount++;
@@ -1661,7 +1661,7 @@ s32 EftShotTech_ReapShots(EftJTask *task) {
     for (i = 0; i < 14; i++) {
         EftJShotSlot *slot = &w->shots[i];
 
-        if (func_0016A9C0(slot->h)) {
+        if (EftBlastObj_IsAlive(slot->h)) {
             alive = 1;
         } else {
             slot->h = NULL;
@@ -1722,20 +1722,20 @@ s32 EftShotTech_UpdateShots(s32 objId, EftJTask *task) {
     for (i = 0; i < 14; i++) {
         EftJShotSlot *slot = &w->shots[i];
 
-        if (func_0016A9C0(slot->h)) {
+        if (EftBlastObj_IsAlive(slot->h)) {
             if (!(slot->flags & 8)) {
                 if (EftEmit_GetHead26(w->mgr) & 0x10) {
-                    func_0016AB08(slot->h, 1, &w->pos);
+                    EftBlastObj_SetTarget(slot->h, 1, &w->pos);
                 }
                 if (slot->timer >= def->shotLife) {
                     slot->flags |= 8;
-                    func_0016A900(slot->h);
+                    EftBlastObj_Stop(slot->h);
                 } else {
                     slot->timer += 1.0f;
                 }
             }
             if (w->flags & 1) {
-                func_0016A900(slot->h);
+                EftBlastObj_Stop(slot->h);
             }
         }
     }
@@ -1809,7 +1809,7 @@ void EftShotTech_UpdateFlash(EftJTask *task) {
         if (src->def->id == 0x27C) {
             arg.unk20 = 1;
         }
-        func_00172480(&arg);
+        EftFlash_Start(&arg);
     }
 }
 
@@ -1821,7 +1821,7 @@ void EftShotTech_UpdateNodeFx(EftJTask *task) {
     if (EftShot_TestBits(opp, 0x40)) {
         s32 init[10] = { 0x47, 0, 0x47, 3, 0x47, 0xA, 0x47, 0xE, 0x47, 0x15 };
 
-        func_0019B7F8(src->objId, init, 5);
+        EftDelaySe_Start(src->objId, init, 5);
     }
 }
 
@@ -1878,7 +1878,7 @@ void EftShotTech_UpdateSubs(EftJTask *task) {
         f32 angle = EftMath_WrapAngle(def->subAngle[n] * 3.14159265f / 180.0f);
 
         if (kind >= 0) {
-            w->subs[n] = func_00180760(src->objId, kind, subArg, angle);
+            w->subs[n] = EftStreak_Start(src->objId, kind, subArg, angle);
             w->flags |= 0x80000;
         }
         w->subCount++;
@@ -1890,7 +1890,7 @@ void EftShotTech_UpdateSubs(EftJTask *task) {
             i = 0;
         }
         if (w->flags & 0x80000) {
-            func_00180810(w->subs[i]);
+            EftStreak_Stop(w->subs[i]);
             w->subs[i] = NULL;
             w->flags &= ~0x80000;
         }

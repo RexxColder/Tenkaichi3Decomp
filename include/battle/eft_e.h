@@ -129,7 +129,7 @@ typedef struct EftSteamTex {
 typedef struct EftSteamShared {
     /* 0x00 */ void *list;       /* child list of the manager task: emitters with 0xC80 bytes of work */
     /* 0x04 */ s32 unk4;
-    /* 0x08 */ EftSteamTex tex;  /* built by func_001AE2A8 from stage pack entry 0x12 */
+    /* 0x08 */ EftSteamTex tex;  /* built by EftTexSet_Load8 from stage pack entry 0x12 */
     /* 0x40 */ u8 unk40[0x50];
 } EftSteamShared; /* size 0x90 */
 
@@ -232,7 +232,7 @@ typedef struct EftWaterBlastTask {
 } EftWaterBlastTask;
 
 #define EFT_WATER_TASK_HIT_CHAR 0x001 /* EFT_TASK_HIT_CHAR of eft_a.h: it hit a fighter; use the hit position */
-#define EFT_WATER_TASK_HIT_4 0x004    /* EFT_TASK_HIT_4 of eft_a.h: no water effect */
+#define EFT_WATER_TASK_HIT_4 0x004    /* EFT_TASK_HIT_STAGE of eft_a.h: no water effect */
 #define EFT_WATER_TASK_DONE 0x400     /* set here once the hit position was used: no more water effects */
 
 typedef struct EftWaterBlastSrc {

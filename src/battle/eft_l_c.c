@@ -42,11 +42,11 @@ extern void EftEmit_KillAll(EftModel *model, EftModelInst *inst);
 extern s32 EftEmit_UpdateAlive(EftModel *model, EftModelInst *inst);
 extern void EftEmit_SetNode(void *nodes, s32 slot, s32 node, Vec4 *pos);
 extern void EftEmit_RefreshFixedNodes(s32 objId, void *nodes);
-extern void func_00172298(s32 side, s32 arg1, void *list);
-extern void *func_001722C0(s32 objId, s32 kind);
-extern void func_0019BC10(s32 objId, EftTask *task);
-extern void func_0019BC38(s32 objId);
-extern EftTask *func_0019BC58(s32 objId);
+extern void EftChar_SetList(s32 side, s32 arg1, void *list);
+extern void *EftChar_GetList(s32 objId, s32 kind);
+extern void EftCharSlot_SetAbsorb(s32 objId, EftTask *task);
+extern void EftCharSlot_ClearAbsorb(s32 objId);
+extern EftTask *EftCharSlot_GetAbsorb(s32 objId);
 extern void func_001ADA58(EftTask *task);
 extern void func_001ADB78(EftTask *task, s32 flag);
 extern EftTask *func_001ADB98(EftTask *task);
@@ -125,7 +125,7 @@ void EftAbsorb_Term(EftTask *task) {
     EftEmit_TermState(w->model, &w->inst[1]);
     w->flags = 0;
     if (w->hands == 0) {
-        func_0019BC38(owner->objId);
+        EftCharSlot_ClearAbsorb(owner->objId);
     }
 }
 
@@ -237,7 +237,7 @@ void EftAbsorbMgr_Init(EftTask *task, s32 *arg) {
         EftEmit_LoadSet(NULL, model, 0, pack, 2, 1);
     }
     list = BtlTask_CreateChildList(task, 6, sizeof(EftAbsorb));
-    func_00172298(arg[0], arg[1], list);
+    EftChar_SetList(arg[0], arg[1], list);
 }
 
 /* Manager term: releases the set and its memory. */
@@ -270,10 +270,10 @@ s32 EftAbsorb_Start(EftAbsorbOwner *arg) {
 
     init.owner = *arg;
     init.hands = 0;
-    if (func_0019BC58(init.owner.objId) != NULL) {
+    if (EftCharSlot_GetAbsorb(init.owner.objId) != NULL) {
         return 0;
     }
-    list = func_001722C0(init.owner.objId, 9);
+    list = EftChar_GetList(init.owner.objId, 9);
     if (list == NULL) {
         return 0;
     }
@@ -281,13 +281,13 @@ s32 EftAbsorb_Start(EftAbsorbOwner *arg) {
     if (task == NULL) {
         return 0;
     }
-    func_0019BC10(init.owner.objId, task);
+    EftCharSlot_SetAbsorb(init.owner.objId, task);
     return 1;
 }
 
 /* Fighter effect request 0x38 ended: asks the fighter's glow to end. Returns 1 when it was running. */
 s32 EftAbsorb_Stop(s32 objId) {
-    EftTask *task = func_0019BC58(objId);
+    EftTask *task = EftCharSlot_GetAbsorb(objId);
 
     EftAbsorb *w;
 
@@ -309,7 +309,7 @@ void EftAbsorb_StartHands(EftAbsorbOwner *arg) {
 
     init.owner = *arg;
     init.hands = 1;
-    list = func_001722C0(init.owner.objId, 9);
+    list = EftChar_GetList(init.owner.objId, 9);
     if (list != NULL) {
         BtlTaskList_AddTail(list, gEftAbsorbClass, &init);
     }

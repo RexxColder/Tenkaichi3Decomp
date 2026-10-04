@@ -31,8 +31,8 @@
 s32 BtlStage_IsReady(void);
 f32 Stg_CalcYaw(f32, f32, f32, f32);
 void BtlStage_UpdateObjs(void);
-void func_00115370(void);
-void func_002309A8(void);
+void StgModel_UpdateAnims(void);
+void StgRigid_Update(void);
 void Vec4_Copy(Vec4 *dst, Vec4 *src);
 void func_001202A0(Mtx44 *out, Mtx44 *in);
 s32 BtlStage_GetWaterLevel(f32 *out);
@@ -525,8 +525,8 @@ void BtlStage_Update(void) {
     BtlStage_UpdateTimers();
     BtlStage_UpdateObjs();
     StgAmb_Update();
-    func_00115370();
-    func_002309A8();
+    StgModel_UpdateAnims();
+    StgRigid_Update();
 }
 
 /* Sets the volume of the stage's looping sound (0..128 before the scale). */

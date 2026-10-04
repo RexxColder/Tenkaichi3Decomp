@@ -230,7 +230,7 @@ typedef struct EftAuraPool {
     /* 0x024 */ s32 flameNext;   /* slots handed out so far */
     /* 0x028 */ s32 sparkNext;
     /* 0x02C */ u8 unk2C[0x25C];
-    /* 0x288 */ s32 sparkTex;    /* passed by address to func_001AA188 */
+    /* 0x288 */ s32 sparkTex;    /* passed by address to EftSpr_DrawRot */
 } EftAuraPool;
 
 typedef struct EftAuraCfgFlame {

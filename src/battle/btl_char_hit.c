@@ -1404,7 +1404,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
  */
 
 /* The per-frame fighter-against-fighter step, run by BtlChars_UpdateCollision when nobody is frozen (after the
- * effect scene's hit detection, func_001AF740): guard-direction bookkeeping per fighter, then the clash test, the
+ * effect scene's hit detection, BtlBodyHit_Update): guard-direction bookkeeping per fighter, then the clash test, the
  * rush test (each ends the step when it fires), the proximity test, per fighter the hit test, the trade
  * resolution, and per fighter the hit application. */
 void BtlColl_Update(void) {

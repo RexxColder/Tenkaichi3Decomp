@@ -45,7 +45,7 @@
  *                             unless time is stopped), 0x12F720, BtlScene_UpdateCharScales, BtlTaskList_Update
  *                             (update callback of every task, depth first; a task whose flag bit 0 is set is
  *                             killed), 0x12EB10.
- *   BtlScene_PostUpdate()     after func_001AF9C0: 0x12ECC8, BtlTaskList_PostUpdate (second callback),
+ *   BtlScene_PostUpdate()     after EftDet_Update: 0x12ECC8, BtlTaskList_PostUpdate (second callback),
  *                             BtlScene_UpdateRecords (0x140ED0 and 0x133478 on every record), 0x12E160.
  *   BtlScene_CheckStageChange()  after the third fighter phase, see the function.
  *   BtlScene_SetSingleView(v) end of Battle_Update.

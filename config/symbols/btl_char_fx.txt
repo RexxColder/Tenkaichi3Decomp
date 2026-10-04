@@ -1,6 +1,6 @@
 // Fighter effect requests, animation events and the partner object: src/battle/btl_char_fx.c (0x1D00D8..0x1D0B60),
 // btl_char_fx_b.c (0x1D0B60..0x1D1EC8), btl_char_fx_c.c (0x1D1EC8..0x1D3B40). Evidence for every name is the C: all
-// bodies match (fdiff OK) except BtlFx_SpawnSpeedLines, BtlFx_UpdateGroundFx and BtlFx_SpawnDamageSparks (INCLUDE_ASM,
+// bodies match (fdiff OK) except BtlFx_SpawnSpeedLines, BtlFx_UpdateGroundFx and BtlFx_FireKiBlast (INCLUDE_ASM,
 // attempts in the files). "Req N" = one-frame request bit N (BtlChar_TestFxBit); "event" = animation event bit
 // (BtlAnim_TestAttr). Names with a request number say that what the effect looks like is not known.
 // Request 0x20 / 0x2B: func_00187B00 effect kind 0xE at model part 0x2E with sound 0x46 / kind 0xD at part 0x10.
@@ -59,7 +59,7 @@ BtlFx_UpdateSubStateFlag96 = 0x001D1808; // type:func // guess
 BtlFx_UpdateObjFlag80 = 0x001D18B0; // type:func // guess
 // Event 4 (this fighter was hit): 1..n sparks (0x176E70 / 0x16D6A8 / 0x16D270 / 0x178C10 / 0x177B18) at fighter
 // +0xDD0, offset by reaction kind (three BtlChar_RandF draws per spark for kind 0), hit sound, 0.1 s small-motor buzz.
-BtlFx_SpawnDamageSparks = 0x001D1958; // type:func // guess
+BtlFx_FireKiBlast = 0x001D1958; // type:func // guess
 // Events 0x100 / 0x80: flash at the event's model part, ChrCam_AddShake (5, 0.1 s / 10, 0.2 s), sound, voice kind 1.
 // Event 1 -> request 0x1B. Events 0x2000000 / 0x4000000 set / clear flag 0x30. Event 2 -> BtlChar_GetHitSoundLine.
 BtlFx_HandleImpactEvents = 0x001D1EC8; // type:func // guess
@@ -112,4 +112,4 @@ BtlPartner_PushDir = 0x001D3978; // type:func // guess
 BtlPartner_SetObjFloats = 0x001D3A30; // type:func // guess
 BtlPartner_SetFlag80 = 0x001D3A98; // type:func // guess
 // Read-only data: .lit4 0x2FD1D8..0x2FD290 (see the report for which file emits which) and the jump table 0x2EF020
-// (BtlFx_SpawnDamageSparks, left in assembly).
+// (BtlFx_FireKiBlast, left in assembly).

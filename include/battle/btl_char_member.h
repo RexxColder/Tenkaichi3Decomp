@@ -175,13 +175,13 @@ typedef struct BtlMemberAuraReq {
     /* 0x18 */ f32 unk18;
 } BtlMemberAuraReq;
 
-/* Request built by BtlChar_SpawnFxBits0 for func_001A0D78. */
+/* Request built by BtlChar_SpawnFxBits0 for EftTransform_Start. */
 typedef struct BtlMemberFx0Req {
     /* 0x00 */ s32 objId;
     /* 0x04 */ s32 kind;       /* 0..10 */
 } BtlMemberFx0Req;
 
-/* Request built by BtlChar_SpawnHitFx for func_00187B00. */
+/* Request built by BtlChar_SpawnHitFx for EftImpact_SpawnHit. */
 typedef struct BtlMemberHitFxReq {
     /* 0x00 */ Vec4 pos;       /* world position, w = 1 */
     /* 0x10 */ Vec4 dir;       /* unit direction, w = 0 */

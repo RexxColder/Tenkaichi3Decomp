@@ -133,26 +133,26 @@ extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftAim_GetDir(Vec4 *dir, Vec4 *from, s32 objId);
 extern void EftAim_GetDirKeep(EftKSrc *src, Vec4 *dir, Vec4 *from, s32 objId);
 extern void EftAim_Home(Vec4 *out, Vec4 *from, Vec4 *dir, s32 objId, f32 speed, f32 homing);
-extern void func_001714E8(s32 objId, s32 a1);
-extern void func_00180810(void *sub);
-extern void func_001974F8(s32 objId, Vec4 *pos, Vec4 *dir, f32 a, f32 b);
-extern void *func_0019FC38(s32 objId, s32 auraType);
-extern void func_0019FCF0(void *fx);
-extern void func_0019FDD0(void *fx);
-extern void func_0019FE40(void *fx, Vec4 *pos);
-extern void func_001A7608(void *ring, s32 *model);
-extern void func_001A7698(void *ring, void *tex);
-extern void func_001A76A0(void *ring, Mtx44 *m);
-extern void func_001A76B8(void *ring, void *proto);
-extern void func_001A7708(void *ring, s32 a1);
-extern void func_001A7710(void *ring, s32 a1);
-extern void func_001A7800(void *ring, s32 objId, s32 a2);
-extern void func_001A7810(void *ring);
-extern s32 func_001A8C40(void *arg, s32 *pack);
-extern void func_001A8CA0(s32 objId);
-extern void func_001A8DA0(s32 objId, Mtx44 *m);
-extern void func_001A8DD0(s32 objId, s32 on);
-extern void func_001A8E18(s32 objId, s32 a1);
+extern void EftGlow_Request(s32 objId, s32 a1);
+extern void EftStreak_Stop(void *sub);
+extern void EftGndDust_SpawnLandingScaled(s32 objId, Vec4 *pos, Vec4 *dir, f32 a, f32 b);
+extern void *EftOrbTail_Create(s32 objId, s32 auraType);
+extern void EftOrbTail_Burst(void *fx);
+extern void EftOrbTail_Kill(void *fx);
+extern void EftOrbTail_SetPos(void *fx, Vec4 *pos);
+extern void EftMesh_Init(void *ring, s32 *model);
+extern void EftMesh_SetTex(void *ring, void *tex);
+extern void EftMesh_SetMtx(void *ring, Mtx44 *m);
+extern void EftMesh_Copy(void *ring, void *proto);
+extern void EftMesh_SetLayer(void *ring, s32 a1);
+extern void EftMesh_SetTexBase(void *ring, s32 a1);
+extern void EftMesh_SetOwner(void *ring, s32 objId, s32 a2);
+extern void EftMesh_Draw(void *ring);
+extern s32 EftObj_Create(void *arg, s32 *pack);
+extern void EftObj_Destroy(s32 objId);
+extern void EftObj_SetMtx(s32 objId, Mtx44 *m);
+extern void EftObj_SetVisible(s32 objId, s32 on);
+extern void EftObj_Nop(s32 objId, s32 a1);
 extern void func_002399A0(void *sphere, Vec4 *pos, f32 radius);
 extern void func_00239588(void *box, Vec4 *a, Vec4 *pos, f32 size);
 
@@ -169,27 +169,27 @@ void EftShotTech_UpdateAuraBall(EftKTask *task) {
     EftKSrc *src = w->src;
 
     if (EftShot_TestBits(src->objId, 0x100) && w->auraFx == NULL) {
-        void *fx = func_0019FC38(src->objId, BtlCharApi_GetAuraType(src->objId));
+        void *fx = EftOrbTail_Create(src->objId, BtlCharApi_GetAuraType(src->objId));
         w->auraFx = fx;
         if (fx == NULL) {
             goto end;
         }
-        func_0019FCF0(fx);
-        func_001714E8(src->objId, 0);
+        EftOrbTail_Burst(fx);
+        EftGlow_Request(src->objId, 0);
     }
     if (w->auraFx != NULL) {
         BtlCharApi_GetNodePos(src->objId, 10, &pos);
         BtlCharApi_GetNodePos(src->objId, 14, &pos2);
         Vec3_Add(&pos, &pos, &pos2);
         Vec3_Scale(&pos, &pos, 0.5f);
-        func_0019FE40(w->auraFx, &pos);
+        EftOrbTail_SetPos(w->auraFx, &pos);
     }
 end:
     if (EftShot_TestBits(src->objId, 0x200) && w->auraFx != NULL) {
-        func_0019FCF0(w->auraFx);
-        func_0019FDD0(w->auraFx);
+        EftOrbTail_Burst(w->auraFx);
+        EftOrbTail_Kill(w->auraFx);
         w->auraFx = NULL;
-        func_001714E8(src->objId, 1);
+        EftGlow_Request(src->objId, 1);
     }
 }
 
@@ -204,7 +204,7 @@ void EftShotTech_UpdateTargetBurst(EftKTask *task) {
     if ((src->def->flags & 0x400) && EftShot_TestBits(opp, 4)) {
         dir = D_002ECB60;
         BtlCharApi_GetNodePos(opp, 3, &pos);
-        func_001974F8(src->objId, &pos, (Vec4 *)&dir, 1.0f, BtlCharApi_GetHeight(opp) * 0.03f);
+        EftGndDust_SpawnLandingScaled(src->objId, &pos, (Vec4 *)&dir, 1.0f, BtlCharApi_GetHeight(opp) * 0.03f);
     }
 }
 
@@ -456,13 +456,13 @@ void EftShotTech_Term(EftKTask *task) {
     }
     for (i = 0; i < 8; i++) {
         if (w->subs[i] != NULL) {
-            func_00180810(w->subs[i]);
+            EftStreak_Stop(w->subs[i]);
         }
     }
     if (w->auraFx != NULL) {
-        func_0019FDD0(w->auraFx);
+        EftOrbTail_Kill(w->auraFx);
         w->auraFx = NULL;
-        func_001714E8(src->objId, 2);
+        EftGlow_Request(src->objId, 2);
     }
     EftEmit_TermState(w->mgr, w->emit);
     EftShot_SetHeldFlagA8(src->objId);
@@ -1099,10 +1099,10 @@ void EftObjTech_CreateModel(EftKTask *task) {
     EftKModel *model = &w->model;
 
     model->pack = ((EftObjTechMgr *)owner->work)->modelPack;
-    model->objId = func_001A8C40(model->arg, model->pack);
+    model->objId = EftObj_Create(model->arg, model->pack);
     model->unk36 = -1;
-    func_001A8DD0(model->objId, 0);
-    func_001A8E18(model->objId, 0);
+    EftObj_SetVisible(model->objId, 0);
+    EftObj_Nop(model->objId, 0);
 }
 
 /* Places the model: scale, Euler rotation, translation. */
@@ -1116,12 +1116,12 @@ void EftObjTech_SetModelPose(EftKTask *task, Vec4 *pos, Vec4 *angles) {
     model = &w->model;
     func_001204B8(&m, &m, angles);
     func_00120150(&m, &m, pos);
-    func_001A8DA0(model->objId, &m);
+    EftObj_SetMtx(model->objId, &m);
 }
 
 /* Destroys the model object. */
 void EftObjTech_DestroyModel(EftKTask *task) {
-    func_001A8CA0(((EftObjTech *)task->work)->model.objId);
+    EftObj_Destroy(((EftObjTech *)task->work)->model.objId);
 }
 
 /* Sets up the rings from the manager's prototype and gives each its roll, its offset (step apart) and its
@@ -1137,11 +1137,11 @@ void EftObjTech_InitRings(EftKTask *task, f32 roll, f32 step, f32 grow) {
     f32 scale = 1.0f;
 
     for (i = 0; i < rings->count; i++) {
-        func_001A76B8(rings->ring[i], mgr->ringProto);
-        func_001A7698(rings->ring[i], mgr->ringTexSet);
-        func_001A7708(rings->ring[i], 1);
-        func_001A7710(rings->ring[i], 0);
-        func_001A7800(rings->ring[i], src->objId, 1);
+        EftMesh_Copy(rings->ring[i], mgr->ringProto);
+        EftMesh_SetTex(rings->ring[i], mgr->ringTexSet);
+        EftMesh_SetLayer(rings->ring[i], 1);
+        EftMesh_SetTexBase(rings->ring[i], 0);
+        EftMesh_SetOwner(rings->ring[i], src->objId, 1);
         rings->roll[i] = roll;
         rings->offset[i] = offset;
         offset += step;
@@ -1188,7 +1188,7 @@ void EftObjTech_PlaceRings(EftKTask *task, Vec4 *pos, Vec4 *angles, f32 width, f
         Vec3_Add(&p, &p, pos);
         p.w = 1.0f;
         func_00120150(&m, &m, &p);
-        func_001A76A0(rings->ring[i], &m);
+        EftMesh_SetMtx(rings->ring[i], &m);
     }
 }
 
@@ -1199,7 +1199,7 @@ void EftObjTech_DrawRings(EftKTask *task) {
     EftKRings *rings = &w->rings;
 
     for (i = 0; i < rings->count; i++) {
-        func_001A7810(rings->ring[i]);
+        EftMesh_Draw(rings->ring[i]);
     }
 }
 
@@ -1460,9 +1460,9 @@ void EftObjTech_UpdateModelVisible(EftKTask *task) {
     }
     if (show) {
         if (!BtlScene_IsEffectHidden(src->objId, 1)) {
-            func_001A8DD0(model->objId, 1);
+            EftObj_SetVisible(model->objId, 1);
         } else {
-            func_001A8DD0(model->objId, 0);
+            EftObj_SetVisible(model->objId, 0);
         }
     }
 }
@@ -1723,7 +1723,7 @@ void EftObjTechMgr_Init(EftKTask *task, EftKSrc *src) {
 
         mgr->ringModel = BtlScene_GetPackEntry(pack, 1);
         mgr->ringTex = BtlScene_GetPackEntry(pack, 2);
-        func_001A7608(mgr->ringProto, mgr->ringModel);
+        EftMesh_Init(mgr->ringProto, mgr->ringModel);
         func_001AE148(mgr->ringTexSet, mgr->ringTex);
     }
 }
@@ -1795,10 +1795,10 @@ void EftRushShot_CreateModels(EftKTask *task) {
         EftKModel *model = &w->objs[i].model;
 
         model->pack = mgr->modelPack;
-        model->objId = func_001A8C40(model->arg, model->pack);
+        model->objId = EftObj_Create(model->arg, model->pack);
         model->unk36 = -1;
-        func_001A8DD0(model->objId, 0);
-        func_001A8E18(model->objId, 0);
+        EftObj_SetVisible(model->objId, 0);
+        EftObj_Nop(model->objId, 0);
     }
 }
 
@@ -1878,7 +1878,7 @@ void EftRushShot_UpdateModels(EftKTask *task) {
                 o->delay -= 1.0f;
             }
             if (w->flags & 0x800) {
-                func_001A8DD0(o->model.objId, 0);
+                EftObj_SetVisible(o->model.objId, 0);
             } else {
                 Vec4_Copy(&off, &o->offset);
                 off.y += sinf(o->bobPhase) * o->bobAmp;
@@ -1894,8 +1894,8 @@ void EftRushShot_UpdateModels(EftKTask *task) {
                 Vec3_Add(&p, &o->center, &off);
                 p.w = 1.0f;
                 func_00120150(&m, &m, &p);
-                func_001A8DA0(o->model.objId, &m);
-                func_001A8DD0(o->model.objId, 1);
+                EftObj_SetMtx(o->model.objId, &m);
+                EftObj_SetVisible(o->model.objId, 1);
             }
         } else {
             f32 pitch;
@@ -1910,7 +1910,7 @@ void EftRushShot_UpdateModels(EftKTask *task) {
             func_00120398(&m, &base, pitch);
             func_00120428(&m, &m, yaw);
             func_00120150(&m, &m, (Vec4 *)&w->body.pos);
-            func_001A8DA0(o->model.objId, &m);
+            EftObj_SetMtx(o->model.objId, &m);
         }
     }
 }
@@ -1962,7 +1962,7 @@ typedef struct EftRushShotMsg {
     s32 id;
 } EftRushShotMsg;
 
-/* Argument of func_00172480 (screen flash). */
+/* Argument of EftFlash_Start (screen flash). */
 typedef struct EftFlashArg {
     /* 0x00 */ EftVec color;
     /* 0x10 */ f32 unk10;
@@ -1972,7 +1972,7 @@ typedef struct EftFlashArg {
     /* 0x20 */ s32 unk20;
 } EftFlashArg; /* size 0x30: the vector makes it 16-byte aligned */
 
-/* Argument of func_0019B7F8: five (kind, node) pairs. */
+/* Argument of EftDelaySe_Start: five (kind, node) pairs. */
 typedef struct EftSparkTbl {
     s32 v[10];
 } EftSparkTbl;
@@ -2006,11 +2006,11 @@ extern void EftTechEvt_RequestStop(s32 objId);
 #define EftRushShot_AddHitRecord ((void (*)(EftTask *task))EftRushShot_AddHitRecord)
 #define EftRushShot_CreateModels ((void (*)(EftTask *task))EftRushShot_CreateModels)
 #define EftRushShot_UpdateModels ((void (*)(EftTask *task))EftRushShot_UpdateModels)
-extern void func_00172480(EftFlashArg *arg);
-extern s32 func_00180760(s32 objId, s32 kind, s32 arg2, f32 angle);
-#define func_00180810 ((void (*)(s32 handle))func_00180810)
-extern void func_0019B7F8(s32 objId, EftSparkTbl *tbl, s32 count);
-extern void func_001A8CA0(s32 handle);
+extern void EftFlash_Start(EftFlashArg *arg);
+extern s32 EftStreak_Start(s32 objId, s32 kind, s32 arg2, f32 angle);
+#define EftStreak_Stop ((void (*)(s32 handle))EftStreak_Stop)
+extern void EftDelaySe_Start(s32 objId, EftSparkTbl *tbl, s32 count);
+extern void EftObj_Destroy(s32 handle);
 #define func_001ADA58 ((void (*)(EftTask *task))func_001ADA58)
 #define func_001ADB78 ((void (*)(EftTask *task, s32 flag))func_001ADB78)
 #define func_001ADB98 ((EftTask *(*)(EftTask *task))func_001ADB98)
@@ -2031,7 +2031,7 @@ void EftRushShot_FreeModels(EftTask *task) {
 
     for (i = 0; i < w->subCount; i++) {
         sub = &w->sub[i];
-        func_001A8CA0(sub->handle);
+        EftObj_Destroy(sub->handle);
     }
 }
 
@@ -2104,7 +2104,7 @@ void EftRushShot_UpdateStageFx(EftTask *task) {
 
         angle = EftMath_WrapAngle(angle);
         if (kind >= 0) {
-            w->stageFx[i] = func_00180760(arg->objId, kind, unk80, angle);
+            w->stageFx[i] = EftStreak_Start(arg->objId, kind, unk80, angle);
             w->flags |= EFT_RUSHSHOT_STAGE_FX;
         }
         w->stage++;
@@ -2116,7 +2116,7 @@ void EftRushShot_UpdateStageFx(EftTask *task) {
             i = 0;
         }
         if (w->flags & EFT_RUSHSHOT_STAGE_FX) {
-            func_00180810(w->stageFx[i]);
+            EftStreak_Stop(w->stageFx[i]);
             w->stageFx[i] = 0;
             w->flags &= ~EFT_RUSHSHOT_STAGE_FX;
         }
@@ -2132,7 +2132,7 @@ void EftRushShot_UpdateFlash(EftTask *task) {
 
     if (!(arg->def->flags & 0x400000) && EftShot_TestBits(opp, 0x40)) {
         flash = (EftFlashArg){ { 255.0f, 255.0f, 255.0f, 255.0f }, 0.5f, 0, 1.0f, arg->objId, 0 };
-        func_00172480(&flash);
+        EftFlash_Start(&flash);
     }
 }
 
@@ -2145,7 +2145,7 @@ void EftRushShot_UpdateSparks(EftTask *task) {
     if (EftShot_TestBits(opp, 0x40)) {
         EftSparkTbl tbl = gEftRushShotSparkTbl;
 
-        func_0019B7F8(arg->objId, &tbl, 5);
+        EftDelaySe_Start(arg->objId, &tbl, 5);
     }
 }
 

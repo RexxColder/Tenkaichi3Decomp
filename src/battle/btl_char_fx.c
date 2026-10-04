@@ -7,7 +7,7 @@
  * One translation unit in the original, from the request-bit helpers (which the member code's header describes)
  * through the effect requests: BtlFx_UpdateGroundFx only compiles to the original bytes when BtlChar_IsFxBitNew is
  * defined earlier in the same file. Where the object really starts is not known (0x1CF578 is the latest place; the
- * read-only data is continuous from the member code). It ends at BtlFx_SpawnDamageSparks only because that function
+ * read-only data is continuous from the member code). It ends at BtlFx_FireKiBlast only because that function
  * is left in assembly and owns the float constants that follow; btl_char_fx_c.c continues it.
  *
  * The first part (to 0x1D00D8) was written against the member code's view of the fighter (BtlMemberChr), the rest
@@ -54,9 +54,9 @@ extern f32 BtlSuper_GetShotTime(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotSpeed(BtlMemberChr *chr, s32 kind);
 extern f32 BtlSuper_GetShotTurnRate(BtlMemberChr *chr, s32 kind);
 extern void EftShot_Request(BtlMemberAuraReq *req);
-extern void func_001A0D78(BtlMemberFx0Req *req);
-extern void func_001A0DD8(void);
-extern void func_001A0E10(void);
+extern void EftTransform_Start(BtlMemberFx0Req *req);
+extern void EftTransform_Flash(void);
+extern void EftTransform_End(void);
 extern s32 BtlAtk_GetHitFxKind(BtlMemberChr *chr);
 extern s32 BtlAtk_GetHitSoundLevel(BtlMemberChr *chr);
 extern s32 BtlCharApi_HasWeaponOut(s32 objId);
@@ -65,7 +65,7 @@ extern f32 BtlAtk_GetLaunchAngleA(BtlMemberChr *chr);
 extern f32 BtlAtk_GetLaunchAngleB(BtlMemberChr *chr);
 extern void BtlOpp_GetTargetPos(BtlMemberChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetRadius(BtlMemberChr *chr);
-extern void func_00187B00(BtlMemberHitFxReq *req);
+extern void EftImpact_SpawnHit(BtlMemberHitFxReq *req);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern u32 func_0024D610(BtlMemberObj *obj, s32 a, s32 b, s32 c);
 extern s32 func_0024D518(u32 mask);
@@ -243,14 +243,14 @@ void BtlChar_SpawnFxBits0(BtlMemberChr *chr) {
             break;
         }
         if (req.kind >= 0) {
-            func_001A0D78(&req);
+            EftTransform_Start(&req);
         }
     }
     if (BtlChar_TestFxBit(chr, 1) && chr->unk12DC != 0) {
-        func_001A0DD8();
+        EftTransform_Flash();
     }
     if (BtlChar_TestFxBit(chr, 2) && chr->unk12DC != 0) {
-        func_001A0E10();
+        EftTransform_End();
     }
 }
 
@@ -403,7 +403,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
             req.pos.y = BtlChar_GetPos(chr)->pos.y;
             req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
             req.pos.w = 1.0f;
-            func_00187B00(&req);
+            EftImpact_SpawnHit(&req);
         } else if (BtlChar_TestFxBit(chr, 0x26)) {
             Vec4 target;
 
@@ -413,7 +413,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
             req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
             req.pos.w = 1.0f;
             req.pos.y -= BtlCharApi_GetHeight(chr->objId) * 0.5f;
-            func_00187B00(&req);
+            EftImpact_SpawnHit(&req);
         } else if (BtlChar_TestFxBit(chr, 0x27)) {
             Vec4 target;
 
@@ -423,7 +423,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
             req.pos.z = target.z - Mathf_Cos(pose->yaw) * BtlOpp_GetRadius(chr);
             req.pos.w = 1.0f;
             req.pos.y -= BtlCharApi_GetHeight(chr->objId);
-            func_00187B00(&req);
+            EftImpact_SpawnHit(&req);
         } else {
             s32 masks[9] = { 0x40000, 0x800, 0x100, 0x400, 0x80, 0x20, 8, 0x10, 4 };
             u32 bits = obj->unkC9C;
@@ -466,7 +466,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
                     Vec4_Add(&req.pos, &req.pos, &tmp);
                 }
                 req.pos.w = 1.0f;
-                func_00187B00(&req);
+                EftImpact_SpawnHit(&req);
             }
         }
     }
@@ -487,7 +487,7 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
  * through BtlChar_SetFxBit; last frame's copy at + 0x126B) and starts, keeps or stops one effect of the effect scene.
  * They are called in a fixed order from BtlFx_UpdateAll (btl_char_fx_c.c). Nothing here draws a random number.
  *
- * This file and btl_char_fx_c.c are one run of code, cut after BtlFx_SpawnDamageSparks (0x1D1958): it is left in
+ * This file and btl_char_fx_c.c are one run of code, cut after BtlFx_FireKiBlast (0x1D1958): it is left in
  * assembly and its float constants stay in an assembly chunk between the two files' pools. BtlFx_SpawnSpeedLines,
  * also in assembly, has its four constants emitted in place with LIT4_WORD.
  */
@@ -515,19 +515,19 @@ extern s32 BtlKiBlast_GetUnk3(FxChr *chr);
 extern void func_002500E8(FxObj *obj, s32 bit, s32 on);
 extern s32 func_00250828(s32 kind);
 extern void EftSpdLine_SpawnBodyTrails(s32 objId);
-extern void func_00165180(s32 objId, f32 level);
-extern void func_00165418(s32 objId, s32 cmd);
-extern void func_0016D0B8(FxHitArg *arg, s32 kind);
-extern void func_001714E8(s32 player, s32 cmd);
-extern s32 func_001763B0(s32 objId);
-extern void func_001762A8(s32 *arg);
-extern void func_00176320(s32 objId);
-extern void func_00176368(s32 objId);
-extern void func_00177480(FxHitArg *arg);
-extern void func_0017D710(FxLineArg *arg);
-extern void func_00180A00(s32 objId, s32 kind);
-#define func_00187B00 ((void (*)(FxPosArg *arg))func_00187B00)
-extern void func_001A6FD0(s32 *arg);
+extern void EftAura_SetLevel(s32 objId, f32 level);
+extern void EftAura_Command(s32 objId, s32 cmd);
+extern void EftDisc_SpawnHeld(FxHitArg *arg, s32 kind);
+extern void EftGlow_Request(s32 player, s32 cmd);
+extern s32 EftCharge_IsActive(s32 objId);
+extern void EftCharge_Start(s32 *arg);
+extern void EftCharge_Burst(s32 objId);
+extern void EftCharge_Stop(s32 objId);
+extern void EftBlastCharge_Start(FxHitArg *arg);
+extern void EftRay_CreateByValue(FxLineArg *arg);
+extern void EftShotFx_Start(s32 objId, s32 kind);
+#define EftImpact_SpawnHit ((void (*)(FxPosArg *arg))EftImpact_SpawnHit)
+extern void EftShock_Start(s32 *arg);
 extern void StgBlur_SetPasses(s32 view, s32 mode);
 extern void StgBlur_SetCenter(s32 view, Vec4 *pos, s32 arg);
 extern void StgBlur_SetColor0Rgba(s32 view, s32 r, s32 g, s32 b, s32 a);
@@ -545,7 +545,7 @@ void BtlFx_SpawnFlashReq20(FxChr *chr) {
         arg.unk28 = 0;
         BtlCharApi_GetNodePos(chr->objId, 0x2E, &arg.pos);
         Vec4_Copy(&arg.pos2, &BtlChar_GetPos(chr)->unk80);
-        func_00187B00(&arg);
+        EftImpact_SpawnHit(&arg);
         BtlCharSnd_PlayCommon(chr, 0x46);
     }
 }
@@ -560,7 +560,7 @@ void BtlFx_SpawnFlashReq2B(FxChr *chr) {
         arg.unk28 = 0;
         Vec4_Copy(&arg.pos2, &BtlChar_GetPos(chr)->unk80);
         BtlCharApi_GetNodePos(chr->objId, 0x10, &arg.pos);
-        func_00187B00(&arg);
+        EftImpact_SpawnHit(&arg);
     }
 }
 
@@ -587,11 +587,11 @@ void BtlFx_SpawnHitSparkReq17(FxChr *chr) {
         }
         if (type == 5) {
         } else if (type == 4) {
-            func_0016D0B8(&arg, func_00250828(arg.kind));
+            EftDisc_SpawnHeld(&arg, func_00250828(arg.kind));
         } else if (type == 2) {
         } else if (type == 3) {
         } else {
-            func_00177480(&arg);
+            EftBlastCharge_Start(&arg);
         }
     }
 }
@@ -627,25 +627,25 @@ s32 BtlFx_UpdateAura(FxChr *chr) {
     }
     if (BtlChar_TestFxBit(chr, 0x14)) {
         level = 0.0f;
-        func_00165418(chr->objId, 7);
+        EftAura_Command(chr->objId, 7);
     }
     if (level > 0.0f) {
-        func_00165418(chr->objId, 0);
-        func_00165180(chr->objId, level);
+        EftAura_Command(chr->objId, 0);
+        EftAura_SetLevel(chr->objId, level);
     } else {
-        func_00165418(chr->objId, 1);
+        EftAura_Command(chr->objId, 1);
     }
     if (!(BtlParam_GetFlags(chr) & 0x10)) {
         if (BtlChar_IsFxBitNew(chr, 7)) {
-            func_00165418(chr->objId, 2);
+            EftAura_Command(chr->objId, 2);
             BtlParam_GetUnk0(chr);
         }
         if (BtlChar_IsFxBitEnded(chr, 7)) {
-            func_00165418(chr->objId, 3);
+            EftAura_Command(chr->objId, 3);
             BtlParam_GetUnk0(chr);
         }
         if (BtlChar_TestFxBit(chr, 8)) {
-            func_00165418(chr->objId, 4);
+            EftAura_Command(chr->objId, 4);
             BtlParam_GetUnk0(chr);
         }
     }
@@ -656,15 +656,15 @@ void BtlFx_UpdateChargeFx(FxChr *chr) {
     s32 arg[4];
 
     if (BtlChar_TestFxBit(chr, 7)) {
-        if (!func_001763B0(chr->objId)) {
+        if (!EftCharge_IsActive(chr->objId)) {
             arg[0] = chr->objId;
-            func_001762A8(arg);
+            EftCharge_Start(arg);
         }
-    } else if (func_001763B0(chr->objId)) {
-        func_00176368(chr->objId);
+    } else if (EftCharge_IsActive(chr->objId)) {
+        EftCharge_Stop(chr->objId);
     }
     if (BtlChar_TestFxBit(chr, 8)) {
-        func_00176320(chr->objId);
+        EftCharge_Burst(chr->objId);
     }
 }
 
@@ -674,18 +674,18 @@ s32 BtlFx_UpdatePowerUpLook(FxChr *chr) {
 
     if (!(BtlParam_GetFlags(chr) & 0x10) || BtlMember_HasAnyListedAbility(chr)) {
         if (BtlChar_TestFxBit(chr, 5)) {
-            func_001714E8(chr->player, 2);
-            func_00165418(chr->player, 5);
+            EftGlow_Request(chr->player, 2);
+            EftAura_Command(chr->player, 5);
             func_002500E8(obj, 6, 0);
         } else {
             if (BtlChar_IsFxBitNew(chr, 4)) {
-                func_001714E8(chr->player, 0);
-                func_00165418(chr->player, 6);
+                EftGlow_Request(chr->player, 0);
+                EftAura_Command(chr->player, 6);
                 func_002500E8(obj, 6, 1);
             }
             if (BtlChar_IsFxBitEnded(chr, 4)) {
-                func_001714E8(chr->player, 1);
-                func_00165418(chr->player, 5);
+                EftGlow_Request(chr->player, 1);
+                EftAura_Command(chr->player, 5);
                 func_002500E8(obj, 6, 0);
             }
         }
@@ -698,7 +698,7 @@ void BtlFx_SpawnReq6(FxChr *chr) {
 
     if (BtlChar_TestFxBit(chr, 6)) {
         arg[0] = chr->objId;
-        func_001A6FD0(arg);
+        EftShock_Start(arg);
     }
 }
 
@@ -739,16 +739,16 @@ void BtlFx_UpdateScreenFilter(FxChr *chr) {
 /* Requests 0xC..0xF: one-shot effects 0..3 of module 0x180A00. */
 void BtlFx_SpawnBurstReqC(FxChr *chr) {
     if (BtlChar_TestFxBit(chr, 0xC)) {
-        func_00180A00(chr->objId, 0);
+        EftShotFx_Start(chr->objId, 0);
     }
     if (BtlChar_TestFxBit(chr, 0xD)) {
-        func_00180A00(chr->objId, 1);
+        EftShotFx_Start(chr->objId, 1);
     }
     if (BtlChar_TestFxBit(chr, 0xE)) {
-        func_00180A00(chr->objId, 2);
+        EftShotFx_Start(chr->objId, 2);
     }
     if (BtlChar_TestFxBit(chr, 0xF)) {
-        func_00180A00(chr->objId, 3);
+        EftShotFx_Start(chr->objId, 3);
     }
 }
 
@@ -810,7 +810,7 @@ void BtlFx_SpawnSpeedLines(FxChr *chr) {
         if (arg.unk2C < -50.0f) {
             arg.unk2C = -50.0f;
         }
-        func_0017D710(&arg);
+        EftRay_CreateByValue(&arg);
     }
 }
 #endif
@@ -823,7 +823,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/btl_char_fx", BtlFx_SpawnSpeedLines);
 /*
  * Fighter effect requests, part 2: 0x1D0B60..0x1D1EC8 (formerly btl_char_fx_b.c).
  * More request-bit readers (ground, water, clash), the object flags that follow fighter state, and the hit sparks
- * spawned by animation event 4. BtlFx_SpawnDamageSparks is the only function of the effect files that draws random
+ * spawned by animation event 4. BtlFx_FireKiBlast is the only function of the effect files that draws random
  * numbers (BtlChar_RandF, the fighters' own generator).
  */
 
@@ -858,22 +858,22 @@ extern void EftWater_AddSplashFor(s32 objId, Vec4 *pos, s32 arg, f32 speed);
 extern void EftAbsorb_Start(FxArg2 *arg);
 extern void EftAbsorb_Stop(s32 objId);
 extern void EftAbsorb_StartHands(FxArg2 *arg);
-extern void func_0016B418(FxArg3 *arg);
-extern void func_0016B4A0(s32 objId);
-extern void func_00171C78(FxDirArg *arg);
-extern void func_00171CE8(s32 objId);
-extern void func_00171D30(s32 objId);
-extern void func_0017D500(s32 objId, Vec4 *pos, s32 a, s32 b, s32 c, f32 scale);
-#define func_00187B00 ((void (*)(FxPosArg *arg))func_00187B00)
-extern void func_00196F88(s32 objId, s32 off, f32 scale);
-extern void func_00197148(s32 objId, s32 off, f32 scale);
-extern void func_00197318(s32 objId, f32 a, f32 b);
-extern void func_00197458(s32 objId, Vec4 *pos, Vec4 *normal, f32 scale);
-extern void func_001975A0(s32 objId, f32 scale);
-extern void func_001975A8(s32 objId, Vec4 *pos, f32 scale);
-extern void func_001749F0(FxArg2 *arg);
-extern void func_00174A70(s32 objId);
-extern void func_00187B70(FxPosArg *arg, f32 size);
+extern void EftBodyFx_Start(FxArg3 *arg);
+extern void EftBodyFx_Stop(s32 objId);
+extern void EftRushBurst_Start(FxDirArg *arg);
+extern void EftRushBurst_Stage2(s32 objId);
+extern void EftRushBurst_Stop(s32 objId);
+extern void EftRay_StartHit(s32 objId, Vec4 *pos, s32 a, s32 b, s32 c, f32 scale);
+#define EftImpact_SpawnHit ((void (*)(FxPosArg *arg))EftImpact_SpawnHit)
+extern void EftGndDust_SetSlide(s32 objId, s32 off, f32 scale);
+extern void EftGndDust_SetDash(s32 objId, s32 off, f32 scale);
+extern void EftGndDust_SpawnBurst(s32 objId, f32 a, f32 b);
+extern void EftGndDust_SpawnLanding(s32 objId, Vec4 *pos, Vec4 *normal, f32 scale);
+extern void EftGndDust_Stub(s32 objId, f32 scale);
+extern void EftGndDust_SpawnImpact(s32 objId, Vec4 *pos, f32 scale);
+extern void EftCharaFx_Start(FxArg2 *arg);
+extern void EftCharaFx_Stop(s32 objId);
+extern void EftImpact_SpawnHitScaled(FxPosArg *arg, f32 size);
 extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
 extern s32 BtlOpp_GetObjId(FxChr *chr);
 extern s32 BtlCharApi_IsModelNew(s32 objId);
@@ -905,11 +905,11 @@ extern s32 func_0024D4D0(FxObj *obj, u64 mask);
 extern void Vec3_Normalize(Vec4 *out, Vec4 *in);
 extern void func_00122698(Vec4 *out, Vec4 *a, Vec4 *b, f32 s);
 extern void func_00122868(Vec4 *out, Vec4 *in, f32 s);
-extern void func_0016D270(FxHitArg2 *arg);
-extern void func_0016D6A8(FxHitArg2 *arg);
-extern void func_00176E70(FxHitArg2 *arg);
-extern void func_00177B18(FxHitArg2 *arg);
-extern void func_00178C10(FxHitArg2 *arg);
+extern void EftDisc_Throw(FxHitArg2 *arg);
+extern void EftDisc_SpawnFromNode(FxHitArg2 *arg);
+extern void EftKiBlast_Fire(FxHitArg2 *arg);
+extern void EftKiBomb_Fire(FxHitArg2 *arg);
+extern void EftKiObj_Create(FxHitArg2 *arg);
 extern f32 BtlChar_RandF(void);
 extern s32 BtlChar_FrameMod(s32 n);
 extern void BtlChar_SetSmallVibration(FxChr *chr, f32 seconds);
@@ -920,7 +920,7 @@ void BtlFx_SpawnReq18(FxChr *chr) {
 
     if (BtlChar_TestFxBit(chr, 0x18)) {
         BtlCharApi_GetNodePos(chr->objId, 0x11, &pos);
-        func_0017D500(chr->objId, &pos, 0, 0, 1, 0.5f);
+        EftRay_StartHit(chr->objId, &pos, 0, 0, 1, 0.5f);
     }
 }
 
@@ -936,7 +936,7 @@ void BtlFx_SpawnReq18(FxChr *chr) {
  * constant in a saved register across the calls, which the original does not.
  */
 static inline void Fx_FootDust(s32 objId, Vec4 *pos, f32 scale) {
-    func_001975A8(objId, pos, scale);
+    EftGndDust_SpawnImpact(objId, pos, scale);
 }
 
 void BtlFx_UpdateGroundFx(FxChr *chr) {
@@ -956,19 +956,19 @@ void BtlFx_UpdateGroundFx(FxChr *chr) {
         BtlChar_ClearFxBit(chr, 0x36);
     }
     if (BtlChar_IsFxBitNew(chr, 0x30)) {
-        func_00196F88(chr->objId, 0, 1.0f);
+        EftGndDust_SetSlide(chr->objId, 0, 1.0f);
     }
     if (BtlChar_IsFxBitEnded(chr, 0x30)) {
-        func_00196F88(chr->objId, 1, 1.0f);
+        EftGndDust_SetSlide(chr->objId, 1, 1.0f);
     }
     if (BtlChar_IsFxBitNew(chr, 0x33)) {
-        func_00197148(chr->objId, 0, 1.0f);
+        EftGndDust_SetDash(chr->objId, 0, 1.0f);
     }
     if (BtlChar_IsFxBitEnded(chr, 0x33)) {
-        func_00197148(chr->objId, 1, 1.0f);
+        EftGndDust_SetDash(chr->objId, 1, 1.0f);
     }
     if (BtlChar_TestFxBit(chr, 0x34)) {
-        func_00197318(chr->objId, 1.0f, 1.0f);
+        EftGndDust_SpawnBurst(chr->objId, 1.0f, 1.0f);
     }
     if (BtlChar_TestFxBit(chr, 0x35)) {
         water = 0.0f;
@@ -979,13 +979,13 @@ void BtlFx_UpdateGroundFx(FxChr *chr) {
             }
         }
         if (under) {
-            func_00197318(chr->objId, 1.0f, 1.0f);
+            EftGndDust_SpawnBurst(chr->objId, 1.0f, 1.0f);
         } else {
-            func_00197458(chr->objId, &BtlChar_GetPos(chr)->unkB0, &BtlChar_GetPos(chr)->unkC0, 1.0f);
+            EftGndDust_SpawnLanding(chr->objId, &BtlChar_GetPos(chr)->unkB0, &BtlChar_GetPos(chr)->unkC0, 1.0f);
         }
     }
     if (BtlChar_TestFxBit(chr, 0x31)) {
-        func_001975A0(chr->objId, 1.0f);
+        EftGndDust_Stub(chr->objId, 1.0f);
     }
     if (BtlChar_TestFxBit(chr, 0x32)) {
         BtlCharApi_GetNodePos(chr->objId, 0xF, &a);
@@ -1051,13 +1051,13 @@ void BtlFx_UpdateAimedFxReq28(FxChr *chr) {
         arg.dir.x = Mathf_Cos(pitch) * Mathf_Sin(yaw);
         arg.dir.y = -Mathf_Sin(pitch);
         arg.dir.z = Mathf_Cos(pitch) * Mathf_Cos(yaw);
-        func_00171C78(&arg);
+        EftRushBurst_Start(&arg);
     }
     if (BtlChar_IsFxBitNew(chr, 0x29)) {
-        func_00171CE8(chr->objId);
+        EftRushBurst_Stage2(chr->objId);
     }
     if (BtlChar_IsFxBitNew(chr, 0x2A)) {
-        func_00171D30(chr->objId);
+        EftRushBurst_Stop(chr->objId);
     }
 }
 
@@ -1069,10 +1069,10 @@ void BtlFx_UpdateReq1A(FxChr *chr) {
         arg.objId = chr->objId;
         arg.scale = 1.0f;
         arg.unk4 = 0;
-        func_0016B418(&arg);
+        EftBodyFx_Start(&arg);
     }
     if (BtlChar_IsFxBitEnded(chr, 0x1A)) {
-        func_0016B4A0(chr->objId);
+        EftBodyFx_Stop(chr->objId);
     }
 }
 
@@ -1111,7 +1111,7 @@ void BtlFx_SpawnFlashReq2E(FxChr *chr) {
         arg.unk28 = 0;
         Vec4_Copy(&arg.pos2, &chr->unk1360);
         BtlCharApi_GetNodePos(chr->objId, 0x11, &arg.pos);
-        func_00187B00(&arg);
+        EftImpact_SpawnHit(&arg);
     }
 }
 
@@ -1140,14 +1140,14 @@ void BtlFx_UpdateCharaFx(FxChr *chr) {
             if (chr->charaFxOn == 0) {
                 arg.objId = chr->objId;
                 arg.scale = 1.0f;
-                func_001749F0(&arg);
+                EftCharaFx_Start(&arg);
             }
             chr->charaFxOn = 1;
             return;
         }
     }
     if (chr->charaFxOn == 1) {
-        func_00174A70(chr->objId);
+        EftCharaFx_Stop(chr->objId);
     }
     chr->charaFxOn = 0;
 }
@@ -1175,9 +1175,9 @@ void BtlFx_SpawnClashFlash(FxChr *chr) {
         arg.unk28 = 0;
         Vec4_Copy(&arg.pos2, &BtlChar_GetPos(chr)->unk80);
         arg.kind = 6;
-        func_00187B70(&arg, size);
+        EftImpact_SpawnHitScaled(&arg, size);
         arg.kind = 0xD;
-        func_00187B70(&arg, size);
+        EftImpact_SpawnHitScaled(&arg, size);
         {
             f32 near = 200.0f;
             f32 far = 1500.0f;
@@ -1314,7 +1314,7 @@ void BtlFx_UpdateObjFlag80(FxChr *chr) {
  * the constant 2 is reloaded at its two uses. Every instruction is otherwise the same, including the jump table.
  */
 #if 0 /* BTLFX_NONMATCHING */
-void BtlFx_SpawnDamageSparks(FxChr *chr) {
+void BtlFx_FireKiBlast(FxChr *chr) {
     FxHitArg2 arg;
     Vec4 hitPos;
     Vec4 dir;
@@ -1448,15 +1448,15 @@ void BtlFx_SpawnDamageSparks(FxChr *chr) {
                 break;
             }
             if (arg.type == 5) {
-                func_0016D6A8(&arg);
+                EftDisc_SpawnFromNode(&arg);
             } else if (arg.type == 4) {
-                func_0016D270(&arg);
+                EftDisc_Throw(&arg);
             } else if (arg.type == 2) {
-                func_00178C10(&arg);
+                EftKiObj_Create(&arg);
             } else if (arg.type == 3) {
-                func_00177B18(&arg);
+                EftKiBomb_Fire(&arg);
             } else {
-                func_00176E70(&arg);
+                EftKiBlast_Fire(&arg);
             }
         }
         switch (arg.type) {
@@ -1473,4 +1473,4 @@ void BtlFx_SpawnDamageSparks(FxChr *chr) {
 }
 #endif
 RODATA_ALIGN16();
-INCLUDE_ASM("asm/nonmatchings/battle/btl_char_fx", BtlFx_SpawnDamageSparks);
+INCLUDE_ASM("asm/nonmatchings/battle/btl_char_fx", BtlFx_FireKiBlast);

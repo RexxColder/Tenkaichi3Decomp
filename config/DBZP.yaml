@@ -106,6 +106,27 @@ options:
     - config/symbols/stg_a.txt
     - config/symbols/stg_b.txt
     - config/symbols/stg_c.txt
+    - config/symbols/eft_n.txt
+    - config/symbols/eft_o.txt
+    - config/symbols/eft_p.txt
+    - config/symbols/eft_q.txt
+    - config/symbols/eft_r.txt
+    - config/symbols/eft_s.txt
+    - config/symbols/eft_t.txt
+    - config/symbols/eft_u.txt
+    - config/symbols/eft_v.txt
+    - config/symbols/eft_w.txt
+    - config/symbols/eft_x.txt
+    - config/symbols/eft_y.txt
+    - config/symbols/eft_z.txt
+    - config/symbols/eft_aa.txt
+    - config/symbols/eft_ab.txt
+    - config/symbols/eft_ac.txt
+    - config/symbols/eft_ad.txt
+    - config/symbols/eft_det_a.txt
+    - config/symbols/eft_det_b.txt
+    - config/symbols/stg_d.txt
+    - config/symbols/col_a.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

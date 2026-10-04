@@ -65,7 +65,7 @@ typedef struct EftTechDef {
     /* 0x40 */ s32 unk40;
     /* 0x44 */ s16 count;     /* shots per volley */
     /* 0x46 */ u8 unk46[0x58 - 0x46];
-    /* 0x58 */ s8 unk58[8];   /* kind of the effect func_00180760 starts at the n-th event 0x80; < 0 none */
+    /* 0x58 */ s8 unk58[8];   /* kind of the effect EftStreak_Start starts at the n-th event 0x80; < 0 none */
     /* 0x60 */ f32 unk60[8];  /* its angle in degrees */
     /* 0x80 */ s16 unk80;
 } EftTechDef;
@@ -128,7 +128,7 @@ typedef struct EftRushShotMgrWork {
 /* One model of the swarm (eft_k.h EftRushShotObj). */
 typedef struct EftRushShotModel {
     /* 0x00 */ u8 unk0[0x35];
-    /* 0x35 */ s8 handle;     /* model object, freed with func_001A8CA0 */
+    /* 0x35 */ s8 handle;     /* model object, freed with EftObj_Destroy */
     /* 0x36 */ u8 unk36[0xB0 - 0x36];
 } EftRushShotModel; /* size 0xB0 */
 
@@ -151,7 +151,7 @@ typedef struct EftRushShotModel {
 #define EFT_RUSHSHOT_FLIGHT     0x40000   /* released (the swarm follows the shot) */
 #define EFT_RUSHSHOT_SENT       0x80000   /* the camera cut was started */
 #define EFT_RUSHSHOT_SENT2      0x100000  /* the camera cut was stopped */
-#define EFT_RUSHSHOT_STAGE_FX   0x200000  /* a func_00180760 effect is running */
+#define EFT_RUSHSHOT_STAGE_FX   0x200000  /* a EftStreak_Start effect is running */
 
 /* Work of a projectile task (class gEftRushShotClass), memset to 0xAC0 bytes. */
 typedef struct EftRushShotWork {
@@ -178,7 +178,7 @@ typedef struct EftRushShotWork {
     /* 0x5A0 */ f32 timer;
     /* 0x5A4 */ f32 life;
     /* 0x5A8 */ f32 fade;
-    /* 0x5AC */ s32 stageFx[8]; /* handles of the func_00180760 effects */
+    /* 0x5AC */ s32 stageFx[8]; /* handles of the EftStreak_Start effects */
     /* 0x5CC */ s32 stage;      /* how many events 0x80 were seen */
     /* 0x5D0 */ s32 subCount;   /* 7 when the manager has a model pack */
     /* 0x5D4 */ u8 unk5D4[0x5E0 - 0x5D4];
@@ -208,7 +208,7 @@ typedef struct EftRingShotOne {
     /* 0x58 */ f32 phase;      /* bobbing phase */
     /* 0x5C */ f32 time;       /* frames since it was created */
     /* 0x60 */ f32 slideTime;  /* frames the slide takes: |from| / def->speed, at least 10 (variant 0) or 1 */
-    /* 0x64 */ void *shot;     /* the blast object func_0016A7D0 created (task of class 0x2C3AD8, eft_j.c) */
+    /* 0x64 */ void *shot;     /* the blast object EftBlastObj_Create created (task of class 0x2C3AD8, eft_j.c) */
     /* 0x68 */ u8 unk68[8];
 } EftRingShotOne; /* size 0x70 */
 
@@ -266,7 +266,7 @@ typedef struct EftRingShot {
 #define EFT_RINGSHOT_DONE      0x400     /* the fighter's held flag 0xA8 was set (ring complete / path flown / fixed) */
 #define EFT_RINGSHOT_PATH      0x800     /* variant 2: the spline was laid */
 
-/* Argument block of func_0016A7D0, which creates one blast object (eft_j.h EftJShotArg). */
+/* Argument block of EftBlastObj_Create, which creates one blast object (eft_j.h EftJShotArg). */
 typedef struct EftShotArg {
     /* 0x00 */ EftTechArg *arg;
     /* 0x04 */ EftModel *model;

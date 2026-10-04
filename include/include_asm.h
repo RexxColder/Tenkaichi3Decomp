@@ -47,6 +47,20 @@
     )
 #endif
 
+/* Around the C attempt of a function that stays INCLUDE_ASM, when functions LATER in the file only match if the
+ * compiler has seen its definition (a call to a function already defined in the translation unit is treated
+ * differently: delay slots, branch-likely). The attempt is compiled, so the compiler knows the function, but the
+ * assembler skips its output (`.if 0`); the code comes from the INCLUDE_ASM that follows.
+ *     ASM_STUB_BEGIN();
+ *     void f(void) { ... }
+ *     ASM_STUB_END();
+ *     INCLUDE_ASM("asm/nonmatchings/...", f);
+ * The attempt must not define function-local `static` data (it would be emitted outside the skipped block). */
+#ifndef ASM_STUB_BEGIN
+#define ASM_STUB_BEGIN() __asm__(".if 0")
+#define ASM_STUB_END() __asm__(".endif")
+#endif
+
 #if INCLUDE_ASM_USE_MACRO_INC
 __asm__(".include \"macro.inc\"\n");
 #else
@@ -66,6 +80,10 @@ __asm__(".include \"labels.inc\"\n");
 #endif
 #ifndef LIT4_WORD
 #define LIT4_WORD(NAME, HEX)
+#endif
+#ifndef ASM_STUB_BEGIN
+#define ASM_STUB_BEGIN() extern int asm_stub_begin_
+#define ASM_STUB_END() extern int asm_stub_end_
 #endif
 
 #endif /* !defined(M2CTX) && !defined(PERMUTER) */

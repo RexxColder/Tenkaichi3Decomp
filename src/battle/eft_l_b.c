@@ -3,7 +3,7 @@
 
 /*
  * Technique effect type 4, the "ring shot", 0x15C728..0x15E5D0: gEftShotClass row 5 (manager 0x2C39B8, task
- * 0x2C39D0). One task creates up to 20 blast objects (func_0016A7D0, the tasks of class 0x2C3AD8 that carry the
+ * 0x2C39D0). One task creates up to 20 blast objects (EftBlastObj_Create, the tasks of class 0x2C3AD8 that carry the
  * hits) and places them until they are launched. Variant by effect id (EftRingShot.type):
  *   0  id 0x26D: on the owner's event 4 the shots are created at the set's start node and slide to places on two
  *      rings around the OPPONENT (radius 70 and 35 times the body scale, 35 * 2 and 35 * 0.7 above and below),
@@ -81,14 +81,14 @@ extern void EftEmit_UpdateNodesReq(EftTechArg *arg, void *nodes);
 extern void EftEmit_UpdateTrailWidth(EftModel *model, EftModelInst *inst);
 extern f32 EftEmit_GetTrailWidth(EftModelInst *inst);
 extern void EftTechEvt_RequestRestart(s32 objId);
-extern void *func_0016A7D0(EftShotArg *arg);
-extern s32 func_0016A9C0(void *shot);
-extern void func_0016AB08(void *shot, s32 mode, Vec4 *pos);
-extern void func_0016AB90(void *shot, Vec4 *pos);
-extern void func_0016ABE8(void *shot, Vec4 *dir);
-extern void func_0016AD10(void *shot, s32 hold);
-extern void func_0016ADE0(void *shot);
-extern void func_0016AE30(void *shot, f32 delay);
+extern void *EftBlastObj_Create(EftShotArg *arg);
+extern s32 EftBlastObj_IsAlive(void *shot);
+extern void EftBlastObj_SetTarget(void *shot, s32 mode, Vec4 *pos);
+extern void EftBlastObj_SetPrevPos(void *shot, Vec4 *pos);
+extern void EftBlastObj_SetDir(void *shot, Vec4 *dir);
+extern void EftBlastObj_SetHeld(void *shot, s32 hold);
+extern void EftBlastObj_MarkLast(void *shot);
+extern void EftBlastObj_SetDelay(void *shot, f32 delay);
 extern void func_001ADA58(EftTask *task);
 extern void func_001ADB78(EftTask *task, s32 flag);
 extern EftTask *func_001ADB98(EftTask *task);
@@ -352,20 +352,20 @@ void EftRingShot_Fire(s32 objId, EftTask *task, s32 node, s32 arg3, s32 volley) 
                     break;
                 }
             }
-            shot->shot = func_0016A7D0(&sarg);
+            shot->shot = EftBlastObj_Create(&sarg);
             shot->flags |= 1;
             switch (w->type) {
                 case 0:
                 case 1:
-                    func_0016AD10(shot->shot, 1);
+                    EftBlastObj_SetHeld(shot->shot, 1);
                     break;
                 case 2:
-                    func_0016AE30(shot->shot, (f32)i * 3.0f);
-                    func_0016AB90(shot->shot, &shot->pos);
+                    EftBlastObj_SetDelay(shot->shot, (f32)i * 3.0f);
+                    EftBlastObj_SetPrevPos(shot->shot, &shot->pos);
                     break;
             }
             if (shot->flags & 4) {
-                func_0016ADE0(shot->shot);
+                EftBlastObj_MarkLast(shot->shot);
             }
             w->flags |= EFT_RINGSHOT_SHOT;
             w->fired++;
@@ -383,7 +383,7 @@ void EftRingShot_BobShot(EftRingShotOne *shot) {
     if (shot->phase >= 3.14159265f) {
         shot->phase -= 6.2831853f;
     }
-    func_0016AB08(shot->shot, 1, &pos);
+    EftBlastObj_SetTarget(shot->shot, 1, &pos);
 }
 
 /* Variants 0 and 1: creates the shots on the owner's bit 4, slides each to its place, and launches them all at
@@ -420,7 +420,7 @@ void EftRingShot_UpdateRing(s32 objId, EftTask *task) {
         }
         for (i = 0; i < 20; i++) {
             shot = &w->shot[i];
-            if (func_0016A9C0(shot->shot)) {
+            if (EftBlastObj_IsAlive(shot->shot)) {
                 if (shot->time > shot->slideTime) {
                     shot->flags |= 2;
                 }
@@ -431,7 +431,7 @@ void EftRingShot_UpdateRing(s32 objId, EftTask *task) {
                         t = 1.0f;
                     }
                     func_001225D0(&pos, &shot->from, &w->start, t);
-                    func_0016AB08(shot->shot, 1, &pos);
+                    EftBlastObj_SetTarget(shot->shot, 1, &pos);
                 } else {
                     EftRingShot_BobShot(shot);
                 }
@@ -456,7 +456,7 @@ checked:
                 for (i = 0; i < 20; i++) {
                     shot = &w->shot[i];
                     if (shot->shot != NULL) {
-                        func_0016AD10(shot->shot, 0);
+                        EftBlastObj_SetHeld(shot->shot, 0);
                     }
                 }
                 EftShot_SetHeldFlagA8(arg->objId);
@@ -477,13 +477,13 @@ checked:
             for (i = 0; i < 20; i++) {
                 shot = &w->shot[i];
                 if (shot->shot != NULL) {
-                    func_0016AB08(shot->shot, 0, NULL);
+                    EftBlastObj_SetTarget(shot->shot, 0, NULL);
                     Vec3_Sub(&dir, &target, &shot->home);
                     Vec3_Normalize(&dir, &dir);
-                    func_0016ABE8(shot->shot, &dir);
+                    EftBlastObj_SetDir(shot->shot, &dir);
                     tmp = shot->index;
                     tmp = 20 - tmp;
-                    func_0016AE30(shot->shot, tmp * 0.75f);
+                    EftBlastObj_SetDelay(shot->shot, tmp * 0.75f);
                 }
             }
             w->flags |= EFT_RINGSHOT_LAUNCHED;
@@ -582,7 +582,7 @@ s32 EftRingShot_ReapShots(EftTask *task) {
     s32 i;
 
     for (i = 19, shot = w->shot; i >= 0; i--, shot++) {
-        if (func_0016A9C0(shot->shot)) {
+        if (EftBlastObj_IsAlive(shot->shot)) {
             alive = 1;
         } else {
             shot->shot = NULL;

@@ -91,8 +91,8 @@ extern s32 BtlChar_IsDead(BtlMoveChr *chr);
 extern s32 BtlChar_IsFree(BtlMoveChr *chr);
 extern s32 BtlChar_IsStage4Or27(void);
 extern void func_002398F0(BtlMoveSeg *seg, Vec4 *a, Vec4 *b);
-extern s32 func_001B2DF0(BtlMoveSeg *seg);
-extern void func_001B2F00(Vec4 *out);
+extern s32 StgCol_TraceSegment(BtlMoveSeg *seg);
+extern void StgCol_GetHitPos(Vec4 *out);
 
 /* Late per-frame voice triggers: with flags 0x12F..0x133 the current animation's attribute bits pick a voice kind
    (0xE, 0x34..0x37) or a stream (0x8D35, 0x8D37, 0x8D41, 0x8D42). Called from BtlChar_UpdateLate. */
@@ -1008,11 +1008,11 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
     oppScale = BtlOpp_GetHeight(chr);
     tgt.y += BtlOpp_GetHalfHeightDiff(chr);
     func_002398F0(&seg, &opp, &tgt);
-    if (func_001B2DF0(&seg)) {
+    if (StgCol_TraceSegment(&seg)) {
         f32 len3;
         f32 lenXZ;
 
-        func_001B2F00(&hit);
+        StgCol_GetHitPos(&hit);
         Vec4_Sub(&e, &tgt, &hit);
         len3 = Vec3_Length(&e);
         lenXZ = BtlUtil_LengthXZ(&e);

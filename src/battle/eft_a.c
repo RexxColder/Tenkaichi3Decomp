@@ -59,10 +59,10 @@ typedef struct EftImpactArg {
 extern void func_001ADB30(EftHitTask *task, s32 bits);       /* task->flags |= bits */
 extern void func_001ADB40(EftHitTask *task, EftVec pos);     /* task->pos = pos */
 extern void EftTechEvt_RequestStop(s32 side);                         /* beam struggle: sets bit 2 in a per-side word */
-extern void func_00177BC8(EftHitTask *task, void *mtx);    /* copies a 0x40-byte block into the blast task's work */
+extern void EftKiBomb_SetContact(EftHitTask *task, void *mtx);    /* copies a 0x40-byte block into the blast task's work */
 extern f32 BtlStage_GetInnerRadius(void);                              /* stage radius - 100 */
-extern s32 func_00187BE0(EftImpactArg arg, f32 scale, f32 unk); /* adds an impact effect task (class 0x2C3F20) */
-extern void func_001975A8(s32 objId, EftVec *pos, f32 scale);
+extern s32 EftImpact_SpawnBlast(EftImpactArg arg, f32 scale, f32 unk); /* adds an impact effect task (class 0x2C3F20) */
+extern void EftGndDust_SpawnImpact(s32 objId, EftVec *pos, f32 scale);
 extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftVec *out);
 extern s32 BtlCharApi_TestFlagA4(s32 objId);
@@ -207,7 +207,7 @@ void EftHit_SpawnImpacts(void) {
         rec = &gEftHitList->rec[i];
         if (rec->task != NULL) {
             flags = rec->task->flags;
-            if (!(flags & EFT_TASK_IMPACT_DONE) && !(rec->flags & EFT_HIT_FLAG_NO_IMPACT) && !(flags & EFT_TASK_HIT_20) &&
+            if (!(flags & EFT_TASK_IMPACT_DONE) && !(rec->flags & EFT_HIT_FLAG_NO_IMPACT) && !(flags & EFT_TASK_ABSORBED) &&
                 (flags & 0x3F)) {
                 if (rec->atk != NULL) {
                     EftHit_SpawnBlastImpact(rec);
@@ -238,13 +238,13 @@ s32 EftHit_CanHit(EftHitRec *rec, s32 mode) {
                 ok = 0;
             } else if (flags & EFT_TASK_KEEP) {
                 ok = 0;
-            } else if (flags & EFT_TASK_HIT_4) {
+            } else if (flags & EFT_TASK_HIT_STAGE) {
                 ok = 0;
             }
         } else {
             ok = (flags & 9) == 0;
         }
-        if (flags & EFT_TASK_DEAD) {
+        if (flags & EFT_TASK_DEFLECTED) {
             ok = 0;
         }
     } else {
@@ -536,7 +536,7 @@ s32 EftHit_NotifyBlastTask(u32 idx, void *mtx) {
             rec = &gEftHitList->rec[idx];
             if (rec->task != NULL) {
                 if (rec->type == EFT_HIT_BLAST) {
-                    func_00177BC8(rec->task, mtx);
+                    EftKiBomb_SetContact(rec->task, mtx);
                 }
             }
         }
@@ -665,12 +665,12 @@ s32 EftHit_CalcResult(EftHitRec *rec) {
     s32 flags;
     s32 count;
 
-    if (rec->task->flags & EFT_TASK_HIT_4) {
+    if (rec->task->flags & EFT_TASK_HIT_STAGE) {
         result = 5;
     }
-    if (rec->task->flags & EFT_TASK_FORCE_1) {
+    if (rec->task->flags & EFT_TASK_MULTI_CONTACT) {
         result = 1;
-        rec->task->flags &= ~EFT_TASK_FORCE_1;
+        rec->task->flags &= ~EFT_TASK_MULTI_CONTACT;
     }
     if (rec->task->flags & EFT_TASK_HIT_CHAR) {
         if (rec->task->flags & EFT_TASK_MULTI) {
@@ -687,25 +687,25 @@ s32 EftHit_CalcResult(EftHitRec *rec) {
         }
     }
     flags = rec->task->flags;
-    if (flags & EFT_TASK_HIT_8) {
+    if (flags & EFT_TASK_LOST_CLASH) {
         result = 4;
     }
-    if (flags & EFT_TASK_HIT_2) {
+    if (flags & EFT_TASK_GUARDED) {
         if (!(flags & EFT_TASK_MULTI)) {
             result = 5;
         }
     }
-    if (flags & EFT_TASK_HIT_20) {
+    if (flags & EFT_TASK_ABSORBED) {
         result = 5;
     }
     if (flags & EFT_TASK_OUT) {
         result = 5;
     }
-    if (flags & EFT_TASK_HIT_100) {
+    if (flags & EFT_TASK_STRUGGLE) {
         result = 3;
     }
     if (EftHit_IsTechClass(rec, 0)) {
-        if (!(rec->task->flags & EFT_TASK_HIT_8)) {
+        if (!(rec->task->flags & EFT_TASK_LOST_CLASH)) {
             result &= ~5;
         }
     }
@@ -901,18 +901,18 @@ void EftHit_SpawnBlastImpact(EftHitRec *rec) {
     }
     if (rec->task->flags & EFT_TASK_HIT_CHAR) {
         if (rec->flags & EFT_HIT_FLAG_GROUND) {
-            func_001975A8(rec->objId, &rec->task->pos, 1.0f);
+            EftGndDust_SpawnImpact(rec->objId, &rec->task->pos, 1.0f);
         } else {
-            func_00187BE0(arg, scale, 0.2f);
+            EftImpact_SpawnBlast(arg, scale, 0.2f);
         }
-    } else if (rec->task->flags & EFT_TASK_HIT_4) {
+    } else if (rec->task->flags & EFT_TASK_HIT_STAGE) {
         if (!(rec->flags & EFT_HIT_FLAG_GROUND)) {
-            func_00187BE0(arg, scale, 1.0f);
+            EftImpact_SpawnBlast(arg, scale, 1.0f);
         } else {
-            func_001975A8(rec->objId, &rec->task->pos, 1.0f);
+            EftGndDust_SpawnImpact(rec->objId, &rec->task->pos, 1.0f);
         }
     } else {
-        func_00187BE0(arg, 1.0f, 0.5f);
+        EftImpact_SpawnBlast(arg, 1.0f, 0.5f);
     }
 }
 
@@ -944,10 +944,10 @@ void EftHit_SpawnTechImpact(EftHitRec *rec) {
             }
             if (spawn) {
                 arg = (EftImpactArg){ pos, dir, src->def->impactFx, rec->objId, 0 };
-                func_00187BE0(arg, rec->src->def->impactScale, 0.5f);
+                EftImpact_SpawnBlast(arg, rec->src->def->impactScale, 0.5f);
             }
         }
-    } else if (rec->task->flags & EFT_TASK_HIT_4) {
+    } else if (rec->task->flags & EFT_TASK_HIT_STAGE) {
         EftImpactArg arg;
 
         if (src->def->groundFx >= 0 && !BtlCharApi_TestFlagA4(rec->objId)) {
@@ -956,7 +956,7 @@ void EftHit_SpawnTechImpact(EftHitRec *rec) {
         }
         if (spawn) {
             arg = (EftImpactArg){ rec->task->pos, dir, src->def->groundFx, rec->objId, 0 };
-            func_00187BE0(arg, rec->src->def->groundScale, 1.0f);
+            EftImpact_SpawnBlast(arg, rec->src->def->groundScale, 1.0f);
         }
     }
 }

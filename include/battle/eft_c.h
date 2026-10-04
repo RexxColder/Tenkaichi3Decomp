@@ -305,7 +305,7 @@ typedef struct EftTexDef {
     /* 0x3C */ EftTexData *data;
 } EftTexDef;
 
-/* Texture table filled by func_001AE408. */
+/* Texture table filled by EftTexSet_Load34. */
 typedef struct EftSurfTexTbl {
     /* 0x000 */ EftTexEntry tex[34];
     /* 0x220 */ s32 count;
