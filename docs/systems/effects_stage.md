@@ -207,7 +207,7 @@ per-frame bump allocator for their shapes.
   per projectile per frame. Twelve task modules create records.
 - A record has: owner object id, type (1 technique with a source slot and definition, 0 ki
   blast with blast parameters), `pos` / `prevPos` / `vel`, flags, a swept shape (two spheres or
-  two boxes), and a pointer to its owning task.
+  two capsules: the "box" shape is a segment plus a radius), and a pointer to its owning task.
 - Feedback goes to the owning task as flags: bit 0 hit a fighter, 0x10 left the stage, 0x40
   dead, 0x200 impact effect spawned, 0x4000 multi-hit, 0x8000 one-shot. `EftHit_UpdateResults`
   (start of `BtlScene_PostUpdate`) condenses them into `task->result` (0, 1, 3, 4 hit,
@@ -659,3 +659,43 @@ Which kinds a character gets comes from its character pack; type 2 / 3 ki blasts
 class of kind 1 / 2. When a character is streamed out, its layer-2 task is killed and
 `BtlScene_Reset(2 or 3)` runs, (inferred) ending its effect tasks, ki blasts in flight
 included.
+
+## Collision primitives, second file (`col_b.c`, 0x236190..0x239BB0; all 42 functions match)
+
+Stateless geometry: no globals, no static buffers, no random draws, no inline VU0. Not linked
+yet. Exact contracts for every function are in `include/battle/col_b.h`; the ones the
+simulation uses:
+
+- **Shapes**: sphere = centre (w = 1), radius, radius squared. The hit record "box" is a
+  capsule: two points and a radius. A sweep = a capsule plus its start sphere, delta, unit
+  direction and length.
+- **Projectile against fighter or projectile** (`ColSphere_SweepSphere`): relative-motion
+  quadratic; an overlap at the start returns t = 0 (exact touching does not count); relative
+  movement below 1.1754944e-36 (squared) returns no hit; t is not clamped (callers treat
+  t <= 1e-6 or t >= 1 as "use the static test"). Static test: `ColSphere_TestSphere`
+  (inclusive). Resolution: `ColSphere_SeparateSphere` (0.001 tolerance, 0.001 extra push).
+- **Projectile or camera against the stage** (`ColSweep_TestTri`): back-facing or parallel
+  triangles (dir . n > -0.001) are ignored; face, then corners, then edges; corners replace the
+  best hit only if strictly nearer, edges also on a tie; the distance is not limited to the
+  sweep length.
+- **Fighter body against stage triangles** (`ColSphere_TestTri`): Magic Software
+  point / triangle squared distance compared with the sphere's stored radius squared;
+  degenerate triangles never hit.
+- **Segment trace** (`ColSeg_TestTri`): front faces only, by the geometric normal, inclusive
+  bounds, returns the fraction along the segment.
+- **Fighter body volume** (`ColSphere_ContactObb`): sphere against an oriented box with a
+  face / edge / corner classification. **Original bug, to be reproduced by a port**: only the
+  x face returns a correct normal; the y and z faces return a vector built from one axis
+  component, and the y face uses the wrong sign variable. It feeds the melee volume test.
+- "No hit yet" is 0x7F7FFFFE, one bit below FLT_MAX.
+
+### Vector routines (read from disassembly; hand-written VU0, at 0x121E28..)
+
+A port must reproduce these exactly: `Vec3_Dot` = (x*x' + y*y') + VF3.x * (z*z'), where VF3 is
+(1, 0, 0, 0) set once at boot; `Vec4_Add` / `Vec4_Sub` work on all four components (the
+difference of two positions has w = 0); `Vec3_Normalize` takes a VU0 square root, then a VU0
+reciprocal, then multiplies, and returns w = 0; `Vec3_Cross` gives w = 0. Several primitives
+compute some dot products in plain FPU instead: which path each sum takes is fixed by the
+matching C. `sqrtf` is the inline FPU instruction.
+
+0x239BB0..0x239EA0 (`col_b_b.c`, 5/5) is the head of the text printer (see graphics.md).

@@ -142,7 +142,10 @@ the wave listed above (eft_n..eft_ad, eft_det_*, stg_d, col_a).
 bobj_b (2 files, 0x24F1F0..0x2527B0) has reported: 43/49; merge bobj_b.c behind bobj_a's tail
 (`BtlObj_UpdateFace`, `BtlObj_IsJawActive` need 0x24E9C8 / 0x24EB70 in the same file).
 
-Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), col_b, bobj_a,
+col_b (0x236190..0x239BB0, 42/42) and col_b_b (0x239BB0..0x239EA0, 5/5) have reported; yaml
+lines are in its agent notes (c at 0x136190 / 0x139BB0, .lit4 0x1FE48C, .sdata 0x1FEBAC).
+
+Still running: eft_ae (0x1AA7E8..0x1AE2A8, corrected end), bobj_a,
 btl_ai_seq_a (0x1B4140..0x1B6008, new file to merge into btl_ai_seq.c).
 The user asked (2026-10-04) for at most 10 subagents at a time.
 
