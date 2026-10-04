@@ -716,3 +716,32 @@ Verified by matching C:
   +0x2EC8 (bit 0 owned, bit 1 new); money at +0x3028 (inferred: "Z points").
 - Matching lesson: write every `uv.x0 / y0 / x1 / y1` group in field order and let the
   scheduler shuffle (540 -> 20 differing instructions in `EvoZ_Refresh`).
+
+## Evolution Z top menu tail; Options (mode 62) (chunk 24, 0x39EFC0..0x3A3848; src/menu/menu_x*.c; all 14 functions match)
+
+Files: menu_x.c = `EvoTop` tail (appends to menu_w_c.c; merged test matches all 16),
+menu_x_b.c = `OptMode_Main` (0x39FAA8), menu_x_c.c = head of `Option` (`Option_Init`,
+`Option_Run`, `Option_Input`; continues in chunk 25; `gOption` 0x3BC364, 0x22C bytes).
+
+Verified by matching C:
+- `EvoTop` (mode 48; guide Krillin by clip names): three plates; cancel returns 0 and, when
+  `gProgress->flags & 1`, first runs the save flow (`DcSave_Start` -> `McFlow_Start(0)`;
+  "DcSave" is a misnomer: a shared save-on-leaving helper at 0x3B0C08..0x3B0E04).
+- **Mode 62 = Options** (main-menu item 9; archive 10 = file baseFile + 5; guide Dende; never
+  starts a battle). Settings are written live into `gSaveData`; the card is written by the
+  Save row (`McFlow_Start(0)`), Load is `McFlow_Start(1)`, and leaving when dirty runs
+  `McFlow_Start(4)`.
+- **Save option fields (the only place they are edited)**: `+0x1608` flags (bit 0
+  `SAVE_FLAG_VOICE`; bits 1 / 2 and 3 / 4 per-controller toggles; inferred vibration and
+  custom keys on); `+0x160C` `key[pad][0..7]` (what the battle reads: a copy of `keyEdit`
+  when the per-pad bit `8 << pad` is on, else the default {2, 1, 0, 3, 4, 5, 6, 7});
+  `+0x164C` `keyEdit[pad][0..3]` (a permutation of 0..3, swapped on change); `+0x1694` (0..2)
+  and `+0x1698` (0 / 1), copied per side into the battle option block (meaning unknown);
+  `+0x169C` / `+0x16A0` screen position (-16..16); `+0x16A4` sound mode (stereo / mono, then
+  `SndOpt_Apply()`); `+0x16A8` / `+0x16AC` BGM / SE volume (0..9).
+- Sound test: `Bgm_Play(id + 0x10B16)`, gated by `bgmBits`.
+- Original bugs: both key pages compare the ADDRESSES of two tables instead of their
+  contents, so they always mark the save dirty; the screen position counts as changed only
+  if both axes changed.
+For the port / netplay: the key assignment table is an input-mapping layer in front of the
+pad, per controller; peers must apply their own mapping before inputs are exchanged.
