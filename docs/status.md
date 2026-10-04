@@ -472,3 +472,21 @@ the simulation outside the pad stream; menus and HUD advance shared random gener
 Launch NO new agents (no integrator, no cleanup) until the user says the session / usage has
 reset. The eight overlay agents already running (chunks 20..27) may finish; process their
 reports as usual (re-diff, document, commit) and then wait.
+
+## STOPPED (2026-10-04): every overlay chunk has reported; no agents running; credits low
+
+Overlay: all 27 chunks committed UNLINKED (src/menu/menu_a.c .. menu_za_e.c, 93 files). 737
+functions: 723 print OK as delivered; 12 are INCLUDE_ASM with attempts (`CharSel_Input`,
+`Train_BuildLists`, `SimEv28` (assembler delay-slot rule, C is right), `SimEv34`,
+`Option_Draw`, `DcList_Draw`, `Dc_Main`, `DcMenu_DrawPlates`, `DcPass_WrapPos`,
+`DcPass_Decode`, `DcPass_DrawStatus`, `DcPass_DrawRows`); `Train_Update` / `Train_Input`
+match only merged with menu_h_d.c. Chunks 25, 26 and the menu_za.c part of 27 were wrapped up
+early: no relocated byte compare on menu_y.c and menu_z*.c.
+Main executable: 86.91% linked (ee4fe98).
+Next, when the user says the session has reset (HOLD above still applies until then):
+1. Overlay integrator(s): notes in the previous "State" section plus: `li.d` prelude rule,
+   `litodp` / `dptoli` aliases, the `SimEv28` assembler rule, `ItemHelp_*` renames in
+   config/linker_script_extra.ld.
+2. Near-miss cleanup rounds on both binaries.
+docs/systems/menu_overlay.md has every mode's flow and every battle hand-off, and the replay
+start / save path.
