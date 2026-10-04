@@ -92,6 +92,11 @@ and the stage update at 0x243568).
 | 0x18D618..0x190CC8 | eft_x.c | ring particles `EftPart10*`, second half | no | VU0: 18 per particle; libc `rand()`: up to 3 | 29/34 |
 | 0x190CC8..0x190DA8 | eft_x_b.c | **scene layer 3 root**: creates the 31 common effect managers of table 0x2C3FB0 | no | none | 4/4 |
 | 0x190DA8..0x191D28 | eft_x_c.c | quad emitter `EftQuad*`, first half (part kind 9; 200 quads) | no | VU0: 28 per quad; libc `rand()`: up to 5 | 11/11 |
+| 0x1AE2A8..0x1AE5F8 | eft_det_a.c | texture set loaders, VRAM upload | no | none | (eft_det_a 40/40) |
+| 0x1AE5F8..0x1AF508 | eft_det_a.c | **volley aim `EftVolleyAim_*`**: spread and steering of volley shots | **yes** | **`BtlScene_Rand*`: 0..3 per shot at fire (direction), 3..4 on one scripted frame per lobbed shot (target offset)** | |
+| 0x1AF508..0x1AF7B8 | eft_det_a.c | **fighter strike volumes against the other fighter's body `BtlBodyHit_*`** | **yes** | none | |
+| 0x1AF7B8..0x1B1260 | eft_det_a.c | **projectile hit detection `EftDet_*`** | **yes** | none | |
+| 0x1B1260..0x1B16F0 | eft_det_a.c | **ground probe `StgGround_*`** | **yes** | none | |
 | 0x1B16F0..0x1B3510 | eft_det_b.c | **stage collision queries `StgCol_*`** (fighter body sweep, segment trace, camera sweep, debris, shadow) | **yes** | none | 30/33 |
 | 0x1B3510..0x1B3F78 | eft_det_b_b.c | stage way-point graph `StgNav_*` and path search (AI only) | yes (AI input) | none | 10/12 |
 | 0x1B3F78..0x1B4140 | eft_det_b_c.c | head of the AI sequence object (`BtlAiSeq_Reset`, `PushRule`) | yes | none | 1/2 |
@@ -409,3 +414,55 @@ First wave complete: all sixteen agents reported; every file was re-diffed.
   0x2C3FB0 of `{class, 1}` pairs, created in table order from pool slot 1).
 - (verified hazard, eft_x) `EftQuad_Update` computes `age % interval`: a definition with
   interval 0 traps.
+
+## Projectile hit detection (simulation; `eft_det_a.c`, all 40 functions match)
+
+`EftDet_Update` runs between `BtlScene_Update` and `BtlScene_PostUpdate`, not while paused:
+prepare every record, then record against record (clash), record against stage, record against
+fighter. Every pass walks the list in creation order. `EftHit_CanHit` mode 0 = stage, 1 =
+fighter, 2 = clash.
+
+- **Results** go to the owning task through `EftHit_SetTaskFlag`: 1 hit a fighter, 2 guarded,
+  4 hit the stage, 8 lost a clash, 0x20 absorbed, 0x40 deflected, 0x80 reflected, 0x100 beam
+  struggle, 0x8000 multi-hit still in contact. (These correct the flag names in eft_a.h.)
+- **Shapes**: type 0 is a sphere swept from the previous to the current position. Type 1 is a
+  capsule: against fighters and other records the whole beam from the muzzle is tested every
+  frame; against the stage only the newly covered piece. Types 2..6 never hit anything.
+- **Against a fighter**: each record is tested against exactly one fighter, owner id ^ 1 (the
+  code assumes object ids 0 and 1). The swept sphere is tested against every body part and the
+  earliest contact wins. A fighter contact further away than the same record's stage contact
+  is dropped, so walls shield. Then the fighter answers in this order: dodge, deflect, reflect,
+  absorb, guard, hit. Multi-hit techniques hit at most once per interval frames of contact.
+- **Order**: there is no fighter loop; the outcome depends on record order only (each record is
+  fully resolved, fighter state included, before the next).
+- **Clash**: all pairs with different owners; the earlier record of a pair can clash with
+  several later ones in one frame. `EftHit_Clash` is called for every eligible pair, touching
+  or not, and its side effect (stopping both technique timers for a head-on pair) is not gated
+  by contact. The beam struggle starts only with line of sight, battle sequence state below 4
+  and no struggle already running; it sets held flag 0xAA on fighters 0 and 1 by literal id.
+- **Against the stage**: only the record's own zone is searched. Ki blasts do 1 damage to a
+  stage object, techniques 999999. The object damaged is the lowest index touched, not the
+  nearest. A projectile that breaks an object passes through it that frame. A stopping hit
+  shakes nearby cameras and rumbles for techniques.
+- No camera, view, screen mode, pad or sound input; no random draws in the detection.
+
+### Fighter strikes (`BtlBodyHit_Update`, before `BtlColl_Update`)
+
+Each fighter's attack spheres and volumes are tested against the other's body parts; a contact
+sets bits in both objects' contact words (bits 24..31). It only sets bits, so the order of the
+two tests does not matter. This is the geometric test behind the melee hit code in combat.md.
+
+### Ground probe (`StgGround_Probe`)
+
+The nearest upward-facing solid triangle under a point and below a height limit, searched in
+one zone only; no result leaves the height at FLT_MAX. Each fighter probes once per frame and
+may break a stage object it is inside.
+
+### Volley aim (`EftVolleyAim_*`): the scene generator in the simulation
+
+Each volley shot's direction is spread by pattern kind (cone, fan, alternating, ring, circle,
+lob ...) with 0 to 3 draws from the scene generator at fire time, in shot creation order;
+lobbed shots draw 3 or 4 more on one scripted frame for their target offset. The spread also
+depends on the distance between fighters 0 and 1 (by literal id) and on the shooter's
+altitude. Steering leads the target with the opponent's frame movement, so it depends on
+whether the opponent has already moved this frame.
