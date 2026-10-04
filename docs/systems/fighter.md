@@ -258,3 +258,38 @@ and stay in assembly); not linked yet. Tables are in `include/battle/btl_capi_a.
   connected; 0x12B bound to a new model. 0x11 = in water is verified by its setter.
 - Corrections: the field at fighter +0 is the roster index (player), not the side;
   `BtlCharApi_TestFlag0F` / `TestFlag05` duplicate `IsOnGround` / `IsLockedOn`.
+
+## Battle object: faces, parts, nodes, secondary motion (`bobj_b.c`, `bobj_b_b.c`, 0x24F1F0..0x2527B0)
+
+43 of 49 functions match per function; not linked yet. Two of the six misses need the previous
+range's face helpers in the same file; the two large chain step functions are read from
+disassembly only. Layouts are in `include/battle/bobj_b.h`.
+
+- (verified) **Node table**: object +0xD6C maps node id to a 0xE0-byte node: world matrix at
+  +0x10 (row 3 = world position), parent's world matrix at +0x50, local rotation quaternion at
+  +0xA0, last snapshot position at +0xD0.
+- (read from disassembly, bobj_a's range) **Pose pass**: walks the skeleton with a matrix stack
+  rooted at the object's world matrix: node world = parent x local. For fighters four node ids
+  are overridden (a look rotation, two blended rotations, the jaw).
+- (verified in btl_obj.c) **Per frame**, `BtlObj_UpdateAll` runs for every object unless the
+  battle is paused: save node positions, animation, pose, secondary chains, pose again, bounds,
+  face.
+- (verified for the matched functions) **None of it reads a camera, a view or the visible
+  flag: node matrices are the same on a drawn and an undrawn frame.** This is what the headless
+  simulation needs.
+- (verified) **Mouth and eyes**: `BtlObj_SetSubState` is the mouth mode (talk loops, fixed
+  shapes, lip tracks of `{frame, code}` records advanced by 2.0 per frame); eyes blink unless a
+  frame is forced. Starting a talk mode draws one libc `rand()`; (read) each blink draws two.
+  So every object with a face advances the shared libc generator on unpaused frames.
+- (verified) **A save-data flag selects which set of 100 lip tracks an object binds** (inferred:
+  the voice language). Two peers with different settings play different tracks and consume
+  `rand()` differently.
+- (verified) **Secondary motion chains** (hair, cloth, tails; node ids from 0x47): up to 16 + 8
+  chains per object, stepped in table order. They use a per-object noise source, a logistic map
+  `x = 3.9999 * x * (1 - x)` reset to 0.5, not any shared generator. (read) They react to the
+  owner's movement, a push, a sway and the stage's wind vector; they only write chain node
+  rotations.
+- (verified) Part visibility, colour modes (requests by priority), node visibility by object
+  flags, node velocity since the last snapshot, push and sway with a 0.85 decay.
+- State to save for rollback: face state, chain links, push / sway, node snapshots, the noise
+  value.

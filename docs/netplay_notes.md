@@ -135,6 +135,13 @@ the music stream, and a raw pad-0 button wait. `Talk` also starts and stops lip 
 fighter object sub-state) from the stream's status. Online story battles would need fixed
 durations in place of those waits. Versus modes run no scripts.
 
+## Faces and voice language (verified, bobj_b)
+
+Every battle object with a face draws libc `rand()` for blinks and talk patterns during
+`BtlObj_UpdateAll` (unpaused frames). Which lip tracks play depends on a save-data flag
+(inferred: voice language), so two peers with different settings consume `rand()` differently.
+Faces need their own generator, or the setting must be synchronised.
+
 ## Simulation inside draw callbacks (verified)
 
 `EftTechEvtTask_Draw`, a draw callback of the effect scene, steps the technique fire and end
