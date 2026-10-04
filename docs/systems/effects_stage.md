@@ -110,6 +110,9 @@ and the stage update at 0x243568).
 | 0x191D28..0x195038 | eft_y.c | quad emitter `EftQuad_*`, second half (part kind 9) | no | none in this half | (eft_y 38/41) |
 | 0x195038..0x195EE8 | eft_y.c | camera-facing strip `EftLine_*` helpers (part kind 16; rest in eft_z) | no | none | |
 | 0x199F28..0x19E0C0 | eft_aa.c | ground dust helpers; delayed sounds `EftDelaySe*`; per-fighter effect slots; weapon trail `EftBlade*` (eight character ids); **blinding overlay `EftBlind*`**; part kind 14 `EftAnimPart*` | no | VU0 and libc `rand()` in dust; 6 libc `rand()` at every scene init | 73/79 |
+| 0x1A62C8..0x1A7018 | eft_ad.c | part kind 12 handle entries `EftZap_*` (module starts in eft_ac); fighter request 6 `EftShock_*` | no | VU0 through one shock wave (20) | 29/29 |
+| 0x1A7608..0x1A9D90 | eft_ad_b.c | effect mesh renderer `EftMesh_*`; **effect model objects `EftObj_*` (wrappers of `BtlObj_Create`)** | no (draw state of battle objects) | none | 32/36 |
+| 0x1A9D90..0x1AA7E8 | eft_ad_c.c | sprites `EftSpr_DrawFlat / DrawRot` | no | none | 0/2 |
 | 0x1AE2A8..0x1AE5F8 | eft_det_a.c | texture set loaders, VRAM upload | no | none | (eft_det_a 40/40) |
 | 0x1AE5F8..0x1AF508 | eft_det_a.c | **volley aim `EftVolleyAim_*`**: spread and steering of volley shots | **yes** | **`BtlScene_Rand*`: 0..3 per shot at fire (direction), 3..4 on one scripted frame per lobbed shot (target offset)** | |
 | 0x1AF508..0x1AF7B8 | eft_det_a.c | **fighter strike volumes against the other fighter's body `BtlBodyHit_*`** | **yes** | none | |
@@ -554,3 +557,17 @@ fighters. Its creators (volley, shots, ring shot) keep the task pointer as a han
 - (verified, eft_v_b) The impact effect a projectile starts when it hits is purely visual: it
   plays one emitter set of the common pack at a point and writes nothing else. Explosions do
   no damage of their own.
+
+## Effect model objects (verified, eft_ad_b)
+
+An effect model (prop shot, object technique, shots with a model, rush shot swarm) is a battle
+object of type 1 made by `BtlObj_Create` from a model already in memory inside the effect
+pack: no file request, created in the item task's init and destroyed in its term. It is posed
+with a world matrix, shown or hidden with one flag, and can play model animations.
+
+- The object table has 12 ids with a FIFO free list. (inferred) Fighters hold 0 and 1, so
+  effects share 10 ids, handed out in rotation; assignment follows task creation order.
+- **Hazard**: nothing checks a failed create. Id -1 is then used for show / hide and pose,
+  which writes through the table entry before the first one. One technique type can ask for 14
+  models against 10 free ids. A port must guard it.
+- `btl_pool.c` (linked, 0x1A7018..0x1A7608) sits inside this address range.
