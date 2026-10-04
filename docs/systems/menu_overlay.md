@@ -689,3 +689,30 @@ Verified by matching C:
   bit 1 = collection bonus given. Guides: Launch (two personalities, swapped after 3600 idle
   frames) and Oolong (clip names).
 - Original slip: page-up in the buy list reads the collection list's top row.
+
+## Sim day events 31..36 and the customising screen head (chunk 21, 0x3911A8..0x395E30; src/menu/menu_u*.c; 16 of 17 match)
+
+`SimEv34` (the shell game, 0x392190) is INCLUDE_ASM: 15 of 551 instructions (registers and
+store order in the block that starts the game); its description below is from the attempt.
+Files: menu_u.c .. menu_u_f.c = one event each (`gSimEvent[31..36]`); menu_u_g.c / menu_u_h.c
+= the customising screen's first source file pair (`EvoZ_Init / Term / Draw / Update / Run`
+and `EvoZ_Refresh`; `EvoZ_Load` in menu_v.c ends that file).
+
+Verified by matching C:
+- Events: 31 yes / no offer (+1000 points or defence -5); 32 the rock mini game (training 1,
+  `gSimTrain1`, attack: rocks cross at `speed * 3 + 3` units a frame, confirm swings, a hit
+  needs the rock at x -412..-342); 33 attack and defence +10 for 30 % of health; 35 robbery
+  (lose an item, or a tenth of the points, or defence -5); 36 +5000 points. Most scripts end
+  with two `Rand_Range(3)` losses (attack, then defence).
+- (from the attempt) 34 the shell mini game (training 2, `gSimTrain2`, defence): mark =
+  `Rand_Range(5)`; per swap `Rand_Range(256) < 170` picks a random first figure, the second
+  is redrawn until it differs from the first and from the mark.
+- Mini-game state is uninitialised overlay globals in the main executable's `.bss`
+  (0x31EAFC..0x31EB3C).
+- Customising screen (`gEvoZ` 0x3BB140, 0x3AA8 bytes): `EvoZ_Update` converts Z points to
+  experience at 33 per frame (`gSaveData->money` +0x3028 down, `custom[cell].exp` +0x1838 +
+  cell * 0x38 up, `custom[cell].level` +0x183C up at each threshold: "ability limit up").
+  Save facts: `custom[97]` at +0x1808 = {u16 set[3][8]; s32 exp; u16 level}; `item[350]` at
+  +0x2EC8 (bit 0 owned, bit 1 new); money at +0x3028 (inferred: "Z points").
+- Matching lesson: write every `uv.x0 / y0 / x1 / y1` group in field order and let the
+  scheduler shuffle (540 -> 20 differing instructions in `EvoZ_Refresh`).
