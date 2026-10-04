@@ -565,3 +565,33 @@ sketches above)**; archive 3 = file baseFile + 3:
   timers.
 - Original oddities: `Ub_SetupSolo` and `Ub_SetupSolo2` are byte-identical; mission kinds 4,
   5, 8, 9 give team size 0.
+
+## Survival (modes 17..19), sim top tail, first sim trainings (chunk 19, 0x388618..0x38CB38; src/menu/menu_s*.c; all 27 functions match)
+
+Files: menu_s.c = `SimTop` tail (appends to menu_r_d.c; the merged file needs three
+file-scope const tables at 0x3B9ED0 / 0x3B9ED8 / 0x3B9EE8 above its first function),
+menu_s_b.c = `SurvSel` (mode 17), menu_s_c.c = `SurvResult` (mode 19), menu_s_d.c = sim
+event handlers 0..2 (the three trainings; head of an object that continues in chunk 20).
+
+Verified by matching C:
+- **Survival battle hand-off (`SurvSel_SetupBattle`, 0x388EE0; battle mode 3)**: announcer
+  998 -> `Rand_Range(8)`, stage 998 -> `Rand_Range(35)`, music 998 -> 0x18 unresolved;
+  `Battle_ClearWork()`; `BattleSetup_SetRule(0, 3, bgm, timeLimit, announcer, stage, flag)`;
+  side 0 pad with one member, side 1 CPU with a placeholder member (character 0); then FIFTY
+  `BattleSetup_SetPoolMember(50, i, chara, costume, 0, cpuLevel, 100.0f, items)` from the
+  course's `opp[50]` list (0xE0-byte course record; opponent character 998 ->
+  `randomChara[Rand_Range(102)]`, drawn in index order). The player's member is added by
+  `Ub_SetupSolo` after the character select, which also calls `BattleSetup_Finish()`. Every
+  random draw happens in the menu at confirm time.
+- Survival records: `gSaveData + 0x73C`, 12 bytes each {s32 defeated, s32 score, u8 rank, u8
+  h, m, s}; `gProgress + 0x640` = the course; `gSaveData + 0x208` bit 8 = survival reward
+  (item 0x6A, for 10 or more beaten) given. (inferred) `BattleResult + 0x18` is the number of
+  opponents beaten in battle mode 3.
+- Sim trainings (`gSimEvent[0..2]`): `Rand_Range(101)` against a weight row picks outcome
+  0..5, then attack / defence changes drawn from min..max and a fixed health change.
+  Original oddity: the draw is 0..100 inclusive against weights that presumably sum to 100,
+  so outcome 5 has an extra 1-in-101 chance.
+- The address range 0x31EA80..0x31EAA4 in the main executable's `.bss` is shared by several
+  overlay modules' uninitialised globals (`gCharRefState` as declared by chunk 8 overlaps
+  UbMenu's word, three sim outcome words and `gSimCardShown`): chunk 8's nine-pointer reading
+  of it is wrong or these are merged common symbols; resolve at integration.
