@@ -444,3 +444,39 @@ Verified by matching C:
 - Save records written by the score code: `gSaveData + 0x210` ranking of 10 {chara, score,
   cleared}; `+0x28C` `mission[100]` (0xC bytes: cleared, rank, h, m, s, total); `+0x73C` and
   `+0x780` two more best-record tables.
+
+## Ladder and course modes (modes 24..30) (chunk 14, 0x372148..0x376920; src/menu/menu_n*.c; all 27 functions match)
+
+Files: menu_n.c = tail of `UbTeamSel` (append to menu_m_b.c), menu_n_b.c = `UbzSel` (course
+select, mode 28), menu_n_c.c = `UbRank` (ranking ladder, mode 26), menu_n_d.c = head of
+`UbResult` (modes 27 / 30; prepend to menu_o.c). Mode 24 (chunk 15) sets `gProgress + 0x640`:
+0 = ladder (25 -> 26 -> 27), 1 = courses (28 -> 29 -> 30). (inferred) these are the Disc
+Fusion modes "Ultimate Battle" and "Ultimate Battle Z".
+
+Verified by matching C:
+- **Ladder hand-off (`UbRank_SetupBattle`, 0x373A68; battle mode 2)**: rule record (0x1C
+  bytes: announcer, flag, timeLimit, stage, bgm, flag, foe index; 998 = draw: announcer
+  `Rand_Range(8)`, stage `stageList[Rand_Range(28)]`, bgm `bgmList[Rand_Range(11)]`);
+  `Battle_ClearWork()`; `BattleSetup_SetRule(0, 2, bgm, timeLimit, announcer, stage, flag)`;
+  side 0 pad, side 1 CPU; player = `gProgress + 0x45C` chara / `+0x458` costume / `+0x460`
+  items at 100 health; opponent from the 0x2C-byte table entry {chara, costume, cpuLevel,
+  items (stored minus one; 999 = none)}; `BattleSetup_Finish()`.
+- **Course hand-off (battle mode 3), split in two**: `UbzSel_SetupBattle` (0x372560) writes
+  the rule, both sides, the first opponent and, per opponent (up to 8, ended by chara 999),
+  `BattleSetup_SetPoolMember(count, i, chara, color, 0, cpuLevel, 100.0f, items)`; after the
+  character select of mode 29, `Ub_SetupSolo2` (0x379A10, chunk 15) writes the player's member
+  and `BattleSetup_Finish()`. Stage 998 -> `Rand_Range(35)`; music 998 is passed on as 0x18
+  unresolved.
+- Ladder screen: 100 places; only the place directly above the player (or any below) can be
+  challenged; a win does `gSaveData->rank--` (`gSaveData + 0x77C`, 99 at start, 0 = first).
+  **Intruder**: on confirm, `Rand_Range(0xFFFF) < 0x199A` (10 %) replaces the opponent with
+  intruder `Rand_Range(37)` for places 10 and lower. (inferred) an intruder win is worth six
+  places. `gProgress + 0x684` bits: 4 battle started, 8 upward challenge, 0x10 intruder;
+  `+0x688` the place or course chosen.
+- Save: `+0x780` five 12-byte course records {cleared, rank, time[3], score}; `+0x208` bit
+  0x10 = all-courses reward given. Rewards: `UbScore_GetRewardItem(5)` for clearing all five
+  courses, `(4)` for first place on the ladder.
+- Random: `Rand_Range` for the draws above; libc `rand() % 32` seeds the blink timers.
+- Original bugs: in a course battle side 1's member 0 gets costume 0 and no items while pool
+  entry 0 (the same opponent) gets the table's; the course guide's line plays with a NULL
+  subtitle table.
