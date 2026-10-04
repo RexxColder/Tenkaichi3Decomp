@@ -99,6 +99,9 @@ and the stage update at 0x243568).
 | 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
 | 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
 | 0x182CE8..0x1853C8 | eft_u_b.c | particle emitter `EftPtcl_*`, head (effect pack part kind 5; pool of 500) | no | libc `rand()`: 25..30 per particle | 9/9 |
+| 0x1853C8..0x1871A8 | eft_v.c | particle emitter `EftPtcl_*`, tail (same source file as eft_u_b.c) | no | libc `rand()`: 7..8 per emitter, 1 per emission | 29/31 |
+| 0x1871A8..0x187C50 | eft_v_b.c | **impact effect `EftImpact_*`** (hit sparks and projectile impacts) | **no** (verified: no hit record, damage, shake or stage write) | none | 16/16 |
+| 0x187C50..0x1895E8 | eft_v_c.c | sprite chain `EftLink_*`, first half (part kind 15) | no | VU0: 1 per sprite slot per frame (count follows fighter node positions) | 13/15 |
 | 0x1895E8..0x18C190 | eft_w.c | sprite particles `EftLink_*`, second half (effect pack part kind 15; pool of 200) | no | VU0: 18 per sprite; libc `rand()`: up to 3 | (eft_w 39/44) |
 | 0x18C190..0x18D618 | eft_w.c | ring particles `EftPart10*`, first half (part kind 10; 150 rings) | no | VU0: 2 per ring | |
 | 0x18D618..0x190CC8 | eft_x.c | ring particles `EftPart10*`, second half | no | VU0: 18 per particle; libc `rand()`: up to 3 | 29/34 |
@@ -548,3 +551,6 @@ fighters. Its creators (volley, shots, ring shot) keep the task pointer as a han
   included.
 - Order dependence: owner flip is `id ^ 1`; when several blasts are deflected in one frame the
   fighter generator's sequence follows hit-list order.
+- (verified, eft_v_b) The impact effect a projectile starts when it hits is purely visual: it
+  plays one emitter set of the common pack at a point and writes nothing else. Explosions do
+  no damage of their own.
