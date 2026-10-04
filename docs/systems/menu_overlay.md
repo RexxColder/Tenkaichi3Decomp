@@ -127,3 +127,36 @@ Verified by matching C:
   0x3FE + `Rand_Range(3)`).
 - (inferred) The mode is "Dragon History"; `GetWin_IsAnimating` may really mean "animation
   finished".
+
+## Character select hand-off and team select (chunk 5, 0x348710..0x34D368; src/menu/menu_e.c, menu_e_b.c; all 19 functions match)
+
+One object runs 0x342190..0x351C38: `CharSel` (chunks 3 tail, 4, and `CharSel_Run` here), then
+`TeamSel` (head here, rest in chunk 6). Names are guesses. Layouts in include/menu/menu_e.h
+(`TeamSel` 0x3EA4 bytes; menu_f.h has a second view to unify).
+
+**Versus battle hand-off (`CharSel_Run`, 0x348710; verified by matching C).** Called by the
+handlers of modes 38..41 and 44..45. On leaving, the choices go to `gProgress` (+0x440 /
++0x530 the two sides' 0x30-byte records, +0x628 stage cursor, +0x62C music id), then:
+1. Stage 0x23 = random: `stageIds[Rand_Range(stageCount - 1)]` until below 0x23. Music 0x18 =
+   random: `Rand_Range(9) + 8`. (Shared Mersenne Twister, drawn before the battle starts.)
+2. `gProgress->mode == 45`: battle mode 6, no time limit, announcer 1, cpuLevel -1. Otherwise
+   battle mode 0, screenMode = (players == 1), and from `gSaveData->rule[0..5]`: time limit
+   (0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 0), `CpuLevel_FromSetting(rule[1])`, announcer,
+   two side flags, one more flag.
+3. `Battle_ClearWork()`, `BattleSetup_SetRule(screenMode, mode, bgm, timeLimit, announcer,
+   stage, unk10)`.
+4. `BattleSetup_SetSide` by `players`: 0 = pad vs CPU, 1 = pad vs pad, 2 = CPU vs CPU
+   (control 0 = pad, 2 = CPU).
+5. Per side: `BattleSetup_SetMember(side, 0, rec->chara, rec->color, 0, cpuLevel, 100.0f,
+   rec->items)`; then `BattleSetup_Finish()`.
+This is the complete set of inputs a versus fight starts from (with the random stage / music
+resolved in the menu): what netplay peers must agree on before the simulation starts.
+
+Team select (`TeamSel`, verified unless marked): screen pack = a section of `gMenuArc5` with
+57 sections (textures, movies, stage id list, master character grid, 165 chip texture lists,
+item panel data, music id list); portraits = file 0x2F9 + character, stage pictures = file
+0x39D + stage. Restores both teams (five 0x30-byte records each), players (+0x620), battle
+type (+0x624), stage, music and DP level (+0x630) from `gProgress`. DP battles: limit 10 /
+15 / 20 by level, `TeamSel_FitsDp` = cost + `ChrTbl_GetCost(chara)` <= limit;
+`TeamSel_IsCharaFree` refuses a character `ChrTbl_IsRelated` to another member. Member record
+(0x30 bytes): +0x18 costume, +0x1C character id (-1 none), +0x20 `BattleItemSet`.
