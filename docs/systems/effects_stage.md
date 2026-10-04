@@ -87,6 +87,8 @@ and the stage update at 0x243568).
 | 0x1793A8..0x17CB40 | eft_s.c | chain / lightning ribbons `EftChain_*`, first half (16 strands, shared pool of 500 nodes) | no | libc `rand()` in update, count depends on pool occupancy | |
 | 0x180BF8..0x182CE8 | eft_u.c | teleport lines (tail of eft_t's `EftShotFx`; fighter requests 0xC..0xF) | no | libc `rand()`, **count depends on the fighter's pose and height** | 16/17 |
 | 0x182CE8..0x1853C8 | eft_u_b.c | particle emitter `EftPtcl_*`, head (effect pack part kind 5; pool of 500) | no | libc `rand()`: 25..30 per particle | 9/9 |
+| 0x1895E8..0x18C190 | eft_w.c | sprite particles `EftLink_*`, second half (effect pack part kind 15; pool of 200) | no | VU0: 18 per sprite; libc `rand()`: up to 3 | (eft_w 39/44) |
+| 0x18C190..0x18D618 | eft_w.c | ring particles `EftPart10*`, first half (part kind 10; 150 rings) | no | VU0: 2 per ring | |
 | 0x1B16F0..0x1B3510 | eft_det_b.c | **stage collision queries `StgCol_*`** (fighter body sweep, segment trace, camera sweep, debris, shadow) | **yes** | none | 30/33 |
 | 0x1B3510..0x1B3F78 | eft_det_b_b.c | stage way-point graph `StgNav_*` and path search (AI only) | yes (AI input) | none | 10/12 |
 | 0x1B3F78..0x1B4140 | eft_det_b_c.c | head of the AI sequence object (`BtlAiSeq_Reset`, `PushRule`) | yes | none | 1/2 |
