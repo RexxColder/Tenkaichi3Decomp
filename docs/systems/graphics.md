@@ -170,3 +170,32 @@ on heap 2). 18 of 19 functions match; `Dialog_SetCursor` differs in registers on
   check.
 - For linking: `gDialog` must be defined as initialised data (it sits in `.sdata` before
   `"fl_ok"`); `.rodata` at 0x2F35B0, size 0x145; `Snd_PlaySe` must be declared `void` here.
+
+## Post-process passes (0x102F28..0x106D60; src/sys/gfxm_a.c, not linked yet; names in config/symbols/gfxm_a.txt)
+
+46 functions, 42 match; `GfxPost_DrawGlow`, `StgPanBlur_DrawView`, `StgPanBlur_UpdateView` and
+`StgDepthTint_Draw` are INCLUDE_ASM with attempts (instruction-level differences only). The
+module names are readings of the technique, not confirmed on screen. Layouts in
+include/sys/gfxm_a.h. Suggested final name: sys/gfx_post.c (with gfxm_b).
+
+- (verified) Post effects read the depth buffer page (0xE0, texture block 0x1C00) as an 8-bit
+  texture of its spare top byte (a per-pixel object id / mask), through 256-entry CLUTs built
+  at run time. CLUT blocks: 0x3E98 pan blur, 0x3E8C outline, 0x3E88 glare, 0x3E64 depth tint,
+  0x3E90 object glow. Work pages 0x150 (texture block 0x2A00) and 0x170 (0x2E00); (inferred)
+  0x1F6 / 0x1F8 (64x64) for the glow pass.
+- Modules: pan blur (`StgPanBlur_*`, stage feature 0xD; strength built from the camera's
+  horizontal movement per frame), glow pass (`GfxPost_DrawGlow`: reduce to 256 / 128 / 64,
+  blur, add back), packet helpers (`GfxPost_*`), object outline (`ObjOutline_*`, called by
+  `BtlObj_InitDraw / TermDraw / BeginDraw`), sky glare (`StgGlare_*`, stage section +0x48),
+  depth tint (`StgDepthTint_*`, stage section +0x40; index 1 when the camera is under the
+  water level, never in split screen), object glow (`ObjGlow_*`, per-id alpha table from
+  `BtlObj_UploadAlphaTable`).
+- (verified) `BtlObj_BeginDraw` runs the outline pass, then the object glow.
+- (verified) Stage parameter formats: glare = s32 flags (1 enabled, 2 track), s32 step, u8 max,
+  hold, min, alpha (defaults: off, alpha 0x40, step 0x20, max 0x80, hold 0x50, min 4); depth
+  tint = 0x10-byte entries: s32 flags (1 enabled, 2 additive, 4 clear entry 0xFF), u8 r, g, b,
+  a, three (x, z) byte pairs of curve keys.
+- No pad, clock or random draw; reads the camera and `Battle_IsSplitScreen`;
+  `BATTLE_FLAG_PAUSE` freezes the pan blur update. Nothing feeds back into the simulation.
+- For linking: `GfxPostQuad` duplicates `GfxQuad` of include/sys/gfxm_b.h; stg_c.c / btl_obj.c
+  declare some of these with other argument types (the definitions here are what match).
