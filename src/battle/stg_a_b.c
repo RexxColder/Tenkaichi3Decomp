@@ -40,7 +40,7 @@ extern void BtlCharApi_ShakeCamsNear(Vec4 *pos, f32 near, f32 far, f32 power, f3
 extern s32 BtlCharApi_IsInputInjected(s32 objId);
 
 /* Stage model code (0x114C60..0x115DE0) and stage code after this file. */
-extern void func_00114C60(void *arg);
+extern void BtlStage_Relocate(void *arg);
 extern void StgModel_InitStage(void);
 extern void StgModel_ResetAnims(void);
 extern void StgModel_BindAnims(void);
@@ -60,7 +60,7 @@ extern s32 BtlStage_GetChangeTarget(void);
 extern void StgFx_Reset(void);
 extern void StgGround_Probe(s32 zone, StgBox *probe, StgGroundHit *out, f32 y);
 extern void StgNav_UnblockObj(s32 idx);
-extern void func_0022F928(void);
+extern void HudTimer_ShowMark(void);
 extern void EftGndDust_SpawnDebris(Vec4 *pos, f32 a, f32 b, f32 scale); /* dust effect */
 extern void EftWater_AddSplashAt(Vec4 *pos, f32 size);                /* splash effect */
 
@@ -396,7 +396,7 @@ s32 BtlStage_DestroyObj(s32 objId, s32 idx, Vec4 *hitPos) {
                             result->unk44 = rule->unk18;
                             rule->unk18 = 0;
                             StreamSe_PlayDefault(0, 0x8D3A);
-                            func_0022F928();
+                            HudTimer_ShowMark();
                         }
                     }
                 }

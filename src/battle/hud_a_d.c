@@ -8,9 +8,9 @@
  * setters are at 0x21F648..0x21FB40, its init at 0x21FC10).
  */
 
-extern void func_00224B90(HudSprite *spr, s32 show);
-extern void func_00224C00(HudSprite *spr, s32 tex, s32 sub);
-extern void func_00224CA0(HudSprite *spr, s32 dx, s32 dy);
+extern void HudSprite_Show(HudSprite *spr, s32 show);
+extern void HudSprite_SetTex(HudSprite *spr, s32 tex, s32 sub);
+extern void HudSprite_Move(HudSprite *spr, s32 dx, s32 dy);
 
 /* The gauge work (full layout: HudBWork in src/battle/hud_b.c). Defined here: this object's .sdata (0x2FEB48). */
 HudGauge *gHudGauge = NULL;
@@ -100,17 +100,17 @@ void HudGauge_UpdateHp(void) {
         bar->pos = tip->pos;
         w = rem * 160 / HUD_GAUGE_BAR;
         if (w < 3 && rem != 0 && gHudGauge->cur.hp[side] != 0 && bars == 0) {
-            func_00224CA0(bar, 3, 0);
+            HudSprite_Move(bar, 3, 0);
         } else {
-            func_00224CA0(bar, w, 0);
+            HudSprite_Move(bar, w, 0);
         }
-        func_00224B90(tip, 1);
-        func_00224B90(bar, 1);
+        HudSprite_Show(tip, 1);
+        HudSprite_Show(bar, 1);
     } else {
         tip = &gHudGauge->sprites[5];
         bar = &gHudGauge->sprites[6];
-        func_00224B90(tip, 0);
-        func_00224B90(bar, 0);
+        HudSprite_Show(tip, 0);
+        HudSprite_Show(bar, 0);
     }
 
     rem2 = gHudGauge->cur.hp[side] % HUD_GAUGE_BAR;
@@ -127,47 +127,47 @@ void HudGauge_UpdateHp(void) {
         w = 0;
     }
     if (w < 3 && rem2 != 0 && bars == 0) {
-        func_00224CA0(bar, 3, 0);
+        HudSprite_Move(bar, 3, 0);
     } else {
-        func_00224CA0(bar, w, 0);
+        HudSprite_Move(bar, w, 0);
     }
-    func_00224B90(tip, 1);
-    func_00224B90(bar, 1);
+    HudSprite_Show(tip, 1);
+    HudSprite_Show(bar, 1);
     if (bars >= 7) {
-        func_00224C00(tip, 8, 5);
+        HudSprite_SetTex(tip, 8, 5);
     } else if (bars >= 2) {
-        func_00224C00(tip, 8, 1);
+        HudSprite_SetTex(tip, 8, 1);
     } else if (bars > 0) {
-        func_00224C00(tip, 8, 4);
+        HudSprite_SetTex(tip, 8, 4);
     } else {
-        func_00224C00(tip, 8, 3);
+        HudSprite_SetTex(tip, 8, 3);
     }
-    func_00224B90(&gHudGauge->sprites[4], 1);
+    HudSprite_Show(&gHudGauge->sprites[4], 1);
     if (bars == bars2) {
-        func_00224B90(&gHudGauge->sprites[1], 0);
-        func_00224B90(&gHudGauge->sprites[2], 0);
-        func_00224B90(&gHudGauge->sprites[3], 1);
+        HudSprite_Show(&gHudGauge->sprites[1], 0);
+        HudSprite_Show(&gHudGauge->sprites[2], 0);
+        HudSprite_Show(&gHudGauge->sprites[3], 1);
     } else {
-        func_00224B90(&gHudGauge->sprites[1], 1);
-        func_00224B90(&gHudGauge->sprites[2], 1);
-        func_00224B90(&gHudGauge->sprites[3], 1);
+        HudSprite_Show(&gHudGauge->sprites[1], 1);
+        HudSprite_Show(&gHudGauge->sprites[2], 1);
+        HudSprite_Show(&gHudGauge->sprites[3], 1);
         bar = &gHudGauge->sprites[2];
         bar->pos = gHudGauge->sprites[3].pos;
         if (bars == bars2 + 1) {
-            func_00224CA0(bar, rem2 * 160 / HUD_GAUGE_BAR, 0);
+            HudSprite_Move(bar, rem2 * 160 / HUD_GAUGE_BAR, 0);
         }
     }
     bar = &gHudGauge->sprites[3];
     if (bars - 1 >= 7) {
-        func_00224C00(bar, 8, 5);
+        HudSprite_SetTex(bar, 8, 5);
     } else if (bars - 1 >= 2) {
-        func_00224C00(bar, 8, 1);
+        HudSprite_SetTex(bar, 8, 1);
     } else if (bars - 1 > 0) {
-        func_00224C00(bar, 8, 4);
+        HudSprite_SetTex(bar, 8, 4);
     } else if (bars - 1 >= 0) {
-        func_00224C00(bar, 8, 3);
+        HudSprite_SetTex(bar, 8, 3);
     } else {
-        func_00224B90(bar, 0);
-        func_00224B90(&gHudGauge->sprites[4], 0);
+        HudSprite_Show(bar, 0);
+        HudSprite_Show(&gHudGauge->sprites[4], 0);
     }
 }

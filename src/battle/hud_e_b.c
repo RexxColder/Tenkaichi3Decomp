@@ -37,25 +37,25 @@ extern HudPromptIconDef gHudPromptCueDefs[4];
 /* The side's fighter object: only what HudPrompt_DrawNames reads. */
 typedef struct HudPromptObj {
     /* 0x00 */ u8 unk0[0xBC];
-    /* 0xBC */ s32 unkBC;        /* handed to func_00214FD0 before the name is drawn */
+    /* 0xBC */ s32 unkBC;        /* handed to BtlMenu_SetScript2 before the name is drawn */
 } HudPromptObj;
 
 /* Sprite / node library at 0x224B50.. (neighbouring ranges). */
-extern void func_00224B90(HudESprite *spr, s32 show);
-extern void func_00224BB0(HudESprite *spr, s32 mirror);
-extern void func_00224BD0(HudESprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
-extern void func_00224BE8(HudESprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
-extern void func_00224C00(HudESprite *spr, s32 tex, s32 sub);               /* texture entry and sub entry */
-extern void func_00224C10(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);
-extern void func_00224CA0(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
-extern void func_00224D40(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
-extern void func_00224DB8(HudESprite *spr);                                 /* centres the rectangle */
-extern void func_00224E20(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
-extern void func_00225A50(HudESprite *spr, HudERes *res, s32 additive, s32 a, s32 b); /* draw with two GS values */
-extern void func_00226488(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
-extern void func_002264A8(HudENode *node, s32 show);                        /* HudNode_Show */
-extern void func_002264C8(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
-extern void func_00214FD0(s32 arg);
+extern void HudSprite_Show(HudESprite *spr, s32 show);
+extern void HudSprite_SetMirror(HudESprite *spr, s32 mirror);
+extern void HudSprite_SetRect(HudESprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
+extern void HudSprite_SetUv(HudESprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
+extern void HudSprite_SetTex(HudESprite *spr, s32 tex, s32 sub);               /* texture entry and sub entry */
+extern void HudSprite_SetColor(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);
+extern void HudSprite_Move(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
+extern void HudSprite_Scale(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
+extern void HudSprite_Center(HudESprite *spr);                                 /* centres the rectangle */
+extern void HudSprite_InitTex(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
+extern void HudSprite_DrawAt(HudESprite *spr, HudERes *res, s32 additive, s32 a, s32 b); /* draw with two GS values */
+extern void HudSprite_Draw(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
+extern void HudNode_Show(HudENode *node, s32 show);                        /* HudNode_Show */
+extern void HudNode_SetPos(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
+extern void BtlMenu_SetScript2(s32 arg);
 extern HudPromptObj *BtlCtrl_GetObj(s32 side);
 extern HudERes *FontIcon_GetRes(void);
 extern HudPromptIconDef *FontIcon_GetDefs(void);
@@ -66,7 +66,7 @@ void HudPrompt_UpdateRoot(HudENode *node) {
     if (!HUDP_PAUSED() && gHudPrompt->side == 0) {
         Ramp_Step(&gHudPrompt->slide);
     }
-    func_002264C8(node, gHudPrompt->slide.value * -256.0f, gHudPrompt->slide.value * 224.0f);
+    HudNode_SetPos(node, gHudPrompt->slide.value * -256.0f, gHudPrompt->slide.value * 224.0f);
 }
 
 /* Clears the mark of one texture entry of the icon sheet. */
@@ -182,10 +182,10 @@ void HudPrompt_ApplyIconDef(HudESprite *spr, HudPromptIconDef *def, HudPromptIco
     } else {
         HUDP_ICON_RECTS(frame);
     }
-    func_00224C00(spr, def->tex, 0);
-    func_00224BD0(spr, pos[0], pos[1], pos[2], pos[3]);
-    func_00224DB8(spr);
-    func_00224BE8(spr, uv[0], uv[1], uv[2], uv[3]);
+    HudSprite_SetTex(spr, def->tex, 0);
+    HudSprite_SetRect(spr, pos[0], pos[1], pos[2], pos[3]);
+    HudSprite_Center(spr);
+    HudSprite_SetUv(spr, uv[0], uv[1], uv[2], uv[3]);
 }
 
 /* The same, looking the definition up by the icon number: 0..15 and 16..32 in the two tables of this part, above
@@ -246,22 +246,22 @@ void HudPrompt_UpdateButton(HudENode *node) {
     blink = &gHudPrompt->btnBlink[side];
     group = gHudPrompt->btnGroup[side];
 
-    func_00224E20(base, gHudPrompt->res, 0, 0);
-    func_00224DB8(base);
+    HudSprite_InitTex(base, gHudPrompt->res, 0, 0);
+    HudSprite_Center(base);
     glow = &base[3];
     icon = &base[1];
     icon2 = &base[2];
-    func_00224E20(glow, gHudPrompt->res, 7, 0);
-    func_00224DB8(glow);
-    func_00224CA0(glow, 0, -24);
-    func_002264A8(node, 1);
-    func_00224B90(icon, 1);
-    func_00224B90(icon2, 0);
-    func_00224B90(base, 1);
-    func_00224B90(glow, 1);
+    HudSprite_InitTex(glow, gHudPrompt->res, 7, 0);
+    HudSprite_Center(glow);
+    HudSprite_Move(glow, 0, -24);
+    HudNode_Show(node, 1);
+    HudSprite_Show(icon, 1);
+    HudSprite_Show(icon2, 0);
+    HudSprite_Show(base, 1);
+    HudSprite_Show(glow, 1);
     switch (*state) {
         case 1:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             Ramp_Start(ramp, 0.28f, 0.0f, 1.0f);
             Ramp_Start(pulse, 0.1f, 1.0f, 0.0f);
             Ramp_Start(blink, 1.5f, 1.0f, 0.0f);
@@ -273,7 +273,7 @@ void HudPrompt_UpdateButton(HudENode *node) {
             /* fall through */
         case 2:
             HUDP_BTN_SET_ICON();
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (HudPrompt_StepRamp(ramp)) {
                 *state = 3;
             }
@@ -281,7 +281,7 @@ void HudPrompt_UpdateButton(HudENode *node) {
             break;
         case 3:
             HUDP_BTN_SET_ICON();
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (!HUDP_PAUSED()) {
                 gHudPrompt->btn.icon[side].timer++;
             }
@@ -341,18 +341,18 @@ void HudPrompt_UpdateButton(HudENode *node) {
                 }
                 drop = HUDP_MIN(drop, 1.0f);
                 d = (0.0f < drop) ? drop : 0.0f;
-                func_00224CA0(glow, 0, (1.0f - d) * -16.0f);
+                HudSprite_Move(glow, 0, (1.0f - d) * -16.0f);
             }
             break;
         case 10:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             Ramp_Start(ramp, 0.28f, 0.0f, 1.0f);
             Ramp_Start(pulse, 0.1f, 1.0f, 0.0f);
             icon->tex = gHudPrompt->btn.value[side];
             *state = 11;
             /* fall through */
         case 11:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (HudPrompt_StepRamp(ramp)) {
                 gHudPrompt->btn.value[side]++;
                 icon->tex = gHudPrompt->btn.value[side];
@@ -371,7 +371,7 @@ void HudPrompt_UpdateButton(HudENode *node) {
         case 15:
         case 17:
         case 19:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (HudPrompt_StepRamp(ramp)) {
                 gHudPrompt->btn.value[side]++;
                 icon->tex = gHudPrompt->btn.value[side];
@@ -392,7 +392,7 @@ void HudPrompt_UpdateButton(HudENode *node) {
         case 23:
         case 25:
         case 27:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (HudPrompt_StepRamp(ramp)) {
                 gHudPrompt->btn.value[side]--;
                 icon->tex = gHudPrompt->btn.value[side];
@@ -408,29 +408,29 @@ void HudPrompt_UpdateButton(HudENode *node) {
             (*state)++;
             /* fall through */
         case 41:
-            func_00224B90(glow, 0);
+            HudSprite_Show(glow, 0);
             if (HudPrompt_StepRamp(ramp)) {
                 *state = 42;
             }
             alpha = ramp->value;
             break;
         case 42:
-            func_002264A8(node, 0);
-            func_00224B90(icon, 0);
-            func_00224B90(icon2, 0);
-            func_00224B90(base, 0);
-            func_00224B90(glow, 0);
+            HudNode_Show(node, 0);
+            HudSprite_Show(icon, 0);
+            HudSprite_Show(icon2, 0);
+            HudSprite_Show(base, 0);
+            HudSprite_Show(glow, 0);
             gHudPrompt->btn.kind[side] = 13;
             *state = 0;
             break;
         default:
             /* The same block again: the two copies are merged only after register allocation, and the
                allocation matches the original only with both. */
-            func_002264A8(node, 0);
-            func_00224B90(icon, 0);
-            func_00224B90(icon2, 0);
-            func_00224B90(base, 0);
-            func_00224B90(glow, 0);
+            HudNode_Show(node, 0);
+            HudSprite_Show(icon, 0);
+            HudSprite_Show(icon2, 0);
+            HudSprite_Show(base, 0);
+            HudSprite_Show(glow, 0);
             gHudPrompt->btn.kind[side] = 13;
             *state = 0;
             break;
@@ -438,17 +438,17 @@ void HudPrompt_UpdateButton(HudENode *node) {
     if (gHudPrompt->btn.kind[side] != 12) {
         HudPrompt_ApplyIconDef(icon, &gHudPrompt->iconDefs[gHudPrompt->btn.icon[side].icon], &gHudPrompt->btn.icon[side]);
     } else if (group != 1) {
-        func_00224E20(icon, gHudPrompt->res, gHudPrompt->btn.value[side], 0);
-        func_00224DB8(icon);
+        HudSprite_InitTex(icon, gHudPrompt->res, gHudPrompt->btn.value[side], 0);
+        HudSprite_Center(icon);
     } else {
-        func_00224E20(icon, gHudPrompt->res, gHudPrompt->btn.value[side] >> 8, 0);
-        func_00224DB8(icon);
-        func_00224CA0(icon, gHudPrompt->side == 0 ? -14 : 14, 0);
-        func_00224B90(icon, 1);
-        func_00224E20(icon2, gHudPrompt->res, (u8)gHudPrompt->btn.value[side], 0);
-        func_00224DB8(icon2);
-        func_00224CA0(icon2, gHudPrompt->side ? -12 : 12, 0);
-        func_00224B90(icon2, 1);
+        HudSprite_InitTex(icon, gHudPrompt->res, gHudPrompt->btn.value[side] >> 8, 0);
+        HudSprite_Center(icon);
+        HudSprite_Move(icon, gHudPrompt->side == 0 ? -14 : 14, 0);
+        HudSprite_Show(icon, 1);
+        HudSprite_InitTex(icon2, gHudPrompt->res, (u8)gHudPrompt->btn.value[side], 0);
+        HudSprite_Center(icon2);
+        HudSprite_Move(icon2, gHudPrompt->side ? -12 : 12, 0);
+        HudSprite_Show(icon2, 1);
     }
     if (HudPrompt_StepRamp(pulse)) {
         if (pulse->value == 1.0f) {
@@ -461,12 +461,12 @@ void HudPrompt_UpdateButton(HudENode *node) {
     if (gHudPrompt->btn.kind[side] == 12) {
         t *= 1.2f;
     }
-    func_00224D40(base, t, t);
+    HudSprite_Scale(base, t, t);
     t = (gHudPrompt->btn.kind[side] != 12) ? 1.44f : 1.0f;
-    func_00224D40(icon, t, t);
-    func_00224C10(icon, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
-    func_00224C10(icon2, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
-    func_00224C10(base, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
+    HudSprite_Scale(icon, t, t);
+    HudSprite_SetColor(icon, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
+    HudSprite_SetColor(icon2, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
+    HudSprite_SetColor(base, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
     {
         f32 drop = blink->value * 2.6f - 0.8f;
         f32 a;
@@ -475,11 +475,11 @@ void HudPrompt_UpdateButton(HudENode *node) {
             alpha *= drop;
         }
         a = alpha * HUDP_MAX2(0.0f, alpha);
-        func_00224C10(glow, 0x80, 0x80, 0x80, (u8)(a * 128.0f));
+        HudSprite_SetColor(glow, 0x80, 0x80, 0x80, (u8)(a * 128.0f));
     }
-    func_00224BB0(icon, gHudPrompt->btn.flip[side] ^ side);
-    func_00224BB0(icon2, gHudPrompt->btn.flip[side] ^ side);
-    func_00224CA0(base, 1, -2);
+    HudSprite_SetMirror(icon, gHudPrompt->btn.flip[side] ^ side);
+    HudSprite_SetMirror(icon2, gHudPrompt->btn.flip[side] ^ side);
+    HudSprite_Move(base, 1, -2);
 }
 
 /* Update of node 25: the cue of side 0. Sprite 4 is the base (texture 8), sprite 5 the icon of pad 0's controller
@@ -512,14 +512,14 @@ void HudPrompt_UpdateCue(void) {
         return;
     }
     def = &gHudPromptCueDefs[type];
-    func_00224E20(icon, gHudPrompt->iconRes, def->tex, 0);
-    func_00224BD0(icon, 0, HUDP_MIN(def->width + 1, def->cell), 0, def->cell);
-    func_00224BE8(icon, 0, HUDP_MIN(def->width + 1, def->cell), 0, def->cell);
-    func_00224DB8(icon);
-    func_00224E20(base, gHudPrompt->res, 8, 0);
-    func_00224DB8(base);
-    func_00224B90(icon, 1);
-    func_00224B90(base, 1);
+    HudSprite_InitTex(icon, gHudPrompt->iconRes, def->tex, 0);
+    HudSprite_SetRect(icon, 0, HUDP_MIN(def->width + 1, def->cell), 0, def->cell);
+    HudSprite_SetUv(icon, 0, HUDP_MIN(def->width + 1, def->cell), 0, def->cell);
+    HudSprite_Center(icon);
+    HudSprite_InitTex(base, gHudPrompt->res, 8, 0);
+    HudSprite_Center(base);
+    HudSprite_Show(icon, 1);
+    HudSprite_Show(base, 1);
     switch (*state) {
         case 0:
             Ramp_Start(ramp, 0.28f, 0.0f, 1.0f);
@@ -542,8 +542,8 @@ void HudPrompt_UpdateCue(void) {
             break;
         case 4:
         default:
-            func_00224B90(icon, 0);
-            func_00224B90(base, 0);
+            HudSprite_Show(icon, 0);
+            HudSprite_Show(base, 0);
             *state = 4;
             break;
     }
@@ -559,15 +559,15 @@ void HudPrompt_UpdateCue(void) {
     } else {
         s = (pulse->value * 0.4f + 1.2f) * 1.2f;
     }
-    func_00224D40(base, s, s);
-    func_00224D40(icon, 1.2f, 1.2f);
-    func_00224CA0(icon, 2, 0);
+    HudSprite_Scale(base, s, s);
+    HudSprite_Scale(icon, 1.2f, 1.2f);
+    HudSprite_Move(icon, 2, 0);
     if (gHudPrompt->cueDim) {
         alpha *= 0.5f;
     }
-    func_00224C10(icon, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
-    func_00224C10(base, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
-    func_00224CA0(base, 1, -2);
+    HudSprite_SetColor(icon, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
+    HudSprite_SetColor(base, 0x80, 0x80, 0x80, (u8)(alpha * 128.0f));
+    HudSprite_Move(base, 1, -2);
 }
 #endif
 LIT4_WORD(D_002FE384, 0x3E8F5C28); /* 0.28f */
@@ -587,23 +587,23 @@ void HudPrompt_DrawButton(void) {
     HudESprite *icon;
 
     HudPrompt_ClearIconMarks();
-    func_00226488(&gHudPrompt->spr[0], gHudPrompt->res, 0);
+    HudSprite_Draw(&gHudPrompt->spr[0], gHudPrompt->res, 0);
     icon = &gHudPrompt->spr[1];
     if (gHudPrompt->btn.kind[gHudPrompt->side] != 12) {
-        func_00225A50(icon, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
+        HudSprite_DrawAt(icon, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
     } else {
-        func_00226488(icon, gHudPrompt->res, 0);
+        HudSprite_Draw(icon, gHudPrompt->res, 0);
     }
-    func_00226488(&gHudPrompt->spr[2], gHudPrompt->res, 0);
-    func_00226488(&gHudPrompt->spr[3], gHudPrompt->res, 0);
+    HudSprite_Draw(&gHudPrompt->spr[2], gHudPrompt->res, 0);
+    HudSprite_Draw(&gHudPrompt->spr[3], gHudPrompt->res, 0);
 }
 
 /* Draw of node 25 (side 0 only): base and pad icon. */
 void HudPrompt_DrawCue(void) {
     if (gHudPrompt->side == 0) {
         HudPrompt_ClearIconMarks();
-        func_00226488(&gHudPrompt->spr[4], gHudPrompt->res, 0);
-        func_00225A50(&gHudPrompt->spr[5], gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
+        HudSprite_Draw(&gHudPrompt->spr[4], gHudPrompt->res, 0);
+        HudSprite_DrawAt(&gHudPrompt->spr[5], gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
     }
 }
 
@@ -644,27 +644,27 @@ void HudPrompt_UpdateCommand(HudENode *node) {
     ghost = &spr[14];
 
     for (i = 0; i < 4; i++) {
-        func_00224E20(&glow[i], gHudPrompt->res, 7, 0);
-        func_00224DB8(&glow[i]);
-        func_00224CA0(&glow[i], 0, -22);
+        HudSprite_InitTex(&glow[i], gHudPrompt->res, 7, 0);
+        HudSprite_Center(&glow[i]);
+        HudSprite_Move(&glow[i], 0, -22);
     }
     for (i = 0; i < 4; i++) {
         if (i < count) {
-            func_00224B90(&icon[i], 1);
+            HudSprite_Show(&icon[i], 1);
             if (icons[i].icon < 16) {
                 if ((u32)icons[i].mode < 2) {
-                    func_00224B90(&glow[i], 1);
+                    HudSprite_Show(&glow[i], 1);
                 } else {
-                    func_00224B90(&glow[i], 0);
+                    HudSprite_Show(&glow[i], 0);
                 }
             } else {
-                func_00224B90(&glow[i], 0);
+                HudSprite_Show(&glow[i], 0);
             }
         } else {
-            func_00224B90(&icon[i], 0);
-            func_00224B90(&glow[i], 0);
-            func_00224B90(&ghost[i], 0);
-            func_00224B90(&ghostGlow[i], 0);
+            HudSprite_Show(&icon[i], 0);
+            HudSprite_Show(&glow[i], 0);
+            HudSprite_Show(&ghost[i], 0);
+            HudSprite_Show(&ghostGlow[i], 0);
         }
     }
     switch (*state) {
@@ -673,17 +673,17 @@ void HudPrompt_UpdateCommand(HudENode *node) {
                 if (i < count) {
                     icons[i].timer = 0;
                     icons[i].frame = 0;
-                    func_00224B90(&icon[i], 1);
+                    HudSprite_Show(&icon[i], 1);
                     if (icons[i].icon < 16) {
                         if ((u32)icons[i].mode < 2) {
-                            func_00224B90(&glow[i], 1);
+                            HudSprite_Show(&glow[i], 1);
                         } else {
-                            func_00224B90(&glow[i], 0);
+                            HudSprite_Show(&glow[i], 0);
                         }
                     }
                 } else {
-                    func_00224B90(&icon[i], 0);
-                    func_00224B90(&glow[i], 0);
+                    HudSprite_Show(&icon[i], 0);
+                    HudSprite_Show(&glow[i], 0);
                 }
             }
             Ramp_Start(ramp, 0.1f, 0.0f, 1.0f);
@@ -754,10 +754,10 @@ void HudPrompt_UpdateCommand(HudENode *node) {
         case 8:
         default:
             for (i = 0; i < count; i++) {
-                func_00224B90(&icon[i], 0);
+                HudSprite_Show(&icon[i], 0);
             }
             for (i = 0; i < 4; i++) {
-                func_00224B90(&glow[i], 0);
+                HudSprite_Show(&glow[i], 0);
             }
             break;
     }
@@ -767,15 +767,15 @@ void HudPrompt_UpdateCommand(HudENode *node) {
     for (i = 0; i < count; i++) {
         if (icons[i].icon < 16) {
             if (icons[i].mode == 1) {
-                func_00224C10(&glow[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
+                HudSprite_SetColor(&glow[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
             } else if (icons[i].mode == 0) {
                 if (0.9f < drop) {
                     icons[i].frame = 1;
                 } else {
                     icons[i].frame = 0;
                 }
-                func_00224CA0(&glow[i], 0, (1.0f - drop) * -16.0f);
-                func_00224C10(&glow[i], 0x80, 0x80, 0x80, (u8)(drop * ramp->value * 128.0f));
+                HudSprite_Move(&glow[i], 0, (1.0f - drop) * -16.0f);
+                HudSprite_SetColor(&glow[i], 0x80, 0x80, 0x80, (u8)(drop * ramp->value * 128.0f));
             }
         }
     }
@@ -789,29 +789,29 @@ void HudPrompt_UpdateCommand(HudENode *node) {
 
             ghost[i] = icon[i];
             ghostGlow[i] = glow[i];
-            func_00224D40(&ghost[i], s, s);
-            func_00224C10(&ghost[i], 0x80, 0x80, 0x80, (u8)(blink->value * 128.0f));
-            func_00224D40(&ghostGlow[i], s, s);
-            func_00224C10(&ghostGlow[i], 0x80, 0x80, 0x80, (u8)(blink->value * 128.0f));
+            HudSprite_Scale(&ghost[i], s, s);
+            HudSprite_SetColor(&ghost[i], 0x80, 0x80, 0x80, (u8)(blink->value * 128.0f));
+            HudSprite_Scale(&ghostGlow[i], s, s);
+            HudSprite_SetColor(&ghostGlow[i], 0x80, 0x80, 0x80, (u8)(blink->value * 128.0f));
         } else {
-            func_00224B90(&ghost[i], 0);
-            func_00224B90(&ghostGlow[i], 0);
+            HudSprite_Show(&ghost[i], 0);
+            HudSprite_Show(&ghostGlow[i], 0);
         }
-        func_00224CA0(&icon[i], x, 0);
-        func_00224CA0(&glow[i], x, 0);
-        func_00224CA0(&ghost[i], x, 0);
-        func_00224CA0(&ghostGlow[i], x, 0);
+        HudSprite_Move(&icon[i], x, 0);
+        HudSprite_Move(&glow[i], x, 0);
+        HudSprite_Move(&ghost[i], x, 0);
+        HudSprite_Move(&ghostGlow[i], x, 0);
         if (i < count - 1) {
             x += icon[i].pos[1] - icon[i].pos[0];
         }
-        func_00224C10(&icon[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
+        HudSprite_SetColor(&icon[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
     }
     for (i = 0; i < count; i++) {
         if (gHudPrompt->side != 0) {
-            func_00224CA0(&icon[i], -(node->x * 2) - x + 512, 0);
-            func_00224CA0(&glow[i], -(node->x * 2) - x + 512, 0);
-            func_00224CA0(&ghost[i], -(node->x * 2) - x + 512, 0);
-            func_00224CA0(&ghostGlow[i], -(node->x * 2) - x + 512, 0);
+            HudSprite_Move(&icon[i], -(node->x * 2) - x + 512, 0);
+            HudSprite_Move(&glow[i], -(node->x * 2) - x + 512, 0);
+            HudSprite_Move(&ghost[i], -(node->x * 2) - x + 512, 0);
+            HudSprite_Move(&ghostGlow[i], -(node->x * 2) - x + 512, 0);
         }
     }
     if (icons[0].mode != 3) {
@@ -834,12 +834,12 @@ void HudPrompt_DrawCommand(void) {
         HudESprite *spr = &gHudPrompt->spr[6 + i];
 
         HudPrompt_ClearIconMark(spr->tex);
-        func_00225A50(spr, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
-        func_00226488(&gHudPrompt->spr[10 + i], gHudPrompt->res, 0);
+        HudSprite_DrawAt(spr, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
+        HudSprite_Draw(&gHudPrompt->spr[10 + i], gHudPrompt->res, 0);
         spr = &gHudPrompt->spr[14 + i];
         HudPrompt_ClearIconMark(spr->tex);
-        func_00225A50(spr, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
-        func_00226488(&gHudPrompt->spr[18 + i], gHudPrompt->res, 0);
+        HudSprite_DrawAt(spr, gHudPrompt->iconRes, 0, 0x2A80, 0x2C90);
+        HudSprite_Draw(&gHudPrompt->spr[18 + i], gHudPrompt->res, 0);
     }
 }
 
@@ -952,9 +952,9 @@ void HudPrompt_SetButton(s32 side, s32 button, s32 group) {
             break;
         case 12:
             if (group != 1) {
-                func_00224E20(icon, gHudPrompt->res, 1, 0);
+                HudSprite_InitTex(icon, gHudPrompt->res, 1, 0);
                 gHudPrompt->btn.value[side] = 1;
-                func_00224DB8(icon);
+                HudSprite_Center(icon);
                 gHudPrompt->btnState[side] = 10;
             }
             gHudPrompt->btn.flip[side] = 0;
@@ -1079,7 +1079,7 @@ void HudPrompt_ClearButton(s32 side) {
 }
 
 /* Draws the technique name above each side's command row (text, after the sprites): entry nameIdx of the list
-   func_00214FD0 selects for the side's fighter, at namePos, with nameFade as alpha. A name whose alpha reached 0
+   BtlMenu_SetScript2 selects for the side's fighter, at namePos, with nameFade as alpha. A name whose alpha reached 0
    is dropped. */
 void HudPrompt_DrawNames(void) {
     s32 i;
@@ -1095,7 +1095,7 @@ void HudPrompt_DrawNames(void) {
             idx = -1;
         }
         if (idx >= 0) {
-            func_00214FD0(BtlCtrl_GetObj(i)->unkBC);
+            BtlMenu_SetScript2(BtlCtrl_GetObj(i)->unkBC);
             BtlText_DrawEntryName(pos->x, pos->y, idx, i, alpha);
         }
     }
@@ -1104,9 +1104,9 @@ void HudPrompt_DrawNames(void) {
 /* A white 32x32 sprite, hidden: the icons and glows of the command row are filled in by HudPrompt_UpdateCommand. */
 #define HUDP_INIT_ROW_SPRITE(n) \
     spr = &gHudPrompt->spr[n]; \
-    func_00224C10(spr, 0xFF, 0xFF, 0xFF, 0x80); \
-    func_00224BD0(spr, 0, 32, 0, 32); \
-    func_00224B90(spr, 0)
+    HudSprite_SetColor(spr, 0xFF, 0xFF, 0xFF, 0x80); \
+    HudSprite_SetRect(spr, 0, 32, 0, 32); \
+    HudSprite_Show(spr, 0)
 
 /* Builds the part: the work, 22 sprites and 27 nodes of which four are used: node 23 the root, node 24 (64, 384)
    the button prompt, node 25 (256, 384) the cue, node 26 (60, 400) the command row. */
@@ -1135,34 +1135,34 @@ void HudPrompt_Init(HudENode **out, HudERes *res) {
     gHudPrompt->iconDefs = FontIcon_GetDefs();
 
     spr = &gHudPrompt->spr[0];
-    func_00224E20(spr, res, 0, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudPrompt->spr[4];
-    func_00224E20(spr, res, 8, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudPrompt->spr[1];
-    func_00224E20(spr, res, 1, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 1, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudPrompt->spr[5];
-    func_00224E20(spr, res, 1, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 1, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudPrompt->spr[2];
-    func_00224E20(spr, res, 1, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 1, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudPrompt->spr[3];
-    func_00224E20(spr, res, 7, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 7, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     HUDP_INIT_ROW_SPRITE(6);
     HUDP_INIT_ROW_SPRITE(7);

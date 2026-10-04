@@ -15,8 +15,8 @@ typedef struct HudBSprite {
     /* 0x00 */ u32 flags;   /* bit 0: hidden, bit 1: mirrored */
     /* 0x04 */ s16 tex;     /* texture entry of the sheet, -1 = untextured */
     /* 0x06 */ s16 texSub;
-    /* 0x08 */ s16 pos[4];  /* screen rectangle x0, x1, y0, y1 relative to the node (func_00224BD0) */
-    /* 0x10 */ s16 uv[4];   /* texel rectangle u0, u1, v0, v1 (func_00224BE8) */
+    /* 0x08 */ s16 pos[4];  /* screen rectangle x0, x1, y0, y1 relative to the node (HudSprite_SetRect) */
+    /* 0x10 */ s16 uv[4];   /* texel rectangle u0, u1, v0, v1 (HudSprite_SetUv) */
     /* 0x18 */ u8 r, g, b, a;
 } HudBSprite; /* size 0x1C */
 
@@ -31,7 +31,7 @@ typedef struct HudBShake {
 typedef struct HudBGroup {
     /* 0x00 */ u32 flags;   /* bit 0: hidden, bit 1: mirrored (the right-hand player's copy) */
     /* 0x04 */ u8 unk4[0xC];
-    /* 0x10 */ s32 x;       /* position relative to the parent (func_002264C8) */
+    /* 0x10 */ s32 x;       /* position relative to the parent (HudNode_SetPos) */
     /* 0x14 */ s32 y;
     /* 0x18 */ s32 ofsX;    /* extra offset: the shake */
     /* 0x1C */ s32 ofsY;

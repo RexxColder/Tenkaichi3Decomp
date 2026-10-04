@@ -47,9 +47,9 @@ extern void Font_PopStyle(void);
 extern void Font_Flush(s32 state);
 /* fighter / HUD side, not decompiled */
 extern s32 BtlCtrl_IsActiveDead(s32 side);
-extern void func_0022D990(void);
-extern void func_0022D9B0(void);
-extern void func_0022DA00(s32 arg);
+extern void HudPrompt_ShowCue(void);
+extern void HudPrompt_HideCue(void);
+extern void HudPrompt_SetCueDim(s32 arg);
 extern s32 BtlCtrl_GetActiveMember(s32 side);
 
 extern List gGscTaskList;
@@ -647,13 +647,13 @@ void BtlScript_UpdateHud(void) {
     if (work->pending != NULL) {
         if (!BtlCtrl_IsActiveDead(0) && !BtlCtrl_IsActiveDead(1)) {
             if (!work->pending->u.start.event->side) {
-                func_0022D990();
-                func_0022DA00(BtlFacade_CanCharAct(0));
+                HudPrompt_ShowCue();
+                HudPrompt_SetCueDim(BtlFacade_CanCharAct(0));
                 return;
             }
         }
     }
-    func_0022D9B0();
+    HudPrompt_HideCue();
 }
 
 /* Returns 1 when a line slot is in use. */

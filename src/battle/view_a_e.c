@@ -28,14 +28,14 @@ extern void *memset(void *dst, s32 c, u32 n);
 extern s32 sprintf(char *dst, const char *fmt, ...);
 
 extern void Flash_FindLabel(Flash *flash, char *parent, char *name, FlashRef *out);
-extern void func_0010D9D8(Flash *flash, FlashRef *ref, s32 prop, s32 value);
-extern void func_0010DB70(Flash *flash, FlashRef *ref, s32 a, s32 b);
-extern void func_0010DC70(Flash *flash, FlashRef *ref, s32 frame);
-extern void func_0010DCA0(Flash *flash, FlashRef *ref, FlashUv *uv);
+extern void Flash_ClipSetFlags(Flash *flash, FlashRef *ref, s32 prop, s32 value);
+extern void Flash_ClipSetOffset(Flash *flash, FlashRef *ref, s32 a, s32 b);
+extern void Flash_ClipSetTex(Flash *flash, FlashRef *ref, s32 frame);
+extern void Flash_ClipSetUv(Flash *flash, FlashRef *ref, FlashUv *uv);
 
 /* voice module, after 0x2600B0 (not decompiled) */
-extern void func_00261D10(void);
-extern s32 func_00261EA8(void); /* non-zero while a voice line plays */
+extern void LipSync_Update(void);
+extern s32 LipSync_IsOpen(void); /* non-zero while a voice line plays */
 
 /* Defined here: this object's .sdata (0x2FF10C). */
 ViewProgress *gProgress = NULL;
@@ -83,18 +83,18 @@ void FlashAnim_Blink(Flash *flash, FlashRef *ref, s32 *timer, s32 frame) {
         return;
     }
     if (*timer < 36) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 0);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 0);
     } else if (*timer < 40) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame);
     } else if (*timer < 44) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame + 1);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame + 1);
     } else if (*timer < 48) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame);
     } else {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 0);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 0);
     }
     (*timer)++;
     if (*timer >= 136) {
@@ -110,8 +110,8 @@ void FlashAnim_Blink(Flash *flash, FlashRef *ref, s32 *timer, s32 frame) {
 /* Shows the clip at frame + 1. */
 void FlashAnim_ShowNext(Flash *flash, FlashRef *ref, s32 frame) {
     if (ref->id >= 0) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame + 1);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame + 1);
     }
 }
 
@@ -124,36 +124,36 @@ void FlashAnim_Talk(Flash *flash, FlashRef *ref, s32 *timer, s32 frame) {
     if (ref->id < 0) {
         return;
     }
-    func_00261D10();
-    if (func_00261EA8() != 0) {
+    LipSync_Update();
+    if (LipSync_IsOpen() != 0) {
         (*timer)++;
         if (*timer % 6 == 0) {
             switch ((s32)Rand_Range(3)) {
             case 0:
-                func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-                func_0010DC70(flash, ref, frame);
+                Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+                Flash_ClipSetTex(flash, ref, frame);
                 break;
             case 1:
-                func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-                func_0010DC70(flash, ref, frame + 1);
+                Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+                Flash_ClipSetTex(flash, ref, frame + 1);
                 break;
             case 2:
-                func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 0);
-                func_0010DC70(flash, ref, frame);
+                Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 0);
+                Flash_ClipSetTex(flash, ref, frame);
                 break;
             }
         }
     } else {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame + 1);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame + 1);
     }
 }
 
 /* Shows the clip at frame + 1 (the same code as FlashAnim_ShowNext). */
 void FlashAnim_ShowNext2(Flash *flash, FlashRef *ref, s32 frame) {
     if (ref->id >= 0) {
-        func_0010D9D8(flash, ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DC70(flash, ref, frame + 1);
+        Flash_ClipSetFlags(flash, ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetTex(flash, ref, frame + 1);
     }
 }
 
@@ -191,7 +191,7 @@ void FlashAnim_Sheet(Flash *flash, FlashRef *ref, s32 *timer, s32 *frame, FlashU
     cell.x1 = uv->x1 + uv->x1 * col;
     cell.y1 = uv->y1 + uv->y1 * row;
     cell.unk10 = 0;
-    func_0010DCA0(flash, ref, &cell);
+    Flash_ClipSetUv(flash, ref, &cell);
 }
 
 /* Scrolling texture: the rectangle is shifted by (*x, *y), which then advance by (dx, dy) and wrap at the
@@ -230,8 +230,8 @@ void FlashAnim_Scroll(Flash *flash, FlashRef *ref, FlashUv *uv, f32 *x, f32 *y, 
             *y -= (f32)uv->y1;
         }
     }
-    func_0010D9D8(flash, ref, FLASH_PROP_UV, 1);
-    func_0010DCA0(flash, ref, &cell);
+    Flash_ClipSetFlags(flash, ref, FLASH_PROP_UV, 1);
+    Flash_ClipSetUv(flash, ref, &cell);
 }
 
 /* Writes the `count` decimal digits of |value|, most significant first, then 0xFF. Leading zeros become 10
@@ -282,18 +282,18 @@ void Num_ToDigits(u8 *digits, s32 value, s32 count, s32 zeroPad) {
 }
 
 /* Shows a digit string made by Num_ToDigits: one clip per digit (refs[i]), texture cell cells[digit]; a blank
- * hides the clip. (a2, a3) go to func_0010DB70 for every clip. */
+ * hides the clip. (a2, a3) go to Flash_ClipSetOffset for every clip. */
 void Num_DrawDigits(Flash *flash, FlashRef *refs, s32 a2, s32 a3, FlashUv *cells, u8 *digits) {
     s32 i;
 
     for (i = 0; *digits != 0xFF; i++) {
         if (*digits != 10) {
-            func_0010DCA0(flash, &refs[i], &cells[*digits]);
-            func_0010D9D8(flash, &refs[i], FLASH_PROP_VISIBLE, 1);
+            Flash_ClipSetUv(flash, &refs[i], &cells[*digits]);
+            Flash_ClipSetFlags(flash, &refs[i], FLASH_PROP_VISIBLE, 1);
         } else {
-            func_0010D9D8(flash, &refs[i], FLASH_PROP_VISIBLE, 0);
+            Flash_ClipSetFlags(flash, &refs[i], FLASH_PROP_VISIBLE, 0);
         }
-        func_0010DB70(flash, &refs[i], a2, a3);
+        Flash_ClipSetOffset(flash, &refs[i], a2, a3);
         digits++;
     }
 }
@@ -348,7 +348,7 @@ void Num_Draw(Flash *flash, char *fmt, s32 first, s32 count, s32 value, s32 w, s
             } else if (mode != 0 || i == 0) {
                 digit = 0;
             } else {
-                func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+                Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
                 continue;
             }
         } else {
@@ -358,8 +358,8 @@ void Num_Draw(Flash *flash, char *fmt, s32 first, s32 count, s32 value, s32 w, s
         uv.y1 = h * (digit / 4) + h;
         uv.x0 = w * (digit % 4);
         uv.x1 = w * (digit % 4) + w;
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DCA0(flash, &ref, &uv);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetUv(flash, &ref, &uv);
     }
 }
 
@@ -407,7 +407,7 @@ void Num_DrawChild(Flash *flash, char *parent, char *fmt, s32 first, s32 count, 
             } else if (mode != 0 || i == 0) {
                 digit = 0;
             } else {
-                func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+                Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
                 continue;
             }
         } else {
@@ -417,8 +417,8 @@ void Num_DrawChild(Flash *flash, char *parent, char *fmt, s32 first, s32 count, 
         uv.y1 = h * (digit / 4) + h;
         uv.x0 = w * (digit % 4);
         uv.x1 = w * (digit % 4) + w;
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DCA0(flash, &ref, &uv);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetUv(flash, &ref, &uv);
     }
 }
 
@@ -509,7 +509,7 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
                     }
                     goto draw;
                 }
-                func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+                Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
                 continue;
             }
         } else {
@@ -520,8 +520,8 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
         uv.y1 = style->h * (digit / 4) + style->h;
         uv.x0 = style->w * (digit % 4);
         uv.x1 = style->w * (digit % 4) + style->w;
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 1);
-        func_0010DCA0(flash, &ref, &uv);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 1);
+        Flash_ClipSetUv(flash, &ref, &uv);
     }
 }
 #else
@@ -533,7 +533,7 @@ s32 ChrGrid_IsSelectable(ChrGridCell *cells, s32 index) {
     s32 ok = 1;
 
     if (cells[index].id >= CHRGRID_ID_LOCKED) {
-        ok = cells[index].id == CHRGRID_ID_RANDOM;
+        ok = cells[index].id == CHRGRID_ID_CUSTOM;
     }
     return ok;
 }
@@ -557,7 +557,7 @@ s32 ChrGrid_MoveRight(ChrGridCell *cells, s32 *col, s32 row) {
         if (id < CHRGRID_ID_LOCKED) {
             break;
         }
-        if (id == CHRGRID_ID_RANDOM) {
+        if (id == CHRGRID_ID_CUSTOM) {
             goto end;
         }
     }
@@ -584,7 +584,7 @@ s32 ChrGrid_MoveLeft(ChrGridCell *cells, s32 *col, s32 row) {
         if (id < CHRGRID_ID_LOCKED) {
             break;
         }
-        if (id == CHRGRID_ID_RANDOM) {
+        if (id == CHRGRID_ID_CUSTOM) {
             goto end;
         }
     }
@@ -605,7 +605,7 @@ void ChrGrid_MoveDown(ChrGridCell *cells, s32 *col, s32 *row, s32 rows) {
         if (id < CHRGRID_ID_LOCKED) {
             return;
         }
-        if (id == CHRGRID_ID_RANDOM) {
+        if (id == CHRGRID_ID_CUSTOM) {
             return;
         }
     } while (ChrGrid_MoveRight(cells, col, *row) == 0);
@@ -624,7 +624,7 @@ void ChrGrid_MoveUp(ChrGridCell *cells, s32 *col, s32 *row, s32 rows) {
         if (id < CHRGRID_ID_LOCKED) {
             return;
         }
-        if (id == CHRGRID_ID_RANDOM) {
+        if (id == CHRGRID_ID_CUSTOM) {
             return;
         }
     } while (ChrGrid_MoveRight(cells, col, *row) == 0);
@@ -642,7 +642,7 @@ void ChrGrid_NextForm(s32 *forms, s32 *index) {
         if (start == *index) {
             break;
         }
-    } while (forms[*index] >= CHRGRID_ID_CUSTOM);
+    } while (forms[*index] >= CHRGRID_ID_RANDOM);
 }
 
 /* Steps to the previous form of a cell that is a character, wrapping in the seven slots. */
@@ -657,13 +657,13 @@ void ChrGrid_PrevForm(s32 *forms, s32 *index) {
         if (start == *index) {
             break;
         }
-    } while (forms[*index] >= CHRGRID_ID_CUSTOM);
+    } while (forms[*index] >= CHRGRID_ID_RANDOM);
 }
 
 /* Puts the cursor on a character if it is on a marker cell: right in the row first, then down.
  * Declared with a result that it never sets: the call of ChrGrid_MoveDown is not a tail call. */
 s32 ChrGrid_FixCursor(ChrGridCell *cells, s32 *col, s32 *row, s32 rows) {
-    if (cells[*row * CHRGRID_COLS + *col].id >= CHRGRID_ID_CUSTOM) {
+    if (cells[*row * CHRGRID_COLS + *col].id >= CHRGRID_ID_RANDOM) {
         if (ChrGrid_MoveRight(cells, col, *row) == 0) {
             ChrGrid_MoveDown(cells, col, row, rows);
         }
@@ -757,8 +757,8 @@ void StgGrid_MoveUp(s32 *ids, s32 *col, s32 *row, s32 rows) {
 
 /* Build flags of ChrGrid_Build. */
 #define CHRGRID_ALL 1        /* no unlock test (never set here) */
-#define CHRGRID_NO_RANDOM 2  /* the random cell becomes a filler, and the custom list is not built */
-#define CHRGRID_NO_CUSTOM 4  /* the custom cell becomes a filler */
+#define CHRGRID_NO_CUSTOM 2  /* the custom cell (0xA3) becomes a filler, and the custom list is not built */
+#define CHRGRID_NO_RANDOM 4  /* the random cell (0xA1) becomes a filler */
 #define CHRGRID_NO_FORMS 8   /* a cell with several unlocked forms shows only the first */
 
 /* Builds the character grid of the current menu screen (gProgress->mode) from the master list: locked
@@ -777,25 +777,25 @@ void ChrGrid_Build(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *i
     if (gProgress->mode >= 0x26 && gProgress->mode < 0x2A) {
         if (gProgress->mode == 0x28) {
             if (gProgress->unk624 == 2) {
-                flags |= CHRGRID_NO_CUSTOM;
+                flags |= CHRGRID_NO_RANDOM;
             }
         }
     }
     mode = gProgress->mode;
     if (mode >= 0x21 && mode < 0x24) {
-        flags |= CHRGRID_NO_RANDOM;
+        flags |= CHRGRID_NO_CUSTOM;
     }
     if (mode >= 0xD && mode < 0x1F) {
-        flags |= CHRGRID_NO_RANDOM;
         flags |= CHRGRID_NO_CUSTOM;
+        flags |= CHRGRID_NO_RANDOM;
         if (mode == 0x15) {
             flags |= CHRGRID_NO_FORMS;
         }
     }
     *outCount = 0;
     if (mode >= 0x30 && mode < 0x33) {
-        flags |= CHRGRID_NO_RANDOM;
         flags |= CHRGRID_NO_CUSTOM;
+        flags |= CHRGRID_NO_RANDOM;
         flags |= CHRGRID_NO_FORMS;
     }
 
@@ -826,15 +826,15 @@ void ChrGrid_Build(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *i
             }
         } else {
             switch (in[i].id) {
-            case CHRGRID_ID_RANDOM:
-                if (flags & CHRGRID_NO_RANDOM) {
+            case CHRGRID_ID_CUSTOM:
+                if (flags & CHRGRID_NO_CUSTOM) {
                     out[*outCount].id = CHRGRID_ID_EMPTY;
                 } else {
                     out[*outCount] = in[i];
                 }
                 break;
-            case CHRGRID_ID_CUSTOM:
-                if (flags & CHRGRID_NO_CUSTOM) {
+            case CHRGRID_ID_RANDOM:
+                if (flags & CHRGRID_NO_RANDOM) {
                     out[*outCount].id = CHRGRID_ID_EMPTY;
                 } else {
                     out[*outCount] = in[i];
@@ -862,7 +862,7 @@ void ChrGrid_Build(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *i
         }
     }
 
-    if (!(flags & CHRGRID_NO_RANDOM) && custom != NULL) {
+    if (!(flags & CHRGRID_NO_CUSTOM) && custom != NULL) {
         *customCount = 0;
         for (i = 0; i < SAVE_REC_COUNT; i++) {
             custom[i].id = CHRGRID_ID_LOCKED;
@@ -956,8 +956,8 @@ INCLUDE_ASM("asm/nonmatchings/battle/view_a_e", BgmList_ApplyUnlocks);
  */
 
 /* text box module, after 0x2600B0 (not decompiled) */
-extern void func_002600B0(TextBox *box, s32 a);
-extern void func_00260118(TextBox *box, s32 a, s32 b, s32 c, s32 d, s32 e);
+extern void TextBox_SetMaxWidth(TextBox *box, s32 a);
+extern void TextBox_SetLineOffsets(TextBox *box, s32 a, s32 b, s32 c, s32 d, s32 e);
 
 /* Clears a text box, binds it to a text file and applies one of seven style presets. */
 void TextBox_Init(TextBox *box, void *text, u32 preset) {
@@ -967,34 +967,34 @@ void TextBox_Init(TextBox *box, void *text, u32 preset) {
     case 1:
         TextBox_SetUnk50(box, 2);
         TextBox_SetUnkC(box, 0x100, 0);
-        func_002600B0(box, 0xE1);
+        TextBox_SetMaxWidth(box, 0xE1);
         break;
     case 2:
         TextBox_SetUnk50(box, 0);
         TextBox_SetUnkC(box, 0, 0);
-        func_002600B0(box, 0xE1);
+        TextBox_SetMaxWidth(box, 0xE1);
         break;
     case 3:
         TextBox_SetUnk50(box, 2);
         TextBox_SetUnkC(box, 0x100, 0);
         TextBox_SetColor(box, 0xFFFF0080);
-        func_002600B0(box, 0xD4);
+        TextBox_SetMaxWidth(box, 0xD4);
         break;
     case 4:
         TextBox_SetUnk50(box, 0);
         TextBox_SetUnkC(box, 0, 0);
         TextBox_SetColor(box, 0xFFFF0080);
-        func_002600B0(box, 0xD4);
+        TextBox_SetMaxWidth(box, 0xD4);
         break;
     case 5:
         TextBox_SetUnk50(box, 0);
         TextBox_SetUnk80(box, 1);
         TextBox_SetUnkC(box, 0, 0);
-        func_00260118(box, 0x20, 0x14, 0xA, 0, 0);
+        TextBox_SetLineOffsets(box, 0x20, 0x14, 0xA, 0, 0);
         break;
     case 6:
         TextBox_SetUnk50(box, 0);
-        func_002600B0(box, 0x160);
+        TextBox_SetMaxWidth(box, 0x160);
         break;
     case 0:
         break;

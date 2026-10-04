@@ -12,7 +12,7 @@
  * number of controllers the current screen needs, `message` is chosen:
  *   -1  nothing to report        0  controller 1 missing
  *    1  controller 2 missing     2  both missing
- * Two controllers are needed in a split-screen battle (unless func_00212A08() is non-zero), or
+ * Two controllers are needed in a split-screen battle (unless BtlGame_IsReplay() is non-zero), or
  * outside a battle when gProgress->mode is 0x27 / 0x28 and gProgress + 0x620 is 1; otherwise only
  * port 1 is looked at.
  *
@@ -22,7 +22,7 @@
  * battle of mode 7.
  *
  * PadWatch_GetMissing is what makes this more than a display: the battle's pause poll
- * (func_0022F9F8) calls it, and when it returns 1 the battle is paused.
+ * (BtlPause_CheckOpen) calls it, and when it returns 1 the battle is paused.
  */
 
 #define PAD_WATCH_PORTS 2

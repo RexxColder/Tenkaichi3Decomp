@@ -3,8 +3,9 @@
 ## Build and layout
 
 - Most C files reference their global variables as `extern` from assembly. The ones that define their own
-  `.sdata` so far: dialog.c, the HUD files (hud_a*.c), the menu windows (view_a*.c), besides the few listed with a
-  `.sdata` subsegment in the yaml.
+  `.sdata` so far: dialog.c, the HUD files (hud_a*.c), the menu windows (view_a*.c), and every file listed with a
+  `.sdata` / `.data` subsegment in the yaml (the tenth step added the movie player, the memory card files, the rest of
+  the HUD, the password codec, view_b_c / view_b_d and the wish screen).
 - Original source-file boundaries are mostly unknown. Evidence so far: `.rodata` alignment (the
   object containing the battle sequence starts at 0x215540), and delay-slot behaviour that only
   matches when certain accessors are not defined earlier in the same file (`battle_work.c` vs
@@ -148,6 +149,13 @@ Still pulled from assembly inside linked files:
 | `TexChain_Build`, `TexChain_BuildPair`, `GfxClut_InitPacket` | `sys/gfxm_b_b.c` | 3 of 94 and 31 of 120 (`addu s0,v0,s0` where the compiler knows the offset is 0x10); 7 of 76 (registers of three constants) |
 | `Flash_SkipNamed` | `sys/gfxm_b_c.c` | 16 of 28: where the NULL result is loaded |
 | `Num_DrawEx`, `ChrGrid_Build`, `BgmList_ApplyUnlocks` | `view_a_e.c` | 29 of 179 (three saved registers rotated); 210 of 347 (the original keeps three separate copies of the cell copy); 9 of 40 (two registers swapped) |
+| `Flash_Advance` | `sys/gfxm_c.c` | one instruction short: the original copies the masked flags before testing bit 0 (`and v1,v1,v0 / move v0,v1 / andi v0,v0,1`), this gives `and / andi v0,v1,1`; about 120 spellings tried |
+| `ObjShadow_BuildPacket` | `sys/gfxm_e_b.c` | same code up to register names, but this compiler hoists three header constants out of the batch loop into saved registers (a loop-size threshold: the original body was about eight RTL instructions longer); its 0.02 constant (0x2FC2CC) stays in the assembly `.lit4` chunk |
+| `BtlText_PutSprite` | `hud_0_c.c` | 7 of 108: two saved registers exchanged (`x0 + 0x700` in s4 and `u0` in s3 in the original) |
+| `HudPrompt_UpdateCue` | `hud_e_b.c` | 14 instructions: the registers of four temporaries (a local-allocation order; 400 declaration orders checked); owns the jump table at 0x2F20E0 and eight `.lit4` words emitted with `LIT4_WORD` |
+| `TextBox_DrawClip` | `view_b.c` | one instruction longer: the original copies the clamped colour component with `move v1,v0` (seven times), this narrows it with `andi v1,v0,0xff` (eight times) |
+| `ShenScene_StepSeq` | `view_b_d.c` | about 30 instructions around 0x2620D8 ordered differently: the original converts the constant 0.0f of the third blur layer with the full float-to-unsigned sequence on `$f0`, this keeps it in `$f20` and folds the arm; owns the tables at 0x2F33D0..0x2F3450, the jump table at 0x2F3450 and the constants 0x2FE7AC / 0x2FE7B0 |
+| `Shen_DrawList`, `Shen_BuildList` | `sys/late_a.c` | same instruction count (229), which of the two registers holding `&ref` each call uses; 4 of 121, two registers that both hold `&work->list` swapped |
 
 `StgVu_RotateZ`, `StgVu_RotateX`, `StgVu_RotateY` (0x240C68..0x240DB8) are hand-written VU0 macro code and stay an
 assembly chunk between `stg_a.c` and `stg_a_b.c`. They cannot be INCLUDE_ASM: the per-function files splat writes
@@ -162,14 +170,12 @@ same could be done here.
 - The meaning of most battle event ids, of "character flag 7" and character flag 0x128.
 - The save block's `slot[9]`, `unlockFlags`, `rule[6]`, and its large unidentified ranges.
 - What sets the per-side voice mute (`func_00259E20`).
-- What the three unanalysed boot inits do (`func_00116BA8`, `func_00239FF0`, `func_0023D0E0`).
 - Whether further code is ever loaded from the archives (only one overlay table entry exists).
 
 ## Not started
 
 - The 3D renderer, the model/texture/animation formats and the nine VU1 microprograms.
-- The memory card module (being decompiled: src/sys/mcflow_a.c).
-- The whole menu overlay (737 functions).
+- The menu overlay (737 functions): being decompiled under src/menu/, nothing linked yet.
 - `SOUNDS.IRX` (the sound driver) and the bank format.
 - The archives: nothing has been extracted or catalogued.
 - The Wii build's netcode.

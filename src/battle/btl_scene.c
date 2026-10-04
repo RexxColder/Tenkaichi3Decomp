@@ -45,7 +45,7 @@
  *     BtlCharApi_IsCamShown(id)  split-screen visibility test; BtlCharApi_AnyCamPriority() any fighter with flag 0xD3
  *   BtlStage_RequestChange     BtlLoad_RequestStageChange(BtlStage_GetChangeTarget()): asks for the changed stage
  *   StgTint_GetWork     returns the block at 0x31C4A0
- *   func_002129F0     tail call of BtlSeq_IsFighting
+ *   BtlGame_IsFighting     tail call of BtlSeq_IsFighting
  *   BtlChars_IsTimeStopped     returns gBtlChars + 0x274
  */
 
@@ -117,7 +117,7 @@ extern s32 BtlCharApi_IsTargetBelowHalfHp(s32 objId, s32 targetId);
 extern s32 BtlCharApi_CanTechniqueFinish(s32 objId, s32 targetId);
 extern s32 BtlCharApi_IsCamShown(s32 objId);
 extern s32 BtlCharApi_AnyCamPriority(void);
-extern s32 func_002129F0(void);
+extern s32 BtlGame_IsFighting(void);
 extern void BtlStage_RequestChange(void);
 extern u8 *StgTint_GetWork(void);
 
@@ -579,7 +579,7 @@ void BtlScene_CheckStageChange(void) {
     if (!Battle_IsTimeLimitOff() && Battle_GetTimeLimit() < 10) {
         return;
     }
-    if (!func_002129F0()) {
+    if (!BtlGame_IsFighting()) {
         return;
     }
     for (i = 0; i < list->count; i++) {

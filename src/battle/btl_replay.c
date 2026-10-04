@@ -18,7 +18,7 @@
 
 extern BtlReplayTracks *BattleReplay_GetData(void);
 extern s32 BattleReplay_IsActive(void);
-extern s32 func_00215000(void); /* word 8 of the pause / text work (D_002FEB30) */
+extern s32 BtlMenu_IsActive(void); /* word 8 of the pause / text work (gBtlMenu) */
 extern void Hud_SetReplayMode(s32 mode); /* HUD work (gHud) + 0x34 = mode */
 
 extern BtlReplayRoster *gBtlChars;
@@ -100,7 +100,7 @@ void BtlReplay_UpdateViewer(void) {
     if (v->row >= 2) {
         v->row = 0;
     }
-    if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) && !func_00215000()) {
+    if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) && !BtlMenu_IsActive()) {
         if (pad->gamePressed & 8) {
             gBtlReplayHudMode--;
         }

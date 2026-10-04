@@ -63,7 +63,9 @@ Everything else is unidentified.
 - `func_002BD950`..`func_002BECC0` in the trailing block of the main executable also grant items
   and money (a reward path); not analysed.
 
-## Memory-card flows (0x1198D8..0x11EC10; src/sys/mcflow_a.c, not linked yet; names in config/symbols/mcflow_a.txt)
+## Memory-card flows (0x1198D8..0x11EC10; src/sys/mcflow_a.c, linked; names in config/symbols/mcflow_a.txt)
+Linked layout: `.rodata` 0x2EBD30 (0x518), `.sdata` 0x2FE940 (`gMcFlow`, defined in the file, then "DBZT3" / "DBZT3R").
+The file's private aliases for the card layer are gone: it calls the `McCard_*` names of stgm_a_b.c.
 
 All 22 functions match. One module (`McFlow_*`, final name sys/mc_flow.c): a heap work area
 `gMcFlow` (0x2FE940, 0x39F90 bytes; layout in include/sys/mcflow_a.h) and eight state machines
@@ -97,7 +99,9 @@ library calls in 0x116BA0..0x1190C8 (the neighbouring range).
 For linking: define `McFlow *gMcFlow = NULL;` at the top of the file (it is `.sdata` at
 0x2FE940 before "DBZT3" / "DBZT3R"); `.rodata` 0x2EBD30..0x2EC248.
 
-## Memory-card layer (0x116B98..0x1198D8; src/battle/stgm_a_b.c, not linked yet; final name sys/mcard.c)
+## Memory-card layer (0x116B98..0x1198D8; src/battle/stgm_a_b.c, linked; final name sys/mcard.c)
+Linked layout: `.rodata` 0x2EBA80 (0x2B0), `.sdata` 0x2FE918 (`gMcCardStep`, `gMcCardCmd`, defined in the file, then its
+strings from 0x2FE920).
 
 All 20 functions match (`McCard_*`, names in config/symbols/stgm_a.txt). Polled operations
 over Sony libmc: each call makes one library call or one `sceMcSync` poll; state in
@@ -117,7 +121,9 @@ over Sony libmc: each call makes one library call or one `sceMcSync` poll; state
 - For linking: define `s32 gMcCardStep = 0; s32 gMcCardCmd = 0;` first in the file; `.rodata`
   at 0x2EBA80, `.sdata` from 0x2FE918.
 
-## Character password codec (0x252F68..0x254A20; src/sys/misc_a.c, misc_a_b.c, not linked yet; names in config/symbols/misc_a.txt)
+## Character password codec (0x252F68..0x254A20; src/sys/misc_a.c, misc_a_b.c, linked; names in config/symbols/misc_a.txt)
+Linked layout: misc_a.c `.rodata` 0x2F2AA0, `.sdata` 0x2FEC50; misc_a_b.c `.rodata` 0x2F2CB0, `.sdata` 0x2FEE58 (0x20A and
+0x202 bytes each).
 
 All 35 functions match. Two builds of one codec, called only by the menu overlay: `OldPass_*`
 (0x252F68, 32- and 20-character texts) and `ChrPass_*` (0x253ED8, the 34-character text).

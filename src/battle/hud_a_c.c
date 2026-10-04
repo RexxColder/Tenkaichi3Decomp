@@ -15,26 +15,26 @@
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
-extern s32 func_00212A08(void); /* returns gBtlGameReplayActive */
+extern s32 BtlGame_IsReplay(void); /* returns gBtlGameReplayActive */
 
 /* The caption work. Defined here: this object's .sdata (0x2FEB44). */
 HudCaption *gHudCaption = NULL;
 
-extern void func_00224B90(HudSprite *spr, s32 show);
-extern void func_00224C10(HudSprite *spr, s32 r, s32 g, s32 b, s32 a);
-extern void func_00224CA0(HudSprite *spr, s32 dx, s32 dy);
-extern void func_00224E20(HudSprite *spr, HudRes *res, s32 tex, s32 sub);
-extern void func_00226488(HudSprite *spr, HudRes *res, s32 additive);
+extern void HudSprite_Show(HudSprite *spr, s32 show);
+extern void HudSprite_SetColor(HudSprite *spr, s32 r, s32 g, s32 b, s32 a);
+extern void HudSprite_Move(HudSprite *spr, s32 dx, s32 dy);
+extern void HudSprite_InitTex(HudSprite *spr, HudRes *res, s32 tex, s32 sub);
+extern void HudSprite_Draw(HudSprite *spr, HudRes *res, s32 additive);
 
 #define HUD_CAPTION_SPR_COUNT 3
 #define HUD_CAPTION_NODE_COUNT 2
 
 /* Draws the pulsing sprite (not during a replay) and the top sprite. */
 void HudCaption_Draw(void) {
-    if (!func_00212A08()) {
-        func_00226488(&gHudCaption->sprites[2], gHudCaption->res, 0);
+    if (!BtlGame_IsReplay()) {
+        HudSprite_Draw(&gHudCaption->sprites[2], gHudCaption->res, 0);
     }
-    func_00226488(&gHudCaption->sprites[1], gHudCaption->res, 0);
+    HudSprite_Draw(&gHudCaption->sprites[1], gHudCaption->res, 0);
 }
 
 /* Runs the one-second ramp over and over and sets the pulsing sprite's alpha to 64 + 64 * (sin(2 pi t) + 1) / 2.
@@ -45,7 +45,7 @@ void HudCaption_Update(void) {
     if (Ramp_Step(&gHudCaption->pulse)) {
         Ramp_Start(&gHudCaption->pulse, 1.0f, 0.0f, 1.0f);
     }
-    func_00224C10(spr, 0xFF, 0xFF, 0xFF,
+    HudSprite_SetColor(spr, 0xFF, 0xFF, 0xFF,
                   (u8)((Mathf_Sin(gHudCaption->pulse.value * 3.14159265f * 2.0f) + 1.0f) * 0.5f * 64.0f + 64.0f));
 }
 
@@ -63,14 +63,14 @@ void HudCaption_Init(HudNode **out, HudRes *res) {
     gHudCaption->res = res;
 
     spr = &gHudCaption->sprites[1];
-    func_00224E20(spr, res, 0, 0);
-    func_00224CA0(spr, 240, 19);
-    func_00224B90(spr, 1);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_Move(spr, 240, 19);
+    HudSprite_Show(spr, 1);
 
     spr = &gHudCaption->sprites[2];
-    func_00224E20(spr, res, 1, 0);
-    func_00224CA0(spr, 0, 386);
-    func_00224B90(spr, 1);
+    HudSprite_InitTex(spr, res, 1, 0);
+    HudSprite_Move(spr, 0, 386);
+    HudSprite_Show(spr, 1);
 
     node = &gHudCaption->nodes[1];
     node->spriteCount = 2;

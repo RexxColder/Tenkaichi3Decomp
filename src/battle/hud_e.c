@@ -27,39 +27,39 @@
 HudENotice *gHudNotice = NULL;
 
 /* Sprite / node library at 0x224B50.. and the animations of the other announcements (neighbouring ranges). */
-extern void func_00224B90(HudESprite *spr, s32 show);
-extern void func_00224C10(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);
-extern void func_00224C28(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);     /* untextured, coloured */
-extern void func_00224CA0(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
-extern void func_00224D40(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
-extern void func_00224DB8(HudESprite *spr);                                 /* centres the rectangle */
-extern void func_00224E20(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
-extern void func_00225650(void);
-extern void func_00226488(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
-extern void func_002264C8(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
-extern void func_00226BA8();                                                /* HudNotice_DrawNode */
-extern void func_00226C18();                                                /* HudNotice_DrawSpin */
-extern void func_00226CB0();                                                /* HudNotice_DrawReady */
-extern void func_00226D98();                                                /* HudNotice_UpdateReady */
-extern void func_00227380();
-extern void func_00227468();
-extern void func_00227DC0();
-extern void func_00227EA8();
-extern void func_00228A00();
-extern void func_00228A78();
-extern void func_00228FB0();
-extern void func_00229028();
-extern void func_00229560();
-extern void func_00229940();
-extern void func_00229D20();
-extern void func_00229DD8();
+extern void HudSprite_Show(HudESprite *spr, s32 show);
+extern void HudSprite_SetColor(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);
+extern void HudSprite_InitPlain(HudESprite *spr, s32 r, s32 g, s32 b, s32 a);     /* untextured, coloured */
+extern void HudSprite_Move(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
+extern void HudSprite_Scale(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
+extern void HudSprite_Center(HudESprite *spr);                                 /* centres the rectangle */
+extern void HudSprite_InitTex(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
+extern void HudGfx_ClearAlpha(void);
+extern void HudSprite_Draw(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
+extern void HudNode_SetPos(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
+extern void HudNotice_DrawNode();                                                /* HudNotice_DrawNode */
+extern void HudNotice_DrawSpin();                                                /* HudNotice_DrawSpin */
+extern void HudNotice_DrawReady();                                                /* HudNotice_DrawReady */
+extern void HudNotice_UpdateReady();                                                /* HudNotice_UpdateReady */
+extern void HudNotice_DrawFight();
+extern void HudNotice_UpdateFight();
+extern void HudNotice_DrawKo();
+extern void HudNotice_UpdateKo();
+extern void HudNotice_DrawBandA();
+extern void HudNotice_UpdateBandA();
+extern void HudNotice_DrawBandB();
+extern void HudNotice_UpdateBandB();
+extern void HudNotice_UpdateSpinA();
+extern void HudNotice_UpdateSpinB();
+extern void HudNotice_DrawTrail();
+extern void HudNotice_UpdateTrail();
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 powf(f32 x, f32 y);
 
 /* Draw callback of announcement 7: the banner sprite. */
 void HudNotice_DrawBanner(void) {
-    func_00225650();
-    func_00226488(&gHudNotice->spr[0], gHudNotice->res, 0);
+    HudGfx_ClearAlpha();
+    HudSprite_Draw(&gHudNotice->spr[0], gHudNotice->res, 0);
 }
 
 /* Update callback of announcement 7. The banner (texture 6) drops in from 100 pixels above over 0.4 s while
@@ -74,21 +74,21 @@ void HudNotice_UpdateBanner(void) {
 
     switch (gHudNotice->state) {
         case 0:
-            func_00224B90(spr, 1);
-            func_00224E20(spr, gHudNotice->res, 6, 0);
-            func_00224DB8(spr);
-            func_00224B90(streak, 0);
+            HudSprite_Show(spr, 1);
+            HudSprite_InitTex(spr, gHudNotice->res, 6, 0);
+            HudSprite_Center(spr);
+            HudSprite_Show(streak, 0);
             Ramp_Start(ramp, 0.4f, 1.0f, 0.0f);
             gHudNotice->state++;
             /* fall through */
         case 1:
             done = Ramp_Step(ramp);
             t = Mathf_Sin(ramp->value * 1.5707963f);
-            func_00224E20(spr, gHudNotice->res, 6, 0);
-            func_00224DB8(spr);
-            func_00224CA0(spr, 0, t * -100.0f);
+            HudSprite_InitTex(spr, gHudNotice->res, 6, 0);
+            HudSprite_Center(spr);
+            HudSprite_Move(spr, 0, t * -100.0f);
             t = 1.0f - t;
-            func_00224C10(spr, 0x80, 0x80, 0x80, (u8)(u32)(t * 128.0f));
+            HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)(u32)(t * 128.0f));
             if (done) {
                 Ramp_Start(&gHudNotice->rampA, 0.36f, 0.0f, 1.0f);
                 gHudNotice->state++;
@@ -97,11 +97,11 @@ void HudNotice_UpdateBanner(void) {
         case 2:
             done = Ramp_Step(ramp);
             t = Mathf_Sin(ramp->value * 3.1415926f) * 0.1f;
-            func_00224E20(spr, gHudNotice->res, 6, 0);
-            func_00224DB8(spr);
-            func_00224CA0(spr, 0, t * -100.0f);
+            HudSprite_InitTex(spr, gHudNotice->res, 6, 0);
+            HudSprite_Center(spr);
+            HudSprite_Move(spr, 0, t * -100.0f);
             t = 1.0f - t;
-            func_00224C10(spr, 0x80, 0x80, 0x80, (u8)(u32)(t * 128.0f));
+            HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)(u32)(t * 128.0f));
             if (done) {
                 Ramp_Start(ramp, 1.73f, 1.0f, 0.0f);
                 gHudNotice->state++;
@@ -122,7 +122,7 @@ void HudNotice_UpdateBanner(void) {
                 t = powf(ramp->value, 3.0f);
                 spr->a = (u32)(t * 128.0f);
                 t = t * 0.5f + 0.5f;
-                func_00224D40(spr, t, t);
+                HudSprite_Scale(spr, t, t);
             }
             /* An empty statement that still needs a test: without it the call above becomes a tail call. The
                original had something here that compiled to nothing. */
@@ -130,8 +130,8 @@ void HudNotice_UpdateBanner(void) {
             }
             break;
         case 5:
-            func_00224B90(spr, 0);
-            func_00224B90(streak, 0);
+            HudSprite_Show(spr, 0);
+            HudSprite_Show(streak, 0);
             break;
     }
 }
@@ -150,11 +150,11 @@ void HudNotice_Show(s32 id) {
     HudENode *node;
     s32 i;
 
-    func_00224B90(&gHudNotice->spr[HUD_NOTICE_SPR_STREAK], 0);
+    HudSprite_Show(&gHudNotice->spr[HUD_NOTICE_SPR_STREAK], 0);
     for (i = 0; i < 12; i++) {
-        func_00224B90(&gHudNotice->spr[i + 1], 0);
+        HudSprite_Show(&gHudNotice->spr[i + 1], 0);
     }
-    func_00224B90(&gHudNotice->spr[0], 0);
+    HudSprite_Show(&gHudNotice->spr[0], 0);
     node = &gHudNotice->node[1];
     node->rot = 0.0f;
     node->unk8 = 0.0f;
@@ -162,55 +162,55 @@ void HudNotice_Show(s32 id) {
     gHudNotice->state = 0;
     switch (id) {
         case 0:
-            func_002264C8(node, 256, 224);
-            node->update = func_00226D98;
-            node->draw = func_00226CB0;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateReady;
+            node->draw = HudNotice_DrawReady;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7);
             break;
         case 1:
-            func_002264C8(node, 256, 224);
-            node->update = func_00227468;
-            node->draw = func_00227380;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateFight;
+            node->draw = HudNotice_DrawFight;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 1);
             break;
         case 2:
-            func_002264C8(node, 256, 224);
-            node->update = func_00227EA8;
-            node->draw = func_00227DC0;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateKo;
+            node->draw = HudNotice_DrawKo;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 2);
             break;
         case 3:
-            func_002264C8(node, 256, 224);
-            node->update = func_00228A78;
-            node->draw = func_00228A00;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateBandA;
+            node->draw = HudNotice_DrawBandA;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 3);
             break;
         case 4:
-            func_002264C8(node, 256, 224);
-            node->update = func_00229560;
-            node->draw = func_00226C18;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateSpinA;
+            node->draw = HudNotice_DrawSpin;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 4);
             break;
         case 5:
-            func_002264C8(node, 256, 224);
-            node->update = func_00229940;
-            node->draw = func_00226C18;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateSpinB;
+            node->draw = HudNotice_DrawSpin;
             StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 5);
             break;
         case 6:
-            func_002264C8(node, 256, 352);
-            node->update = func_00229DD8;
-            node->draw = func_00229D20;
+            HudNode_SetPos(node, 256, 352);
+            node->update = HudNotice_UpdateTrail;
+            node->draw = HudNotice_DrawTrail;
             break;
         case 7:
-            func_002264C8(node, 256, 352);
+            HudNode_SetPos(node, 256, 352);
             node->update = HudNotice_UpdateBanner;
             node->draw = HudNotice_DrawBanner;
             break;
         case 8:
-            func_002264C8(node, 256, 224);
-            node->update = func_00229028;
-            node->draw = func_00228FB0;
+            HudNode_SetPos(node, 256, 224);
+            node->update = HudNotice_UpdateBandB;
+            node->draw = HudNotice_DrawBandB;
             if (Rand_Range(2)) {
                 StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 2);
             } else {
@@ -222,7 +222,7 @@ void HudNotice_Show(s32 id) {
 
 /* Shows or hides the replay mark (sprite 15, texture 8, top centre). */
 void HudNotice_ShowReplayMark(s32 on) {
-    func_00224B90(&gHudNotice->spr[HUD_NOTICE_SPR_REPLAY], on);
+    HudSprite_Show(&gHudNotice->spr[HUD_NOTICE_SPR_REPLAY], on);
 }
 
 /* Builds the part: the work, 16 sprites and 4 nodes. Node 1 (256, 224) is the announcement (sprites 0, 1, 13),
@@ -245,29 +245,29 @@ void HudNotice_Init(HudENode **out, HudERes *res) {
     gHudNotice->res = res;
 
     spr = &gHudNotice->spr[0];
-    func_00224E20(spr, res, 0, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudNotice->spr[1];
-    func_00224E20(spr, res, 0, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudNotice->spr[HUD_NOTICE_SPR_STREAK];
-    func_00224E20(spr, res, 7, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
+    HudSprite_InitTex(spr, res, 7, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
 
     spr = &gHudNotice->spr[HUD_NOTICE_SPR_BAND];
-    func_00224B90(spr, 0);
-    func_00224C28(spr, 0x80, 0x80, 0x80, 0x80);
-    func_00224DB8(spr);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitPlain(spr, 0x80, 0x80, 0x80, 0x80);
+    HudSprite_Center(spr);
 
     spr = &gHudNotice->spr[HUD_NOTICE_SPR_REPLAY];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 8, 0);
-    func_00224DB8(spr);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_Center(spr);
 
     node = &gHudNotice->node[2];
     node->x = 0;
@@ -287,7 +287,7 @@ void HudNotice_Init(HudENode **out, HudERes *res) {
     memset(node->sprList, 0, node->sprCount * sizeof(HudESprite *));
     node->sprList[0] = &gHudNotice->spr[HUD_NOTICE_SPR_REPLAY];
     node->update = NULL;
-    node->draw = func_00226BA8;
+    node->draw = HudNotice_DrawNode;
 
     node = &gHudNotice->node[1];
     node->x = cx;
@@ -298,8 +298,8 @@ void HudNotice_Init(HudENode **out, HudERes *res) {
     node->sprList[0] = &gHudNotice->spr[0];
     node->sprList[1] = &gHudNotice->spr[1];
     node->sprList[2] = &gHudNotice->spr[HUD_NOTICE_SPR_STREAK];
-    node->update = func_00226D98;
-    node->draw = func_00226C18;
+    node->update = HudNotice_UpdateReady;
+    node->draw = HudNotice_DrawSpin;
 
     node = &gHudNotice->node[0];
     node->x = 0;
@@ -346,11 +346,11 @@ void HudNotice_Reset(void) {
     gHudNotice->state = -1;
     memset(&gHudNotice->rampA, 0, sizeof(Ramp));
     memset(&gHudNotice->rampB, 0, sizeof(Ramp));
-    func_00224B90(&gHudNotice->spr[HUD_NOTICE_SPR_STREAK], 0);
+    HudSprite_Show(&gHudNotice->spr[HUD_NOTICE_SPR_STREAK], 0);
     for (i = 0; i < 12; i++) {
-        func_00224B90(&gHudNotice->spr[i + 1], 0);
+        HudSprite_Show(&gHudNotice->spr[i + 1], 0);
     }
-    func_00224B90(&gHudNotice->spr[0], 0);
+    HudSprite_Show(&gHudNotice->spr[0], 0);
     node = &gHudNotice->node[1];
     node->rot = 0.0f;
     node->unk8 = 0.0f;

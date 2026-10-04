@@ -91,7 +91,7 @@ extern void Vu1Pkt_CallProg6(u32 *chain);
 extern void Vu1Pkt_LoadProg6(void *view, Mtx44 *mtx, Vec4 *vec);
 
 /* The object draw of the previous file (0x10EC18..0x112A30): queues the object's meshes. */
-extern void func_00111E28(ObjMdlObj *obj);
+extern void ObjDraw_DrawPartsFlat(ObjMdlObj *obj);
 
 void MdlTex_RebaseChain(s32 single, void *chain, s32 tbp, s32 cbp, s32 tbp2, s32 cbp2, u32 minTbp, u32 minCbp);
 
@@ -649,7 +649,7 @@ void ObjShadow_LoadProg(ObjMdlObj *obj, ObjShadowWork *work) {
     view->color.y = 128.0f;
     view->color.z = 128.0f;
     view->color.w = 128.0f;
-    func_00111E28(obj);
+    ObjDraw_DrawPartsFlat(obj);
 }
 
 /* Takes a shadow from the pool for an object that has the shadow flag. */
@@ -760,7 +760,7 @@ void ObjShadow_BeginFlat(ObjMdlObj *obj) {
         Vu0Clip_StoreMtx(&prog->clip);
         Mtx_Mul(&prog->screen, &prog->screen, &flat);
         Mtx_Mul(&prog->clip, &prog->clip, &flat);
-        func_00111E28(obj);
+        ObjDraw_DrawPartsFlat(obj);
     }
 }
 

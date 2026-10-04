@@ -36,8 +36,8 @@ extern s32 BtlStage_GetWaterLevel(f32 *level);
 #define STG_RIGID_DT (1.0f / 60.0f + 0.00001f)
 
 /* The two list helpers in front of this file. */
-extern s32 func_0022FC40(StgRigidNode *head);       /* number of nodes */
-extern StgRigidNode *func_0022FC80(void);          /* a free node, NULL when the pool is used up */
+extern s32 StgRigidList_Count(StgRigidNode *head);       /* number of nodes */
+extern StgRigidNode *StgRigid_AllocNode(void);          /* a free node, NULL when the pool is used up */
 
 /* Local view of the battle work: only the flag word. */
 typedef struct StgRigidWork {
@@ -270,7 +270,7 @@ s32 StgRigid_Create(Vec4 *pos, f32 radius, s32 user) {
     rot.m[1][1] = 1.0f;
     rot.m[2][2] = 1.0f;
     rot.m[3][3] = 1.0f;
-    n = func_0022FC80();
+    n = StgRigid_AllocNode();
     if (n == NULL) {
         return -1;
     }
@@ -431,7 +431,7 @@ void StgRigid_Update(void) {
         StgRigidList_Step(gStgRigid->active);
     } while (t <= 1.0f / 6.0f);
     StgRigidList_EndFrame(gStgRigid->active);
-    gStgRigid->count = func_0022FC40(gStgRigid->active);
+    gStgRigid->count = StgRigidList_Count(gStgRigid->active);
 }
 
 /* Writes a body's world matrix; returns 0 when the id names no body. */

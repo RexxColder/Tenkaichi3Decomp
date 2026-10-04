@@ -83,7 +83,8 @@ typedef struct HudCObj {
     /* 0xBC */ void *skillScript; /* given to BtlMenu_SetScript2 before the name is drawn */
 } HudCObj;
 
-extern HudCombo *gHudCombo;
+/* 0x2FEB58: this object's .sdata word (the notice / prompt / timer pointers of hud_e*.c follow it). */
+HudCombo *gHudCombo = NULL;
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern void Vu0Cur_StoreMtx(f32 (*m)[4]);

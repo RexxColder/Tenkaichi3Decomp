@@ -53,14 +53,14 @@
    returns nothing. A non-zero pressed always overrides the result. So with delay D and interval I a button
    reports on frame 0, then on frame D+1, then every I+1 frames. Pad_Init sets D = 20, I = 1; the same
    delay/interval pair also drives the raw Pad.repeat word. Pad_SetRepeat changes it for both ports
-   (callers: func_002BD230 in the main executable, with (20, 1) and later (40, 3); func_00336A90 in the
+   (callers: Shen_Main in the main executable, with (20, 1) and later (40, 3); func_00336A90 in the
    menu overlay, twice).
 
    == Who reads it ==
    There are no reader functions for the game button word: every user reads gPad[n] fields directly
    (lui/lw on gPad + 0x18C etc.). Menus, the overlay and the debug screens use gamePressed and gameRepeat
    (occasionally gameHeld, gameLeft/gameRight); see the report for the list. Pad_GetStatus has no callers,
-   Pad_GetLastStatus one (func_002145D8, the pause menu).
+   Pad_GetLastStatus one (BtlMenu_Update, the pause menu).
 
    == Battle does NOT use the game button word ==
    Fights read the RAW word and go through their own per-player key config (battle code, not this file):

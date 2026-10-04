@@ -28,7 +28,7 @@
  *
  * Callers (src/battle/battle.c): StgFx_Init / StgFx_Term / StgFx_Reset with the battle; inside Battle_Draw
  * and Battle_DrawSplit, in this order:
- *   stage draw, StgFx_DrawPre, func_0010FF40, StgFx_DrawNop, BtlScene_Draw + Ot_Draw (per view),
+ *   stage draw, StgFx_DrawPre, BtlObjDraw_Draw, StgFx_DrawNop, BtlScene_Draw + Ot_Draw (per view),
  *   StgFx_DrawPost, BtlGame_Draw (HUD), 0x23A2B8, 0x23D1E0, StgFx_DrawOverlay.
  * The group has no update function: the tint ramps (StgTint_Update) and the haze jitter (StgHaze_Step)
  * advance inside StgFx_DrawPre, once per drawn frame, and test BATTLE_FLAG_PAUSE themselves.

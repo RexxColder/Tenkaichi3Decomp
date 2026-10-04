@@ -11,17 +11,17 @@ extern void *memset(void *dst, s32 c, u32 n);
 
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
-extern void func_0010D648(Flash *flash);
-extern void func_0010D6F0(Flash *flash);
-extern void func_0010D750(Flash *flash);
-extern void func_0010D810(Flash *flash, s32 arg);
-extern void func_0010D878(Flash *flash, char *label, s32 arg);
+extern void Flash_Destroy(Flash *flash);
+extern void Flash_Advance(Flash *flash);
+extern void Flash_Draw(Flash *flash);
+extern void Flash_Play(Flash *flash, s32 arg);
+extern void Flash_GotoLabel(Flash *flash, char *label, s32 arg);
 extern void Flash_FindLabel(Flash *flash, char *parent, char *name, FlashRef *out);
 extern void Font_FlushAll(void);
 
 /* text box module, after 0x2600B0 (not decompiled) */
-extern void func_002604C0(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
-extern s32 func_00260140(TextBox *box, s32 a, s32 b);
+extern void TextBox_AttachLine(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
+extern s32 TextBox_SetSpacing(TextBox *box, s32 a, s32 b);
 
 /* Defined here: this object's .sdata (0x2FF0D8). */
 MsgWin *gMsgWin = NULL;
@@ -39,7 +39,7 @@ void MsgWin_Init(u32 *pack, void *text, s32 side) {
     gMsgWin->tex[1] = res->tex + FLASH_TEX_SIZE;
 
     Flash_Create(gMsgWin->flash, PACK_AT(pack, 2), gMsgWin->tex);
-    func_0010D810(gMsgWin->flash, 1);
+    Flash_Play(gMsgWin->flash, 1);
     TextBox_Init(&gMsgWin->box, text, 5);
     gMsgWin->text = text;
     gMsgWin->side = side;
@@ -47,7 +47,7 @@ void MsgWin_Init(u32 *pack, void *text, s32 side) {
 
 /* Destroys the movie and frees the window. */
 void MsgWin_Term(void) {
-    func_0010D648(gMsgWin->flash);
+    Flash_Destroy(gMsgWin->flash);
     if (gMsgWin != NULL) {
         Heap_Free(gMsgWin);
         gMsgWin = NULL;
@@ -60,14 +60,14 @@ void MsgWin_Draw(s32 unused0, s32 unused1, s32 line) {
     Flash *flash;
     s32 i;
 
-    func_0010D6F0(gMsgWin->flash);
+    Flash_Advance(gMsgWin->flash);
     flash = gMsgWin->flash;
     if (gMsgWin->text != NULL) {
         Flash_FindLabel(flash, NULL, "mc_message_text", &ref);
-        func_002604C0(flash, &ref, 0, 0, line, &gMsgWin->box);
+        TextBox_AttachLine(flash, &ref, 0, 0, line, &gMsgWin->box);
     }
     for (i = 0; i < 1; i++) {
-        func_0010D750(&gMsgWin->flash[i]);
+        Flash_Draw(&gMsgWin->flash[i]);
     }
     Font_FlushAll();
 }
@@ -75,18 +75,18 @@ void MsgWin_Draw(s32 unused0, s32 unused1, s32 line) {
 /* Starts the slide-in animation of the window's side. */
 void MsgWin_Open(void) {
     if (gMsgWin->side == 0) {
-        func_0010D878(gMsgWin->flash, "fl_l_in", 1);
+        Flash_GotoLabel(gMsgWin->flash, "fl_l_in", 1);
     } else {
-        func_0010D878(gMsgWin->flash, "fl_r_in", 1);
+        Flash_GotoLabel(gMsgWin->flash, "fl_r_in", 1);
     }
 }
 
 /* Starts the slide-out animation of the window's side. */
 void MsgWin_Close(void) {
     if (gMsgWin->side == 0) {
-        func_0010D878(gMsgWin->flash, "fl_l_out", 1);
+        Flash_GotoLabel(gMsgWin->flash, "fl_l_out", 1);
     } else {
-        func_0010D878(gMsgWin->flash, "fl_r_out", 1);
+        Flash_GotoLabel(gMsgWin->flash, "fl_r_out", 1);
     }
 }
 
@@ -101,7 +101,7 @@ void MsgWin_SetSide(s32 side) {
     gMsgWin->side = side;
 }
 
-/* Passes two values to func_00260140 for the window's text box. */
+/* Passes two values to TextBox_SetSpacing for the window's text box. */
 s32 MsgWin_SetBoxParam(s32 a, s32 b) {
-    return func_00260140(&gMsgWin->box, a, b);
+    return TextBox_SetSpacing(&gMsgWin->box, a, b);
 }

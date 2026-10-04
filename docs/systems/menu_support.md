@@ -29,7 +29,8 @@ Verified by matching C:
   +0x440 (0x1F4), +0x634 (0x58), +0x68C (0x144), +0x7D0, +0x7D4 (0x28). Flag 0x100 freezes
   the menu clip animations.
 - **Character grid**: 7 columns, 0x24-byte cells {id, formCount, form[7]}; ids 0..0xA0
-  character, 0xA1 custom, 0xA2 locked, 0xA3 random, 0xA4 filler. **Stage grid**: 6 columns,
+  character, 0xA1 random, 0xA2 locked, 0xA3 saved custom characters, 0xA4 filler (0xA1 and 0xA3 were
+  swapped here and in view_a.h until the overlay's character select showed which is which). **Stage grid**: 6 columns,
   0x24 locked, 0x25 filler; `gSaveData->stageBits` bit = unlocked.
 - **Random draws**: `FlashAnim_Blink` (`Rand_Range(12)`) and `FlashAnim_Talk`
   (`Rand_Range(3)`) draw from the shared Mersenne Twister whenever a menu portrait animates,
@@ -50,7 +51,10 @@ label strings reproduces `.sdata` 0x2FF0D0..0x2FF110; `.rodata` 0x2F30E0 (view_a
 `Res_RelocateOffsets` return nothing; the declarations in sys/loading.c and the window files
 were corrected.
 
-## Text box tail, character / item tables, menu utilities, dragon scene (0x2600B0..0x263098; src/battle/view_b.c .. view_b_e.c, not linked yet; names in config/symbols/view_b.txt)
+## Text box tail, character / item tables, menu utilities, dragon scene (0x2600B0..0x263098; src/battle/view_b.c .. view_b_e.c, linked; names in config/symbols/view_b.txt)
+Linked layout: view_b.c 0x2600B0, view_b_b.c 0x260D20, view_b_c.c 0x2614B0, view_b_d.c 0x261ED8 (it starts with
+`ShenScene_StepSeq`, still assembly), view_b_e.c 0x262FF0. `.rodata` 0x2F3290 / 0x2F32D0 / 0x2F33D0 (b / b_c / b_d),
+`.sdata` 0x2FF110 (b_c) and 0x2FF118 (b_d). view_b.c stays an object of its own (same image as appended to view_a_e.c).
 
 68 functions, 66 match; `TextBox_DrawClip` (0x260158) and `ShenScene_StepSeq` (0x261ED8) are
 INCLUDE_ASM with behaviourally exact attempts. Final names: view_b.c appends to view_a_e.c
@@ -84,7 +88,10 @@ Verified by matching C:
 - Original quirks: `TextBox_DrawClip` accumulates position and tint in place (a line must be
   re-attached before every draw); `ItemSet_GetStats` ORs the ability words four times.
 
-## Dragon wish screen (0x2BD230..0x2BF6B0; src/sys/late_a.c, late_a_b.c, late_a_c.c, not linked yet; names in config/symbols/late_a.txt)
+## Dragon wish screen (0x2BD230..0x2BF6B0; src/sys/late_a.c, late_a_b.c, late_a_c.c, linked; names in config/symbols/late_a.txt)
+Linked layout (built with -G0): late_a.c 0x2BD230, late_a_b.c 0x2BEB20, late_a_c.c 0x2BF370; `.rodata` 0x2FBDA8 (0x347)
+and 0x2FC0F0 (0x18E); `.data` 0x2EB34C (late_a_b.c) and 0x2EB350 (late_a_c.c). The overlay symbols it uses
+(`D_003B0EB4`, `func_00399240` ..) are defined in config/linker_script_extra.ld.
 
 40 of 42 functions match; `Shen_DrawList` (38 of 229) and `Shen_BuildList` (4 of 121,
 registers) are INCLUDE_ASM with attempts (not run through the differential interpreter).

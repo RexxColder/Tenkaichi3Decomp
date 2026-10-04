@@ -17,23 +17,23 @@ extern s32 sprintf(char *dst, const char *fmt, ...);
 
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
-extern void func_0010D648(Flash *flash);                                  /* destroys the movie */
-extern void func_0010D6F0(Flash *flash);                                  /* steps the movie */
-extern void func_0010D750(Flash *flash);                                  /* draws the movie */
-extern void func_0010D810(Flash *flash, s32 arg);
-extern void func_0010D878(Flash *flash, char *label, s32 arg);             /* starts the animation at a frame label */
+extern void Flash_Destroy(Flash *flash);                                  /* destroys the movie */
+extern void Flash_Advance(Flash *flash);                                  /* steps the movie */
+extern void Flash_Draw(Flash *flash);                                  /* draws the movie */
+extern void Flash_Play(Flash *flash, s32 arg);
+extern void Flash_GotoLabel(Flash *flash, char *label, s32 arg);             /* starts the animation at a frame label */
 extern void Flash_FindLabel(Flash *flash, char *parent, char *name, FlashRef *out);
-extern void func_0010D9D8(Flash *flash, FlashRef *ref, s32 prop, s32 value);
-extern void func_0010DC70(Flash *flash, FlashRef *ref, s32 frame);        /* shows one frame of a clip */
-extern void func_0010DCA0(Flash *flash, FlashRef *ref, FlashUv *uv);      /* sets the texture rectangle of a clip */
+extern void Flash_ClipSetFlags(Flash *flash, FlashRef *ref, s32 prop, s32 value);
+extern void Flash_ClipSetTex(Flash *flash, FlashRef *ref, s32 frame);        /* shows one frame of a clip */
+extern void Flash_ClipSetUv(Flash *flash, FlashRef *ref, FlashUv *uv);      /* sets the texture rectangle of a clip */
 extern void Font_FlushAll(void);
 extern s32 Font_CountLines(u16 *str);
 
 extern void Num_Draw_(Flash *flash, char *fmt, s32 first, s32 count, s32 value, s32 w, s32 h, s32 mode)
     __asm__("Num_Draw");
 /* text box module, after 0x2600B0 (not decompiled) */
-extern void func_00260118(TextBox *box, s32 a, s32 b, s32 c, s32 d, s32 e);
-extern void func_002604C0(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box); /* draws a line in a clip */
+extern void TextBox_SetLineOffsets(TextBox *box, s32 a, s32 b, s32 c, s32 d, s32 e);
+extern void TextBox_AttachLine(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box); /* draws a line in a clip */
 
 /* Defined here: this object's .sdata (0x2FF0D0). */
 GetWin *gGetWin = NULL;
@@ -90,12 +90,12 @@ void GetWin_Init(u32 *pack, s32 lang) {
 
     gGetWin->items = PACK_AT(pack, 10);
     Flash_Create(gGetWin->flash, PACK_AT(pack, lang == 1 ? 5 : 6), gGetWin->tex);
-    func_0010D810(gGetWin->flash, 1);
+    Flash_Play(gGetWin->flash, 1);
 }
 
 /* Destroys the movie and frees the window. */
 void GetWin_Term(void) {
-    func_0010D648(gGetWin->flash);
+    Flash_Destroy(gGetWin->flash);
     if (gGetWin != NULL) {
         Heap_Free(gGetWin);
         gGetWin = NULL;
@@ -112,7 +112,7 @@ void GetWin_Draw(void) {
     s32 i;
 
     for (i = 0; i < 1; i++) {
-        func_0010D6F0(&gGetWin->flash[i]);
+        Flash_Advance(&gGetWin->flash[i]);
     }
 
     uv.y0 = 0;
@@ -135,11 +135,11 @@ void GetWin_Draw(void) {
     uv.x1 = 0x200;
     uv.x0 = 0;
     Flash_FindLabel(flash, NULL, "title_get", &ref);
-    func_0010DCA0(flash, &ref, &uv);
+    Flash_ClipSetUv(flash, &ref, &uv);
     if (kind >= 7 && kind <= 9) {
-        func_0010DC70(flash, &ref, 1);
+        Flash_ClipSetTex(flash, &ref, 1);
     } else {
-        func_0010DC70(flash, &ref, 0);
+        Flash_ClipSetTex(flash, &ref, 0);
     }
 
     uv.x0 = 0;
@@ -193,71 +193,71 @@ void GetWin_Draw(void) {
         break;
     }
     Flash_FindLabel(flash, NULL, kind != 8 ? "mc_icon_get_1_loop" : "mc_icon_get_2_loop", &ref);
-    func_0010DCA0(flash, &ref, &uv);
+    Flash_ClipSetUv(flash, &ref, &uv);
     Flash_FindLabel(flash, NULL, "mc_icon_get_2_loop", &ref);
-    func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, kind == 8);
+    Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, kind == 8);
     Flash_FindLabel(flash, NULL, "mc_icon_get_1_loop", &ref);
-    func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, kind != 8);
+    Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, kind != 8);
 
     for (i = 0; i < 7; i++) {
         sprintf(name, "mc_pay_num_%d", i);
         Flash_FindLabel(flash, NULL, name, &ref);
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, kind == 6);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, kind == 6);
     }
     if (kind == 6) {
         Num_Draw_(flash, "mc_pay_num_%d", 0, 7, gGetWin->line2, 0x20, 0x20, 0);
     }
 
     Flash_FindLabel(flash, NULL, "mc_battle_text_base", &ref);
-    func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, kind == 8);
+    Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, kind == 8);
 
     if (gGetWin->line1 >= 0) {
         Flash_FindLabel(flash, NULL, "mc_dammy_text_1", &ref);
-        func_002604C0(flash, &ref, 0, 0, gGetWin->line1, &gGetWin->box[gGetWin->box1]);
+        TextBox_AttachLine(flash, &ref, 0, 0, gGetWin->line1, &gGetWin->box[gGetWin->box1]);
     } else {
         Flash_FindLabel(flash, NULL, "mc_text_base_1", &ref);
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
         Flash_FindLabel(flash, NULL, "mc_dammy_text_1", &ref);
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
     }
-    func_0010D750(gGetWin->flash);
+    Flash_Draw(gGetWin->flash);
 
     if (gGetWin->line2 >= 0) {
         if (kind == 8) {
             if (gGetWin->tall != 0) {
-                func_00260118(&gGetWin->box[gGetWin->box2], 0xC, 0, 0, 0, 0);
+                TextBox_SetLineOffsets(&gGetWin->box[gGetWin->box2], 0xC, 0, 0, 0, 0);
             }
             Flash_FindLabel(flash, NULL, "mc_text_base_2", &ref);
-            func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+            Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
         }
         Flash_FindLabel(flash, NULL, "mc_dammy_text_2", &ref);
         if (kind != 6) {
-            func_002604C0(flash, &ref, 0, 0, gGetWin->line2, &gGetWin->box[gGetWin->box2]);
+            TextBox_AttachLine(flash, &ref, 0, 0, gGetWin->line2, &gGetWin->box[gGetWin->box2]);
         }
-        func_00260118(&gGetWin->box[gGetWin->box2], 0, 0, 0, 0, 0);
+        TextBox_SetLineOffsets(&gGetWin->box[gGetWin->box2], 0, 0, 0, 0, 0);
     } else {
         Flash_FindLabel(flash, NULL, "mc_text_base_2", &ref);
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, kind == 6);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, kind == 6);
         Flash_FindLabel(flash, NULL, "mc_dammy_text_2", &ref);
-        func_0010D9D8(flash, &ref, FLASH_PROP_VISIBLE, 0);
+        Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
     }
     Font_FlushAll();
 }
 
 /* Plays the opening animation and its sound. */
 void GetWin_Open(void) {
-    func_0010D878(gGetWin->flash, "fl_get_in", 1);
+    Flash_GotoLabel(gGetWin->flash, "fl_get_in", 1);
     Snd_PlaySe(2, gGetWin->se);
 }
 
 /* Plays the closing animation. */
 void GetWin_Close(void) {
-    func_0010D878(gGetWin->flash, "fl_get_out", 1);
+    Flash_GotoLabel(gGetWin->flash, "fl_get_out", 1);
 }
 
 /* Plays the "next reward" animation and its sound. */
 void GetWin_Next(void) {
-    func_0010D878(gGetWin->flash, "fl_next_get", 1);
+    Flash_GotoLabel(gGetWin->flash, "fl_next_get", 1);
     Snd_PlaySe(2, gGetWin->se);
 }
 

@@ -5,8 +5,8 @@
 
 /*
  * gSaveData: the 0x4000-byte block allocated by Save_Init. It is the whole persistent save: the memory
- * card code copies 0x4000 bytes straight into it after a load (func_0011ABD0 / func_0011B1E0, from the
- * card buffer + 0x38) and hands it to the writer with size 0x4000 (func_00119FB8 / func_0011BA08).
+ * card code copies 0x4000 bytes straight into it after a load (McFlow_UpdateLoad / McFlow_UpdateBootLoad, from the
+ * card buffer + 0x38) and hands it to the writer with size 0x4000 (McFlow_UpdateSave / McFlow_UpdateNewSave).
  * "How we know" is given per field; "menu" means the DBZP.BIN overlay (asm/dbzp/000000.s).
  */
 
@@ -51,18 +51,18 @@ typedef struct SaveSlot {
     /* 0x04 */ s32 val[3]; /* 0xFFFF each after Save_UnlockAll; slot 0 gets val[0] |= 1 and val[2] |= 1 by default */
 } SaveSlot;
 
-/* 0x38 bytes; per-character customisation (menu functions 0x398A60..0x3991D8, main func_00260DB8 / func_00260E28). */
+/* 0x38 bytes; per-character customisation (menu functions 0x398A60..0x3991D8, main ChrTbl_GetLevel / ChrTbl_GetExp). */
 typedef struct SaveCustom {
     /* 0x00 */ u16 item[SAVE_CUSTOM_SETS][SAVE_CUSTOM_ITEMS]; /* equipped item ids (1-based, 0 = empty) of each of the 3 sets */
     /* 0x30 */ s32 unk30;  /* running total compared with the table value picked by `level` (func_00398AC8): experience, guess */
-    /* 0x34 */ u16 level;  /* added to the character table's u16 at +0xE by func_00260DB8; indexes its s32 table at +0x10 in func_00260E28 */
+    /* 0x34 */ u16 level;  /* added to the character table's u16 at +0xE by ChrTbl_GetLevel; indexes its s32 table at +0x10 in ChrTbl_GetExp */
     /* 0x36 */ u16 unk36;
 } SaveCustom;
 
 /* 0x1C bytes; fourteen of them at 0x2D40. */
 typedef struct SaveRec {
     /* 0x00 */ u8 unk0[0x14];
-    /* 0x14 */ u16 level;  /* used instead of SaveCustom.level when func_00260DB8 is asked for one of these */
+    /* 0x14 */ u16 level;  /* used instead of SaveCustom.level when ChrTbl_GetLevel is asked for one of these */
     /* 0x16 */ u16 unk16;
     /* 0x18 */ s32 chara;  /* character id, -1 = empty (defaults; ChrGrid_Build appends the non-empty ones to the character list) */
 } SaveRec;
@@ -101,7 +101,7 @@ typedef struct SaveData {
     /* 0x1698 */ s32 unk1698;       /* same, to +0x38 and +0x3C */
     /* 0x169C */ s32 screenX;       /* display offset, Gfx_SetDisplayRegs */
     /* 0x16A0 */ s32 screenY;
-    /* 0x16A4 */ s32 soundMode;     /* 0 stereo, 1 mono: func_00261598 calls Snd_SetStereo(soundMode ^ 1), which ends in Adx_SetMono(soundMode) */
+    /* 0x16A4 */ s32 soundMode;     /* 0 stereo, 1 mono: SndOpt_Apply calls Snd_SetStereo(soundMode ^ 1), which ends in Adx_SetMono(soundMode) */
     /* 0x16A8 */ s32 bgmVolume;     /* 0..9; sys/adx.c channels 0-1 */
     /* 0x16AC */ s32 seVolume;      /* 0..9; sys/adx.c channels 2-5 (stream SE, voice) and Snd_ScaleVolume (sound effects) */
     /* 0x16B0 */ u8 unk16B0[0x1808 - 0x16B0];
@@ -116,7 +116,7 @@ typedef struct SaveData {
 /* Header of common file 4 (gCommonRes->data[2]): byte offsets of its tables, rounded down to 4. */
 typedef struct ItemFile {
     /* 0x00 */ s32 unk0;
-    /* 0x04 */ u32 charaOffset; /* table of 0x3C-byte character entries (func_00260DB8) */
+    /* 0x04 */ u32 charaOffset; /* table of 0x3C-byte character entries (ChrTbl_GetLevel) */
     /* 0x08 */ u32 itemOffset;  /* table of SAVE_ITEM_COUNT ItemInfo */
 } ItemFile;
 

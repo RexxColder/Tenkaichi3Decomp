@@ -990,7 +990,7 @@ void BtlScript_StartWaitEvents(void); /* script module: reacts to events 0x5A / 
 void Hud_SlideOut(f32 t); /* five HUD parts (0x21FAF0, 0x21AD40, 0x22F2F0, 0x22E0B0, 0x2240A0), duration t */
 void Hud_SlideIn(f32 t); /* their counterparts (0x21FB18, ...), duration t */
 /* Sums the four stat bonuses and ORs the four ability words of the items; stats[4] = AI type. */
-void func_00261130(BattleItemSet *items, s32 *stats, s32 *ability, s32 chara);
+void ItemSet_GetStats(BattleItemSet *items, s32 *stats, s32 *ability, s32 chara);
 
 #define SETUP() Battle_GetSetup()
 
@@ -1263,7 +1263,7 @@ void BtlMember_ApplyItems(BattleMember *m) {
     s32 stats[5];
     s32 i;
 
-    func_00261130(&m->items, stats, ability, m->chara);
+    ItemSet_GetStats(&m->items, stats, ability, m->chara);
     m->bonus[0] = 0;
     m->bonus[1] = stats[2];
     m->bonus[2] = stats[0];

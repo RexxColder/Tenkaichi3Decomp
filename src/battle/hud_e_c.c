@@ -12,16 +12,16 @@
 #define HUDT_PAUSED() (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)
 
 /* Sprite / node library at 0x224B50.. (neighbouring ranges). */
-extern void func_00224B90(HudESprite *spr, s32 show);
-extern void func_00224BD0(HudESprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
-extern void func_00224BE8(HudESprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
-extern void func_00224C00(HudESprite *spr, s32 tex, s32 sub);               /* texture entry and sub entry */
-extern void func_00224CA0(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
-extern void func_00224D40(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
-extern void func_00224DB8(HudESprite *spr);                                 /* centres the rectangle */
-extern void func_00224E20(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
-extern void func_00226488(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
-extern void func_002264C8(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
+extern void HudSprite_Show(HudESprite *spr, s32 show);
+extern void HudSprite_SetRect(HudESprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
+extern void HudSprite_SetUv(HudESprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
+extern void HudSprite_SetTex(HudESprite *spr, s32 tex, s32 sub);               /* texture entry and sub entry */
+extern void HudSprite_Move(HudESprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
+extern void HudSprite_Scale(HudESprite *spr, f32 sx, f32 sy);                 /* scales the rectangle */
+extern void HudSprite_Center(HudESprite *spr);                                 /* centres the rectangle */
+extern void HudSprite_InitTex(HudESprite *spr, HudERes *res, s32 tex, s32 sub); /* sprite of a sheet's texture */
+extern void HudSprite_Draw(HudESprite *spr, HudERes *res, s32 additive);     /* HudSprite_Draw */
+extern void HudNode_SetPos(HudENode *node, s32 x, s32 y);                    /* HudNode_SetPos */
 extern void *memset(void *dst, s32 c, u32 n);
 
 HudTimer *gHudTimer = NULL;
@@ -31,11 +31,11 @@ void HudTimer_UpdateRoot(HudENode *node) {
     if (!HUDT_PAUSED()) {
         Ramp_Step(&gHudTimer->slide);
     }
-    func_002264C8(node, gHudTimer->slide.value * 0.0f, gHudTimer->slide.value * -224.0f);
+    HudNode_SetPos(node, gHudTimer->slide.value * 0.0f, gHudTimer->slide.value * -224.0f);
 }
 
 /* Texel rectangle of digit d: 32x32 cells, four per row. */
-#define HUDT_DIGIT_UV(spr, d) func_00224BE8(spr, ((d) % 4) * 32, ((d) % 4) * 32 + 32, ((d) / 4) * 32, ((d) / 4) * 32 + 32)
+#define HUDT_DIGIT_UV(spr, d) HudSprite_SetUv(spr, ((d) % 4) * 32, ((d) % 4) * 32 + 32, ((d) / 4) * 32, ((d) / 4) * 32 + 32)
 
 /* Clock node update: lays out up to three digits 11 pixels apart, centred (a negative value shows the two halves
    of the "infinite" picture). A clock is drawn with sub texture 1 below 10 seconds and 2 below 4, where each
@@ -54,16 +54,16 @@ void HudTimer_UpdateDigits(void) {
     }
     if (value < 0) {
         spr = &gHudTimer->spr[1];
-        func_00224B90(spr, 1);
-        func_00224BD0(spr, 0, 32, -32, 0);
-        func_00224BE8(spr, 96, 128, 64, 96);
-        func_00224CA0(spr, 1, 0);
+        HudSprite_Show(spr, 1);
+        HudSprite_SetRect(spr, 0, 32, -32, 0);
+        HudSprite_SetUv(spr, 96, 128, 64, 96);
+        HudSprite_Move(spr, 1, 0);
         spr = &gHudTimer->spr[2];
-        func_00224B90(spr, 1);
-        func_00224BD0(spr, -32, 0, -32, 0);
-        func_00224BE8(spr, 64, 96, 64, 96);
-        func_00224CA0(spr, 1, 0);
-        func_00224B90(&gHudTimer->spr[3], 0);
+        HudSprite_Show(spr, 1);
+        HudSprite_SetRect(spr, -32, 0, -32, 0);
+        HudSprite_SetUv(spr, 64, 96, 64, 96);
+        HudSprite_Move(spr, 1, 0);
+        HudSprite_Show(&gHudTimer->spr[3], 0);
     } else {
         spr = &gHudTimer->spr[3];
         {
@@ -72,10 +72,10 @@ void HudTimer_UpdateDigits(void) {
             d = value / hundred;
         }
         if (d == 0) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 32, -32, 0);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 32, -32, 0);
             HUDT_DIGIT_UV(spr, d);
             x = 11;
         }
@@ -87,10 +87,10 @@ void HudTimer_UpdateDigits(void) {
             d = value % hundred / ten;
         }
         if (x == 0 && d == 0) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, x, x + 32, -32, 0);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, x, x + 32, -32, 0);
             HUDT_DIGIT_UV(spr, d);
             x += 11;
         }
@@ -100,12 +100,12 @@ void HudTimer_UpdateDigits(void) {
 
             d = value % ten;
         }
-        func_00224B90(spr, 1);
-        func_00224BD0(spr, x, x + 32, -32, 0);
+        HudSprite_Show(spr, 1);
+        HudSprite_SetRect(spr, x, x + 32, -32, 0);
         HUDT_DIGIT_UV(spr, d);
-        func_00224CA0(&gHudTimer->spr[1], w = -(x + 32) / 2, 0);
-        func_00224CA0(&gHudTimer->spr[2], w, 0);
-        func_00224CA0(&gHudTimer->spr[3], w, 0);
+        HudSprite_Move(&gHudTimer->spr[1], w = -(x + 32) / 2, 0);
+        HudSprite_Move(&gHudTimer->spr[2], w, 0);
+        HudSprite_Move(&gHudTimer->spr[3], w, 0);
     }
     if (gHudTimer->isClock) {
         if ((u32)value < 4) {
@@ -117,41 +117,41 @@ void HudTimer_UpdateDigits(void) {
             }
             scale = pulse->value + 1.0f;
             spr = &gHudTimer->spr[1];
-            func_00224C00(spr, 0, 2);
-            func_00224CA0(spr, ofs[0], ofs[1]);
-            func_00224D40(spr, scale, scale);
-            func_00224CA0(spr, -ofs[0], -ofs[1]);
+            HudSprite_SetTex(spr, 0, 2);
+            HudSprite_Move(spr, ofs[0], ofs[1]);
+            HudSprite_Scale(spr, scale, scale);
+            HudSprite_Move(spr, -ofs[0], -ofs[1]);
             spr = &gHudTimer->spr[2];
-            func_00224C00(spr, 0, 2);
-            func_00224CA0(spr, ofs[0], ofs[1]);
-            func_00224D40(spr, scale, scale);
-            func_00224CA0(spr, -ofs[0], -ofs[1]);
+            HudSprite_SetTex(spr, 0, 2);
+            HudSprite_Move(spr, ofs[0], ofs[1]);
+            HudSprite_Scale(spr, scale, scale);
+            HudSprite_Move(spr, -ofs[0], -ofs[1]);
             spr = &gHudTimer->spr[3];
-            func_00224C00(spr, 0, 2);
-            func_00224CA0(spr, ofs[0], ofs[1]);
-            func_00224D40(spr, scale, scale);
-            func_00224CA0(spr, -ofs[0], -ofs[1]);
+            HudSprite_SetTex(spr, 0, 2);
+            HudSprite_Move(spr, ofs[0], ofs[1]);
+            HudSprite_Scale(spr, scale, scale);
+            HudSprite_Move(spr, -ofs[0], -ofs[1]);
             if (!HUDT_PAUSED()) {
                 Ramp_Step(pulse);
             }
         } else if ((u32)value < 10) {
-            func_00224C00(&gHudTimer->spr[1], 0, 1);
-            func_00224C00(&gHudTimer->spr[2], 0, 1);
-            func_00224C00(&gHudTimer->spr[3], 0, 1);
+            HudSprite_SetTex(&gHudTimer->spr[1], 0, 1);
+            HudSprite_SetTex(&gHudTimer->spr[2], 0, 1);
+            HudSprite_SetTex(&gHudTimer->spr[3], 0, 1);
         } else {
-            func_00224C00(&gHudTimer->spr[1], 0, 0);
-            func_00224C00(&gHudTimer->spr[2], 0, 0);
-            func_00224C00(&gHudTimer->spr[3], 0, 0);
+            HudSprite_SetTex(&gHudTimer->spr[1], 0, 0);
+            HudSprite_SetTex(&gHudTimer->spr[2], 0, 0);
+            HudSprite_SetTex(&gHudTimer->spr[3], 0, 0);
         }
     } else {
-        func_00224C00(&gHudTimer->spr[1], 0, 0);
-        func_00224C00(&gHudTimer->spr[2], 0, 0);
-        func_00224C00(&gHudTimer->spr[3], 0, 0);
+        HudSprite_SetTex(&gHudTimer->spr[1], 0, 0);
+        HudSprite_SetTex(&gHudTimer->spr[2], 0, 0);
+        HudSprite_SetTex(&gHudTimer->spr[3], 0, 0);
     }
-    func_00224CA0(&gHudTimer->spr[1], -2, 4);
-    func_00224CA0(&gHudTimer->spr[2], -2, 4);
-    func_00224CA0(&gHudTimer->spr[3], -2, 4);
-    func_00224B90(&gHudTimer->spr[5], gHudTimer->mark);
+    HudSprite_Move(&gHudTimer->spr[1], -2, 4);
+    HudSprite_Move(&gHudTimer->spr[2], -2, 4);
+    HudSprite_Move(&gHudTimer->spr[3], -2, 4);
+    HudSprite_Show(&gHudTimer->spr[5], gHudTimer->mark);
 }
 
 /* Draw callback: every sprite of the node. */
@@ -159,7 +159,7 @@ void HudTimer_Draw(HudENode *node) {
     u32 i;
 
     for (i = 0; i < node->sprCount; i++) {
-        func_00226488(node->sprList[i], gHudTimer->res, 0);
+        HudSprite_Draw(node->sprList[i], gHudTimer->res, 0);
     }
 }
 
@@ -187,37 +187,37 @@ void HudTimer_Init(HudENode **out, HudERes *res) {
     gHudTimer->res = res;
 
     spr = &gHudTimer->spr[0];
-    func_00224E20(spr, res, 3, 0);
-    func_00224BD0(spr, 0, 64, 0, 30);
-    func_00224BE8(spr, 0, 64, 0, 30);
-    func_00224DB8(spr);
-    func_00224CA0(spr, 0, -7);
+    HudSprite_InitTex(spr, res, 3, 0);
+    HudSprite_SetRect(spr, 0, 64, 0, 30);
+    HudSprite_SetUv(spr, 0, 64, 0, 30);
+    HudSprite_Center(spr);
+    HudSprite_Move(spr, 0, -7);
 
     spr = &gHudTimer->spr[1];
-    func_00224E20(spr, res, 0, 0);
-    func_00224BD0(spr, -10, 22, -16, 16);
-    func_00224BE8(spr, 0, 32, 0, 32);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_SetRect(spr, -10, 22, -16, 16);
+    HudSprite_SetUv(spr, 0, 32, 0, 32);
 
     spr = &gHudTimer->spr[5];
-    func_00224E20(spr, res, 5, 0);
-    func_00224DB8(spr);
-    func_00224CA0(spr, 0, 16);
+    HudSprite_InitTex(spr, res, 5, 0);
+    HudSprite_Center(spr);
+    HudSprite_Move(spr, 0, 16);
 
     spr = &gHudTimer->spr[2];
-    func_00224E20(spr, res, 0, 0);
-    func_00224BD0(spr, -22, 10, -16, 16);
-    func_00224BE8(spr, 0, 32, 0, 32);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_SetRect(spr, -22, 10, -16, 16);
+    HudSprite_SetUv(spr, 0, 32, 0, 32);
 
     spr = &gHudTimer->spr[3];
-    func_00224E20(spr, res, 0, 0);
-    func_00224BD0(spr, -22, 10, -16, 16);
-    func_00224BE8(spr, 0, 32, 0, 32);
+    HudSprite_InitTex(spr, res, 0, 0);
+    HudSprite_SetRect(spr, -22, 10, -16, 16);
+    HudSprite_SetUv(spr, 0, 32, 0, 32);
 
     spr = &gHudTimer->spr[4];
-    func_00224E20(spr, res, 4, 0);
-    func_00224DB8(spr);
-    func_00224B90(spr, 0);
-    func_00224CA0(spr, 0, 26);
+    HudSprite_InitTex(spr, res, 4, 0);
+    HudSprite_Center(spr);
+    HudSprite_Show(spr, 0);
+    HudSprite_Move(spr, 0, 26);
 
     node = &gHudTimer->node[1];
     node->x = 256;
@@ -278,11 +278,11 @@ void HudTimer_SetTime(s32 seconds) {
     gHudTimer->value = seconds;
     gHudTimer->isClock = 1;
     spr = &gHudTimer->spr[0];
-    func_00224BD0(spr, 0, 64, 0, 30);
-    func_00224BE8(spr, 0, 64, 0, 30);
-    func_00224DB8(spr);
-    func_00224CA0(spr, 0, -7);
-    func_00224B90(&gHudTimer->spr[4], 0);
+    HudSprite_SetRect(spr, 0, 64, 0, 30);
+    HudSprite_SetUv(spr, 0, 64, 0, 30);
+    HudSprite_Center(spr);
+    HudSprite_Move(spr, 0, -7);
+    HudSprite_Show(&gHudTimer->spr[4], 0);
 }
 
 /* Sets a count shown in place of the clock (mode 3: opponents left): the other frame (64x32 at v = 32) and the
@@ -294,11 +294,11 @@ void HudTimer_SetCount(s32 count) {
     gHudTimer->value = count;
     gHudTimer->isClock = 0;
     spr = &gHudTimer->spr[0];
-    func_00224BD0(spr, 0, 64, 0, 32);
-    func_00224BE8(spr, 0, 64, 32, 64);
-    func_00224DB8(spr);
-    func_00224CA0(spr, 0, -6);
-    func_00224B90(&gHudTimer->spr[4], 1);
+    HudSprite_SetRect(spr, 0, 64, 0, 32);
+    HudSprite_SetUv(spr, 0, 64, 32, 64);
+    HudSprite_Center(spr);
+    HudSprite_Move(spr, 0, -6);
+    HudSprite_Show(&gHudTimer->spr[4], 1);
 }
 
 /* Shows sprite 5 from now on. Called by the stage (stg_a_b.c). */

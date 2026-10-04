@@ -9,6 +9,7 @@
 #include "menu/menu_i.h"
 #define unk440 page
 #define unk1BD8 pageNum
+#define unk46C_ unk46C
 
 /*
  * Train: the training menu (progress mode 44), 0x359358..0x35A558: the head of an object that goes on in the
@@ -568,7 +569,7 @@ void Train_DrawBg(void) {
     uv.x1 = 0x200;
     uv.y1 = 0x80;
     Flash_FindLabel(&gTrain->flash[0], NULL, "mc_bg_cloud", &ref);
-    FlashAnim_Scroll(&gTrain->flash[0], &ref, &uv, &gTrain->cloud, NULL, 0.04740741f, 0.0f);
+    FlashAnim_Scroll(&gTrain->flash[0], &ref, &uv, &gTrain->cloud, NULL, 0.047407407f, 0.0f);
     Sprite_DrawPicture(gTrain->bg, 0, 0, 0x80);
 }
 
@@ -590,14 +591,14 @@ void Train_DrawGuides(void) {
         sprintf(name, eye[i], gTrain->pose[i] + 'a');
         if (who == i) {
             Flash_FindLabel(&gTrain->flash[0], NULL, name, &ref);
-            FlashAnim_Blink(&gTrain->flash[0], &ref, &gTrain->blink[i], 0);
+            FlashAnim_Blink(&gTrain->flash[0], &ref, &gTrain->guide.blink[i], 0);
             sprintf(name, mouth[i], gTrain->pose[i] == 0 ? 'b' : 'a');
             Flash_FindLabel(&gTrain->flash[0], NULL, name, &ref);
             Flash_ClipSetFlags(&gTrain->flash[0], &ref, 2, 0);
             sprintf(name, mouth[i], gTrain->pose[i] + 'a');
             Flash_FindLabel(&gTrain->flash[0], NULL, name, &ref);
             if (Voice_GetStat(0) == 3) {
-                FlashAnim_Talk(&gTrain->flash[0], &ref, &gTrain->talk[i], 0);
+                FlashAnim_Talk(&gTrain->flash[0], &ref, &gTrain->guide.talk[i], 0);
             } else {
                 FlashAnim_ShowNext2(&gTrain->flash[0], &ref, 0);
             }
@@ -607,8 +608,18 @@ void Train_DrawGuides(void) {
     }
 }
 
-#define TR_RES(n) \
-    res = (MTexRes *)MPACK_AT(gTrain->res, n); \
+/*
+ * A section of the screen's pack. `host` is the file the section was built from: the development build could
+ * read it from the host PC. Nothing uses it here, but the strings are still in the object, in this order.
+ */
+static inline u8 *Train_Section(s32 n, const char *host) {
+    return MPACK_AT(gTrain->res, n);
+}
+
+#define TR_HOST "host:data/test/ut/"
+
+#define TR_RES(n, host) \
+    res = (MTexRes *)Train_Section(n, host); \
     Res_RelocateOffsets(&res, res, res)
 
 /* Loads and unpacks the screen (section `section` of archive 6) and builds its movie, windows and lists. */
@@ -620,9 +631,9 @@ void Train_Init(s32 section) {
     memset(gTrain, 0, 0x1BE0);
     gTrain->pack = (u32 *)MPACK_AT(gMenuArc6, section);
     gTrain->res = Sprite_Unpack(gTrain->pack, NULL, NULL);
-    TR_RES(2);
+    TR_RES(2, TR_HOST "ut_bg_PS2_.dbt");
     gTrain->bg = res;
-    TR_RES(7);
+    TR_RES(7, TR_HOST "ut_select_tex_PS2_.dbt");
     gTrain->tex[0] = MTEX(res, 0);
     gTrain->tex[5] = MTEX(res, 1);
     gTrain->tex[6] = MTEX(res, 2);
@@ -639,54 +650,54 @@ void Train_Init(s32 section) {
     gTrain->tex[30] = MTEX(res, 13);
     gTrain->tex[32] = MTEX(res, 14);
     gTrain->tex[33] = MTEX(res, 15);
-    TR_RES(6);
+    TR_RES(6, TR_HOST "UT/ut_select_tex_chara_PS2_.dbt");
     gTrain->tex[1] = MTEX(res, 0);
     gTrain->tex[2] = MTEX(res, 1);
     gTrain->tex[3] = MTEX(res, 2);
     gTrain->tex[4] = MTEX(res, 3);
-    TR_RES(9);
+    TR_RES(9, TR_HOST "ut_select_text_JP_PS2_.dbt");
     gTrain->tex[25] = MTEX(res, 0);
     gTrain->tex[26] = MTEX(res, 4);
-    TR_RES(8);
+    TR_RES(8, TR_HOST "ut_select_text_class_JP_PS2_.dbt");
     gTrain->tex[31] = MTEX(res, 0);
-    TR_RES(4);
+    TR_RES(4, TR_HOST "ut_guide_saiyaman_PS2_.dbt");
     gTrain->tex[10] = MTEX(res, 0);
     gTrain->tex[12] = MTEX(res, 2);
     gTrain->tex[11] = MTEX(res, 4);
-    TR_RES(3);
+    TR_RES(3, TR_HOST "ut_guide_bidel_PS2_.dbt");
     gTrain->tex[13] = MTEX(res, 0);
     gTrain->tex[16] = MTEX(res, 2);
     gTrain->tex[14] = MTEX(res, 4);
     gTrain->tex[17] = MTEX(res, 6);
     gTrain->tex[15] = MTEX(res, 8);
     gTrain->tex[20] = NULL;
-    Flash_Create(&gTrain->flash[0], MPACK_AT(gTrain->res, 1), gTrain->tex);
+    Flash_Create(&gTrain->flash[0], Train_Section(1, TR_HOST "UltimateTraining_top_PS2_.fod"), gTrain->tex);
     Flash_Play(&gTrain->flash[0], 1);
-    TR_RES(5);
-    IconWin_Init(MPACK_AT(gTrain->res, 10), res);
-    gTrain->msgText[0] = MPACK_AT(gTrain->res, 14);
-    gTrain->msgText[1] = MPACK_AT(gTrain->res, 15);
-    MsgWin_Init(MPACK_AT(gTrain->res, 11), gTrain->msgText[0], 0, (s32)gTrain->unk3CC);
-    gTrain->subtitlesA = MPACK_AT(gTrain->res, 12);
-    gTrain->subtitlesB = MPACK_AT(gTrain->res, 13);
-    gTrain->text = MPACK_AT(gTrain->res, 16);
+    TR_RES(5, TR_HOST "ut_title_JP_PS2_.dbt");
+    IconWin_Init(Train_Section(10, TR_HOST "if_title_line_PS2_.pak"), res);
+    gTrain->msgText[0] = Train_Section(14, TR_HOST "ut_msg_JP_PS2_.pak");
+    gTrain->msgText[1] = Train_Section(15, TR_HOST "bt_msg_JP_PS2_.pak");
+    MsgWin_Init(Train_Section(11, TR_HOST "if_msg_window_PS2_.pak"), gTrain->msgText[0], 0, (s32)gTrain->unk3CC);
+    gTrain->subtitlesA = Train_Section(12, TR_HOST "utraining_lips_PS2_.pak");
+    gTrain->subtitlesB = Train_Section(13, TR_HOST "btutorial_lips_PS2_.pak");
+    gTrain->text = Train_Section(16, TR_HOST "font_Training_JP_PS2_.pak");
     for (i = 0; i < 5; i++) {
         TextBox_Init(&gTrain->box[i], gTrain->text, 2);
         TextBox_SetLineOffsets(&gTrain->box[i], 9, 0, 0, 0, 0);
         TextBox_SetMaxSize(&gTrain->box[i], 0x100, 0x40);
         TextBox_SetUnkC(&gTrain->box[i], 0xA, 4);
     }
-    gTrain->pageText = MPACK_AT(gTrain->res, 17);
-    gTrain->tbl.lessons = (TrainLesson *)MPACK_AT(gTrain->res, 22);
-    gTrain->tbl.skip = (s32 *)(MPACK_AT(gTrain->res, 24) + 0x10);
-    gTrain->tbl.skipNum = *(u32 *)MPACK_AT(gTrain->res, 24);
-    gTrain->tbl.noImage = (s32 *)(MPACK_AT(gTrain->res, 26) + 0x10);
-    gTrain->tbl.noImageNum = *(u32 *)MPACK_AT(gTrain->res, 26);
+    gTrain->pageText = Train_Section(17, TR_HOST "font_BattleTutorial_JP_PS2_.dat");
+    gTrain->tbl.lessons = (TrainLesson *)Train_Section(22, TR_HOST "ut_normal_index_data_PS2_.dat");
+    gTrain->tbl.skip = (s32 *)(Train_Section(24, TR_HOST "tu_noraml_botu_PS2_.dat") + 0x10);
+    gTrain->tbl.skipNum = *(u32 *)Train_Section(24, TR_HOST "tu_noraml_botu_PS2_.dat");
+    gTrain->tbl.noImage = (s32 *)(Train_Section(26, TR_HOST "tu_noraml_notexture_PS2_.dat") + 0x10);
+    gTrain->tbl.noImageNum = *(u32 *)Train_Section(26, TR_HOST "tu_noraml_notexture_PS2_.dat");
     gTrain->imageFile = Heap_Alloc(0xE000, 0x40, 0, 2);
     gTrain->imageRes = Heap_Alloc(0x10800, 0x20, 0, 2);
     gTrain->unk430 = Heap_Alloc(0x10800, 0x20, 0, 2);
     for (i = 0; i < 2; i++) {
-        gTrain->blink[i] = Rand_Range(0x20);
+        gTrain->guide.blink[i] = Rand_Range(0x20);
     }
     gTrain->unk46C = 0x1E;
     gTrain->voiceLine = -1;
@@ -786,7 +797,7 @@ void Train_Draw(void) {
     MFlashRef ref;
     s32 i = 0;
 
-    Flash_FindLabel(&gTrain->flash[0], NULL, "mc_ss_space", &ref);
+    Flash_FindLabel(&gTrain->flash[0], NULL, "mc_ss_speace", &ref); /* sic: the movie's label is misspelt */
     Flash_ClipSetAlpha(&gTrain->flash[0], &ref, gTrain->imageAlpha);
     Train_DrawPlates();
     Train_DrawArrows();

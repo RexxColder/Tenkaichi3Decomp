@@ -50,7 +50,7 @@ typedef struct PauseMenuObj {
     /* 0xBC */ u16 *skillText;
 } PauseMenuObj;
 
-extern void func_00219710(void); /* Hud_Draw (config/symbols/hud_a.txt, not linked yet) */
+extern void Hud_Draw(void); /* Hud_Draw (config/symbols/hud_a.txt, not linked yet) */
 extern void BtlScript_UpdateView(void);
 extern s32 BtlSeq_IsFighting(void);
 extern s32 Battle_GetMode(void);
@@ -64,12 +64,12 @@ extern void Adx_ResumeSeVoice(void);
 extern void FontIcon_ResetAnim(void);
 extern s32 BtlAiMgr_GetLevel(s32 side);
 extern void BtlAiMgr_SetLevel(s32 side, s32 level);
-extern s32 func_00261790(s32 level);   /* internal CPU level -> menu difficulty 0..4, -1 when off */
-extern s32 func_00261738(s32 setting); /* menu difficulty 0..4 -> internal CPU level 0, 6, 13, 21, 29 */
+extern s32 CpuLevel_ToSetting(s32 level);   /* internal CPU level -> menu difficulty 0..4, -1 when off */
+extern s32 CpuLevel_FromSetting(s32 setting); /* menu difficulty 0..4 -> internal CPU level 0, 6, 13, 21, 29 */
 
 /* Draws the battle's 2D layers: the HUD, the script's view update, then the pause menu. */
 void BtlGame_Draw(void) {
-    func_00219710();
+    Hud_Draw();
     BtlScript_UpdateView();
     PauseMenu_Draw();
 }
@@ -253,7 +253,7 @@ s32 PauseMenu_CpuLevelFunc(BtlMenuEvent *ev) {
         BtlMenu_SetPicked(menu, 5, 0);
         BtlMenu_SetPicked(menu, 6, 0);
         BtlMenu_SetPicked(menu, 7, 0);
-        level = func_00261790(BtlAiMgr_GetLevel(1));
+        level = CpuLevel_ToSetting(BtlAiMgr_GetLevel(1));
         if (level == -1) {
             gPauseMenuCpuLevelCursor[0] = 1;
         } else {
@@ -274,7 +274,7 @@ s32 PauseMenu_CpuLevelFunc(BtlMenuEvent *ev) {
         if (cursor == 1) {
             level = -1;
         } else {
-            level = func_00261738(cursor - 2);
+            level = CpuLevel_FromSetting(cursor - 2);
         }
         BtlAiMgr_SetLevel(1, level);
     }

@@ -48,11 +48,11 @@ extern s32 BtlStage_IsReady(void);
    (src/sys/gfxm_b_b.c); the older reading of this as a table lookup was wrong. */
 extern void TexFile_UploadOne(void *file, s32 index, s32 tbp, s32 cbp);
 /* Model object setup / teardown (0x113598 binds the resource, 0x1135F0 clears the object). */
-extern void func_001135F0(BtlObj *obj);
-extern void func_00113598(s32 type, BtlObj *obj, BtlResSlot *res);
-extern void func_001143A0(BtlObj *obj);
-extern void func_001146E0(void);
-extern void func_001147F8(void);
+extern void BtlObjMdl_Destroy(BtlObj *obj);
+extern void BtlObjMdl_Create(s32 type, BtlObj *obj, BtlResSlot *res);
+extern void ObjShadow_Update(BtlObj *obj);
+extern void ObjShadow_InitPool(void);
+extern void ObjShadow_TermPool(void);
 /* Matrix helpers: 0x120230 copies the rotation rows, 0x1202A0 inverts a view matrix, 0x121388 gets the
  * current world-to-screen matrix, 0x122310 projects a point to integer screen coordinates. */
 extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
@@ -449,8 +449,8 @@ u8 *BtlObj_GetCharaWork(u32 id) {
 
 /* Binds an object to a loaded model and fills its header. */
 void BtlObj_Setup(BtlObj *obj, s32 type, BtlResSlot *res, s32 id, s32 active) {
-    func_001135F0(obj);
-    func_00113598(type, obj, res);
+    BtlObjMdl_Destroy(obj);
+    BtlObjMdl_Create(type, obj, res);
     obj->active = active;
     obj->id = id;
     obj->chara = (res->file[0].id - 0x590) / 10;
@@ -485,7 +485,7 @@ s32 BtlObj_Destroy(s32 id) {
     if (!BtlObj_FreeId(id)) {
         return 0;
     }
-    func_001135F0(obj);
+    BtlObjMdl_Destroy(obj);
     return 1;
 }
 
@@ -544,7 +544,7 @@ void BtlObj_Init(s32 prealloc) {
     BtlObj_InitTable();
     BtlObjPoolE0_Init();
     BtlObjPool70_Init();
-    func_001146E0();
+    ObjShadow_InitPool();
     BtlObj_InitNop();
     BtlObjLight_Init();
     BtlObjVis_Clear();
@@ -556,7 +556,7 @@ void BtlObj_Term(void) {
     BtlObj_TermDraw();
     BtlObj_TermNop();
     BtlRes_Term();
-    func_001147F8();
+    ObjShadow_TermPool();
     Heap_Free(gBtlObjWork);
     gBtlObjWork = NULL;
 }
@@ -919,7 +919,7 @@ void BtlObj_UpdateAll(void) {
             BtlObj_UpdateFace(obj);
             BtlObjFlash_Step(obj);
             BtlObjFade_Step(obj);
-            func_001143A0(obj);
+            ObjShadow_Update(obj);
             BtlObj_UpdateAlpha(obj);
         }
     }

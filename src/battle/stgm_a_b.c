@@ -53,8 +53,9 @@ extern s32 func_002A2AC8(s32 port, s32 slot);
 #define sceMcGetDir func_002A27A8
 #define sceMcFormat func_002A2AC8
 
-extern s32 gMcCardStep;
-extern s32 gMcCardCmd;
+/* 0x2FE918 / 0x2FE91C: the head of this object's .sdata, in front of its strings. */
+s32 gMcCardStep = 0;
+s32 gMcCardCmd = 0;
 extern McCardPort gMcCardPort[2];
 extern McCardIconSys gMcCardIconSys;
 

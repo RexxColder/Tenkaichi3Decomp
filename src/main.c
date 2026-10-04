@@ -43,7 +43,7 @@ extern void Job_Init(void);
 extern void Vu0_Init(void);
 extern void Dbg_Init(void);
 extern void Pad_Init(void);
-extern void func_00116BA8(void);
+extern void McCard_Init(void);
 extern void Font_Init(s32);
 extern void FontIcon_Init(void);
 extern void Fade_Init(void);
@@ -147,7 +147,7 @@ void Game_Main(void) {
     Dma_InitBuffers();
     Dbg_Init();
     Pad_Init();
-    func_00116BA8();
+    McCard_Init();
     Font_Init(1);
     FontIcon_Init();
     Fade_Init();

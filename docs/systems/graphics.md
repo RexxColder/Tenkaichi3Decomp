@@ -248,7 +248,9 @@ significant bit first; `Flash_ReadMtx` reads the SWF MATRIX record with an expli
 No pad, clock or random draw anywhere in the range; the lens and water passes read the camera
 and the split-screen mode. Nothing feeds back into the simulation.
 
-## Movie clip setters and the battle object renderer (0x10EC18..0x112A30; src/sys/gfxm_d.c, gfxm_d_b.c, gfxm_d_c.c, not linked yet; names in config/symbols/gfxm_d.txt)
+## Movie clip setters and the battle object renderer (0x10EC18..0x112A30; src/sys/gfxm_d.c, gfxm_d_b.c, gfxm_d_c.c, linked; names in config/symbols/gfxm_d.txt)
+Linked layout: gfxm_d_b.c 0x10FB40, assembly (VU0 `ObjSeam_TransformVtx`) 0x10FFD0..0x1101D0, gfxm_d_c.c 0x1101D0;
+gfxm_d_c.c `.rodata` 0x2EB7E0 (0x110), `.lit4` 0x2FC2C0 (0xC).
 
 All 38 C functions match; `ObjSeam_TransformVtx` (0x10FFD0..0x1101D0) is hand-written VU0 code
 and stays an assembly chunk between gfxm_d_b.c and gfxm_d_c.c. Final names: gfxm_d.c merges
@@ -288,7 +290,9 @@ Battle object renderer (0x10FB40..0x112A30, verified unless marked):
 - Original quirk: the CLUT range is uploaded `clutCount` times per frame.
 - No pad, clock or random draw; nothing feeds back into the simulation.
 
-## Object GS state, model binding, ground shadows, stage relocation (0x112A30..0x115170; src/sys/gfxm_e.c, gfxm_e_b.c, gfxm_e_c.c, gfxm_e_d.c, not linked yet; names in config/symbols/gfxm_e.txt)
+## Object GS state, model binding, ground shadows, stage relocation (0x112A30..0x115170; src/sys/gfxm_e.c, gfxm_e_b.c, gfxm_e_c.c, gfxm_e_d.c, linked; names in config/symbols/gfxm_e.txt)
+Linked layout: gfxm_e.c `.rodata` 0x2EB8F0 (0x80); gfxm_e_b.c `.rodata` 0x2EB970 (0x30), `.lit4` 0x2FC2D0 (0x2C; the word
+in front, 0x2FC2CC, belongs to `ObjShadow_BuildPacket` and stays in an assembly chunk).
 
 35 of 36 functions match; `ObjShadow_BuildPacket` (0x113700) is INCLUDE_ASM with an attempt
 (a loop-size threshold keeps three constants in the loop in the original; compared with the
@@ -322,7 +326,11 @@ proven object boundary (`beqz` / `beqzl`). Layouts in include/sys/gfxm_e.h.
   shadow pool.
 - No pad, clock or random draw; nothing feeds back into the simulation.
 
-## Movie player (0x10AD58..0x10EC18; src/sys/gfxm_c.c, not linked yet; names in config/symbols/gfxm_c.txt)
+## Movie player (0x10AD58..0x10EC18; src/sys/gfxm_c.c, linked; names in config/symbols/gfxm_c.txt)
+Linked layout: gfxm_c.c `.rodata` 0x2EB740 (0xA0), `.sdata` 0x2FE8E0 (0x34: "pad" .. "end"); gfxm_d.c has no data.
+The three flash files (gfxm_b_c.c, gfxm_c.c, gfxm_d.c) are still three objects: the image is the same either way, and
+their headers (`Flash*` in gfxm_c.h, `FlashD*` in gfxm_d.h) and the local views in dialog.c / view_a*.c were kept apart.
+gfxm_c.c called the clip-list functions by its own names (`FlashClips_*`); they are now gfxm_d.c's `FlashClipList_*`.
 
 73 of 74 functions match; `Flash_Advance` (0x10D6F0) is INCLUDE_ASM, one `move` short, with a
 behaviourally exact attempt. Final name sys/flash.c together with gfxm_b_c.c (readers) and

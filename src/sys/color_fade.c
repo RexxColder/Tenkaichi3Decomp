@@ -4,7 +4,7 @@
 #include "sys/gfx.h"
 
 extern void *memset(void *dst, s32 c, u32 n);
-extern void func_00261EB0(void); /* clears the 0x14 bytes at 0x31E570 (not decompiled) */
+extern void LipSync_Clear(void); /* clears the 0x14 bytes at 0x31E570 (not decompiled) */
 
 /* Queues the overlay as one blended 512x448 sprite, unless it is fully transparent. */
 void ColorFade_Draw(void) {
@@ -66,7 +66,7 @@ void ColorFade_StartIn(s32 r, s32 g, s32 b, s32 frames) {
     gColorFade.b = b;
     gColorFade.alpha = COLOR_FADE_MAX;
     gColorFade.step = COLOR_FADE_MAX / frames;
-    func_00261EB0();
+    LipSync_Clear();
 }
 
 /* Starts covering the screen with the given colour over `frames` frames. */

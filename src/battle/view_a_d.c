@@ -69,9 +69,9 @@ extern void Adx_StopAll(void);
 extern void Load_RunBlocking(void);
 extern void Dbg_ProfMark(void *prof);
 extern void Dbg_ProfColor(void *prof, u32 color);
-extern void func_00115950(void *view);
-extern void func_00115DE0(void *view);
-extern void func_0010FF40(void);
+extern void StgModel_Cull(void *view);
+extern void StgModel_Draw(void *view);
+extern void BtlObjDraw_Draw(void);
 
 extern u8 gBattleProf[];
 extern ChrViewStage *gBtlStage;
@@ -312,8 +312,8 @@ void ChrView_Update(void) {
         view = gBtlCamView;
         Dbg_ProfMark(gBattleProf);
         Gfx_MarkPass(1);
-        func_00115950(view);
-        func_00115DE0(view);
+        StgModel_Cull(view);
+        StgModel_Draw(view);
         Dbg_ProfColor(gBattleProf, 0x80FF4040);
         Dbg_ProfMark(gBattleProf);
         Gfx_MarkPass(3);
@@ -321,7 +321,7 @@ void ChrView_Update(void) {
         Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
         Dbg_ProfMark(gBattleProf);
         Gfx_MarkPass(2);
-        func_0010FF40();
+        BtlObjDraw_Draw();
         Dbg_ProfColor(gBattleProf, 0x8040FF40);
         Gfx_MarkPass(0);
         Dbg_ProfMark(gBattleProf);

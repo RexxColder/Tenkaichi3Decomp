@@ -384,3 +384,20 @@ Tools
 - Initialiser VALUES (colour tables, packet words, floats) are invisible to fdiff. Compare them
   with the original data before reporting a match; the image compare is the only other check.
 
+## Linking lessons from the tenth step (2026-10-04)
+- Before the first link of a new file, compare each of its `.text` relocations with the original image
+  (build/scratch_integ10/rc.py): an unlisted or wrong callee name shows up with the address, and the listed name, it
+  should have. Faster than reading link errors, and it also catches a name that exists but is the wrong function.
+- Private aliases (`#define MyName func_XXXXXXXX`) in an unlinked file become macros over real names once the
+  names are applied. Remove them before applying names, replacing all of them in one pass.
+- A file whose only `.rodata` comes from INCLUDE_ASM / INCLUDE_RODATA is 8-byte aligned: put `RODATA_ALIGN16();`
+  in front of the first one when the original object had a jump table.
+- The first function of a file may be an INCLUDE_ASM inside `#else`: take a file's start from its lowest address,
+  and check `start + .text size` (rounded to 8) against the next file.
+- splat moves a string or table that only ONE function refers to into that function's .s file. When the C file
+  defines it as a named object for an INCLUDE_ASM function, add `force_not_migration:True` to its symbol line.
+- Symbols outside the image that C refers to (overlay functions and data) go in config/linker_script_extra.ld.
+- Objects do not depend on the per-function .s files: delete the object after a re-split changes one.
+- When the object after a C file has data aligned to less than the padding the original had, add a small assembly
+  chunk for the gap (`[0x1F2168, rodata, ...]`) or start the following assembly chunk early (`0x1FF05C`, `0x1EB354`).
+

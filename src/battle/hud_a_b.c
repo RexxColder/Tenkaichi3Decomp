@@ -39,21 +39,21 @@ extern HudTeamMember *BattleSide_GetMember(s32 side, s32 idx);
 HudTeam *gHudTeam = NULL;
 
 /* Sprite / node helpers (0x224B50..0x2264C8, not decompiled yet). */
-extern void func_00224B50(void (*gsBegin)(void));     /* calls it */
-extern void func_00224B70(void (*gsEnd)(void));       /* calls it */
-extern void func_00224B90(HudSprite *spr, s32 show);
-extern void func_00224BB0(HudSprite *spr, s32 mirror);
-extern void func_00224BD0(HudSprite *spr, s32 x0, s32 x1, s32 y0, s32 y1);
-extern void func_00224BE8(HudSprite *spr, s32 u0, s32 u1, s32 v0, s32 v1);
-extern void func_00224C10(HudSprite *spr, s32 r, s32 g, s32 b, s32 a);
-extern void func_00224C28(HudSprite *spr, s32 r, s32 g, s32 b, s32 a); /* untextured, colour */
-extern void func_00224CA0(HudSprite *spr, s32 dx, s32 dy);            /* moves the screen rectangle */
-extern void func_00224E20(HudSprite *spr, HudRes *res, s32 tex, s32 sub); /* texture, full size, neutral colour */
-extern void func_002250C8(HudSprite *spr);                            /* draws the rectangle as the mask */
-extern void func_00225A50(HudSprite *spr, HudRes *res, s32 additive, s32 tbp, s32 cbp);
-extern void func_00226488(HudSprite *spr, HudRes *res, s32 additive);  /* 0x225A50 with blocks 0x2A00 / 0x2C80 */
-extern void func_002264A8(HudNode *node, s32 show);
-extern void func_002264C8(HudNode *node, s32 x, s32 y);
+extern void HudGfx_CallBegin(void (*gsBegin)(void));     /* calls it */
+extern void HudGfx_CallEnd(void (*gsEnd)(void));       /* calls it */
+extern void HudSprite_Show(HudSprite *spr, s32 show);
+extern void HudSprite_SetMirror(HudSprite *spr, s32 mirror);
+extern void HudSprite_SetRect(HudSprite *spr, s32 x0, s32 x1, s32 y0, s32 y1);
+extern void HudSprite_SetUv(HudSprite *spr, s32 u0, s32 u1, s32 v0, s32 v1);
+extern void HudSprite_SetColor(HudSprite *spr, s32 r, s32 g, s32 b, s32 a);
+extern void HudSprite_InitPlain(HudSprite *spr, s32 r, s32 g, s32 b, s32 a); /* untextured, colour */
+extern void HudSprite_Move(HudSprite *spr, s32 dx, s32 dy);            /* moves the screen rectangle */
+extern void HudSprite_InitTex(HudSprite *spr, HudRes *res, s32 tex, s32 sub); /* texture, full size, neutral colour */
+extern void HudSprite_DrawAlphaClear(HudSprite *spr);                            /* draws the rectangle as the mask */
+extern void HudSprite_DrawAt(HudSprite *spr, HudRes *res, s32 additive, s32 tbp, s32 cbp);
+extern void HudSprite_Draw(HudSprite *spr, HudRes *res, s32 additive);  /* 0x225A50 with blocks 0x2A00 / 0x2C80 */
+extern void HudNode_Show(HudNode *node, s32 show);
+extern void HudNode_SetPos(HudNode *node, s32 x, s32 y);
 
 /* GS state before a mask is drawn: context 2 writes only the alpha channel of the frame buffer (FBMSK
    0x00FFFFFF) with FBA on, always passing. */
@@ -100,7 +100,7 @@ void HudTeam_UpdateRoot(HudNode *node) {
             Ramp_Step(&gHudTeam->hide);
         }
     }
-    func_002264C8(node, (s32)(slide->value * -256.0f) + (s32)(gHudTeam->hide.value * -256.0f) + 12,
+    HudNode_SetPos(node, (s32)(slide->value * -256.0f) + (s32)(gHudTeam->hide.value * -256.0f) + 12,
                   (s32)(slide->value * -224.0f) + (s32)(gHudTeam->hide.value * -224.0f) + 66);
     if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
         if (Ramp_Step(flipA)) {
@@ -125,7 +125,7 @@ void HudTeam_UpdateRoot(HudNode *node) {
     }
     x *= 128.0f;
     y *= 32.0f;
-    func_002264C8(&gHudTeam->nodes[1], (s32)x, (s32)y);
+    HudNode_SetPos(&gHudTeam->nodes[1], (s32)x, (s32)y);
     if (0.0f < flipB->value) {
         x = -flipB->value;
         y = flipB->value;
@@ -139,22 +139,22 @@ void HudTeam_UpdateRoot(HudNode *node) {
     group = &gHudTeam->nodes[2];
     x *= 128.0f;
     y *= 32.0f;
-    func_002264C8(group, (s32)x, (s32)y);
+    HudNode_SetPos(group, (s32)x, (s32)y);
     if (gHudTeam->flipDone[gHudTeam->side]) {
-        func_002264A8(group, 0);
+        HudNode_Show(group, 0);
     } else {
-        func_002264A8(group, 1);
+        HudNode_Show(group, 1);
     }
 }
 
 /* Face A node: with two or more members in reserve the face sits 14 to the right and the plate shows. */
 void HudTeam_UpdateFaceA(void) {
     if (gHudTeam->sw.reserve[gHudTeam->side] >= 2) {
-        func_002264C8(&gHudTeam->nodes[3], 14, 0);
-        func_002264A8(&gHudTeam->nodes[8], 1);
+        HudNode_SetPos(&gHudTeam->nodes[3], 14, 0);
+        HudNode_Show(&gHudTeam->nodes[8], 1);
     } else {
-        func_002264C8(&gHudTeam->nodes[3], 0, 0);
-        func_002264A8(&gHudTeam->nodes[8], 0);
+        HudNode_SetPos(&gHudTeam->nodes[3], 0, 0);
+        HudNode_Show(&gHudTeam->nodes[8], 0);
         gHudTeam->faceRes[gHudTeam->side] = NULL;
     }
 }
@@ -162,11 +162,11 @@ void HudTeam_UpdateFaceA(void) {
 /* Face B node: the same for the outgoing face. */
 void HudTeam_UpdateFaceB(void) {
     if (gHudTeam->sw.reserve[gHudTeam->side] >= 2) {
-        func_002264C8(&gHudTeam->nodes[4], 14, 0);
-        func_002264A8(&gHudTeam->nodes[8], 1);
+        HudNode_SetPos(&gHudTeam->nodes[4], 14, 0);
+        HudNode_Show(&gHudTeam->nodes[8], 1);
     } else {
-        func_002264C8(&gHudTeam->nodes[4], 0, 0);
-        func_002264A8(&gHudTeam->nodes[8], 0);
+        HudNode_SetPos(&gHudTeam->nodes[4], 0, 0);
+        HudNode_Show(&gHudTeam->nodes[8], 0);
         gHudTeam->faceRes[gHudTeam->side] = NULL;
     }
 }
@@ -176,8 +176,8 @@ void HudTeam_UpdateHpA(void) {
     HudSprite *spr = &gHudTeam->sprites[1];
     f32 rate = (f32)gHudTeam->hp.cur[gHudTeam->side] / (f32)gHudTeam->hp.max[gHudTeam->side];
 
-    func_00224BD0(spr, 0, 32, 0, 16);
-    func_00224CA0(spr, (s32)(rate * 30.0f), 0);
+    HudSprite_SetRect(spr, 0, 32, 0, 16);
+    HudSprite_Move(spr, (s32)(rate * 30.0f), 0);
 }
 
 /* Health bar B: the same from the values saved when the flip started. */
@@ -185,26 +185,26 @@ void HudTeam_UpdateHpB(void) {
     HudSprite *spr = &gHudTeam->sprites[2];
     f32 rate = (f32)gHudTeam->prevHp.cur[gHudTeam->side] / (f32)gHudTeam->prevHp.max[gHudTeam->side];
 
-    func_00224BD0(spr, 0, 32, 0, 16);
-    func_00224CA0(spr, (s32)(rate * 30.0f), 0);
+    HudSprite_SetRect(spr, 0, 32, 0, 16);
+    HudSprite_Move(spr, (s32)(rate * 30.0f), 0);
 }
 
 /* Draws health bar A through its mask. */
 void HudTeam_DrawHpA(void) {
-    func_002250C8(&gHudTeam->sprites[3]);
-    func_00224B50(HudTeam_GsBeginMask);
-    func_00226488(&gHudTeam->sprites[1], gHudTeam->res, 1);
-    func_00226488(&gHudTeam->sprites[3], gHudTeam->res, 0);
-    func_00224B70(HudTeam_GsEndMask);
+    HudSprite_DrawAlphaClear(&gHudTeam->sprites[3]);
+    HudGfx_CallBegin(HudTeam_GsBeginMask);
+    HudSprite_Draw(&gHudTeam->sprites[1], gHudTeam->res, 1);
+    HudSprite_Draw(&gHudTeam->sprites[3], gHudTeam->res, 0);
+    HudGfx_CallEnd(HudTeam_GsEndMask);
 }
 
 /* Draws health bar B through its mask. */
 void HudTeam_DrawHpB(void) {
-    func_002250C8(&gHudTeam->sprites[4]);
-    func_00224B50(HudTeam_GsBeginMask);
-    func_00226488(&gHudTeam->sprites[2], gHudTeam->res, 1);
-    func_00226488(&gHudTeam->sprites[4], gHudTeam->res, 0);
-    func_00224B70(HudTeam_GsEndMask);
+    HudSprite_DrawAlphaClear(&gHudTeam->sprites[4]);
+    HudGfx_CallBegin(HudTeam_GsBeginMask);
+    HudSprite_Draw(&gHudTeam->sprites[2], gHudTeam->res, 1);
+    HudSprite_Draw(&gHudTeam->sprites[4], gHudTeam->res, 0);
+    HudGfx_CallEnd(HudTeam_GsEndMask);
 }
 
 /* Switch gauge: bar shifted by 30 * gauge / 100000; at 100000 the "full" marker shows and its alpha runs
@@ -216,13 +216,13 @@ void HudTeam_UpdateGauge(void) {
     Ramp *flash = &gHudTeam->flash[gHudTeam->side];
     f32 rate = (f32)gauge / (f32)full;
 
-    func_00224BD0(spr, 0, 32, 0, 16);
-    func_00224CA0(spr, (s32)(rate * 30.0f), 0);
+    HudSprite_SetRect(spr, 0, 32, 0, 16);
+    HudSprite_Move(spr, (s32)(rate * 30.0f), 0);
     spr = &gHudTeam->sprites[7];
     if (gauge == full) {
         s32 done;
 
-        func_00224B90(spr, 1);
+        HudSprite_Show(spr, 1);
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
             done = Ramp_Step(flash);
         } else {
@@ -235,21 +235,21 @@ void HudTeam_UpdateGauge(void) {
                 Ramp_Start(flash, 1.0f, 1.0f, 0.0f);
             }
         }
-        func_00224C10(spr, 0x80, 0x80, 0x80, (u8)(flash->value * 128.0f));
+        HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)(flash->value * 128.0f));
     } else {
-        func_00224B90(spr, 0);
-        func_00224C10(spr, 0x80, 0x80, 0x80, 0x80);
+        HudSprite_Show(spr, 0);
+        HudSprite_SetColor(spr, 0x80, 0x80, 0x80, 0x80);
     }
 }
 
 /* Draws the switch gauge through its mask, then the "full" marker. */
 void HudTeam_DrawGauge(void) {
-    func_002250C8(&gHudTeam->sprites[6]);
-    func_00224B50(HudTeam_GsBeginMask);
-    func_00226488(&gHudTeam->sprites[5], gHudTeam->res, 1);
-    func_00226488(&gHudTeam->sprites[6], gHudTeam->res, 0);
-    func_00224B70(HudTeam_GsEndMask);
-    func_00226488(&gHudTeam->sprites[7], gHudTeam->res, 0);
+    HudSprite_DrawAlphaClear(&gHudTeam->sprites[6]);
+    HudGfx_CallBegin(HudTeam_GsBeginMask);
+    HudSprite_Draw(&gHudTeam->sprites[5], gHudTeam->res, 1);
+    HudSprite_Draw(&gHudTeam->sprites[6], gHudTeam->res, 0);
+    HudGfx_CallEnd(HudTeam_GsEndMask);
+    HudSprite_Draw(&gHudTeam->sprites[7], gHudTeam->res, 0);
 }
 
 /* Generic draw callback: the node's sprites from the panel's sheet. */
@@ -257,7 +257,7 @@ void HudTeam_DrawSprites(HudNode *node) {
     u32 i;
 
     for (i = 0; i < node->spriteCount; i++) {
-        func_00226488(node->sprites[i], gHudTeam->res, 0);
+        HudSprite_Draw(node->sprites[i], gHudTeam->res, 0);
     }
 }
 
@@ -277,16 +277,16 @@ void HudTeam_ClearFaceTexMark(s32 side) {
 s32 HudTeam_DrawFaceA(void) {
     HudSprite *spr;
 
-    func_00226488(&gHudTeam->sprites[0], gHudTeam->res, 0);
+    HudSprite_Draw(&gHudTeam->sprites[0], gHudTeam->res, 0);
     if (gHudTeam->target.cur[gHudTeam->side] >= 0) {
         gHudTeam->faceRes[gHudTeam->side] =
             BattleSide_GetMember(gHudTeam->side, gHudTeam->target.cur[gHudTeam->side])->faceRes;
         if (gHudTeam->faceRes[gHudTeam->side] != NULL) {
             HudTeam_ClearFaceTexMark(gHudTeam->side);
             spr = &gHudTeam->sprites[8];
-            func_00224E20(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0);
-            func_00224CA0(spr, -10, -11);
-            func_00225A50(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0x2C00, 0x2CD0);
+            HudSprite_InitTex(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0);
+            HudSprite_Move(spr, -10, -11);
+            HudSprite_DrawAt(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0x2C00, 0x2CD0);
         }
     }
 }
@@ -295,16 +295,16 @@ s32 HudTeam_DrawFaceA(void) {
 s32 HudTeam_DrawFaceB(void) {
     HudSprite *spr;
 
-    func_00226488(&gHudTeam->sprites[0], gHudTeam->res, 0);
+    HudSprite_Draw(&gHudTeam->sprites[0], gHudTeam->res, 0);
     if (gHudTeam->target.prev[gHudTeam->side] >= 0) {
         gHudTeam->faceRes[gHudTeam->side] =
             BattleSide_GetMember(gHudTeam->side, gHudTeam->target.prev[gHudTeam->side])->faceRes;
         if (gHudTeam->faceRes[gHudTeam->side] != NULL) {
             HudTeam_ClearFaceTexMark(gHudTeam->side);
             spr = &gHudTeam->sprites[9];
-            func_00224E20(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0);
-            func_00224CA0(spr, -10, -11);
-            func_00225A50(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0x2C00, 0x2CD0);
+            HudSprite_InitTex(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0);
+            HudSprite_Move(spr, -10, -11);
+            HudSprite_DrawAt(spr, gHudTeam->faceRes[gHudTeam->side], 0, 0x2C00, 0x2CD0);
         }
     }
 }
@@ -316,9 +316,9 @@ void HudTeam_SelectSide(s32 side) {
 
     gHudTeam->side = side;
     gHudTeam->nodes[0].flags = (gHudTeam->nodes[0].flags & ~HUD_NODE_MIRROR) | (mirror << 1);
-    func_00224BB0(&gHudTeam->sprites[8], mirror);
-    func_00224BB0(&gHudTeam->sprites[9], mirror);
-    func_002264A8(&gHudTeam->nodes[0], gHudTeam->shown[side]);
+    HudSprite_SetMirror(&gHudTeam->sprites[8], mirror);
+    HudSprite_SetMirror(&gHudTeam->sprites[9], mirror);
+    HudNode_Show(&gHudTeam->nodes[0], gHudTeam->shown[side]);
 }
 
 /* Health of the member a switch would bring in. */
@@ -413,76 +413,76 @@ void HudTeam_Init(HudNode **out, HudRes *res) {
     gHudTeam->res = res;
 
     spr = &gHudTeam->sprites[0];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x17, 0);
-    func_00224BD0(spr, 0, 0x5E, 0, 0x14);
-    func_00224BE8(spr, 0, 0x5E, 0, 0x14);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x17, 0);
+    HudSprite_SetRect(spr, 0, 0x5E, 0, 0x14);
+    HudSprite_SetUv(spr, 0, 0x5E, 0, 0x14);
 
     spr = &gHudTeam->sprites[8];
-    func_00224B90(spr, 1);
-    func_00224C28(spr, 0x80, 0x80, 0x80, 0x80);
-    func_00224BD0(spr, 0, 0x20, 0, 0x20);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitPlain(spr, 0x80, 0x80, 0x80, 0x80);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x20);
 
     spr = &gHudTeam->sprites[9];
-    func_00224B90(spr, 1);
-    func_00224C28(spr, 0x80, 0x80, 0x80, 0x80);
-    func_00224BD0(spr, 0, 0x20, 0, 0x20);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitPlain(spr, 0x80, 0x80, 0x80, 0x80);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x20);
 
     spr = &gHudTeam->sprites[1];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0, 0x20, 0x10, 0x20);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x20, 0x10, 0x20);
 
     spr = &gHudTeam->sprites[3];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0, 0x20, 0, 0x10);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x20, 0, 0x10);
 
     spr = &gHudTeam->sprites[2];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0, 0x20, 0x10, 0x20);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x20, 0x10, 0x20);
 
     spr = &gHudTeam->sprites[4];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0, 0x20, 0, 0x10);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x20, 0, 0x10);
 
     spr = &gHudTeam->sprites[5];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0, 0x20, 0x10, 0x20);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x20, 0x10, 0x20);
 
     spr = &gHudTeam->sprites[6];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x20, 0, 0x10);
-    func_00224BE8(spr, 0x40, 0x60, 0, 0x10);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x20, 0, 0x10);
+    HudSprite_SetUv(spr, 0x40, 0x60, 0, 0x10);
 
     spr = &gHudTeam->sprites[7];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x30, 0, 0x10);
-    func_00224BE8(spr, 0, 0x30, 0x20, 0x30);
-    func_00224CA0(spr, -3, -3);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x30, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x30, 0x20, 0x30);
+    HudSprite_Move(spr, -3, -3);
 
     spr = &gHudTeam->sprites[10];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x17, 0);
-    func_00224BD0(spr, 0, 0x1E, 0, 0x14);
-    func_00224BE8(spr, 0x60, 0x7E, 0, 0x14);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x17, 0);
+    HudSprite_SetRect(spr, 0, 0x1E, 0, 0x14);
+    HudSprite_SetUv(spr, 0x60, 0x7E, 0, 0x14);
 
     spr = &gHudTeam->sprites[11];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x18, 0);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0x40, 0x50, 0x10, 0x20);
-    func_00224CA0(spr, -1, 3);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x18, 0);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0x40, 0x50, 0x10, 0x20);
+    HudSprite_Move(spr, -1, 3);
 
     node = &gHudTeam->nodes[5];
     node->x = 0x2E;

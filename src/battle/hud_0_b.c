@@ -40,7 +40,7 @@ extern void *memset(void *dst, s32 c, u32 n);
 extern u64 *Dma_BeginDirect(void);
 extern void Dma_EndDirect(u64 *end);
 extern void Gfx_PutDefaultEnv(u64 **pkt);
-extern void func_0010A480(BtlMenuTexFile *file, s32 tbp, s32 cbp); /* TexFile_UploadAll (gfxm_b.txt, not linked yet) */
+extern void TexFile_UploadAll(BtlMenuTexFile *file, s32 tbp, s32 cbp); /* TexFile_UploadAll (gfxm_b.txt, not linked yet) */
 extern void Res_RelocateOffsets(BtlMenuTexFile **out, BtlMenuTexFile *base, BtlMenuTexFile *hdr);
 extern s32 Battle_GetMode(void);
 extern s32 Pad_GetLastStatus(s32 pad);
@@ -204,7 +204,7 @@ u64 BtlMenu_GetTex0(s32 tex, s32 clut) {
 
 /* Uploads the sprite sheet. */
 void BtlMenu_UploadTex(void) {
-    func_0010A480(gBtlMenu->tex, 0x2A40, 0x2A00);
+    TexFile_UploadAll(gBtlMenu->tex, 0x2A40, 0x2A00);
 }
 
 /* The pad type used in battle mode 5. */

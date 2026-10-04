@@ -89,24 +89,24 @@ extern HudBWork *gHudGauge;
 #define HUDB_MAX(a, b) ((a) < (b) ? (b) : (a))
 
 /* Sprite / node library at 0x224B50.. (not decompiled yet). */
-extern void func_00224B90(HudBSprite *spr, s32 show);
-extern void func_00224C10(HudBSprite *spr, s32 r, s32 g, s32 b, s32 a);
-extern void func_002264C8(HudBGroup *node, s32 x, s32 y);        /* node position */
-extern void func_00224BD0(HudBSprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
-extern void func_00224BE8(HudBSprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
-extern void func_00224C28(HudBSprite *spr, s32 r, s32 g, s32 b, s32 a);     /* untextured, coloured */
-extern void func_00224CA0(HudBSprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
-extern void func_002264A8(HudBGroup *node, s32 show);
+extern void HudSprite_Show(HudBSprite *spr, s32 show);
+extern void HudSprite_SetColor(HudBSprite *spr, s32 r, s32 g, s32 b, s32 a);
+extern void HudNode_SetPos(HudBGroup *node, s32 x, s32 y);        /* node position */
+extern void HudSprite_SetRect(HudBSprite *spr, s32 x0, s32 x1, s32 y0, s32 y1); /* screen rectangle */
+extern void HudSprite_SetUv(HudBSprite *spr, s32 u0, s32 u1, s32 v0, s32 v1); /* texel rectangle */
+extern void HudSprite_InitPlain(HudBSprite *spr, s32 r, s32 g, s32 b, s32 a);     /* untextured, coloured */
+extern void HudSprite_Move(HudBSprite *spr, s32 dx, s32 dy);                 /* moves the rectangle */
+extern void HudNode_Show(HudBGroup *node, s32 show);
 extern void *memcpy(void *dst, const void *src, u32 n);
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 powf(f32 x, f32 y);
-extern void func_00224B50(void (*fn)(void)); /* run a GS state function (begin) */
-extern void func_00224B70(void (*fn)(void)); /* run a GS state function (end) */
-extern void func_00224BB0(HudBSprite *spr, s32 mirror);
-extern void func_00224E20(HudBSprite *spr, void *res, s32 tex, s32 sub);    /* sprite of a sheet's texture */
-extern void func_002250C8(HudBSprite *spr);
-extern void func_00225A50(HudBSprite *spr, void *res, s32 a, s32 b, s32 c);
-extern void func_00226488(HudBSprite *spr, void *res, s32 flag);            /* draw */
+extern void HudGfx_CallBegin(void (*fn)(void)); /* run a GS state function (begin) */
+extern void HudGfx_CallEnd(void (*fn)(void)); /* run a GS state function (end) */
+extern void HudSprite_SetMirror(HudBSprite *spr, s32 mirror);
+extern void HudSprite_InitTex(HudBSprite *spr, void *res, s32 tex, s32 sub);    /* sprite of a sheet's texture */
+extern void HudSprite_DrawAlphaClear(HudBSprite *spr);
+extern void HudSprite_DrawAt(HudBSprite *spr, void *res, s32 a, s32 b, s32 c);
+extern void HudSprite_Draw(HudBSprite *spr, void *res, s32 flag);            /* draw */
 extern void HudGauge_GsBeginMask(void);
 extern void HudGauge_GsEndMask(void);
 extern void HudGauge_GsBeginMask2(void);
@@ -129,18 +129,18 @@ void HudGauge_UpdateHpBarCount(void) {
     }
     for (i = 0; i < 6; i++) {
         HudBSprite *spr = &gHudGauge->spr[9 + i];
-        func_00224C10(spr, 0x80, 0x80, 0x80, 0x80);
+        HudSprite_SetColor(spr, 0x80, 0x80, 0x80, 0x80);
         if (i < bars) {
-            func_00224B90(spr, 1);
+            HudSprite_Show(spr, 1);
         } else if (i == bars) {
             if (gHudGauge->hpBarFade[side].value == 0.0f) {
-                func_00224B90(spr, 0);
+                HudSprite_Show(spr, 0);
             } else {
-                func_00224B90(spr, 1);
-                func_00224C10(spr, 0x80, 0x80, 0x80, (u8)(gHudGauge->hpBarFade[side].value * 128.0f));
+                HudSprite_Show(spr, 1);
+                HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)(gHudGauge->hpBarFade[side].value * 128.0f));
             }
         } else {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         }
     }
 }
@@ -151,7 +151,7 @@ void HudGauge_UpdateRoot(HudBGroup *node) {
     if (!HUDG_PAUSED() && gHudGauge->side == 0) {
         Ramp_Step(&gHudGauge->slideAll);
     }
-    func_002264C8(node, gHudGauge->slideAll.value * -256.0f, gHudGauge->slideAll.value * -224.0f);
+    HudNode_SetPos(node, gHudGauge->slideAll.value * -256.0f, gHudGauge->slideAll.value * -224.0f);
 }
 
 /* Update of node 1 (the side's panel): steps the side's slide and moves the node; at rest it sits at (-2, 8). */
@@ -161,7 +161,7 @@ void HudGauge_UpdatePanel(HudBGroup *node) {
     if (!HUDG_PAUSED()) {
         Ramp_Step(ramp);
     }
-    func_002264C8(node, (s32)(ramp->value * -256.0f) - 2, (s32)(ramp->value * -224.0f) + 8);
+    HudNode_SetPos(node, (s32)(ramp->value * -256.0f) - 2, (s32)(ramp->value * -224.0f) + 8);
 }
 
 /* Update of node 3 (health): applies the three shakes (a random offset of +-amp while the count runs) and lets the
@@ -284,13 +284,13 @@ void HudGauge_UpdateAura(void) {
             ofs[0] = Rand_IntRange(-5, 5);
             ofs[1] = Rand_IntRange(-5, 5) - 8;
         }
-        func_00224BD0(spr, 0, 0x40, 0, 0x40);
-        func_00224CA0(spr, (i % 5) * 46 + ofs[0], (i / 5) * 20 + ofs[1]);
-        func_00224C10(spr, 0x80, 0x80, 0x80, (u8)gHudGauge->auraAlpha[gHudGauge->side]);
+        HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+        HudSprite_Move(spr, (i % 5) * 46 + ofs[0], (i / 5) * 20 + ofs[1]);
+        HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)gHudGauge->auraAlpha[gHudGauge->side]);
     }
     spr = &gHudGauge->spr[62];
-    func_00224C28(spr, 0, 0, 0xFF, (u8)((f32)gHudGauge->auraAlpha[gHudGauge->side] * 0.0078125f * 44.0f));
-    func_00224BD0(spr, 0, 0x180, 0, 0x6C);
+    HudSprite_InitPlain(spr, 0, 0, 0xFF, (u8)((f32)gHudGauge->auraAlpha[gHudGauge->side] * 0.0078125f * 44.0f));
+    HudSprite_SetRect(spr, 0, 0x180, 0, 0x6C);
     ramp = &gHudGauge->lowHpPulse[gHudGauge->side];
     if (gHudGauge->hp[gHudGauge->side] <= 10000 && !BtlCtrl_IsActiveDead(gHudGauge->side)) {
         if (!HUDG_PAUSED() && Ramp_Step(ramp)) {
@@ -306,8 +306,8 @@ void HudGauge_UpdateAura(void) {
         }
     }
     spr = &gHudGauge->spr[63];
-    func_00224C28(spr, 0xFF, 0, 0, (u8)(ramp->value * 44.0f));
-    func_00224BD0(spr, 0, 0x180, 0, 0x6C);
+    HudSprite_InitPlain(spr, 0xFF, 0, 0, (u8)(ramp->value * 44.0f));
+    HudSprite_SetRect(spr, 0, 0x180, 0, 0x6C);
 }
 #endif
 INCLUDE_RODATA("asm/nonmatchings/battle/hud_b", D_002F1B90);
@@ -343,35 +343,35 @@ void HudGauge_UpdateKi(void) {
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[20 + i];
         if (shown >= i * 20000 + 20000) {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
         } else if (i * 20000 >= shown) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
             n = (shown % 20000) * 17 / 20000;
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0x11 - n, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x21 - n, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0x11 - n, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x21 - n, 0x21);
         }
-        func_00224CA0(spr, i * 8, 0);
+        HudSprite_Move(spr, i * 8, 0);
     }
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[25 + i];
         if (ki >= i * 20000 + 20000) {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
         } else if (i * 20000 >= ki) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
             n = ki - i * 20000;
             n = n * 17 / 20000;
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0x11 - n, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x21 - n, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0x11 - n, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x21 - n, 0x21);
         }
-        func_00224CA0(spr, i * 8, 0);
+        HudSprite_Move(spr, i * 8, 0);
     }
     if (Ramp_Step(&gHudGauge->kiReservePulse[gHudGauge->side]) && extra != 0) {
         if (gHudGauge->kiReservePulse[gHudGauge->side].value == 0.0f) {
@@ -383,21 +383,21 @@ void HudGauge_UpdateKi(void) {
     n = extra / 20000;
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[15 + i];
-        func_00224C10(spr, (u8)(gHudGauge->kiReservePulse[gHudGauge->side].value * 192.0f), 0, 0, 0x40);
+        HudSprite_SetColor(spr, (u8)(gHudGauge->kiReservePulse[gHudGauge->side].value * 192.0f), 0, 0, 0x40);
         if (extra >= i * 20000 + 20000) {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
         } else if (i * 20000 >= extra) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
             n = extra - i * 20000;
             n = n * 17 / 20000;
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0x11 - n, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x21 - n, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0x11 - n, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x21 - n, 0x21);
         }
-        func_00224CA0(spr, i * 8, 0);
+        HudSprite_Move(spr, i * 8, 0);
     }
 }
 
@@ -412,18 +412,18 @@ void HudGauge_UpdateMaxPower(void) {
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[30 + i];
         if (v >= i * 6000 + 6000) {
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
         } else if (i * 6000 >= v) {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         } else {
             n = (v - i * 6000) * 17 / 6000;
-            func_00224B90(spr, 1);
-            func_00224BD0(spr, 0, 0xE, 0x11 - n, 0x11);
-            func_00224BE8(spr, 0x10, 0x1E, 0x21 - n, 0x21);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetRect(spr, 0, 0xE, 0x11 - n, 0x11);
+            HudSprite_SetUv(spr, 0x10, 0x1E, 0x21 - n, 0x21);
         }
-        func_00224CA0(spr, i * 8, 0);
+        HudSprite_Move(spr, i * 8, 0);
     }
 }
 
@@ -461,8 +461,8 @@ void HudGauge_UpdateKiLamps(void) {
             alpha = b->value * 128.0f;
             for (i = 0; i < 5; i++) {
                 spr = &gHudGauge->spr[65 + i];
-                func_00224B90(spr, 1);
-                func_00224C10(spr, 0x80, 0x80, 0x80, alpha);
+                HudSprite_Show(spr, 1);
+                HudSprite_SetColor(spr, 0x80, 0x80, 0x80, alpha);
             }
             return;
         }
@@ -471,10 +471,10 @@ void HudGauge_UpdateKiLamps(void) {
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[65 + i];
         if (bars == i + 1) {
-            func_00224B90(spr, 1);
-            func_00224C10(spr, 0x80, 0x80, 0x80, alpha);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetColor(spr, 0x80, 0x80, 0x80, alpha);
         } else {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         }
     }
 }
@@ -489,17 +489,17 @@ void HudGauge_UpdateMaxPowerLamps(HudBGroup *node) {
     u8 alpha;
     HudBSprite *spr;
 
-    func_002264A8(node, 1);
+    HudNode_Show(node, 1);
     bars = v / 6000;
     alpha = b->value * 0.8f * 128.0f;
     for (i = 0; i < 5; i++) {
         spr = &gHudGauge->spr[70 + i];
         if (bars >= i + 1) {
-            func_00224B90(spr, 1);
-            func_00224C10(spr, 0x80, 0x80, 0x80, alpha);
-            func_00224B90(&gHudGauge->spr[65 + i], 0);
+            HudSprite_Show(spr, 1);
+            HudSprite_SetColor(spr, 0x80, 0x80, 0x80, alpha);
+            HudSprite_Show(&gHudGauge->spr[65 + i], 0);
         } else {
-            func_00224B90(spr, 0);
+            HudSprite_Show(spr, 0);
         }
     }
 }
@@ -524,9 +524,9 @@ void HudGauge_UpdateBlast(void) {
     if (n >= 8) {
         n = 7;
     }
-    func_00224BD0(spr, -0x20, 0, 0, 0x20);
-    func_00224BE8(spr, tbl[n][0], tbl[n][1], tbl[n][2], tbl[n][3]);
-    func_00224CA0(spr, 10, -16);
+    HudSprite_SetRect(spr, -0x20, 0, 0, 0x20);
+    HudSprite_SetUv(spr, tbl[n][0], tbl[n][1], tbl[n][2], tbl[n][3]);
+    HudSprite_Move(spr, 10, -16);
     if (!HUDG_PAUSED()) {
         r = Ramp_Step(ramp);
     } else {
@@ -544,34 +544,34 @@ void HudGauge_UpdateBlast(void) {
         }
     }
     spr = &gHudGauge->spr[75];
-    func_00224BD0(spr, -0x20, 0, 0, 0x20);
-    func_00224BE8(spr, tbl[n][0], tbl[n][1], tbl[n][2], tbl[n][3]);
-    func_00224CA0(spr, 10, -16);
+    HudSprite_SetRect(spr, -0x20, 0, 0, 0x20);
+    HudSprite_SetUv(spr, tbl[n][0], tbl[n][1], tbl[n][2], tbl[n][3]);
+    HudSprite_Move(spr, 10, -16);
     if (ramp->value > 0.0f) {
-        func_00224B90(spr, 1);
+        HudSprite_Show(spr, 1);
     } else {
-        func_00224B90(spr, 0);
+        HudSprite_Show(spr, 0);
     }
-    func_00224C10(spr, 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
+    HudSprite_SetColor(spr, 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
     n = blast % 100000;
     n = n * 25 / 100000;
     spr = &gHudGauge->spr[37];
-    func_00224BD0(spr, n, n + 0x1A, 0, 6);
-    func_00224CA0(spr, 5, 3);
+    HudSprite_SetRect(spr, n, n + 0x1A, 0, 6);
+    HudSprite_Move(spr, 5, 3);
     if (blast >= max) {
-        func_00224B90(&gHudGauge->spr[36], 0);
-        func_00224B90(&gHudGauge->spr[38], 0);
-        func_00224B90(&gHudGauge->spr[37], 0);
+        HudSprite_Show(&gHudGauge->spr[36], 0);
+        HudSprite_Show(&gHudGauge->spr[38], 0);
+        HudSprite_Show(&gHudGauge->spr[37], 0);
     } else {
-        func_00224B90(&gHudGauge->spr[36], 1);
-        func_00224B90(&gHudGauge->spr[38], 1);
-        func_00224B90(&gHudGauge->spr[37], 1);
+        HudSprite_Show(&gHudGauge->spr[36], 1);
+        HudSprite_Show(&gHudGauge->spr[38], 1);
+        HudSprite_Show(&gHudGauge->spr[37], 1);
     }
     spr = &gHudGauge->spr[48];
     if (blast >= max) {
-        func_00224B90(spr, 0);
+        HudSprite_Show(spr, 0);
     } else {
-        func_00224B90(spr, 1);
+        HudSprite_Show(spr, 1);
     }
 }
 
@@ -622,34 +622,34 @@ void HudGauge_UpdateStatIcons(void) {
         }
         for (i = 0; i < 4; i++) {
             c = (pos & (1 << i)) ? col[0] : col[1];
-            func_00224E20(icon, gHudGauge->res, i + 0x13, 0);
+            HudSprite_InitTex(icon, gHudGauge->res, i + 0x13, 0);
             if (removed & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224C10(icon, c[0], c[1], c[2], (u8)((f32)c[3] * ramp->value));
-                func_00224B90(&frames[i], 1);
-                func_00224C10(&frames[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 1);
+                HudSprite_SetColor(icon, c[0], c[1], c[2], (u8)((f32)c[3] * ramp->value));
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
+                HudSprite_Show(&shades[i], 0);
             } else if (prev & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224C10(icon, c[0], c[1], c[2], c[3]);
-                func_00224B90(&frames[i], 1);
-                func_00224C10(&frames[i], 0x80, 0x80, 0x80, 0x80);
-                func_00224B90(&shades[i], 1);
+                HudSprite_Show(icon, 1);
+                HudSprite_SetColor(icon, c[0], c[1], c[2], c[3]);
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, 0x80);
+                HudSprite_Show(&shades[i], 1);
             } else {
-                func_00224B90(icon, 0);
-                func_00224B90(&frames[i], 0);
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 0);
+                HudSprite_Show(&frames[i], 0);
+                HudSprite_Show(&shades[i], 0);
             }
-            func_00224CA0(icon, 5, -5);
-            func_00224CA0(icon, from[i], 0);
-            func_00224BD0(&frames[i], 0, 0x2A, 0, 0x16);
-            func_00224BE8(&frames[i], 0, 0x2A, 0x16, 0x2C);
-            func_00224CA0(&frames[i], 0x66, 0x18);
-            func_00224CA0(&frames[i], from[i], 0);
-            func_00224BD0(&shades[i], 3, 0x27, 1, 0x15);
-            func_00224BE8(&shades[i], 0, 0x24, 0x2C, 0x40);
-            func_00224CA0(&shades[i], 0x66, 0x18);
-            func_00224CA0(&shades[i], from[i], 0);
+            HudSprite_Move(icon, 5, -5);
+            HudSprite_Move(icon, from[i], 0);
+            HudSprite_SetRect(&frames[i], 0, 0x2A, 0, 0x16);
+            HudSprite_SetUv(&frames[i], 0, 0x2A, 0x16, 0x2C);
+            HudSprite_Move(&frames[i], 0x66, 0x18);
+            HudSprite_Move(&frames[i], from[i], 0);
+            HudSprite_SetRect(&shades[i], 3, 0x27, 1, 0x15);
+            HudSprite_SetUv(&shades[i], 0, 0x24, 0x2C, 0x40);
+            HudSprite_Move(&shades[i], 0x66, 0x18);
+            HudSprite_Move(&shades[i], from[i], 0);
             icon++;
         }
         if (r) {
@@ -667,30 +667,30 @@ void HudGauge_UpdateStatIcons(void) {
         }
         for (i = 0; i < 4; i++) {
             c = (pos & (1 << i)) ? col[0] : col[1];
-            func_00224E20(icon, gHudGauge->res, i + 0x13, 0);
+            HudSprite_InitTex(icon, gHudGauge->res, i + 0x13, 0);
             if (kept & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224B90(&frames[i], 1);
-                func_00224B90(&shades[i], 1);
+                HudSprite_Show(icon, 1);
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_Show(&shades[i], 1);
             } else {
-                func_00224B90(icon, 0);
-                func_00224B90(&frames[i], 0);
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 0);
+                HudSprite_Show(&frames[i], 0);
+                HudSprite_Show(&shades[i], 0);
             }
             t = 1.0f - powf(1.0f - ramp->value, 3.0f);
             x = (f32)from[i] + (f32)(to[i] - from[i]) * t;
-            func_00224C10(icon, c[0], c[1], c[2], c[3]);
-            func_00224CA0(icon, 5, -5);
-            func_00224CA0(icon, x, 0);
-            func_00224C10(&frames[i], 0x80, 0x80, 0x80, 0x80);
-            func_00224BD0(&frames[i], 0, 0x2A, 0, 0x16);
-            func_00224BE8(&frames[i], 0, 0x2A, 0x16, 0x2C);
-            func_00224CA0(&frames[i], 0x66, 0x18);
-            func_00224CA0(&frames[i], x, 0);
-            func_00224BD0(&shades[i], 3, 0x27, 1, 0x15);
-            func_00224BE8(&shades[i], 0, 0x24, 0x2C, 0x40);
-            func_00224CA0(&shades[i], 0x66, 0x18);
-            func_00224CA0(&shades[i], x, 0);
+            HudSprite_SetColor(icon, c[0], c[1], c[2], c[3]);
+            HudSprite_Move(icon, 5, -5);
+            HudSprite_Move(icon, x, 0);
+            HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, 0x80);
+            HudSprite_SetRect(&frames[i], 0, 0x2A, 0, 0x16);
+            HudSprite_SetUv(&frames[i], 0, 0x2A, 0x16, 0x2C);
+            HudSprite_Move(&frames[i], 0x66, 0x18);
+            HudSprite_Move(&frames[i], x, 0);
+            HudSprite_SetRect(&shades[i], 3, 0x27, 1, 0x15);
+            HudSprite_SetUv(&shades[i], 0, 0x24, 0x2C, 0x40);
+            HudSprite_Move(&shades[i], 0x66, 0x18);
+            HudSprite_Move(&shades[i], x, 0);
             icon++;
         }
         if (r) {
@@ -712,34 +712,34 @@ void HudGauge_UpdateStatIcons(void) {
         }
         for (i = 0; i < 4; i++) {
             c = (pos & (1 << i)) ? col[0] : col[1];
-            func_00224E20(icon, gHudGauge->res, i + 0x13, 0);
+            HudSprite_InitTex(icon, gHudGauge->res, i + 0x13, 0);
             if (added & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224C10(icon, c[0], c[1], c[2], (u8)((f32)c[3] * ramp->value));
-                func_00224B90(&frames[i], 1);
-                func_00224C10(&frames[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 1);
+                HudSprite_SetColor(icon, c[0], c[1], c[2], (u8)((f32)c[3] * ramp->value));
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, (u8)(ramp->value * 128.0f));
+                HudSprite_Show(&shades[i], 0);
             } else if (mask & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224C10(icon, c[0], c[1], c[2], c[3]);
-                func_00224B90(&frames[i], 1);
-                func_00224C10(&frames[i], 0x80, 0x80, 0x80, 0x80);
-                func_00224B90(&shades[i], 1);
+                HudSprite_Show(icon, 1);
+                HudSprite_SetColor(icon, c[0], c[1], c[2], c[3]);
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, 0x80);
+                HudSprite_Show(&shades[i], 1);
             } else {
-                func_00224B90(icon, 0);
-                func_00224B90(&frames[i], 0);
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 0);
+                HudSprite_Show(&frames[i], 0);
+                HudSprite_Show(&shades[i], 0);
             }
-            func_00224CA0(icon, 5, -5);
-            func_00224CA0(icon, to[i], 0);
-            func_00224BD0(&frames[i], 0, 0x2A, 0, 0x16);
-            func_00224BE8(&frames[i], 0, 0x2A, 0x16, 0x2C);
-            func_00224CA0(&frames[i], 0x66, 0x18);
-            func_00224CA0(&frames[i], to[i], 0);
-            func_00224BD0(&shades[i], 3, 0x27, 1, 0x15);
-            func_00224BE8(&shades[i], 0, 0x24, 0x2C, 0x40);
-            func_00224CA0(&shades[i], 0x66, 0x18);
-            func_00224CA0(&shades[i], to[i], 0);
+            HudSprite_Move(icon, 5, -5);
+            HudSprite_Move(icon, to[i], 0);
+            HudSprite_SetRect(&frames[i], 0, 0x2A, 0, 0x16);
+            HudSprite_SetUv(&frames[i], 0, 0x2A, 0x16, 0x2C);
+            HudSprite_Move(&frames[i], 0x66, 0x18);
+            HudSprite_Move(&frames[i], to[i], 0);
+            HudSprite_SetRect(&shades[i], 3, 0x27, 1, 0x15);
+            HudSprite_SetUv(&shades[i], 0, 0x24, 0x2C, 0x40);
+            HudSprite_Move(&shades[i], 0x66, 0x18);
+            HudSprite_Move(&shades[i], to[i], 0);
             icon++;
         }
         if (r) {
@@ -749,28 +749,28 @@ void HudGauge_UpdateStatIcons(void) {
     default:
         for (i = 0; i < 4; i++) {
             c = (pos & (1 << i)) ? col[0] : col[1];
-            func_00224E20(icon, gHudGauge->res, i + 0x13, 0);
+            HudSprite_InitTex(icon, gHudGauge->res, i + 0x13, 0);
             if (mask & (1 << i)) {
-                func_00224B90(icon, 1);
-                func_00224B90(&frames[i], 1);
-                func_00224B90(&shades[i], 1);
+                HudSprite_Show(icon, 1);
+                HudSprite_Show(&frames[i], 1);
+                HudSprite_Show(&shades[i], 1);
             } else {
-                func_00224B90(icon, 0);
-                func_00224B90(&frames[i], 0);
-                func_00224B90(&shades[i], 0);
+                HudSprite_Show(icon, 0);
+                HudSprite_Show(&frames[i], 0);
+                HudSprite_Show(&shades[i], 0);
             }
-            func_00224C10(icon, c[0], c[1], c[2], c[3]);
-            func_00224CA0(icon, 5, -5);
-            func_00224CA0(icon, to[i], 0);
-            func_00224C10(&frames[i], 0x80, 0x80, 0x80, 0x80);
-            func_00224BD0(&frames[i], 0, 0x2A, 0, 0x16);
-            func_00224BE8(&frames[i], 0, 0x2A, 0x16, 0x2C);
-            func_00224CA0(&frames[i], 0x66, 0x18);
-            func_00224CA0(&frames[i], to[i], 0);
-            func_00224BD0(&shades[i], 3, 0x27, 1, 0x15);
-            func_00224BE8(&shades[i], 0, 0x24, 0x2C, 0x40);
-            func_00224CA0(&shades[i], 0x66, 0x18);
-            func_00224CA0(&shades[i], to[i], 0);
+            HudSprite_SetColor(icon, c[0], c[1], c[2], c[3]);
+            HudSprite_Move(icon, 5, -5);
+            HudSprite_Move(icon, to[i], 0);
+            HudSprite_SetColor(&frames[i], 0x80, 0x80, 0x80, 0x80);
+            HudSprite_SetRect(&frames[i], 0, 0x2A, 0, 0x16);
+            HudSprite_SetUv(&frames[i], 0, 0x2A, 0x16, 0x2C);
+            HudSprite_Move(&frames[i], 0x66, 0x18);
+            HudSprite_Move(&frames[i], to[i], 0);
+            HudSprite_SetRect(&shades[i], 3, 0x27, 1, 0x15);
+            HudSprite_SetUv(&shades[i], 0, 0x24, 0x2C, 0x40);
+            HudSprite_Move(&shades[i], 0x66, 0x18);
+            HudSprite_Move(&shades[i], to[i], 0);
             icon++;
         }
         break;
@@ -780,24 +780,24 @@ void HudGauge_UpdateStatIcons(void) {
 /* Draw of node 3: the health bar is drawn three times (sprites 1..3, 4..6, 7..8), each through the alpha mask of
  * sprite 8; HudGauge_UpdateHp (hud_a_d.c) sets the rectangles first. */
 void HudGauge_DrawHp(void) {
-    func_002250C8(&gHudGauge->spr[8]);
+    HudSprite_DrawAlphaClear(&gHudGauge->spr[8]);
     HudGauge_UpdateHp();
-    func_00224B50(HudGauge_GsBeginMask);
-    func_00226488(&gHudGauge->spr[1], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[2], gHudGauge->res, 1);
-    func_00226488(&gHudGauge->spr[3], gHudGauge->res, 0);
-    func_00224B70(HudGauge_GsEndMask);
-    func_002250C8(&gHudGauge->spr[8]);
-    func_00224B50(HudGauge_GsBeginMask);
-    func_00226488(&gHudGauge->spr[4], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[5], gHudGauge->res, 1);
-    func_00226488(&gHudGauge->spr[6], gHudGauge->res, 0);
-    func_00224B70(HudGauge_GsEndMask);
-    func_002250C8(&gHudGauge->spr[8]);
-    func_00224B50(HudGauge_GsBeginMask);
-    func_00226488(&gHudGauge->spr[7], gHudGauge->res, 1);
-    func_00226488(&gHudGauge->spr[8], gHudGauge->res, 0);
-    func_00224B70(HudGauge_GsEndMask);
+    HudGfx_CallBegin(HudGauge_GsBeginMask);
+    HudSprite_Draw(&gHudGauge->spr[1], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[2], gHudGauge->res, 1);
+    HudSprite_Draw(&gHudGauge->spr[3], gHudGauge->res, 0);
+    HudGfx_CallEnd(HudGauge_GsEndMask);
+    HudSprite_DrawAlphaClear(&gHudGauge->spr[8]);
+    HudGfx_CallBegin(HudGauge_GsBeginMask);
+    HudSprite_Draw(&gHudGauge->spr[4], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[5], gHudGauge->res, 1);
+    HudSprite_Draw(&gHudGauge->spr[6], gHudGauge->res, 0);
+    HudGfx_CallEnd(HudGauge_GsEndMask);
+    HudSprite_DrawAlphaClear(&gHudGauge->spr[8]);
+    HudGfx_CallBegin(HudGauge_GsBeginMask);
+    HudSprite_Draw(&gHudGauge->spr[7], gHudGauge->res, 1);
+    HudSprite_Draw(&gHudGauge->spr[8], gHudGauge->res, 0);
+    HudGfx_CallEnd(HudGauge_GsEndMask);
 }
 
 /* Draw of node 10: sprite 47 as mask, the panel pieces, the red flash and the node's ten sparks. */
@@ -805,20 +805,20 @@ void HudGauge_DrawAura(HudBGroup *node) {
     HudBSprite *spr = &gHudGauge->spr[47];
     u32 i;
 
-    func_002250C8(spr);
-    func_00224B50(HudGauge_GsBeginMask2);
-    func_00226488(spr, gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[48], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[49], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[50], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[51], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[52], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[63], gHudGauge->res, 1);
+    HudSprite_DrawAlphaClear(spr);
+    HudGfx_CallBegin(HudGauge_GsBeginMask2);
+    HudSprite_Draw(spr, gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[48], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[49], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[50], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[51], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[52], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[63], gHudGauge->res, 1);
     for (i = 0; i < node->sprCount; i++) {
-        func_00226488(node->sprList[i], gHudGauge->res, 1);
+        HudSprite_Draw(node->sprList[i], gHudGauge->res, 1);
     }
-    func_00224B70(HudGauge_GsEndMask2);
-    func_002250C8(&gHudGauge->spr[47]);
+    HudGfx_CallEnd(HudGauge_GsEndMask2);
+    HudSprite_DrawAlphaClear(&gHudGauge->spr[47]);
 }
 
 /* Draw of node 2: the bars-in-reserve markers. */
@@ -827,19 +827,19 @@ void HudGauge_DrawHpBarCount(HudBGroup *node) {
 
     HudGauge_UpdateHpBarCount();
     for (i = 0; i < node->sprCount; i++) {
-        func_00226488(node->sprList[i], gHudGauge->res, 0);
+        HudSprite_Draw(node->sprList[i], gHudGauge->res, 0);
     }
 }
 
 /* Draw of node 8: the fill bar through the mask of sprite 38, then the digit and its flash. */
 void HudGauge_DrawBlast(void) {
-    func_002250C8(&gHudGauge->spr[38]);
-    func_00224B50(HudGauge_GsBeginMask);
-    func_00226488(&gHudGauge->spr[37], gHudGauge->res, 1);
-    func_00226488(&gHudGauge->spr[38], gHudGauge->res, 0);
-    func_00224B70(HudGauge_GsEndMask);
-    func_00226488(&gHudGauge->spr[35], gHudGauge->res, 0);
-    func_00226488(&gHudGauge->spr[75], gHudGauge->res, 0);
+    HudSprite_DrawAlphaClear(&gHudGauge->spr[38]);
+    HudGfx_CallBegin(HudGauge_GsBeginMask);
+    HudSprite_Draw(&gHudGauge->spr[37], gHudGauge->res, 1);
+    HudSprite_Draw(&gHudGauge->spr[38], gHudGauge->res, 0);
+    HudGfx_CallEnd(HudGauge_GsEndMask);
+    HudSprite_Draw(&gHudGauge->spr[35], gHudGauge->res, 0);
+    HudSprite_Draw(&gHudGauge->spr[75], gHudGauge->res, 0);
 }
 
 /* Clears the mark of texture i of side i's face sheet. */
@@ -866,14 +866,14 @@ void HudGauge_DrawFace(HudBGroup *node) {
         HudGauge_ClearFaceTexMark();
         for (i = 0; i < node->sprCount; i++) {
             spr = node->sprList[i];
-            func_00224E20(spr, gHudGauge->faceRes[gHudGauge->side], gHudGauge->side, 0);
+            HudSprite_InitTex(spr, gHudGauge->faceRes[gHudGauge->side], gHudGauge->side, 0);
             if (BtlCtrl_GetObj(gHudGauge->side)->unkA40 & 0x40000) {
-                func_00224C10(spr, 0x80, 0x50, 0x70, 0x80);
+                HudSprite_SetColor(spr, 0x80, 0x50, 0x70, 0x80);
             } else {
-                func_00224C10(spr, 0x80, 0x80, 0x80, 0x80);
+                HudSprite_SetColor(spr, 0x80, 0x80, 0x80, 0x80);
             }
-            func_00224BB0(spr, gHudGauge->side);
-            func_00225A50(spr, gHudGauge->faceRes[gHudGauge->side], 0, 0x2C00, 0x2CD0);
+            HudSprite_SetMirror(spr, gHudGauge->side);
+            HudSprite_DrawAt(spr, gHudGauge->faceRes[gHudGauge->side], 0, 0x2C00, 0x2CD0);
         }
     }
 }
@@ -883,7 +883,7 @@ void HudGauge_DrawSprites(HudBGroup *node) {
     u32 i;
 
     for (i = 0; i < node->sprCount; i++) {
-        func_00226488(node->sprList[i], gHudGauge->res, 0);
+        HudSprite_Draw(node->sprList[i], gHudGauge->res, 0);
     }
 }
 
@@ -894,10 +894,10 @@ void HudGauge_SelectSide(s32 side) {
 
     gHudGauge->side = side;
     gHudGauge->grp->flags = (gHudGauge->grp->flags & ~2) | (flip << 1);
-    func_00224BB0(&gHudGauge->spr[35], flip);
-    func_00224BB0(&gHudGauge->spr[75], flip);
+    HudSprite_SetMirror(&gHudGauge->spr[35], flip);
+    HudSprite_SetMirror(&gHudGauge->spr[75], flip);
     for (i = 0; i < 4; i++) {
-        func_00224BB0(&gHudGauge->spr[43 + i], flip);
+        HudSprite_SetMirror(&gHudGauge->spr[43 + i], flip);
     }
 }
 
@@ -1029,379 +1029,379 @@ void HudGauge_Init(HudBGroup **out, void *res) {
         gHudGauge->obj[i] = NULL;
     }
     spr = &gHudGauge->spr[0];
-    func_00224E20(spr, res, 6, 0);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 6, 0);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[7];
-    func_00224E20(spr, res, 8, 0);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0x30, 0x40);
-    func_00224CA0(spr, 0xA0, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0x30, 0x40);
+    HudSprite_Move(spr, 0xA0, 0);
     spr = &gHudGauge->spr[8];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0, 0x10);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[5];
-    func_00224E20(spr, res, 8, 0);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0x30, 0x40);
-    func_00224CA0(spr, 0xA0, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0x30, 0x40);
+    HudSprite_Move(spr, 0xA0, 0);
     spr = &gHudGauge->spr[6];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0, 0x10);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[2];
-    func_00224E20(spr, res, 8, 0);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0x30, 0x40);
-    func_00224CA0(spr, 0xA0, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0x30, 0x40);
+    HudSprite_Move(spr, 0xA0, 0);
     spr = &gHudGauge->spr[3];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0, 0x10);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[1];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0, 0x10);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[4];
-    func_00224E20(spr, res, 8, 0);
-    func_00224BD0(spr, 0, 0xA0, 0, 0x10);
-    func_00224BE8(spr, 0, 0xA0, 0, 0x10);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_SetRect(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0xA0, 0, 0x10);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[9];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[10];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 9, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 9, 0);
     spr = &gHudGauge->spr[11];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 0x12, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 0x12, 0);
     spr = &gHudGauge->spr[12];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 0x1B, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 0x1B, 0);
     spr = &gHudGauge->spr[13];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 0x24, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 0x24, 0);
     spr = &gHudGauge->spr[14];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x10);
-    func_00224BE8(spr, 0, 0x10, 0x10, 0x20);
-    func_00224CA0(spr, 0x2D, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x10);
+    HudSprite_SetUv(spr, 0, 0x10, 0x10, 0x20);
+    HudSprite_Move(spr, 0x2D, 0);
     spr = &gHudGauge->spr[15];
-    func_00224E20(spr, res, 8, 3);
-    func_00224BD0(spr, 0, 0xE, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
-    func_00224CA0(spr, 0x20, 0);
+    HudSprite_InitTex(spr, res, 8, 3);
+    HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
+    HudSprite_Move(spr, 0x20, 0);
     spr = &gHudGauge->spr[16];
-    func_00224E20(spr, res, 8, 3);
-    func_00224BD0(spr, 0, 0xE, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
-    func_00224CA0(spr, 0x18, 0);
+    HudSprite_InitTex(spr, res, 8, 3);
+    HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
+    HudSprite_Move(spr, 0x18, 0);
     spr = &gHudGauge->spr[17];
-    func_00224E20(spr, res, 8, 3);
-    func_00224BD0(spr, 0, 0xE, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
-    func_00224CA0(spr, 0x10, 0);
+    HudSprite_InitTex(spr, res, 8, 3);
+    HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
+    HudSprite_Move(spr, 0x10, 0);
     spr = &gHudGauge->spr[18];
-    func_00224E20(spr, res, 8, 3);
-    func_00224BD0(spr, 0, 0xE, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
-    func_00224CA0(spr, 8, 0);
+    HudSprite_InitTex(spr, res, 8, 3);
+    HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
+    HudSprite_Move(spr, 8, 0);
     spr = &gHudGauge->spr[19];
-    func_00224E20(spr, res, 8, 3);
-    func_00224BD0(spr, 0, 0xE, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x1E, 0x10, 0x21);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 3);
+    HudSprite_SetRect(spr, 0, 0xE, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x1E, 0x10, 0x21);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[20];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x1C, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x1C, 0);
     spr = &gHudGauge->spr[21];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x15, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x15, 0);
     spr = &gHudGauge->spr[22];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0xE, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0xE, 0);
     spr = &gHudGauge->spr[23];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 7, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 7, 0);
     spr = &gHudGauge->spr[24];
-    func_00224E20(spr, res, 8, 2);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 2);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[25];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x1C, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x1C, 0);
     spr = &gHudGauge->spr[26];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x15, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x15, 0);
     spr = &gHudGauge->spr[27];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0xE, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0xE, 0);
     spr = &gHudGauge->spr[28];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 7, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 7, 0);
     spr = &gHudGauge->spr[29];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[30];
-    func_00224E20(spr, res, 8, 5);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x1C, 0);
+    HudSprite_InitTex(spr, res, 8, 5);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x1C, 0);
     spr = &gHudGauge->spr[31];
-    func_00224E20(spr, res, 8, 5);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0x15, 0);
+    HudSprite_InitTex(spr, res, 8, 5);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0x15, 0);
     spr = &gHudGauge->spr[32];
-    func_00224E20(spr, res, 8, 5);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0xE, 0);
+    HudSprite_InitTex(spr, res, 8, 5);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0xE, 0);
     spr = &gHudGauge->spr[33];
-    func_00224E20(spr, res, 8, 5);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 7, 0);
+    HudSprite_InitTex(spr, res, 8, 5);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 7, 0);
     spr = &gHudGauge->spr[34];
-    func_00224E20(spr, res, 8, 5);
-    func_00224BD0(spr, 0, 0x10, 0, 0x11);
-    func_00224BE8(spr, 0x10, 0x20, 0x10, 0x21);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 8, 5);
+    HudSprite_SetRect(spr, 0, 0x10, 0, 0x11);
+    HudSprite_SetUv(spr, 0x10, 0x20, 0x10, 0x21);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[35];
-    func_00224E20(spr, res, 0xE, 0);
-    func_00224BD0(spr, -32, 0, 0, 0x20);
-    func_00224BE8(spr, 0, 0x20, 0, 0x20);
-    func_00224CA0(spr, 0xA, -6);
+    HudSprite_InitTex(spr, res, 0xE, 0);
+    HudSprite_SetRect(spr, -32, 0, 0, 0x20);
+    HudSprite_SetUv(spr, 0, 0x20, 0, 0x20);
+    HudSprite_Move(spr, 0xA, -6);
     spr = &gHudGauge->spr[36];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x30, 0, 0xC);
-    func_00224BE8(spr, 0, 0x30, 0, 0xC);
-    func_00224CA0(spr, 0x1B, 0x2E);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x30, 0, 0xC);
+    HudSprite_SetUv(spr, 0, 0x30, 0, 0xC);
+    HudSprite_Move(spr, 0x1B, 0x2E);
     spr = &gHudGauge->spr[37];
-    func_00224E20(spr, res, 8, 0);
-    func_00224BD0(spr, 0, 0x1A, 0, 6);
-    func_00224BE8(spr, 0xC0, 0xDA, 0, 6);
-    func_00224CA0(spr, 5, 3);
+    HudSprite_InitTex(spr, res, 8, 0);
+    HudSprite_SetRect(spr, 0, 0x1A, 0, 6);
+    HudSprite_SetUv(spr, 0xC0, 0xDA, 0, 6);
+    HudSprite_Move(spr, 5, 3);
     spr = &gHudGauge->spr[38];
-    func_00224E20(spr, res, 8, 1);
-    func_00224BD0(spr, 0, 0x1A, 0, 6);
-    func_00224BE8(spr, 0xA1, 0xBB, 0, 6);
-    func_00224CA0(spr, 5, 3);
+    HudSprite_InitTex(spr, res, 8, 1);
+    HudSprite_SetRect(spr, 0, 0x1A, 0, 6);
+    HudSprite_SetUv(spr, 0xA1, 0xBB, 0, 6);
+    HudSprite_Move(spr, 5, 3);
     spr = &gHudGauge->spr[39];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x2A, 0, 0x16);
-    func_00224BE8(spr, 0, 0x2A, 0x16, 0x2C);
-    func_00224CA0(spr, 0, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x2A, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x2A, 0x16, 0x2C);
+    HudSprite_Move(spr, 0, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[40];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x2A, 0, 0x16);
-    func_00224BE8(spr, 0, 0x2A, 0x16, 0x2C);
-    func_00224CA0(spr, 0x18, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x2A, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x2A, 0x16, 0x2C);
+    HudSprite_Move(spr, 0x18, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[41];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x2A, 0, 0x16);
-    func_00224BE8(spr, 0, 0x2A, 0x16, 0x2C);
-    func_00224CA0(spr, 0x30, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x2A, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x2A, 0x16, 0x2C);
+    HudSprite_Move(spr, 0x30, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[42];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x2A, 0, 0x16);
-    func_00224BE8(spr, 0, 0x2A, 0x16, 0x2C);
-    func_00224CA0(spr, 0x48, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x2A, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x2A, 0x16, 0x2C);
+    HudSprite_Move(spr, 0x48, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[43];
-    func_00224E20(spr, res, 0x13, 0);
-    func_00224CA0(spr, 5, -5);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_InitTex(spr, res, 0x13, 0);
+    HudSprite_Move(spr, 5, -5);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[44];
-    func_00224E20(spr, res, 0x14, 0);
-    func_00224CA0(spr, 5, -5);
-    func_00224CA0(spr, 0x18, 0);
+    HudSprite_InitTex(spr, res, 0x14, 0);
+    HudSprite_Move(spr, 5, -5);
+    HudSprite_Move(spr, 0x18, 0);
     spr = &gHudGauge->spr[45];
-    func_00224E20(spr, res, 0x15, 0);
-    func_00224CA0(spr, 5, -5);
-    func_00224CA0(spr, 0x30, 0);
+    HudSprite_InitTex(spr, res, 0x15, 0);
+    HudSprite_Move(spr, 5, -5);
+    HudSprite_Move(spr, 0x30, 0);
     spr = &gHudGauge->spr[46];
-    func_00224E20(spr, res, 0x16, 0);
-    func_00224CA0(spr, 5, -5);
-    func_00224CA0(spr, 0x48, 0);
+    HudSprite_InitTex(spr, res, 0x16, 0);
+    HudSprite_Move(spr, 5, -5);
+    HudSprite_Move(spr, 0x48, 0);
     spr = &gHudGauge->spr[47];
-    func_00224E20(spr, res, 7, 0);
+    HudSprite_InitTex(spr, res, 7, 0);
     spr = &gHudGauge->spr[48];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 0, 0x30, 1, 0xB);
-    func_00224BE8(spr, 0, 0x30, 0xC, 0x16);
-    func_00224CA0(spr, 0x1B, 0x2E);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 0, 0x30, 1, 0xB);
+    HudSprite_SetUv(spr, 0, 0x30, 0xC, 0x16);
+    HudSprite_Move(spr, 0x1B, 0x2E);
     spr = &gHudGauge->spr[49];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 3, 0x27, 1, 0x15);
-    func_00224BE8(spr, 0, 0x24, 0x2C, 0x40);
-    func_00224CA0(spr, 0, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 3, 0x27, 1, 0x15);
+    HudSprite_SetUv(spr, 0, 0x24, 0x2C, 0x40);
+    HudSprite_Move(spr, 0, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[50];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 3, 0x27, 1, 0x15);
-    func_00224BE8(spr, 0, 0x24, 0x2C, 0x40);
-    func_00224CA0(spr, 0x18, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 3, 0x27, 1, 0x15);
+    HudSprite_SetUv(spr, 0, 0x24, 0x2C, 0x40);
+    HudSprite_Move(spr, 0x18, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[51];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 3, 0x27, 1, 0x15);
-    func_00224BE8(spr, 0, 0x24, 0x2C, 0x40);
-    func_00224CA0(spr, 0x30, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 3, 0x27, 1, 0x15);
+    HudSprite_SetUv(spr, 0, 0x24, 0x2C, 0x40);
+    HudSprite_Move(spr, 0x30, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[52];
-    func_00224E20(spr, res, 0xF, 0);
-    func_00224BD0(spr, 3, 0x27, 1, 0x15);
-    func_00224BE8(spr, 0, 0x24, 0x2C, 0x40);
-    func_00224CA0(spr, 0x48, 0);
-    func_00224CA0(spr, 0x66, 0x18);
+    HudSprite_InitTex(spr, res, 0xF, 0);
+    HudSprite_SetRect(spr, 3, 0x27, 1, 0x15);
+    HudSprite_SetUv(spr, 0, 0x24, 0x2C, 0x40);
+    HudSprite_Move(spr, 0x48, 0);
+    HudSprite_Move(spr, 0x66, 0x18);
     spr = &gHudGauge->spr[53];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0, 0x40, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0, 0x40, 0, 0x40);
     spr = &gHudGauge->spr[54];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x40, 0x80, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x40, 0x80, 0, 0x40);
     spr = &gHudGauge->spr[55];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x80, 0xC0, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x80, 0xC0, 0, 0x40);
     spr = &gHudGauge->spr[56];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0xC0, 0x100, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0xC0, 0x100, 0, 0x40);
     spr = &gHudGauge->spr[57];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0, 0x40, 0x40, 0x80);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0, 0x40, 0x40, 0x80);
     spr = &gHudGauge->spr[58];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x40, 0x80, 0x40, 0x80);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x40, 0x80, 0x40, 0x80);
     spr = &gHudGauge->spr[59];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x80, 0xC0, 0x40, 0x80);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x80, 0xC0, 0x40, 0x80);
     spr = &gHudGauge->spr[60];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0xC0, 0x100, 0x40, 0x80);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0xC0, 0x100, 0x40, 0x80);
     spr = &gHudGauge->spr[61];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x40, 0x80, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x40, 0x80, 0, 0x40);
     spr = &gHudGauge->spr[62];
-    func_00224E20(spr, res, 0x10, 0);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
-    func_00224BE8(spr, 0x80, 0xC0, 0, 0x40);
+    HudSprite_InitTex(spr, res, 0x10, 0);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
+    HudSprite_SetUv(spr, 0x80, 0xC0, 0, 0x40);
     spr = &gHudGauge->spr[64];
-    func_00224B90(spr, 1);
-    func_00224C28(spr, 0x80, 0x80, 0x80, 0x80);
-    func_00224BD0(spr, 0, 0x40, 0, 0x40);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitPlain(spr, 0x80, 0x80, 0x80, 0x80);
+    HudSprite_SetRect(spr, 0, 0x40, 0, 0x40);
     spr = &gHudGauge->spr[65];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0, 0x13, 0, 0x16);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x13, 0, 0x16);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[66];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0, 0x13, 0, 0x16);
-    func_00224CA0(spr, 8, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x13, 0, 0x16);
+    HudSprite_Move(spr, 8, 0);
     spr = &gHudGauge->spr[67];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0, 0x13, 0, 0x16);
-    func_00224CA0(spr, 0x10, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x13, 0, 0x16);
+    HudSprite_Move(spr, 0x10, 0);
     spr = &gHudGauge->spr[68];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0, 0x13, 0, 0x16);
-    func_00224CA0(spr, 0x18, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x13, 0, 0x16);
+    HudSprite_Move(spr, 0x18, 0);
     spr = &gHudGauge->spr[69];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0, 0x13, 0, 0x16);
-    func_00224CA0(spr, 0x20, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0, 0x13, 0, 0x16);
+    HudSprite_Move(spr, 0x20, 0);
     spr = &gHudGauge->spr[70];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0x20, 0x33, 0, 0x16);
-    func_00224CA0(spr, 0, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0x20, 0x33, 0, 0x16);
+    HudSprite_Move(spr, 0, 0);
     spr = &gHudGauge->spr[71];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0x20, 0x33, 0, 0x16);
-    func_00224CA0(spr, 8, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0x20, 0x33, 0, 0x16);
+    HudSprite_Move(spr, 8, 0);
     spr = &gHudGauge->spr[72];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0x20, 0x33, 0, 0x16);
-    func_00224CA0(spr, 0x10, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0x20, 0x33, 0, 0x16);
+    HudSprite_Move(spr, 0x10, 0);
     spr = &gHudGauge->spr[73];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0x20, 0x33, 0, 0x16);
-    func_00224CA0(spr, 0x18, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0x20, 0x33, 0, 0x16);
+    HudSprite_Move(spr, 0x18, 0);
     spr = &gHudGauge->spr[74];
-    func_00224B90(spr, 0);
-    func_00224E20(spr, res, 0x11, 0);
-    func_00224BD0(spr, 0, 0x13, 0, 0x16);
-    func_00224BE8(spr, 0x20, 0x33, 0, 0x16);
-    func_00224CA0(spr, 0x20, 0);
+    HudSprite_Show(spr, 0);
+    HudSprite_InitTex(spr, res, 0x11, 0);
+    HudSprite_SetRect(spr, 0, 0x13, 0, 0x16);
+    HudSprite_SetUv(spr, 0x20, 0x33, 0, 0x16);
+    HudSprite_Move(spr, 0x20, 0);
     spr = &gHudGauge->spr[75];
-    func_00224B90(spr, 1);
-    func_00224E20(spr, res, 0x12, 0);
-    func_00224BD0(spr, -32, 0, 0, 0x20);
-    func_00224BE8(spr, 0, 0x20, 0, 0x20);
-    func_00224CA0(spr, 0xA, -6);
+    HudSprite_Show(spr, 1);
+    HudSprite_InitTex(spr, res, 0x12, 0);
+    HudSprite_SetRect(spr, -32, 0, 0, 0x20);
+    HudSprite_SetUv(spr, 0, 0x20, 0, 0x20);
+    HudSprite_Move(spr, 0xA, -6);
     grp = &gHudGauge->grp[9];
     grp->x = 102;
     grp->y = 24;

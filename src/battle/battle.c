@@ -30,7 +30,7 @@
  *               StgNav_Init init / StgNav_Term term: 0x14-byte manager at gp 0x2FEB0C with two 0xC00 buffers
  *               EftDet_Update      four sub-updates (0x1AF8D8, 0x1B0910, 0x1B10F0, 0x1B0030), skipped when paused
  *   stage       StgModel_InitStage binds the stage data from gCommonRes->0x24; BtlStage_Reset reset,
- *               BtlStage_Term term (state at gp 0x2FEBE0); func_00115950(view) and func_00115DE0(view)
+ *               BtlStage_Term term (state at gp 0x2FEBE0); StgModel_Cull(view) and StgModel_Draw(view)
  *               draw the stage for one view (skipped under BATTLE_FLAG_LOADING)
  *               BtlStage_Update      per-frame update of the 0x24xxxx stage-side systems (skipped when LOADING)
  *   effects     StgFx_Init init / StgFx_Term term / StgFx_Reset reset of a group of a dozen
@@ -42,7 +42,7 @@
  *   gfx         Ot_Init init / Ot_Term term of a 0x48-byte block at gp 0x2FE8A0;
  *               Gfx_AddDefaultEnv emits a direct GS packet (0x102208) before the fighter pass;
  *               Ot_Draw ends the fighter pass; Gfx_MarkPass(n) is an empty stub taking a pass id
- *               func_0010FF40      a full-screen pass between the first two effect passes
+ *               BtlObjDraw_Draw      a full-screen pass between the first two effect passes
  *   overlays    Font_FlushAll (0x23A2D0(0)); FontIcon_Stub23D1E0 is an empty stub
  *   menu side   Gsc_Update walks the list at 0x333B80; BtlScript_Update acts in sequence states 3 and 5 only
  */
@@ -86,10 +86,10 @@ extern void Gfx_MarkPass(s32 pass);
 extern void Ot_Init(void);
 extern void Ot_Term(void);
 extern void Ot_Draw(void);
-extern void func_0010FF40(void);
+extern void BtlObjDraw_Draw(void);
 extern void StgModel_InitStage(void);
-extern void func_00115950(s32 view);
-extern void func_00115DE0(s32 view);
+extern void StgModel_Cull(s32 view);
+extern void StgModel_Draw(s32 view);
 extern void Snd_StopBankAndResume(s32 arg);
 extern void Snd_SendFighters(void);
 extern void BtlLoad_PollObjectRequest(void);
@@ -226,8 +226,8 @@ s32 Battle_Draw(void) {
 
     Dbg_ProfMark(prof);
     Gfx_MarkPass(1);
-    func_00115950(view);
-    func_00115DE0(view);
+    StgModel_Cull(view);
+    StgModel_Draw(view);
     Dbg_ProfColor(prof, 0x80FF4040);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
@@ -235,7 +235,7 @@ s32 Battle_Draw(void) {
     Dbg_ProfColor(prof, 0x80FFFFFF);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(2);
-    func_0010FF40();
+    BtlObjDraw_Draw();
     Dbg_ProfColor(prof, 0x8040FF40);
     Dbg_ProfMark(prof);
     Gfx_MarkPass(3);
@@ -277,8 +277,8 @@ s32 Battle_DrawSplit(void) {
     for (i = 0; i < 2; i++) {
         BtlCam_SelectView(i);
         BtlCam_ApplyView(1);
-        func_00115950(gBtlCamView);
-        func_00115DE0(gBtlCamView);
+        StgModel_Cull(gBtlCamView);
+        StgModel_Draw(gBtlCamView);
     }
     Dbg_ProfColor(gBattleProf, 0x80FF4040);
     Dbg_ProfMark(gBattleProf);
@@ -287,7 +287,7 @@ s32 Battle_DrawSplit(void) {
     Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(2);
-    func_0010FF40();
+    BtlObjDraw_Draw();
     Dbg_ProfColor(gBattleProf, 0x8040FF40);
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(3);

@@ -44,8 +44,8 @@ Shen_Run = 0x002BEA48; // type:func
 // read-only strings that Shen_DrawList (still INCLUDE_ASM) refers to by address; defined as named objects in
 // late_a.c. gShenPlateFmt = "mc_menu_plate_%d", gShenIconClip = "mc_icon_play", gShenTextClip = "mc_menu_text_off"
 gShenPlateFmt = 0x002FBDA8; // size:0x11
-gShenIconClip = 0x002FBE60; // size:0xD
-gShenTextClip = 0x002FBE70; // size:0x11
+gShenIconClip = 0x002FBE60; // size:0xD force_not_migration:True
+gShenTextClip = 0x002FBE70; // size:0x11 force_not_migration:True
 
 // late_a_b.c: the confirmation window ("reconfir": yes / details / no)
 ShenCfm_Init = 0x002BEB20; // type:func

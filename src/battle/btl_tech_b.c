@@ -53,15 +53,15 @@ extern void BtlSeq_Init(void);
 extern void BtlSeq_Term(void);
 extern void BtlSeq_PreUpdate(void);
 extern s32 BtlSeq_Update(void);
-extern void func_00212F90(void);
-extern void func_0022F9A8(void);
+extern void PauseMenu_Reset(void);
+extern void BtlPause_Reset(void);
 extern void Hud_Reset(void);
 extern void Hud_Init(void);
-extern void func_00212FC8(void);
-extern void func_0022F9C8(s32 n);
+extern void PauseMenu_Init(void);
+extern void BtlPause_Init(s32 n);
 extern void Hud_Term(void);
-extern void func_00212FE0(void);
-extern void func_0022F9F0(void);
+extern void PauseMenu_Term(void);
+extern void BtlPause_Term(void);
 extern void Hud_PreUpdate(void);
 
 s32 BtlKiBlast_GetTypeOf(BtlTechBChr *chr, u32 kind);
@@ -1653,8 +1653,8 @@ s32 BtlSkill_GetValE(BtlTechBChr *chr, s32 slot) {
 
 /* Round reset: resets the three modules and the sequence, and latches whether a replay is being played. */
 void BtlGame_Reset(void) {
-    func_00212F90();
-    func_0022F9A8();
+    PauseMenu_Reset();
+    BtlPause_Reset();
     Hud_Reset();
     BtlSeq_Reset();
     if (BattleReplay_IsActive()) {
@@ -1667,11 +1667,11 @@ void BtlGame_Reset(void) {
 /* Battle start: initialises the same modules; the 0x22F9C8 module gets 2 in split screen, else 1. */
 void BtlGame_Init(void) {
     Hud_Init();
-    func_00212FC8();
+    PauseMenu_Init();
     if (Battle_IsSplitScreen()) {
-        func_0022F9C8(2);
+        BtlPause_Init(2);
     } else {
-        func_0022F9C8(1);
+        BtlPause_Init(1);
     }
     BtlSeq_Init();
 }
@@ -1679,8 +1679,8 @@ void BtlGame_Init(void) {
 /* Battle end. */
 void BtlGame_Term(void) {
     Hud_Term();
-    func_00212FE0();
-    func_0022F9F0();
+    PauseMenu_Term();
+    BtlPause_Term();
     BtlSeq_Term();
 }
 

@@ -50,13 +50,13 @@ extern void Flash_ClipSetCallbackB(Flash *flash, FlashRef *ref, void (*cb)(void)
 extern void Flash_ClipSetColor(Flash *flash, FlashRef *ref, f32 v);
 extern void Flash_ClipSetUv(Flash *flash, FlashRef *ref, FlashUv *uv);
 /* text box module, after 0x2600B0 (not decompiled): draws a line in a clip */
-extern void func_002604C0(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
+extern void TextBox_AttachLine(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
 /* the screen's backdrop (0x262BC8.., not decompiled): the dragon scene */
-extern s32 func_00262BC8(void);       /* its state: 1 = ready for input, 2 = ended */
-extern void func_00262BD8(s32 state); /* requests a state; 3 = end */
-extern void func_00262C30(void);      /* draws it */
-extern void func_00262E70(s32 dragon);
-extern void func_00262F70(void);
+extern s32 ShenScene_GetState(void);       /* its state: 1 = ready for input, 2 = ended */
+extern void ShenScene_SetState(s32 state); /* requests a state; 3 = end */
+extern void ShenScene_Update(void);      /* draws it */
+extern void ShenScene_Init(s32 dragon);
+extern void ShenScene_Term(void);
 extern void MsgWin_Init4(u32 *pack, void *text, s32 side, void *unused) __asm__("MsgWin_Init");
 extern void Dialog_Init(u32 *file, u32 *msgTbl, s32 size);
 extern void Dialog_Term(void);
@@ -442,7 +442,7 @@ void Shen_DrawList(ShenWork *work) {
                     line += 11;
                 }
             }
-            func_002604C0(flash, &ref, 0, 0, line, &work->box[i]);
+            TextBox_AttachLine(flash, &ref, 0, 0, line, &work->box[i]);
         }
         if (i == 3) {
             node = work->out;
@@ -480,7 +480,7 @@ void Shen_SetupGetWin(ShenWork *work) {
  * One Rand_Range(100) draw `r`. With bit 0 of gSaveData->slot[8].flags set: r < 40 dragon 0, 40..59 dragon 1,
  * 60..99 dragon 2. Without it: r < 50 dragon 0, else dragon 1 (dragon 2 cannot come). Dragon 1 lists seven
  * wishes and grants three; the others list four and grant one. The dragon number also goes to the backdrop
- * (func_00262E70).
+ * (ShenScene_Init).
  *
  * NON-MATCHING: 4 of 121 instructions, a swap of two registers. Both hold `&work->list`: s2, computed once per
  * arm, and s4, a copy made after ShenList_Build. The original passes the copy to ShenList_Find in the loop and
@@ -517,7 +517,7 @@ void Shen_BuildList(ShenWork *work, ShenWishFile *file) {
     if (r >= b && r < c) {
         work->dragon = SHEN_DRAGON_2;
         work->wishMax = 1;
-        func_00262E70(SHEN_DRAGON_2);
+        ShenScene_Init(SHEN_DRAGON_2);
         ShenList_Build(&work->list, 4);
         list = &work->list;
         ShenList_Fill(list, file->list2, 4);
@@ -525,7 +525,7 @@ void Shen_BuildList(ShenWork *work, ShenWishFile *file) {
     } else if (r >= a && r < b) {
         work->dragon = SHEN_DRAGON_1;
         work->wishMax = 3;
-        func_00262E70(SHEN_DRAGON_1);
+        ShenScene_Init(SHEN_DRAGON_1);
         ShenList_Build(&work->list, 7);
         list = &work->list;
         ShenList_Fill(list, file->list1, 7);
@@ -533,7 +533,7 @@ void Shen_BuildList(ShenWork *work, ShenWishFile *file) {
     } else {
         work->dragon = SHEN_DRAGON_0;
         work->wishMax = 1;
-        func_00262E70(SHEN_DRAGON_0);
+        ShenScene_Init(SHEN_DRAGON_0);
         ShenList_Build(&work->list, 4);
         list = &work->list;
         ShenList_Fill(list, file->list0, 4);
@@ -613,7 +613,7 @@ void Shen_Draw(ShenWork *work) {
     s32 i;
 
     if (!(work->flags & SHEN_FLAG_SHOWN)) {
-        if (func_00262BC8() == 1) {
+        if (ShenScene_GetState() == 1) {
             work->flags |= SHEN_FLAG_SHOWN | SHEN_FLAG_OPENING;
         }
     } else if (work->flags & SHEN_FLAG_OPENING) {
@@ -622,7 +622,7 @@ void Shen_Draw(ShenWork *work) {
         work->flags ^= SHEN_FLAG_OPENING;
     }
     Shen_DrawList(work);
-    func_00262C30();
+    ShenScene_Update();
     for (i = 0; i < SHEN_FLASH_COUNT; i++) {
         Flash_Draw(&work->flash[i]);
     }
@@ -645,7 +645,7 @@ void Shen_Term(ShenWork *work) {
     IconWin_Term();
     Dialog_Term();
     MsgWin_Term();
-    func_00262F70();
+    ShenScene_Term();
     GetWin_Term();
     if (work->res != NULL) {
         Heap_Free(work->res);
@@ -701,7 +701,7 @@ s32 Shen_UpdateTalk(ShenWork *work) {
     } else if (work->flags & SHEN_FLAG_BYE) {
         work->timer--;
         if (work->timer == -1) {
-            func_00262BD8(3);
+            ShenScene_SetState(3);
             work->flags ^= SHEN_FLAG_BYE;
         }
     } else {
@@ -718,7 +718,7 @@ void Shen_Update(ShenWork *work) {
     if (work->flags & SHEN_FLAG_EXIT) {
         return;
     }
-    ready = func_00262BC8();
+    ready = ShenScene_GetState();
     if (ready != 1) {
         return;
     }
@@ -817,7 +817,7 @@ void Shen_Update(ShenWork *work) {
 
 /* Starts the fade-out when the backdrop has ended; returns 1 when the screen is black. */
 s32 Shen_UpdateExit(ShenWork *work) {
-    if (func_00262BC8() == 2 && !(work->flags & SHEN_FLAG_EXIT)) {
+    if (ShenScene_GetState() == 2 && !(work->flags & SHEN_FLAG_EXIT)) {
         work->flags |= SHEN_FLAG_EXIT;
     }
     if (work->flags & SHEN_FLAG_EXIT) {

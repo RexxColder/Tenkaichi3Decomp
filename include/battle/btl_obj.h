@@ -20,7 +20,7 @@
  *   0x44FC4  f32 unk44FC4               = 2.0 at init; getter / setter only
  *   0x45000  part pool                  512 nodes of 0xE0 + free list   (size 0x1C010)
  *   0x61010  pool                       4 nodes of 0x70 + free list     (size 0x1D0)
- *   0x611E0  pool                       free list at +0xA140; initialised by func_001146E0
+ *   0x611E0  pool                       free list at +0xA140; initialised by ObjShadow_InitPool
  *   0x6B330  BtlObjLight light          the one directional light of the battle (0x40)
  *   0x6B370  BtlObjVis vis              per-view draw lists (0x7C)
  *   0x6B3EC  BtlResWork res             model resource slots (0x34C)
@@ -171,7 +171,7 @@ typedef struct BtlObjBody {
 /* A battle object. Partial: only the fields this file touches or other modules were seen to use. */
 typedef struct BtlObj {
     /* 0x0000 */ s32 type;       /* BTL_OBJ_TYPE_*: first argument of BtlObj_Create */
-    /* 0x0004 */ s32 unk04;      /* 0 = skipped by every pass (written outside this file, by func_00113598) */
+    /* 0x0004 */ s32 unk04;      /* 0 = skipped by every pass (written outside this file, by BtlObjMdl_Create) */
     /* 0x0008 */ s32 active;     /* third argument of BtlObj_Create; 0 = skipped by every pass */
     /* 0x000C */ s32 chara;      /* (model file id - 0x590) / 10 */
     /* 0x0010 */ s32 id;         /* index in gBtlObjTbl */
@@ -271,7 +271,7 @@ typedef struct BtlObjPool70Work {
     /* 0x1CC */ s32 pad;
 } BtlObjPool70Work; /* size 0x1D0 */
 
-/* Third pool; elements are not touched in this file (func_001146E0 fills the free list). */
+/* Third pool; elements are not touched in this file (ObjShadow_InitPool fills the free list). */
 typedef struct BtlObjPool3Work {
     /* 0x0000 */ u8 nodes[0xA140];
     /* 0xA140 */ SList free;

@@ -371,3 +371,76 @@ src/cri/ or src/sys/late_a. Overlay linking (DBZP.yaml: src_path, per-file .roda
 .data, G_FLAGS already set) is a later integrator job, after all chunks report.
 Overlay facts so far are in docs/systems/menu_overlay.md (mode table, story mode, duel mode,
 the versus and team battle hand-offs).
+
+## Tenth step: the rest of the main-executable C files linked (2026-10-04)
+
+Gate passed after each of the eight modules and at the end: ninja exit 0, both .ok files, both
+images identical, `scripts/fdiff.py` clean on all 205 linked files (6420 functions). Main
+executable 86.91% (was 75.62%); INCLUDE_ASM in linked files 174 (166 + 8 that came with the new
+files: `Flash_Advance`, `ObjShadow_BuildPacket`, `BtlText_PutSprite`, `HudPrompt_UpdateCue`,
+`TextBox_DrawClip`, `ShenScene_StepSeq`, `Shen_DrawList`, `Shen_BuildList`; all in
+docs/open_questions.md). Nothing was backed out. Every game-code range of the main executable
+that has C is now linked; what is left in assembly there is the VU0 chunk 0x10FFD0..0x1101D0,
+0x240C68..0x240DB8 (`StgVu_Rotate*`), the middleware / SDK (0x269228..0x2BD230 except adxt.c) and
+the INCLUDE_ASM functions.
+
+- **Movie player**: gfxm_c.c 0x10AD58, gfxm_d.c 0x10EC18..0x10FB40. Three objects with gfxm_b_c.c
+  (not merged: same image, and the `Flash*` / `FlashD*` headers and the local views in dialog.c /
+  view_a*.c stay apart). `.rodata` 0x2EB740, `.sdata` 0x2FE8E0.
+- **Battle object renderer**: gfxm_d_b.c 0x10FB40, `asm` 0x10FFD0, gfxm_d_c.c 0x1101D0, gfxm_e.c
+  0x112A30, gfxm_e_b.c 0x1131D8, gfxm_e_c.c 0x114860, gfxm_e_d.c 0x114B18..0x115170.
+- **Stage model draw + memory card**: stgm_a.c 0x115478, stgm_a_b.c 0x116B98, mcflow_a.c
+  0x1198D8..0x11EC10. `gStgAnimTable` is now defined in stg_d_b.c, `gMcCardStep` / `gMcCardCmd`
+  in stgm_a_b.c, `gMcFlow` in mcflow_a.c (all `.sdata`).
+- **Pause menu**: hud_0.c 0x2129C8, hud_0_b.c 0x213238, hud_0_c.c 0x215010..0x215420.
+- **HUD rest**: hud_c.c 0x222400, hud_c_b.c 0x222730, hud_c_c.c 0x224B50, hud_d.c 0x226488,
+  hud_d_b.c 0x226500, hud_e.c 0x22A750, hud_e_b.c 0x22B4F8, hud_e_c.c 0x22EC08, hud_e_d.c
+  0x22F998, hud_e_e.c 0x22FC40..0x22FD10. Ten objects (not merged: the four `.sdata` work
+  pointers land at 0x2FEB58 / 5C / 60 / 68 either way); `gHudCombo` is defined in hud_c_b.c.
+- **Password codec**: misc_a.c 0x252F68, misc_a_b.c 0x253ED8..0x254A20.
+- **Menu support rest**: view_b.c 0x2600B0, view_b_b.c 0x260D20, view_b_c.c 0x2614B0, view_b_d.c
+  0x261ED8, view_b_e.c 0x262FF0..0x263098 (view_b.c not appended to view_a_e.c: same image).
+- **Wish screen** (-G0): late_a.c 0x2BD230, late_a_b.c 0x2BEB20, late_a_c.c 0x2BF370..0x2BF6B0,
+  split off the end of the big library chunk; `.rodata` 0x2FBDA8 / 0x2FC0F0, `.data` 0x2EB34C /
+  0x2EB350. configure.py's `G_FLAGS` keys are path prefixes now (`"src/sys/late_a"`).
+Data placement of each file: the "Linked layout" line of its section in docs/systems/.
+
+Link-time problems (none visible to fdiff), fixed at the source:
+1. gfxm_c.c called the 14 clip-list functions of gfxm_d.c by names of its own (`FlashClips_*`);
+   renamed to gfxm_d's `FlashClipList_*` (mapping taken from the original call targets).
+2. mcflow_a.c had private `#define` aliases for the card layer. Applying the listed names turned
+   them into macros over real names (`#define McCard_GetInfo McCard_Probe`), so the wrong
+   functions were called and it no longer compiled. The aliases are removed and the calls use the
+   names of config/symbols/stgm_a.txt (checked relocation by relocation against the image).
+3. hud_e_b.c: its `.rodata` ends at 0x2F2164 and the next object's table (col_a) is at 0x2F2170;
+   an 8-byte assembly chunk `[0x1F2168, rodata]` carries the original's 16-byte padding.
+4. Password tables: the assembly `.sdata` chunk behind them starts 4 bytes early (0x1FF05C).
+5. view_b_d.c begins at 0x261ED8 with `ShenScene_StepSeq` (INCLUDE_ASM under `#else`), not at
+   0x262890; its `.rodata` (four INCLUDE_RODATA tables, then the jump table) needed
+   `RODATA_ALIGN16()` in front of the first table, and the object also owns the six words at
+   0x2F3470.
+6. late_a.c: with a `.rodata` subsegment splat moved the two strings `Shen_DrawList` uses into
+   that function's .s file, where the C already defines them: `force_not_migration:True` on
+   `gShenIconClip` / `gShenTextClip` in config/symbols/late_a.txt.
+7. late_a*.c refer to overlay symbols from C (`D_003B0EB4`, `func_00399240`, `func_00399430`,
+   `func_00399478`, `func_00399730`, `func_00399760`); splat only writes undefined-symbol
+   entries for assembly references, so they are defined in config/linker_script_extra.ld. Give
+   them the overlay's names when config/symbols/menu_*.txt are listed.
+8. late_a_c.c's `.data` ends at 0x2EB354: the `.eh_frame` chunk starts at 0x1EB354 (4 bytes of
+   padding first).
+9. A stale-object trap: objects do not depend on asm/nonmatchings/*.s, so after a re-split that
+   changes one (a jump table moving into a function's .s) the object must be deleted by hand.
+Comment fix: the character grid markers were swapped. 0xA1 is the random cell and 0xA3 the saved
+custom characters (`CHRGRID_ID_RANDOM` / `CHRGRID_ID_CUSTOM` and the two `CHRGRID_NO_*` flags in
+view_a_e.c exchanged names; the code is unchanged and re-diffed).
+
+Helper scripts of this step: build/scratch_integ10/ (`go.sh` = configure + gate, `pre.sh` =
+configure, apply listed names, compile, locate data, check relocations; `rc.py` compares every
+`.text` relocation of an object with what the original image refers to at that place and prints
+names that are unlisted or point elsewhere; `od.py` = objdata.py that resolves jump tables;
+`starts.py`, `conf.py`, `yed.py`, `ren.py`, `an.py`).
+
+Left as it is: stale chunks of earlier splits under asm/ (more of them now; assembled, not
+linked; progress.py's "functions still in assembly" counts their labels). include/sys/lib_a.h
+(the forwarding header) has no user left and can be deleted. The menu overlay is untouched
+(nothing under src/menu/, include/menu/ or config/symbols/menu_*.txt was read into the build).

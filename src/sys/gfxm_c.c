@@ -1155,48 +1155,48 @@ void Flash_FindLabel(Flash *flash, char *parent, char *name, FlashRef *out) {
 }
 
 /* The clip-list functions of the next file (src/sys/gfxm_d.c), declared here as this file calls them. */
-extern void FlashClips_PlayLabel(FlashClipList *list, FlashRef *ref, char *label);
-extern void FlashClips_SetCallbackA(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
-extern void FlashClips_SetCallbackB(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
-extern void FlashClips_SetCallbackC(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
-extern void FlashClips_SetFlag(FlashClipList *list, FlashRef *ref, s32 mask, u8 on);
-extern void FlashClips_SetOverride(FlashClipList *list, FlashRef *ref, s32 mask, u8 on);
-extern void FlashClips_SetOffset(FlashClipList *list, FlashRef *ref, s32 x, s32 y);
-extern void FlashClips_SetScale(FlashClipList *list, FlashRef *ref, f32 x, f32 y);
-extern void FlashClips_SetAlpha(FlashClipList *list, FlashRef *ref, f32 alpha);
-extern void FlashClips_SetUnk60(FlashClipList *list, FlashRef *ref, f32 value);
-extern void FlashClips_SetUser(FlashClipList *list, FlashRef *ref, s32 user);
-extern void FlashClips_SetRect(FlashClipList *list, FlashRef *ref, void *rect);
-extern void FlashClips_GetPos(FlashClipList *list, FlashRef *ref, s32 *x, s32 *y);
-extern f32 FlashClips_GetAlpha(FlashClipList *list, FlashRef *ref);
+extern void FlashClipList_GotoLabel(FlashClipList *list, FlashRef *ref, char *label);
+extern void FlashClipList_SetPreDraw(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
+extern void FlashClipList_SetPostDraw(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
+extern void FlashClipList_SetDrawOver(FlashClipList *list, FlashRef *ref, void *fn, void *arg);
+extern void FlashClipList_SetFlags(FlashClipList *list, FlashRef *ref, s32 mask, u8 on);
+extern void FlashClipList_SetOverride(FlashClipList *list, FlashRef *ref, s32 mask, u8 on);
+extern void FlashClipList_SetOffset(FlashClipList *list, FlashRef *ref, s32 x, s32 y);
+extern void FlashClipList_SetScale(FlashClipList *list, FlashRef *ref, f32 x, f32 y);
+extern void FlashClipList_SetAlpha(FlashClipList *list, FlashRef *ref, f32 alpha);
+extern void FlashClipList_SetColor(FlashClipList *list, FlashRef *ref, f32 value);
+extern void FlashClipList_SetTex(FlashClipList *list, FlashRef *ref, s32 user);
+extern void FlashClipList_SetUv(FlashClipList *list, FlashRef *ref, void *rect);
+extern void FlashClipList_GetPos(FlashClipList *list, FlashRef *ref, s32 *x, s32 *y);
+extern f32 FlashClipList_GetAlpha(FlashClipList *list, FlashRef *ref);
 void FlashClipList_Play(FlashClipList *list, FlashRef *ref);
 void FlashClipList_Stop(FlashClipList *list, FlashRef *ref);
 
 /* Jumps a clip (and its namesakes) to a label of its own timeline. */
 void Flash_ClipGotoLabel(Flash *flash, FlashRef *ref, char *label) {
     if (ref->index >= 0) {
-        FlashClips_PlayLabel(flash->clips, ref, label);
+        FlashClipList_GotoLabel(flash->clips, ref, label);
     }
 }
 
 /* Sets a clip's callback run before its children are drawn (FlashClip.preDraw / preArg). */
 void Flash_ClipSetCallbackA(Flash *flash, FlashRef *ref, void *fn, void *arg) {
     if (ref->index >= 0) {
-        FlashClips_SetCallbackA(flash->clips, ref, fn, arg);
+        FlashClipList_SetPreDraw(flash->clips, ref, fn, arg);
     }
 }
 
 /* Sets a clip's callback run after everything of it is drawn (FlashClip.postDraw / postArg). */
 void Flash_ClipSetCallbackB(Flash *flash, FlashRef *ref, void *fn, void *arg) {
     if (ref->index >= 0) {
-        FlashClips_SetCallbackB(flash->clips, ref, fn, arg);
+        FlashClipList_SetPostDraw(flash->clips, ref, fn, arg);
     }
 }
 
 /* Sets a clip's callback run after its children, which gets the clip's drawing state (FlashClip.drawOver). */
 void Flash_ClipSetCallbackC(Flash *flash, FlashRef *ref, void *fn, void *arg) {
     if (ref->index >= 0) {
-        FlashClips_SetCallbackC(flash->clips, ref, fn, arg);
+        FlashClipList_SetDrawOver(flash->clips, ref, fn, arg);
     }
 }
 
@@ -1213,34 +1213,34 @@ s32 Flash_ClipSetFlags(Flash *flash, FlashRef *ref, s32 props, u8 on) {
             }
         }
         if (props & 2) {
-            FlashClips_SetFlag(flash->clips, ref, FLASH_CLIP_VISIBLE, on);
+            FlashClipList_SetFlags(flash->clips, ref, FLASH_CLIP_VISIBLE, on);
         }
         if (props & 0x400) {
-            FlashClips_SetFlag(flash->clips, ref, FLASH_CLIP_FREE_RUN, on);
+            FlashClipList_SetFlags(flash->clips, ref, FLASH_CLIP_FREE_RUN, on);
         }
         if (props & 4) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_FLIPX, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_FLIPX, on);
         }
         if (props & 8) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_FLIPY, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_FLIPY, on);
         }
         if (props & 0x10) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_NO_OFS, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_NO_OFS, on);
         }
         if (props & 0x20) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_ADD, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_ADD, on);
         }
         if (props & 0x40) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_SUB, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_SUB, on);
         }
         if (props & 0x80) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_MASK, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_MASK, on);
         }
         if (props & 0x100) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_MASK_SET, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_MASK_SET, on);
         }
         if (props & 0x200) {
-            FlashClips_SetOverride(flash->clips, ref, FLASH_OV_REPEAT, on);
+            FlashClipList_SetOverride(flash->clips, ref, FLASH_OV_REPEAT, on);
         }
     }
 }
@@ -1248,49 +1248,49 @@ s32 Flash_ClipSetFlags(Flash *flash, FlashRef *ref, s32 props, u8 on) {
 /* Gives a clip a position offset. */
 void Flash_ClipSetOffset(Flash *flash, FlashRef *ref, s32 x, s32 y) {
     if (ref->index >= 0) {
-        FlashClips_SetOffset(flash->clips, ref, x, y);
+        FlashClipList_SetOffset(flash->clips, ref, x, y);
     }
 }
 
 /* Gives a clip a scale; negative values are refused. */
 void Flash_ClipSetScale(Flash *flash, FlashRef *ref, f32 x, f32 y) {
     if (ref->index >= 0 && !(x < 0.0f) && !(y < 0.0f)) {
-        FlashClips_SetScale(flash->clips, ref, x, y);
+        FlashClipList_SetScale(flash->clips, ref, x, y);
     }
 }
 
 /* Gives a clip an alpha multiplier; a negative value is refused. */
 void Flash_ClipSetAlpha(Flash *flash, FlashRef *ref, f32 alpha) {
     if (ref->index >= 0 && !(alpha < 0.0f)) {
-        FlashClips_SetAlpha(flash->clips, ref, alpha);
+        FlashClipList_SetAlpha(flash->clips, ref, alpha);
     }
 }
 
 /* Gives a clip a colour multiplier (r, g, b); a negative value is refused. */
 void Flash_ClipSetColor(Flash *flash, FlashRef *ref, f32 color) {
     if (ref->index >= 0 && !(color < 0.0f)) {
-        FlashClips_SetUnk60(flash->clips, ref, color);
+        FlashClipList_SetColor(flash->clips, ref, color);
     }
 }
 
 /* Makes a clip draw with texture `tex` of its image's texture file (a palette or a frame of a strip). */
 void Flash_ClipSetTex(Flash *flash, FlashRef *ref, s32 tex) {
     if (ref->index >= 0) {
-        FlashClips_SetUser(flash->clips, ref, tex);
+        FlashClipList_SetTex(flash->clips, ref, tex);
     }
 }
 
 /* Replaces a clip's texture rectangle (four texel coordinates). */
 void Flash_ClipSetUv(Flash *flash, FlashRef *ref, void *rect) {
     if (ref->index >= 0) {
-        FlashClips_SetRect(flash->clips, ref, rect);
+        FlashClipList_SetUv(flash->clips, ref, rect);
     }
 }
 
 /* Returns a clip's screen position. */
 void Flash_ClipGetPos(Flash *flash, FlashRef *ref, s32 *x, s32 *y) {
     if (ref->index >= 0) {
-        FlashClips_GetPos(flash->clips, ref, x, y);
+        FlashClipList_GetPos(flash->clips, ref, x, y);
     }
 }
 
@@ -1301,7 +1301,7 @@ f32 Flash_ClipGetAlpha(Flash *flash, FlashRef *ref) {
     if (ref->index < 0) {
         return alpha;
     }
-    return FlashClips_GetAlpha(flash->clips, ref);
+    return FlashClipList_GetAlpha(flash->clips, ref);
 }
 
 /* Allocates the pool of placed shapes. */

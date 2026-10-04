@@ -30,7 +30,9 @@ CC_AS_FLAGS = "-EL -march=r5900 -mabi=o64 -no-pad-sections -mno-pdr -Iinclude"
 # matches as plain C (the original reloads fields after stores), so it is taken as original.
 CC = "tools/ee-gcc2.96/bin/ee-gcc"
 CC_FLAGS = "-O2 -fno-strict-aliasing -Iinclude"
-G_FLAGS = {"src/cri": "-G0", "src/menu": "-G0"}
+# Keys are path prefixes: a directory (with its slash) or the stem of a group of files. The wish screen
+# (src/sys/late_a*.c, linked behind the libraries) was built with -G0 like the middleware around it.
+G_FLAGS = {"src/cri/": "-G0", "src/menu/": "-G0", "src/sys/late_a": "-G0"}
 G_DEFAULT = "-G8"
 
 # Each target is one binary that is split, rebuilt and compared on its own.
@@ -152,7 +154,7 @@ def write_ninja():
         for src, obj in zip(asm, objs):
             out.append(f"build {obj}: as {src} | include/macro.inc include/labels.inc")
         for src, obj in zip(srcs, objs[len(asm):]):
-            gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d + "/")), G_DEFAULT)
+            gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d)), G_DEFAULT)
             out.append(f"build {obj}: cc {src} | {headers} include/gcc_prelude.inc")
             out.append(f"  gflag = {gflag}")
         out += [

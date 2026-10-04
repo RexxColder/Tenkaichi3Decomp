@@ -95,7 +95,8 @@ steps while paused; the bar-count update runs from a draw callback.
 Inferred: status icon bits 0..3 = stat modifiers 0, 3, 1, 2; `kiReserve` is a pulsing red
 layer under the ki bars of unknown meaning; node 10 is the powered-up aura.
 
-## Notice part: announcements (0x226488..0x22A750; src/battle/hud_d.c, hud_d_b.c, not linked yet; names in config/symbols/hud_d.txt)
+## Notice part: announcements (0x226488..0x22A750; src/battle/hud_d.c, hud_d_b.c, linked; names in config/symbols/hud_d.txt)
+Linked layout: hud_d_b.c `.rodata` 0x2F1E00 (0x180), `.lit4` 0x2FE250 (0xC4).
 
 All 28 functions match. hud_d.c (6 functions) is the tail of the HUD sprite / node library
 (`HudSprite_Draw`, `HudNode_Show / SetPos / SetOfs / SetRot`; `HudNode` +8 / +0xC are two
@@ -116,7 +117,10 @@ hud_e.c; final name hud_notice.c.
 - Original quirks: the 0.6 s hold of announcements 3 / 8 never happens (the wrong ramp is
   stepped); in the winner announcement copy 1 is always hidden.
 
-## Gauge tail, combo part, sprite library (0x222400..0x226488; src/battle/hud_c.c, hud_c_b.c, hud_c_c.c, not linked yet; names in config/symbols/hud_c.txt)
+## Gauge tail, combo part, sprite library (0x222400..0x226488; src/battle/hud_c.c, hud_c_b.c, hud_c_c.c, linked; names in config/symbols/hud_c.txt)
+Linked layout: hud_c_b.c `.rodata` 0x2F1C40, `.lit4` 0x2FE20C, `.sdata` 0x2FEB58 (`gHudCombo`, defined in the file);
+hud_c_c.c `.rodata` 0x2F1DD0. The files of 0x222400..0x22FD10 are linked as separate objects: the four work pointers
+(combo 0x2FEB58, notice 0x2FEB5C, prompt 0x2FEB60, timer 0x2FEB68) land in the same places either way.
 
 All 45 functions match. hud_c.c = `HudGauge_Term` / `HudGauge_Reset` (0x222400 / 0x2224C8;
 NOT the timer, which is at 0x22F340), to be appended to the gauge file. hud_c_b.c = combo part
@@ -146,7 +150,9 @@ blocks, +0x28 mark, +0x30 tex0, +0x38 / +0x3C pointers; `HudSprite.texSub` is un
 Original quirks: the text line's slide width is always zero (it only fades); a 1.2 s ramp in
 the hit counter that nothing reads; `HudRes_UploadTex` uses the wrong entry's palette width.
 
-## Notice tail, prompt part, timer part, pause request (0x22A750..0x22FD10; src/battle/hud_e.c .. hud_e_e.c, not linked yet; names in config/symbols/hud_e.txt)
+## Notice tail, prompt part, timer part, pause request (0x22A750..0x22FD10; src/battle/hud_e.c .. hud_e_e.c, linked; names in config/symbols/hud_e.txt)
+Linked layout: hud_e.c `.rodata` 0x2F1F80, `.lit4` 0x2FE314, `.sdata` 0x2FEB5C; hud_e_b.c `.rodata` 0x2F1FD0 (0x194 with
+the jump table of `HudPrompt_UpdateCue`), `.lit4` 0x2FE330, `.sdata` 0x2FEB60; hud_e_c.c `.sdata` 0x2FEB68.
 
 57 of 58 functions match; `HudPrompt_UpdateCue` (0x22C838) is INCLUDE_ASM, registers only.
 Final names: hud_notice.c (hud_d_b.c + hud_e.c), hud_prompt.c, hud_timer.c, btl_pause.c;

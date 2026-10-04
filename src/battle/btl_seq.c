@@ -10,7 +10,7 @@
  * tested against work->unk10), optionally followed by "&ddd" (unlock condition), then a tag:
  *   '$n'   page n title          '*abc' entry (three digits a, b, c)      '%0' / '%1' detail lines
  *   '#'    note                  '@'    end of the script
- * Lines are separated by func_002153E0(). BtlTextList / BtlTextWork are in battle/btl_seq.h.
+ * Lines are separated by BtlText_NextLine(). BtlTextList / BtlTextWork are in battle/btl_seq.h.
  *
  * What the matching code says about the original source file (see also the note above BtlSeq_FirstState):
  * - BtlText_DrawPart (0x215420) was defined in the same file as, and above, BtlText_DrawList: two branches of
@@ -22,12 +22,12 @@
 extern f32 gBtlTextAlpha;
 extern u64 *gSaveData; /* local view: only charaBits (+0xC10) is used here */
 
-extern BtlTextWork *func_002145C0(void);
-extern u16 *func_00214FE0(void);
-extern u16 *func_00214FF0(void);
-extern u16 *func_002153E0(u16 *line);        /* start of the next line */
-extern void func_00215350(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1); /* GS scissor */
-extern void func_00215140(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u, s32 v, s32 w, s32 h, u32 color, s32 part);
+extern BtlTextWork *BtlMenu_GetWork(void);
+extern u16 *BtlMenu_GetScript(void);
+extern u16 *BtlMenu_GetScript2(void);
+extern u16 *BtlText_NextLine(u16 *line);        /* start of the next line */
+extern void BtlText_PutScissor(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1); /* GS scissor */
+extern void BtlText_PutSprite(void *pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u, s32 v, s32 w, s32 h, u32 color, s32 part);
 extern s32 BtlCtrl_TestMemberUnk70(s32 side);
 extern s32 Font_GetCmdCount(void);
 extern void Font_Flush(s32 font);
@@ -52,7 +52,7 @@ extern s32 Battle_IsSplitScreen(void);
 
 /* Draws one part of the list sprite sheet: a w x h rectangle at (x, y); a negative h flips it vertically. */
 void BtlText_DrawPart(void *pkt, s32 x, s32 y, s32 w, s32 h, s32 part) {
-    func_00215140(pkt, x, y, x + w, y + h, 0, 0, w, h < 0 ? -h : h, 0x80808080, part);
+    BtlText_PutSprite(pkt, x, y, x + w, y + h, 0, 0, w, h < 0 ? -h : h, 0x80808080, part);
 }
 
 /* Draws the icon of a page title: digit '0'..'8' picks part 7..14 ('7' and '8' share the last one). */
@@ -95,7 +95,7 @@ static s32 BtlText_IsLineDimmed(s32 page, s32 entry, s32 side);
 
 /* Reads the mask digit of a line, steps over the two leading characters and tells if the line is shown. */
 s32 BtlText_CheckLineMask(u16 **cursor, s32 side) {
-    BtlTextWork *work = func_002145C0();
+    BtlTextWork *work = BtlMenu_GetWork();
     u16 *p = *cursor;
     u32 mask = 0;
     s32 shift;
@@ -137,7 +137,7 @@ s32 BtlText_CheckLineMask(u16 **cursor, s32 side) {
 
 /* Steps over an "&ddd" unlock prefix; 0 when the line is locked (character ddd not unlocked in the save). */
 s32 BtlText_CheckUnlock(u16 **cursor) {
-    BtlTextWork *work = func_002145C0();
+    BtlTextWork *work = BtlMenu_GetWork();
     s32 ret = 1;
     u16 *p = *cursor;
 
@@ -192,14 +192,14 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
     u16 *line;
     s32 h;
 
-    work = func_002145C0();
+    work = BtlMenu_GetWork();
     go = 1;
     page = -1;
     side = work->side;
     y = y0;
     entry = 0;
     list = &work->list[side];
-    p = func_00214FE0();
+    p = BtlMenu_GetScript();
     lineH = Font_GetGlyphHeight() * 20;
     if (p == NULL) {
         return;
@@ -216,15 +216,15 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
     Font_SetShadowColorRGBA(0, 0x10, 0x10, 0x40);
     if (mode == 0) {
         Font_SetClip(x0, y0, x1, y1);
-        func_00215350(pkt, x0, y0, x1, y1);
+        BtlText_PutScissor(pkt, x0, y0, x1, y1);
     } else {
         Font_SetClip(x0, y0 - 7, x1, y1 + 7);
-        func_00215350(pkt, x0, y0 - 7, x1, y1 + 7);
+        BtlText_PutScissor(pkt, x0, y0 - 7, x1, y1 + 7);
     }
     p += 1;
     while (go && *p != 0) {
         if (BtlText_CheckLineMask(&p, side) == 0) {
-            p = func_002153E0(p);
+            p = BtlText_NextLine(p);
             continue;
         }
         if (BtlText_CheckUnlock(&p) == 0) {
@@ -242,7 +242,7 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
             break;
         }
         if (tag != '@' && page != list->page) {
-            p = func_002153E0(line);
+            p = BtlText_NextLine(line);
             continue;
         }
         if (tag != '$' && BtlText_IsLineDimmed(page, entry, side) != 0) {
@@ -252,13 +252,13 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
             switch (tag) {
             case '$':
                 Font_PushStyle();
-                func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
+                BtlText_PutScissor(pkt, 0, 0, 0x1FF, 0x1BF);
                 Font_SetClip(0, 0, 0x1FF, 0x1BF);
                 Font_SetColorRGBA(0xFF, 0xFF, 0xFF, 0x80);
                 Font_SetShadowColorRGBA(0x56, 0x3D, 0x39, 0x80);
                 Font_PrintAt(x0 + 0x1E, y0 - 0x22, p + 2);
                 BtlText_DrawPageIcon(pkt, x0, y0 - 0x28, p[1]);
-                func_00215350(pkt, x0, y0, x1, y1);
+                BtlText_PutScissor(pkt, x0, y0, x1, y1);
                 Font_PopStyle();
                 break;
             case '*':
@@ -366,10 +366,10 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
             }
         }
         gBtlTextAlpha = 1.0f;
-        p = func_002153E0(p);
+        p = BtlText_NextLine(p);
     }
     Font_PopStyle();
-    func_00215350(pkt, 0, 0, 0x1FF, 0x1BF);
+    BtlText_PutScissor(pkt, 0, 0, 0x1FF, 0x1BF);
 }
 
 /* Draws the scroll bar of the current page: the frame, and the thumb when there are more than 7 entries. */
@@ -380,7 +380,7 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
  * the add is done in place (`addiu s2,s2,27` instead of `addiu t0,s2,27`). */
 void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
     s32 visible = 7;
-    BtlTextWork *work = func_002145C0();
+    BtlTextWork *work = BtlMenu_GetWork();
     BtlTextList *list = &work->list[work->side];
     s32 h = y1 - y0;
     s32 half = h / 2;
@@ -418,12 +418,12 @@ void BtlText_CountEntries(void) {
     u16 *p;
     s32 go = 1;
     s32 page = -1;
-    BtlTextWork *work = func_002145C0();
+    BtlTextWork *work = BtlMenu_GetWork();
     s32 side = work->side;
     BtlTextList *list = &work->list[side];
     s32 i;
 
-    p = func_00214FE0();
+    p = BtlMenu_GetScript();
     if (p == NULL) {
         return;
     }
@@ -436,7 +436,7 @@ void BtlText_CountEntries(void) {
         s32 tag;
 
         if (BtlText_CheckLineMask(&p, side) == 0) {
-            p = func_002153E0(p);
+            p = BtlText_NextLine(p);
             continue;
         }
         BtlText_CheckUnlock(&p);
@@ -455,7 +455,7 @@ void BtlText_CountEntries(void) {
             go = 0;
             break;
         }
-        p = func_002153E0(p);
+        p = BtlText_NextLine(p);
     }
 }
 
@@ -467,7 +467,7 @@ u16 *BtlText_FindEntry(s32 n) {
     u16 *ret = NULL;
 
 
-    p = func_00214FF0();
+    p = BtlMenu_GetScript2();
     if (p == NULL) {
         return;
     }
@@ -487,7 +487,7 @@ u16 *BtlText_FindEntry(s32 n) {
             go = 0;
             break;
         }
-        p = func_002153E0(p);
+        p = BtlText_NextLine(p);
     }
     return ret;
 }
@@ -570,17 +570,17 @@ extern void ScrXfade_Start(s32 a, f32 seconds);
 extern s32 BtlScript_IsEventRunning(void);
 extern void BtlScript_AbortEvents(void);
 extern u8 *BtlScript_GetCurrentEvent(void);
-extern void func_0022AB50(s32 id);          /* HUD announcement */
+extern void HudNotice_Show(s32 id);          /* HUD announcement */
 extern s32 BtlCharApi_AnyHasFlag128(void);             /* any character has flag 0x128 */
 extern s32 BtlCharApi_HasMemberUnk70(s32 side);
 extern s32 BtlCtrl_TestFlag7(s32 side);         /* character flag 7 */
 extern s32 BtlCtrl_IsTeamDead(s32 side);         /* every character of the side has no health */
-extern s32 func_0022FB90(void);
-extern void func_0022FBB0(s32 pad);
-extern s32 func_0022FBD8(void);
-extern s32 func_0022FC20(void);
-extern s32 func_00212FF8(s32 a, s32 b);     /* pause / result menu update */
-extern void func_00213220(void);
+extern s32 BtlPause_GetPadCount(void);
+extern void BtlPause_SetPad(s32 pad);
+extern s32 BtlPause_GetMenuPad(void);
+extern s32 BtlPause_GetPad(void);
+extern s32 PauseMenu_Update(s32 a, s32 b);     /* pause / result menu update */
+extern void PauseMenu_Draw(void);
 extern void Snd_SetPause(s32 a, s32 b);
 extern void Hud_ShowAll(s32 on);          /* HUD visibility bits */
 extern void Hud_ShowGauges(s32 on);
@@ -995,7 +995,7 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
                 ctx->step = 0;
             }
         }
-        func_0022AB50(6);
+        HudNotice_Show(6);
     } else {
         ctx->side[0] = loser;
         if (BtlCharApi_HasMemberUnk70(loser)) {
@@ -1005,7 +1005,7 @@ s32 BtlSeqWinTalk_Setup(BtlSeqTalkCtx *ctx) {
         }
         ctx->step = 0;
         ctx->line[0] = 0x2A;
-        func_0022AB50(7);
+        HudNotice_Show(7);
     }
     Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
     return 1;
@@ -1324,7 +1324,7 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
         if (ctx->poll != NULL && !(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE_MENU) && ctx->poll()) {
             if (Battle_GetMode() == 7) {
                 BattleResult_Set(BTL_RESULT_ABORT, 0);
-            } else if (BattleReplay_IsActive() && BattleReplay_IsLoaded() && func_0022FC20() == 1) {
+            } else if (BattleReplay_IsActive() && BattleReplay_IsLoaded() && BtlPause_GetPad() == 1) {
             } else if (Battle_GetMode() == 1 && BtlScript_IsEventRunning()) {
                 BtlScript_AbortEvents();
             } else {
@@ -1334,7 +1334,7 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
             }
         }
         if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE_MENU) {
-            if (func_00212FF8(func_0022FBD8(), 0) == 0) {
+            if (PauseMenu_Update(BtlPause_GetMenuPad(), 0) == 0) {
                 Battle_GetWork()->flags &= ~(BATTLE_FLAG_PAUSE_MENU | BATTLE_FLAG_PAUSE);
                 Snd_SetPause(4, 0);
             }
@@ -1373,7 +1373,7 @@ s32 BtlSeqReady_Update(BtlSeqWaitCtx *ctx) {
     switch (ctx->step) {
     case 0:
         if (Ramp_Step(&ctx->timer)) {
-            func_0022AB50(0);
+            HudNotice_Show(0);
             Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
             Battle_GetWork()->flags |= BATTLE_FLAG_READY;
             Ramp_Start(&ctx->timer, 2.0f, 0.0f, 1.0f);
@@ -1391,16 +1391,16 @@ s32 BtlSeqReady_Update(BtlSeqWaitCtx *ctx) {
 
 /* State 2 exit: announcement 1. */
 s32 BtlSeqReady_Exit(BtlSeqWaitCtx *ctx) {
-    func_0022AB50(1);
+    HudNotice_Show(1);
     return 1;
 }
 
 /* Gives the result menu to pad 0 when one pad plays, else to the winning side. */
 void BtlSeq_SetResultPad(void) {
-    if (func_0022FB90() == 1) {
-        func_0022FBB0(0);
+    if (BtlPause_GetPadCount() == 1) {
+        BtlPause_SetPad(0);
     } else {
-        func_0022FBB0(BattleResult_GetWinnerSide());
+        BtlPause_SetPad(BattleResult_GetWinnerSide());
     }
 }
 
@@ -1436,8 +1436,8 @@ s32 BtlSeqEnd_PreUpdate(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqEnd_Update(BtlSeqWaitCtx *ctx) {
     switch (ctx->step) {
     case 0:
-        func_00212FF8(func_0022FBD8(), 1);
-        func_00213220();
+        PauseMenu_Update(BtlPause_GetMenuPad(), 1);
+        PauseMenu_Draw();
         if (BattleResult_IsAborted()) {
             Fade_Start(0, 0, 1.0f);
             Ramp_Start(&ctx->timer, 1.2f, 0.0f, 1.0f);
@@ -1471,14 +1471,14 @@ s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     Ramp_Start(timer, 3.5f, 0.0f, 1.0f);
     if (BattleResult_IsKo()) {
         if (BattleResult_IsWinnerEvent59Clear()) {
-            func_0022AB50(3);
+            HudNotice_Show(3);
         } else {
-            func_0022AB50(2);
+            HudNotice_Show(2);
         }
     } else if (BattleResult_IsTimeUp()) {
-        func_0022AB50(5);
+        HudNotice_Show(5);
     } else if (BattleResult_IsReasonBit2()) {
-        func_0022AB50(4);
+        HudNotice_Show(4);
     } else if (BattleResult_IsReasonBit18()) {
         Ramp_Start(timer, 1.1f, 0.0f, 1.0f);
     }

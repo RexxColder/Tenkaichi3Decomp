@@ -35,7 +35,7 @@ extern void Vu0Cur_ResetStack(void);
 extern void Vu0Cur_MulMtx(HudMtx m);
 extern void Vu0Cur_MulMtxRev(HudMtx m);
 extern s32 BtlSeq_GetTimeLeft(void);
-extern s32 func_00212A08(void); /* returns gBtlGameReplayActive */
+extern s32 BtlGame_IsReplay(void); /* returns gBtlGameReplayActive */
 
 /* The by-side queries of btl_tech_a.c / btl_capi_b.c. */
 extern s32 BtlCtrl_GetWork5A8Count(void);
@@ -80,10 +80,10 @@ extern s32 BtlCtrl_TestProgressFrameBit(void);
 
 /* Gauge part (0x21C0E0..0x2224C8 and on). */
 extern void HudGauge_Init(HudNode **out, HudRes *res); /* init */
-extern void func_00222400(void);                       /* term */
-extern void func_002224C8(void);                       /* reset */
+extern void HudGauge_Term(void);                       /* term */
+extern void HudGauge_Reset(void);                       /* reset */
 extern void HudGauge_SelectSide(s32 side);                   /* select the side to update / draw */
-extern void func_00225650(void);
+extern void HudGfx_ClearAlpha(void);
 extern void HudGauge_SetHp(s32 side, s32 hp);
 extern void HudGauge_SetKi(s32 side, s32 ki);
 extern void HudGauge_SetKiReserve(s32 side, s32 value);
@@ -97,45 +97,45 @@ extern void HudGauge_SlideOut(f32 seconds);
 extern void HudGauge_SlideIn(f32 seconds);
 extern void HudGauge_SetSwitching(s32 side, s32 switching);
 /* Timer part. */
-extern void func_0022F340(HudNode **out, HudRes *res);
-extern void func_0022F728(void);
-extern void func_0022F948(void);
-extern void func_0022F7F0(s32 timeLeft);
-extern void func_0022F890(s32 count);
-extern void func_0022F2F0(f32 seconds);
-extern void func_0022F318(f32 seconds);
+extern void HudTimer_Init(HudNode **out, HudRes *res);
+extern void HudTimer_Term(void);
+extern void HudTimer_Reset(void);
+extern void HudTimer_SetTime(s32 timeLeft);
+extern void HudTimer_SetCount(s32 count);
+extern void HudTimer_SlideOut(f32 seconds);
+extern void HudTimer_SlideIn(f32 seconds);
 /* Notice part. */
-extern void func_0022AF88(HudNode **out, HudRes *res);
-extern void func_0022B368(void);
-extern void func_0022B430(void);
-extern void func_0022AF60(s32 on);
-extern void func_0022AB50(s32 id);
+extern void HudNotice_Init(HudNode **out, HudRes *res);
+extern void HudNotice_Term(void);
+extern void HudNotice_Reset(void);
+extern void HudNotice_ShowReplayMark(s32 on);
+extern void HudNotice_Show(s32 id);
 /* Combo part. */
-extern void func_00224198(HudNode **out, HudRes *res);
-extern void func_00224908(void);
-extern void func_002249D0(void);
-extern void func_00223D88(s32 side);                    /* select the side */
-extern void func_00223FB8(s32 side, s32 hits);
-extern void func_00223DD8(s32 side, s32 damage, s32 isNew);
-extern void func_00223DB8(s32 side, s32 value);
-extern void func_00223D98(s32 side, s32 message);
-extern void func_002240A0(f32 seconds);
-extern void func_002240C8(f32 seconds);
-extern void func_002240F0(void);
+extern void HudCombo_Init(HudNode **out, HudRes *res);
+extern void HudCombo_Term(void);
+extern void HudCombo_Reset(void);
+extern void HudCombo_SelectSide(s32 side);                    /* select the side */
+extern void HudCombo_SetHits(s32 side, s32 hits);
+extern void HudCombo_SetDamage(s32 side, s32 damage, s32 isNew);
+extern void HudCombo_SetText(s32 side, s32 value);
+extern void HudCombo_SetMessage(s32 side, s32 message);
+extern void HudCombo_SlideOut(f32 seconds);
+extern void HudCombo_SlideIn(f32 seconds);
+extern void HudCombo_DrawText(void);
 /* Prompt part. */
-extern void func_0022E218(HudNode **out, HudRes *res);
-extern void func_0022E9A8(void);
-extern void func_0022EA70(void);
-extern void func_0022D958(s32 side);                    /* select the side */
-extern void func_0022DA10(s32 side, s32 button, s32 arg);
-extern void func_0022DCB8(s32 side, s32 count, s32 *buttons, s32 *kinds, s32 idx);
-extern void func_0022DF30(s32 side);
-extern void func_0022E018(s32 side);
-extern void func_0022E100(s32 side);
-extern void func_0022E0B0(f32 seconds);
-extern void func_0022E0D8(f32 seconds);
-extern void func_0022E130(void);
-extern void func_00225790(void);
+extern void HudPrompt_Init(HudNode **out, HudRes *res);
+extern void HudPrompt_Term(void);
+extern void HudPrompt_Reset(void);
+extern void HudPrompt_SelectSide(s32 side);                    /* select the side */
+extern void HudPrompt_SetButton(s32 side, s32 button, s32 arg);
+extern void HudPrompt_SetCommand(s32 side, s32 count, s32 *buttons, s32 *kinds, s32 idx);
+extern void HudPrompt_ClearCommand(s32 side);
+extern void HudPrompt_AcceptCommand(s32 side);
+extern void HudPrompt_ClearButton(s32 side);
+extern void HudPrompt_SlideOut(f32 seconds);
+extern void HudPrompt_SlideIn(f32 seconds);
+extern void HudPrompt_DrawNames(void);
+extern void HudGfx_SetEnv(void);
 
 /* Clears the mark of every texture entry of the five sheets. */
 void Hud_ClearTexMarks(void) {
@@ -262,22 +262,22 @@ void Hud_Init(void) {
     gHud->res[4] = (HudRes *)((u8 *)file + ((file[3] >> 2) << 2));
     Res_RelocateOffsets(&gHud->res[4], gHud->res[4], gHud->res[4]);
     HudGauge_Init(&gHud->gauge, gHud->res[0]);
-    func_0022F340(&gHud->timer, gHud->res[0]);
+    HudTimer_Init(&gHud->timer, gHud->res[0]);
     HudTeam_Init(&gHud->team, gHud->res[0]);
-    func_0022AF88(&gHud->notice, gHud->res[1]);
-    func_00224198(&gHud->combo, gHud->res[2]);
-    func_0022E218(&gHud->prompt, gHud->res[3]);
+    HudNotice_Init(&gHud->notice, gHud->res[1]);
+    HudCombo_Init(&gHud->combo, gHud->res[2]);
+    HudPrompt_Init(&gHud->prompt, gHud->res[3]);
     HudCaption_Init(&gHud->caption, gHud->res[4]);
 }
 
 /* Battle end: frees the parts and the manager. */
 void Hud_Term(void) {
-    func_00222400();
-    func_0022F728();
+    HudGauge_Term();
+    HudTimer_Term();
     HudTeam_Term();
-    func_0022B368();
-    func_00224908();
-    func_0022E9A8();
+    HudNotice_Term();
+    HudCombo_Term();
+    HudPrompt_Term();
     HudCaption_Term();
     Heap_Free(gHud);
 }
@@ -293,18 +293,18 @@ void Hud_PreUpdate(void) {
     s32 side;
 
     if (Battle_GetMode() == 3) {
-        func_0022F890(BtlCtrl_GetWork5A8Count());
+        HudTimer_SetCount(BtlCtrl_GetWork5A8Count());
     } else {
-        func_0022F7F0(BtlSeq_GetTimeLeft());
+        HudTimer_SetTime(BtlSeq_GetTimeLeft());
     }
-    if (func_00212A08()) {
+    if (BtlGame_IsReplay()) {
         if (gHud->replayMode != 1) {
-            func_0022AF60(0);
+            HudNotice_ShowReplayMark(0);
         } else {
-            func_0022AF60(1);
+            HudNotice_ShowReplayMark(1);
         }
     } else {
-        func_0022AF60(0);
+        HudNotice_ShowReplayMark(0);
     }
     for (side = 0; side < 2; side++) {
         s32 v;
@@ -356,15 +356,15 @@ void Hud_PreUpdate(void) {
             if (isNew == 1) {
                 v = BtlCtrl_GetClashCount(side);
                 if (v != 0) {
-                    func_00223FB8(side, v);
+                    HudCombo_SetHits(side, v);
                 } else {
-                    func_00223FB8(side, BtlSide_GetComboHits(side));
+                    HudCombo_SetHits(side, BtlSide_GetComboHits(side));
                 }
             }
             if (BtlCtrl_GetOppUnkD50(side)) {
                 v = BtlSide_GetComboDamage(side);
                 if (v >= 0) {
-                    func_00223DD8(side, v, isNew);
+                    HudCombo_SetDamage(side, v, isNew);
                 }
                 if (v >= 9999) {
                     HudGauge_ShakeHp(side == 0, 15, 3);
@@ -375,29 +375,29 @@ void Hud_PreUpdate(void) {
                 }
             }
             if (!BtlSide_IsComboShown(side)) {
-                func_00223FB8(side, 0);
-                func_00223DD8(side, -1, isNew);
+                HudCombo_SetHits(side, 0);
+                HudCombo_SetDamage(side, -1, isNew);
             }
         }
         v = BtlCtrl_GetFlagDEtoE2(side);
         if (v >= 0) {
-            func_00223DB8(side, v);
+            HudCombo_SetText(side, v);
         }
         if (BtlCtrl_IsFlag6Raised(side)) {
-            func_00223D98(side, 1);
+            HudCombo_SetMessage(side, 1);
             HudGauge_ShakeKi(side, 8, 2);
         }
         if (BtlCtrl_TestFlag71(side)) {
-            func_00223D98(side, 0);
+            HudCombo_SetMessage(side, 0);
         }
         if (BtlCtrl_IsFlag5RaisedInFight(side)) {
-            func_00223D98(side, 2);
+            HudCombo_SetMessage(side, 2);
         }
         if (BtlCtrl_TestFlagE3(side)) {
-            func_00223D98(side, 3);
+            HudCombo_SetMessage(side, 3);
         }
         if (BtlCtrl_IsFlag9CRaised(side)) {
-            func_00223D98(side, 4);
+            HudCombo_SetMessage(side, 4);
         }
         /* Single button prompt (flags 0xE7..0xEC through BtlCtrl_GetChangePrompt, else flag 0xE6). The icon
            number is remapped through tbl (identity within each group of four) and moved by kindOfs[kind]
@@ -414,13 +414,13 @@ void Hud_PreUpdate(void) {
 
                 button = tbl[button];
                 button += kindOfs[kind] * 4;
-                func_0022DA10(side, button, n / 4);
+                HudPrompt_SetButton(side, button, n / 4);
             } else if (BtlCtrl_TestFlagE6Pad1(side)) {
-                func_0022DA10(side, 12, 1);
+                HudPrompt_SetButton(side, 12, 1);
             } else if (BtlCtrl_TestFlagE6Pad(side, &pad)) {
-                func_0022DA10(side, 12, pad);
+                HudPrompt_SetButton(side, 12, pad);
             } else {
-                func_0022E100(side);
+                HudPrompt_ClearButton(side);
             }
         }
         /* Technique prompt: a row of icons (buttons[]) with a kind per icon (kinds[]). On pad status 1 it is
@@ -428,7 +428,7 @@ void Hud_PreUpdate(void) {
            even slots with icon 0x20 (kind 2) between them; icons 0x10..0x13 are moved by 4 * pad status, and
            icons below 0x10 get the kind map[kind]. */
         if (BtlCtrl_IsFlag9ERaised(side)) {
-            func_0022E018(side);
+            HudPrompt_AcceptCommand(side);
         } else {
             s32 buttons[4];
             s32 kinds[4];
@@ -451,7 +451,7 @@ void Hud_PreUpdate(void) {
                 if (kind == 3) {
                     idx = -1;
                 }
-                func_0022DCB8(side, 1, buttons, kinds, idx);
+                HudPrompt_SetCommand(side, 1, buttons, kinds, idx);
             } else if (BtlCtrl_GetSwitchPrompt(side, buttons, &count, &kind, &pad, &idx)) {
                 s32 map[4] = { 3, 2, 1, 0 };
 
@@ -471,9 +471,9 @@ void Hud_PreUpdate(void) {
                         kinds[i] = 2;
                     }
                 }
-                func_0022DCB8(side, count * 2 - 1, buttons, kinds, -1);
+                HudPrompt_SetCommand(side, count * 2 - 1, buttons, kinds, -1);
             } else if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
-                func_0022DF30(side);
+                HudPrompt_ClearCommand(side);
             }
         }
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
@@ -495,18 +495,18 @@ void Hud_PreUpdate(void) {
         }
     }
     if (BtlCtrl_TestProgressFrameBit()) {
-        func_0022AB50(8);
+        HudNotice_Show(8);
     }
 }
 
 /* Round reset: resets the parts and hides them all. */
 void Hud_Reset(void) {
-    func_002224C8();
+    HudGauge_Reset();
     HudTeam_Reset();
-    func_002249D0();
-    func_0022B430();
-    func_0022F948();
-    func_0022EA70();
+    HudCombo_Reset();
+    HudNotice_Reset();
+    HudTimer_Reset();
+    HudPrompt_Reset();
     Hud_ShowAll(0);
 }
 
@@ -514,18 +514,18 @@ void Hud_Reset(void) {
 void Hud_SlideOut(f32 seconds) {
     HudGauge_SlideOut(seconds);
     HudTeam_SlideOut(seconds);
-    func_0022F2F0(seconds);
-    func_0022E0B0(seconds);
-    func_002240A0(seconds);
+    HudTimer_SlideOut(seconds);
+    HudPrompt_SlideOut(seconds);
+    HudCombo_SlideOut(seconds);
 }
 
 /* Brings them back over `seconds`. */
 void Hud_SlideIn(f32 seconds) {
     HudGauge_SlideIn(seconds);
     HudTeam_SlideIn(seconds);
-    func_0022F318(seconds);
-    func_0022E0D8(seconds);
-    func_002240C8(seconds);
+    HudTimer_SlideIn(seconds);
+    HudPrompt_SlideIn(seconds);
+    HudCombo_SlideIn(seconds);
 }
 
 /* Updates and draws the parts that are switched on. Mode 7 shows only the caption part. While a replay is played
@@ -534,11 +534,11 @@ void Hud_SlideIn(f32 seconds) {
 void Hud_Draw(void) {
     Vu0Cur_ResetStack();
     Vu0Cur_LoadIdentity();
-    func_00225790();
+    HudGfx_SetEnv();
     if (Battle_GetMode() == 7) {
         HudNode_Update(gHud->caption);
         HudNode_Draw(gHud->caption, 0);
-    } else if (func_00212A08()) {
+    } else if (BtlGame_IsReplay()) {
         switch (gHud->replayMode) {
             case 0:
                 if (gHud->flags & HUD_SHOW_GAUGES) {
@@ -548,30 +548,30 @@ void Hud_Draw(void) {
                     HudNode_Update(gHud->team);
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                 } else {
-                    func_0022AF60(0);
+                    HudNotice_ShowReplayMark(0);
                 }
                 if (gHud->flags & HUD_SHOW_TIMER) {
                     HudNode_Update(gHud->timer);
                 }
                 if (gHud->flags & HUD_SHOW_PROMPT) {
-                    func_0022D958(0);
+                    HudPrompt_SelectSide(0);
                     HudNode_Update(gHud->prompt);
                     if (Battle_IsSplitScreen()) {
-                        func_0022D958(1);
+                        HudPrompt_SelectSide(1);
                         HudNode_Update(gHud->prompt);
                     }
                 }
                 if (gHud->flags & HUD_SHOW_COMBO) {
-                    func_00223D88(0);
+                    HudCombo_SelectSide(0);
                     HudNode_Update(gHud->combo);
-                    func_00223D88(1);
+                    HudCombo_SelectSide(1);
                     HudNode_Update(gHud->combo);
                 }
                 if (gHud->flags & HUD_SHOW_NOTICE) {
@@ -590,40 +590,40 @@ void Hud_Draw(void) {
                     HudNode_Draw(gHud->team, 0);
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
                     HudNode_Draw(gHud->gauge, 0);
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                     HudNode_Draw(gHud->gauge, 0);
                 } else {
-                    func_0022AF60(0);
+                    HudNotice_ShowReplayMark(0);
                 }
                 if (gHud->flags & HUD_SHOW_TIMER) {
                     HudNode_Update(gHud->timer);
                     HudNode_Draw(gHud->timer, 0);
                 }
                 if (gHud->flags & HUD_SHOW_PROMPT) {
-                    func_0022D958(0);
+                    HudPrompt_SelectSide(0);
                     HudNode_Update(gHud->prompt);
                     HudNode_Draw(gHud->prompt, 0);
                     if (Battle_IsSplitScreen()) {
-                        func_0022D958(1);
+                        HudPrompt_SelectSide(1);
                         HudNode_Update(gHud->prompt);
                         HudNode_Draw(gHud->prompt, 0);
                     }
-                    func_0022E130();
+                    HudPrompt_DrawNames();
                 }
                 if (gHud->flags & HUD_SHOW_COMBO) {
-                    func_00223D88(0);
+                    HudCombo_SelectSide(0);
                     HudNode_Update(gHud->combo);
                     HudNode_Draw(gHud->combo, 0);
-                    func_00223D88(1);
+                    HudCombo_SelectSide(1);
                     HudNode_Update(gHud->combo);
                     HudNode_Draw(gHud->combo, 0);
-                    func_002240F0();
+                    HudCombo_DrawText();
                 }
                 if (gHud->flags & HUD_SHOW_NOTICE) {
                     HudNode_Update(gHud->notice);
@@ -639,30 +639,30 @@ void Hud_Draw(void) {
                     HudNode_Update(gHud->team);
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
-                    func_00225650();
+                    HudGfx_ClearAlpha();
                     HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                 } else {
-                    func_0022AF60(0);
+                    HudNotice_ShowReplayMark(0);
                 }
                 if (gHud->flags & HUD_SHOW_TIMER) {
                     HudNode_Update(gHud->timer);
                 }
                 if (gHud->flags & HUD_SHOW_PROMPT) {
-                    func_0022D958(0);
+                    HudPrompt_SelectSide(0);
                     HudNode_Update(gHud->prompt);
                     if (Battle_IsSplitScreen()) {
-                        func_0022D958(1);
+                        HudPrompt_SelectSide(1);
                         HudNode_Update(gHud->prompt);
                     }
                 }
                 if (gHud->flags & HUD_SHOW_COMBO) {
-                    func_00223D88(0);
+                    HudCombo_SelectSide(0);
                     HudNode_Update(gHud->combo);
-                    func_00223D88(1);
+                    HudCombo_SelectSide(1);
                     HudNode_Update(gHud->combo);
                 }
                 if (gHud->flags & HUD_SHOW_NOTICE) {
@@ -683,11 +683,11 @@ void Hud_Draw(void) {
             }
         }
         if (gHud->flags & HUD_SHOW_GAUGES) {
-            func_00225650();
+            HudGfx_ClearAlpha();
             HudGauge_SelectSide(0);
             HudNode_Update(gHud->gauge);
             HudNode_Draw(gHud->gauge, 0);
-            func_00225650();
+            HudGfx_ClearAlpha();
             HudGauge_SelectSide(1);
             HudNode_Update(gHud->gauge);
             HudNode_Draw(gHud->gauge, 0);
@@ -697,24 +697,24 @@ void Hud_Draw(void) {
             HudNode_Draw(gHud->timer, 0);
         }
         if (gHud->flags & HUD_SHOW_PROMPT) {
-            func_0022D958(0);
+            HudPrompt_SelectSide(0);
             HudNode_Update(gHud->prompt);
             HudNode_Draw(gHud->prompt, 0);
             if (Battle_IsSplitScreen()) {
-                func_0022D958(1);
+                HudPrompt_SelectSide(1);
                 HudNode_Update(gHud->prompt);
                 HudNode_Draw(gHud->prompt, 0);
             }
-            func_0022E130();
+            HudPrompt_DrawNames();
         }
         if (gHud->flags & HUD_SHOW_COMBO) {
-            func_00223D88(0);
+            HudCombo_SelectSide(0);
             HudNode_Update(gHud->combo);
             HudNode_Draw(gHud->combo, 0);
-            func_00223D88(1);
+            HudCombo_SelectSide(1);
             HudNode_Update(gHud->combo);
             HudNode_Draw(gHud->combo, 0);
-            func_002240F0();
+            HudCombo_DrawText();
         }
         if (gHud->flags & HUD_SHOW_NOTICE) {
             HudNode_Update(gHud->notice);

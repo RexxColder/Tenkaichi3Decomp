@@ -67,7 +67,8 @@ typedef struct StgAnimWork {
 
 extern StgAnimRes *gCommonRes;
 extern StgAnimStage *gBtlStage;
-extern StgAnimTable *gStgAnimTable;
+/* 0x2FE914: this object's only .sdata word (stgm_a.c reads it too). */
+StgAnimTable *gStgAnimTable = NULL;
 
 extern StgAnimWork *Battle_GetWork(void);
 extern void BtlStage_Init(void *stage, void *arg);

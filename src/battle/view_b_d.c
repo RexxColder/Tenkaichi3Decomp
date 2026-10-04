@@ -331,6 +331,7 @@ s32 ShenScene_StepSeq(ShenSeq *seq) {
     return 0;
 }
 #else
+RODATA_ALIGN16(); /* the object has a jump table: its .rodata is 16-byte aligned (0x2F33D0) */
 INCLUDE_RODATA("asm/nonmatchings/battle/view_b_d", D_002F33D0);
 INCLUDE_RODATA("asm/nonmatchings/battle/view_b_d", D_002F33E0);
 INCLUDE_RODATA("asm/nonmatchings/battle/view_b_d", D_002F3410);

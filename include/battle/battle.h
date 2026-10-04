@@ -95,7 +95,7 @@ enum {
 #define BTL_MEMBER_MAX 5
 #define BTL_POOL_MAX 50
 #define BTL_BGM_RANDOM 24      /* BattleSetup_SetRule: pick rand() % 24 */
-#define BTL_CPU_LEVEL_MAX 29   /* func_00261738 maps the 5 difficulty settings to 0, 6, 13, 21, 29 */
+#define BTL_CPU_LEVEL_MAX 29   /* CpuLevel_FromSetting maps the 5 difficulty settings to 0, 6, 13, 21, 29 */
 #define BTL_TIME_EVENT_COUNT 19
 
 /* BattleResult.winner */

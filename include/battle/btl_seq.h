@@ -146,14 +146,14 @@ typedef struct BtlTextList {
     /* 0x58 */ s32 cursor[10]; /* selected entry per page */
 } BtlTextList; /* size 0x80 */
 
-/* The work behind D_002FEB30 (owned by the pause menu code before this range). */
+/* The work behind gBtlMenu (owned by the pause menu code before this range). */
 typedef struct BtlTextWork {
     /* 0x00 */ u8 unk0[0xC];
     /* 0x0C */ s32 side;   /* which list is shown */
     /* 0x10 */ s32 unk10;  /* bit number tested against a line's mask digit */
     /* 0x14 */ s32 unk14;
-    /* 0x18 */ u16 *text;  /* func_00214FE0() */
-    /* 0x1C */ u16 *text2; /* func_00214FF0() */
+    /* 0x18 */ u16 *text;  /* BtlMenu_GetScript() */
+    /* 0x1C */ u16 *text2; /* BtlMenu_GetScript2() */
     /* 0x20 */ BtlTextList list[2];
 } BtlTextWork;
 

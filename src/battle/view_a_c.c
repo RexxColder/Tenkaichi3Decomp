@@ -11,11 +11,11 @@ extern void *memset(void *dst, s32 c, u32 n);
 
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
-extern void func_0010D648(Flash *flash);
-extern void func_0010D6F0(Flash *flash);
-extern void func_0010D750(Flash *flash);
-extern void func_0010D810(Flash *flash, s32 arg);
-extern void func_0010D878(Flash *flash, char *label, s32 arg);
+extern void Flash_Destroy(Flash *flash);
+extern void Flash_Advance(Flash *flash);
+extern void Flash_Draw(Flash *flash);
+extern void Flash_Play(Flash *flash, s32 arg);
+extern void Flash_GotoLabel(Flash *flash, char *label, s32 arg);
 
 /* Defined here: this object's .sdata (0x2FF0F0). */
 IconWin *gIconWin = NULL;
@@ -37,12 +37,12 @@ void IconWin_Init(u32 *pack, FlashTexRes *icons) {
     gIconWin->icons = icons;
 
     Flash_Create(&gIconWin->flash, PACK_AT(pack, 2), gIconWin->tex);
-    func_0010D810(&gIconWin->flash, 1);
+    Flash_Play(&gIconWin->flash, 1);
 }
 
 /* Destroys the movie and frees the window. */
 void IconWin_Term(void) {
-    func_0010D648(&gIconWin->flash);
+    Flash_Destroy(&gIconWin->flash);
     if (gIconWin != NULL) {
         Heap_Free(gIconWin);
         gIconWin = NULL;
@@ -53,21 +53,21 @@ void IconWin_Term(void) {
 void IconWin_Draw(void) {
     s32 i;
 
-    func_0010D6F0(&gIconWin->flash);
+    Flash_Advance(&gIconWin->flash);
     /* a loop over one movie, as in the other windows: the call is not a tail call */
     for (i = 0; i < 1; i++) {
-        func_0010D750(&gIconWin->flash);
+        Flash_Draw(&gIconWin->flash);
     }
 }
 
 /* Starts the opening animation. */
 void IconWin_Open(void) {
-    func_0010D878(&gIconWin->flash, "fl_in", 1);
+    Flash_GotoLabel(&gIconWin->flash, "fl_in", 1);
 }
 
 /* Starts the closing animation. */
 void IconWin_Close(void) {
-    func_0010D878(&gIconWin->flash, "fl_out", 1);
+    Flash_GotoLabel(&gIconWin->flash, "fl_out", 1);
 }
 
 /* Shows icon n: texture n + 1 of the icon resource. */

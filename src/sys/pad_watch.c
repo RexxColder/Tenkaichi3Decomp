@@ -29,7 +29,7 @@ extern PadWatchCommonRes *gCommonRes;
 extern PadWatchBattleWork *Battle_GetWork(void);
 extern s32 Battle_IsSplitScreen(void);
 extern s32 Battle_GetMode(void);
-extern s32 func_00212A08(void);  /* returns the word at gBtlGameReplayActive */
+extern s32 BtlGame_IsReplay(void);  /* returns the word at gBtlGameReplayActive */
 extern void Gfx_AddDefaultEnv(void);
 extern s32 Font_GetCmdCount(void);          /* current font */
 extern void Font_Flush(s32 font);     /* select a font */
@@ -56,7 +56,7 @@ void PadWatch_SetEnabled(s32 enable) {
 /*
  * 1 when a needed controller is missing; *port (if not NULL) receives which one: 0 when controller 1
  * is missing (also when both are), 1 when only controller 2 is. Returns 0 while no port has a settled
- * reading or there is no warning. Polled by the battle's pause check (func_0022F9F8).
+ * reading or there is no warning. Polled by the battle's pause check (BtlPause_CheckOpen).
  *
  * NON-MATCHING: 2 of 69 instructions. In the "controller 2 missing" arm the original has
  * `beqz s0,<exit>; nop` and this compiles to `beqzl s0,<exit + 4>; ld s0,0(sp)`: the delay-slot pass
@@ -71,7 +71,7 @@ s32 PadWatch_GetMissing(s32 *port) {
     }
     if (gPadWatch->valid[0] != 0 || gPadWatch->valid[1] != 0) {
         if (Battle_GetWork()->running != 0
-                ? (func_00212A08() == 0 && Battle_IsSplitScreen() != 0)
+                ? (BtlGame_IsReplay() == 0 && Battle_IsSplitScreen() != 0)
                 : ((u32)(gProgress->mode - 0x27) < 2 && gProgress->unk620 == 1)) {
             if (!(gPadWatch->state[0] & 1)) {
                 if (!(gPadWatch->state[1] & 1)) {
@@ -107,7 +107,7 @@ s32 PadWatch_IsPortMissing(s32 port) {
         return 0;
     }
     if (Battle_GetWork()->running != 0
-            ? (func_00212A08() == 0 && Battle_IsSplitScreen() != 0)
+            ? (BtlGame_IsReplay() == 0 && Battle_IsSplitScreen() != 0)
             : ((u32)(gProgress->mode - 0x27) < 2 && gProgress->unk620 == 1)) {
         if (!(gPadWatch->state[port] & 1)) {
             return 1;
@@ -144,7 +144,7 @@ void PadWatch_Update(void) {
     }
     if (gPadWatch->disabled == 0 && (gPadWatch->valid[0] != 0 || gPadWatch->valid[1] != 0)) {
         if (Battle_GetWork()->running != 0
-                ? (func_00212A08() == 0 && Battle_IsSplitScreen() != 0)
+                ? (BtlGame_IsReplay() == 0 && Battle_IsSplitScreen() != 0)
                 : ((u32)(gProgress->mode - 0x27) < 2 && gProgress->unk620 == 1)) {
             if (!(now[0] & 1)) {
                 if (!(now[1] & 1)) {

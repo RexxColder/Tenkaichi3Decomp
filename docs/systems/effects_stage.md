@@ -726,7 +726,9 @@ matching C. `sqrtf` is the inline FPU instruction.
 
 With this file the whole effect range 0x12DD80..0x1B4140 has been decompiled.
 
-## Stage model drawing (0x115478..0x116B98; src/battle/stgm_a.c, not linked yet; names in config/symbols/stgm_a.txt)
+## Stage model drawing (0x115478..0x116B98; src/battle/stgm_a.c, linked; names in config/symbols/stgm_a.txt)
+Linked layout: `.rodata` 0x2EB9A0 (0xE0), `.lit4` 0x2FC2FC (one word). `gStgAnimTable` (0x2FE914) is defined in
+stg_d_b.c (its object's only `.sdata` word).
 
 All 13 functions match. Tail of the stage model code that starts at 0x114C60 (stg_d_b.c is
 the file just before, not btl_seq.c); final name stg_model_draw.c. Layouts in

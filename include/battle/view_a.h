@@ -35,7 +35,7 @@ typedef struct FlashRef {
     /* 0x04 */ s32 unk4;
 } FlashRef; /* size 8 */
 
-/* Texture rectangle of a movie clip (argument of func_0010DCA0). */
+/* Texture rectangle of a movie clip (argument of Flash_ClipSetUv). */
 typedef struct FlashUv {
     /* 0x00 */ s32 x0;
     /* 0x04 */ s32 y0;
@@ -44,7 +44,7 @@ typedef struct FlashUv {
     /* 0x10 */ s32 unk10;
 } FlashUv; /* size 0x14 */
 
-/* Properties set with func_0010D9D8. */
+/* Properties set with Flash_ClipSetFlags. */
 #define FLASH_PROP_VISIBLE 2
 #define FLASH_PROP_UV 0x200
 
@@ -289,9 +289,9 @@ typedef struct ViewProgress {
 /* Character grid: 7 columns. A cell is a character or a marker. */
 #define CHRGRID_COLS 7
 #define CHRGRID_ID_LOCKED 0xA2   /* a locked character: the cursor skips it */
-#define CHRGRID_ID_RANDOM 0xA3   /* selectable like a character */
+#define CHRGRID_ID_CUSTOM 0xA3   /* the saved custom characters: selectable like a character */
 #define CHRGRID_ID_EMPTY 0xA4    /* filler: the cursor skips it */
-#define CHRGRID_ID_CUSTOM 0xA1   /* the "custom characters" cell */
+#define CHRGRID_ID_RANDOM 0xA1   /* the "random" cell (first marker id: ids >= 0xA1 are not characters) */
 #define CHRGRID_FORM_MAX 7
 
 /* A cell of the character grid. */

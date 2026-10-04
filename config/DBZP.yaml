@@ -142,6 +142,18 @@ options:
     - config/symbols/gfxm_a.txt
     - config/symbols/gfxm_b.txt
     - config/symbols/view_a.txt
+    - config/symbols/gfxm_c.txt
+    - config/symbols/gfxm_d.txt
+    - config/symbols/gfxm_e.txt
+    - config/symbols/stgm_a.txt
+    - config/symbols/mcflow_a.txt
+    - config/symbols/hud_0.txt
+    - config/symbols/hud_c.txt
+    - config/symbols/hud_d.txt
+    - config/symbols/hud_e.txt
+    - config/symbols/misc_a.txt
+    - config/symbols/view_b.txt
+    - config/symbols/late_a.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

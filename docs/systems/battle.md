@@ -289,7 +289,8 @@ tasks (0x12DD80..0x1AE200), the stage, and HUD internals. The fighter core is de
 fighter.md and combat.md. About 50 functions called from the frame loop are still unnamed, with a
 first-read description in the header comment of `battle.c`.
 
-## Pause / result menu (0x2129C8..0x215420; src/battle/hud_0.c, hud_0_b.c, hud_0_c.c, not linked yet; names in config/symbols/hud_0.txt)
+## Pause / result menu (0x2129C8..0x215420; src/battle/hud_0.c, hud_0_b.c, hud_0_c.c, linked; names in config/symbols/hud_0.txt)
+Linked layout: hud_0.c `.rodata` 0x2F19D0 (0x5C, two jump tables), hud_0_b.c `.rodata` 0x2F1A30 (0x14).
 
 63 of 64 functions match; `BtlText_PutSprite` (0x215140) is INCLUDE_ASM, registers only. The
 stem is a misnomer: nothing here is HUD. Final names: the first three functions join the
