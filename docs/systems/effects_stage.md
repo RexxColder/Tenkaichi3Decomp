@@ -92,6 +92,8 @@ and the stage update at 0x243568).
 | 0x18D618..0x190CC8 | eft_x.c | ring particles `EftPart10*`, second half | no | VU0: 18 per particle; libc `rand()`: up to 3 | 29/34 |
 | 0x190CC8..0x190DA8 | eft_x_b.c | **scene layer 3 root**: creates the 31 common effect managers of table 0x2C3FB0 | no | none | 4/4 |
 | 0x190DA8..0x191D28 | eft_x_c.c | quad emitter `EftQuad*`, first half (part kind 9; 200 quads) | no | VU0: 28 per quad; libc `rand()`: up to 5 | 11/11 |
+| 0x191D28..0x195038 | eft_y.c | quad emitter `EftQuad_*`, second half (part kind 9) | no | none in this half | (eft_y 38/41) |
+| 0x195038..0x195EE8 | eft_y.c | camera-facing strip `EftLine_*` helpers (part kind 16; rest in eft_z) | no | none | |
 | 0x199F28..0x19E0C0 | eft_aa.c | ground dust helpers; delayed sounds `EftDelaySe*`; per-fighter effect slots; weapon trail `EftBlade*` (eight character ids); **blinding overlay `EftBlind*`**; part kind 14 `EftAnimPart*` | no | VU0 and libc `rand()` in dust; 6 libc `rand()` at every scene init | 73/79 |
 | 0x1AE2A8..0x1AE5F8 | eft_det_a.c | texture set loaders, VRAM upload | no | none | (eft_det_a 40/40) |
 | 0x1AE5F8..0x1AF508 | eft_det_a.c | **volley aim `EftVolleyAim_*`**: spread and steering of volley shots | **yes** | **`BtlScene_Rand*`: 0..3 per shot at fire (direction), 3..4 on one scripted frame per lobbed shot (target offset)** | |
