@@ -36,23 +36,23 @@ extern BobjBattleWork *Battle_GetWork(void);
 
 /* VU0 helpers of src/sys: matrix product, matrix copy, inverse of a rigid matrix, xyz copy (w kept),
    dst = a * t + b * (1 - t). */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
 /* The VU0 matrix stack: the current matrix lives in vf16..vf19, the stack in VU0 data memory at vi15.
    0x120A98 current = identity, 0x120AB0 push, 0x120AE0 pop n, 0x120B18 empty the stack, 0x120B80 load,
    0x120B98 store, 0x120C18 translate, 0x120F00 rotate by Euler angles (z, x, y), 0x120F88 scale. */
-extern void func_00120A98(void);
-extern void func_00120AB0(void);
-extern void func_00120AE0(s32 count);
-extern void func_00120B18(void);
-extern void func_00120B80(Mtx44 *m);
-extern void func_00120B98(Mtx44 *m);
-extern void func_00120C18(Vec4 *v);
-extern void func_00120F00(Vec4 *angles);
-extern void func_00120F88(f32 scale);
+extern void Vu0Cur_LoadIdentity(void);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_PopN(s32 count);
+extern void Vu0Cur_ResetStack(void);
+extern void Vu0Cur_LoadMtx(Mtx44 *m);
+extern void Vu0Cur_StoreMtx(Mtx44 *m);
+extern void Vu0Cur_Translate(Vec4 *v);
+extern void Vu0Cur_RotateZXY(Vec4 *angles);
+extern void Vu0Cur_ScaleDiagUniform(f32 scale);
 /* Collision shapes: box grow by a 16-byte point / a 12-byte point, box of a sphere / of an oriented box, box grow
    by a sphere centre, sphere and oriented box constructors. */
 extern void StgAabb_SetEmpty(BobjAabb *box);
@@ -562,13 +562,13 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
                     } else {
                         BtlObjAnim_SamplePosRot(trk, &pos, &rot, &layer[1]->cursor[id], frame);
                     }
-                    func_00122168(dst, &pos, dst, ap->mix);
+                    Vec4_Lerp(dst, &pos, dst, ap->mix);
                     part->pos.w = 1.0f;
                     Quat_Slerp(&part->rot, &part->rot, &rot, ap->mix);
                 }
             }
             if (id != 0 && 0.0f < w) {
-                func_00122168(dst, &part->fromPos, dst, w);
+                Vec4_Lerp(dst, &part->fromPos, dst, w);
                 part->pos.w = 1.0f;
                 Quat_Slerp(&part->rot, &part->rot, &part->fromRot, w);
             }
@@ -1049,7 +1049,7 @@ void BtlObjBody_Swap(BobjBody *body) {
 
 /* Places an oriented box: stores the matrix, its rows as axes and centre, and the eight world corners. */
 void BtlObjObb_SetMtx(BobjObb *box, Mtx44 *m) {
-    func_00120230(&box->mtx, m);
+    Mtx_Copy(&box->mtx, m);
     box->axis[0].x = box->mtx.m[0][0];
     box->axis[0].y = box->mtx.m[0][1];
     box->axis[0].z = box->mtx.m[0][2];
@@ -1113,7 +1113,7 @@ void BtlObjBody_UpdateParts(BobjBody *body) {
     for (;;) {
         Vec3_Sub(&local, &part->offset, &part->bone->origin);
         Mtx_MulVec4(&center, &part->part->mtx, &local);
-        func_00120230(&m, &part->part->mtx);
+        Mtx_Copy(&m, &part->part->mtx);
         Vec4_Copy((Vec4 *)m.m[3], &center);
         BtlObjObb_SetMtx(&part->box, &m);
         BtlObjBody_SetCenter(&part->center, (Vec4 *)m.m[3]);
@@ -1268,7 +1268,7 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
                 offset.z = hit->z;
                 offset.w = 1.0f;
                 Mtx_MulVec4(&center, &part->mtx, &offset);
-                func_00120230(&m, &part->mtx);
+                Mtx_Copy(&m, &part->mtx);
                 Vec4_Copy((Vec4 *)m.m[3], &center);
                 ColObb_Init(&work->atkObb[work->atkObbCount], &center, hit->r0, hit->r1, hit->r2);
                 ColObb_Update(&work->atkObb[work->atkObbCount], &m);
@@ -1349,12 +1349,12 @@ void BtlObjXf_Update(BobjObj *obj) {
     if (3.14159265f < xf->mtxRot.y) {
         xf->mtxRot.y -= 6.2831853f;
     }
-    func_00120A98();
-    func_00120F88(scale);
-    func_00120F00(mtxRot);
-    func_00120C18(mtxPos);
-    func_00120B98(mtx);
-    func_001202A0(&obj->xf.inv, mtx);
+    Vu0Cur_LoadIdentity();
+    Vu0Cur_ScaleDiagUniform(scale);
+    Vu0Cur_RotateZXY(mtxRot);
+    Vu0Cur_Translate(mtxPos);
+    Vu0Cur_StoreMtx(mtx);
+    Mtx_InverseRT(&obj->xf.inv, mtx);
     obj->xf.same = ~changed;
 }
 
@@ -1362,8 +1362,8 @@ void BtlObjXf_Update(BobjObj *obj) {
 void BtlObjXf_SetMtx(BobjObj *obj, Mtx44 *m) {
     Mtx44 *dst = &obj->xf.mtx;
 
-    func_00120230(dst, m);
-    func_001202A0(&obj->xf.inv, dst);
+    Mtx_Copy(dst, m);
+    Mtx_InverseRT(&obj->xf.inv, dst);
 }
 
 /* World matrix of every node, parents first, on the VU0 matrix stack: node = local * parent. Stores the root
@@ -1375,18 +1375,18 @@ void BtlObjPose_CalcMatrices(BobjObj *obj) {
     BobjPart *part;
     s32 done;
 
-    func_00120B18();
-    func_00120B80(&obj->xf.mtx);
+    Vu0Cur_ResetStack();
+    Vu0Cur_LoadMtx(&obj->xf.mtx);
     while (1) {
         part = BtlObj_GetNode(obj, bone->id);
-        func_00120AB0();
-        func_00120B98(&part->parent);
+        Vu0Cur_Push();
+        Vu0Cur_StoreMtx(&part->parent);
         BtlObjPose_GetNodeMtx(obj, &local, part);
-        func_00121FB8((Vec4 *)local.m[3], &part->pos);
-        func_001201B8(&part->mtx, &part->parent, &local);
-        func_00120B80(&part->mtx);
+        Vec3_Copy((Vec4 *)local.m[3], &part->pos);
+        Mtx_Mul(&part->mtx, &part->parent, &local);
+        Vu0Cur_LoadMtx(&part->mtx);
         if (bone->pop != 0) {
-            func_00120AE0(bone->pop);
+            Vu0Cur_PopN(bone->pop);
         }
         if (bone->last != 0) {
             break;
@@ -1840,17 +1840,17 @@ extern f32 Mathf_Cos(f32 a);
 #define Res_RelocateOffsets ((void (*)(void *out, void *base, void *hdr))Res_RelocateOffsets)
 
 /* dst = 0. */
-extern void func_00121E20(Vec4 *dst);
+extern void Vec4_SetZero(Vec4 *dst);
 /* Inverse of a rotation + translation matrix. */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
 /* Matrix product into the first argument. */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
 /* dst = lerp(a, b, t). */
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
 /* Rotations of a vector: about an axis vector, about x, about y. */
-extern void func_00122698(Vec4 *dst, Vec4 *src, Vec4 *axis, f32 angle);
-extern void func_00122790(Vec4 *dst, Vec4 *src, f32 angle);
-extern void func_00122868(Vec4 *dst, Vec4 *src, f32 angle);
+extern void Vec3_RotateAxis(Vec4 *dst, Vec4 *src, Vec4 *axis, f32 angle);
+extern void Vec3_RotateX(Vec4 *dst, Vec4 *src, f32 angle);
+extern void Vec3_RotateY(Vec4 *dst, Vec4 *src, f32 angle);
 /* Named "light direction" in stg_b.c; the chains use it as a wind vector whose w is the strength. */
 extern s32 BtlStage_GetLightDir(Vec4 *out);
 
@@ -2807,7 +2807,7 @@ void BtlObj_SaveNodePositions(BObj *obj, s32 relative) {
     if (relative) {
         Vec4_Copy(&ref, &BtlObj_GetNode(obj, 0)->unk90);
     } else {
-        func_00121E20(&ref);
+        Vec4_SetZero(&ref);
     }
     while (1) {
         node = BtlObj_GetNode(obj, bound->node);
@@ -2827,7 +2827,7 @@ void BtlObj_GetNodeVelocity(BObj *obj, s32 node, Vec4 *out) {
 
     n = BtlObj_GetNode(obj, node);
     if (n == NULL) {
-        func_00121E20(out);
+        Vec4_SetZero(out);
         return;
     }
     Mtx_MulVec4(&pos, &obj->pose.worldInv, (Vec4 *)n->world.m[3]);

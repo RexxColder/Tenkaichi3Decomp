@@ -35,6 +35,9 @@ typedef struct HudTeamMember {
 extern void *memset(void *dst, s32 c, u32 n);
 extern HudTeamMember *BattleSide_GetMember(s32 side, s32 idx);
 
+/* The team panel work. Defined here: this object's .sdata (0x2FEB40). */
+HudTeam *gHudTeam = NULL;
+
 /* Sprite / node helpers (0x224B50..0x2264C8, not decompiled yet). */
 extern void func_00224B50(void (*gsBegin)(void));     /* calls it */
 extern void func_00224B70(void (*gsEnd)(void));       /* calls it */

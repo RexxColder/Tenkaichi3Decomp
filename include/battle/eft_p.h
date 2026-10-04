@@ -239,7 +239,7 @@ typedef struct EftPMtx {
     /* 0x00 */ EftPVec row[4];
 } EftPMtx; /* size 0x40 */
 
-/* A GS screen position as func_001210D8 writes it. */
+/* A GS screen position as Vu0Cur_ProjectPoint writes it. */
 typedef struct EftPScr {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;

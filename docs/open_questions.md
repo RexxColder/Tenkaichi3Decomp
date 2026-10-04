@@ -2,8 +2,9 @@
 
 ## Build and layout
 
-- The C files reference their global variables as `extern` from assembly; none defines its own
-  data yet.
+- Most C files reference their global variables as `extern` from assembly. The ones that define their own
+  `.sdata` so far: dialog.c, the HUD files (hud_a*.c), the menu windows (view_a*.c), besides the few listed with a
+  `.sdata` subsegment in the yaml.
 - Original source-file boundaries are mostly unknown. Evidence so far: `.rodata` alignment (the
   object containing the battle sequence starts at 0x215540), and delay-slot behaviour that only
   matches when certain accessors are not defined earlier in the same file (`battle_work.c` vs
@@ -50,8 +51,6 @@
   0x2ED1D0), eft_v_c.c, eft_w.c, eft_x*.c and eft_y.c (code 0x1871A8..0x195038) would be ONE object, and the
   next one starts with the line helpers at 0x195038 (data from 0x2ED310), which is where eft_y.c was cut.
   Nothing was merged on that evidence alone (the five files link identically as they are).
-  `StgCol_FighterBreakObj` (eft_det_b.c) differs by a `bnez` / `bnezl` after calls into OTHER files only; a
-  stub definition of every INCLUDE_ASM function of its file does not change it.
 - Last batch (eft_ae, col_b / col_c, bobj, the AI sequence): 0x239BB0..0x23C310 is one object (`Font_Flush` needs
   `Font_BeginPacket` / `Font_EndPacket` above it); 0x24E9C8..0x24F9B0 at least is one object (`BtlObj_UpdateFace`
   and `BtlObj_IsJawActive` need `BtlObjFace_StepBlink` / `BtlObjMdl_HasJaw`), linked as 0x24BBE8..0x250B28, and
@@ -92,22 +91,13 @@ Still pulled from assembly inside linked files:
 | `PadWatch_GetMissing` | `pad_watch.c` | 2 of 69: delay-slot fill |
 | `ChrCam_CalcCut` | `btl_char_cam_cut.c` | 248 of 565: register allocation in the four "resolve a node" blocks; it owns two `.lit4` constants, which is why the fighter camera is three files |
 | `BtlAiStep_Unk17` | `btl_ai_seq.c` | 63 of 154: branch layout of the first half, registers of the class comparisons |
-| `BtlAiCond_TypeRateByOppAction` | `btl_ai_cond.c` | 5 of 50: a result register and the place of two pointer adds |
-| `BtlAi_GetPairRate`, `BtlAi_GetQuadRate` | `btl_ai_cond.c` | 75 of 90: the original repeats the row code in every even case and shares one tail for the odd ones |
 | `AiThink_TestSkill` | `btl_ai_cond.c` | about 260 of 308: eight strength-reduced pointers in the slot loop, four of them on the stack |
-| `AiThink_BuildTotals` | `btl_ai_cond.c` | 12 of 80: where the pointer to the last table is formed |
-| `AiThink_GetRollRange` | `btl_ai_cond.c` | 25 of 64: registers and the order of two byte loads |
-| `AiThink_RollGroupGate` | `btl_ai_cond.c` | 50 of 112: a register in the first switch, a shared argument load in the second |
-| `AiThink_EvalRules` | `btl_ai_cond.c` | 83 of 270: register choices that follow from one (a1 kept free) |
 | `AiThink_GetBlastStep` | `btl_ai_cond.c` | 11 of 32: registers only |
 | `BtlAiSense_IsBusy` | `btl_ai_act.c` | 8 of 48: a delay-slot fill |
 | `BtlFx_SpawnSpeedLines` | `btl_char_fx.c` | 35 of 112: the store order and constant registers of the block that fills the 0x60-byte parameter structure |
 | `BtlFx_FireKiBlast` (formerly `BtlFx_SpawnDamageSparks`) | `btl_char_fx.c` | register allocation only (two saved registers swapped, one value spilled); owns the jump table at 0x2EF020 |
-| `BtlActB_TickMemberChange` | `btl_act_a.c` | 14 of 42: the last test compiles to slti / sltiu and the branch layout follows from it |
 | `BtlAct_GuardHandler` | `btl_act_c.c` | 2 of 298: the order of two argument loads in front of one call |
-| `BtlAct_GrabDash` | `btl_act_h.c` | 18 of 146: the original keeps a branch where this compiler makes a conditional move |
-| `BtlCharApi_HasKiBlastType2`, `BtlCharApi_HasKiBlastType3` | `btl_capi_a.c` | same instructions, different block layout of the search loop |
-| `EftHit_SetTaskFlag`, `EftHit_IsStoppedByHit`, `EftHit_ClashTech`, `EftHit_InitMultiHit` | `eft_a.c` | 13 of 29 (order of the by-value vector copy and of the list load); 14 of 24 (two branch-likely kind tests that every C form merges); one instruction (`a` copied to a2 on entry); 3 of 20 (which of v0 / v1 holds the definition) |
+| `EftHit_InitMultiHit` | `eft_a.c` | 3 of 20 (which of v0 / v1 holds the definition) |
 | `EftGfx_LightClutSpecular`, `EftGfx_DrawPolyAvgZ`, `EftGfx_DrawPolyFixedZ`, `EftGfx_DrawPolyAvgZFront`, `EftGfx_DrawPolyScaledZ`, `EftGfx_DrawSprite` | `eft_a.c` | 22 of 198, registers only; the polygon functions walk a pointer to `scr[i - 1][2]` in the original and to `scr[i][2]` here (7 of 115, 20 of 122), plus register allocation and the order of the clamps |
 | `EftPrim_DrawBillboard`, `EftPrim_DrawQuadDepthScaled`, `EftPrim_DrawTriangle` | `eft_b.c` | about 50 of 370 (registers and scheduling of the corners); 8 of 200 (f29 / f30 swapped); 12 of 326 (scheduling of two constant loads) |
 | `EftBubble_EmitBody`, `EftBubble_Add`, `EftGeyser_DrawColumn` | `eft_b.c` | the original does not strength-reduce the bone table index (owns the table at 0x2EC620); 5 of 151 (one store before instead of after the count increment); register allocation throughout (owns the table at 0x2EC6E0) |
@@ -118,23 +108,17 @@ Still pulled from assembly inside linked files:
 | `EftWater_IsOnScreen`, `EftWater_DrawBillboard`, `EftWater_DrawSprayQuad`, `EftWater_DrawClippedFan` | `eft_e.c` (second part) | inverse branch layout at the end of each case; 23 of 377 (registers of three constants); 126 of 456 (the roll loop counts up in the original); registers almost everywhere |
 | `EftUtil_DrawTri`, `EftStorm_DrawBolts`, `EftStorm_SpawnBolt`, `EftStorm_DrawRainLines` | `eft_g.c` | two instructions swapped; 506 instructions against 636 (the original writes the second sprite twice); three instructions (a branch around `kind = 1`); slt / movn against slt / movz |
 | `EftSmoke_Update`, `EftSmoke_Draw`, `EftBound_BuildWall`, `EftBound_Init` | `eft_g.c` | where the flag word is reloaded; two more float copies and a larger frame in the original; numbering of the saved registers; one store's position |
-| `EftShot_BuildParam`, `EftShot_GetLeadTime`, `EftVolley_Init` | `eft_h.c` | 499 instructions against 502 (address arithmetic shared differently); the original loads each constant into f1 and copies it to f0; 6 of 72 (a repeated load of `slot->param`) |
+| `EftShot_BuildParam`, `EftVolley_Init` | `eft_h.c` | 499 instructions against 502 (address arithmetic shared differently); 6 of 72 (a repeated load of `slot->param`) |
 | `EftEmit_SpawnType0`, `EftEmit_SpawnType16`, `EftEmit_SpawnType14`, `EftEmit_SpawnType5` | `eft_h.c` | saved-register numbering and a shared tail; 4 of 195 and 4 of 213 (s1 / s2 swapped); 16 of 191 (registers of the resource address) |
 | `EftEmit_SpawnType9`, `EftEmit_SpawnType10`, `EftEmit_SpawnType15`, `EftEmit_SpawnType12`, `EftEmit_Spawn` | `eft_i.c` | 17 of 195, 25 of 207, 52 of 229, 56 of 205: where memset's arguments are set up in the block that fills the argument, and swapped saved registers; `EftEmit_Spawn` 66 of 753 (owns the two jump tables at 0x2EC990 / 0x2EC9B0) |
-| `EftSweep_AddMark`, `EftSweep_UpdateMarks` | `eft_i.c` | a constant the original keeps inside the loop is hoisted here (1, and 1.0f) |
 | `EftBlast_Init` | `eft_j.c` | 9 of 104: registers of three loads that gcse makes one pseudo; matches with `-fno-gcse` |
-| `StgFrustum_Build`, `Stg_FadeByCamDist` | `stg_a.c` | 8 of 164 (one float register swap); 4 of 54 (f0 / f2 swapped) |
-| `StgPart_Animate`, `BtlStage_BreakObj`, `BtlStage_UpdateObjs` | `stg_a_b.c` | 29 of 288 (registers in the interpolation block); the shake section (the original keeps 1500 in a saved register); the original runs out of saved registers and spills |
 | `ScrXfade_StoreHalf`, `ScrXfade_Draw`, `ScrWarp_Draw`, `StgFog_Draw` | `stg_b.c` | 4 of 121 (scheduling before the first call); 25 of 145 (0x700 hoisted into a register in the original); 148 instructions against 150; 156 of 229 (schedule of six constants) |
 | `StgHaze_Draw`, `StgBlur_Draw` | `stg_c.c` | GS packet loops: a second copy of `rows - 1` and reloads from the stack in the original |
 | `EftAura_DrawFlames`, `EftAura_SetType`, `EftBolt_Shape`, `EftBolt_Draw`, `EftBolt_Spawn` | `eft_n.c` | 512 of 564; the original tests `flags & 0x80` twice from one register and re-reads `aura->type` after storing it (its attempt is compiled as a stub so that `EftAura_ChangeType` matches); 431 of 466 and 359 of 474 (same statements and frame, register allocation); 116 of 547 |
 | `EftBolt_UpdateTex`, `EftRays_DrawRay`, `EftRays_Step`, `EftRays_LerpKey` | `eft_o.c` | 5 of 70 (when `t->tex0` is loaded around a call); 127 of 296 (frame 0x3F0 against 0x400, one more 16-byte local in the original); 8 of 185 (f21 / f22 swapped); 29 of 116 (a2 / a3 swapped) |
 | `EftBlastObj_UpdateParts`, `EftBlastObj_Init` | `eft_o_b.c` | 70 of 115 (the original leaves the loop from both node tests with `skip = 0` in the delay slot); 6 of 172 (registers of the node slot copy) |
-| `EftDisc_Update` | `eft_o_c.c` | 10 of 517: f2 / f3 swapped in the roll decay block |
-| `EftDisc_Home` | `eft_p.c` | 42 of 180, in the banking term: which register holds the constant 0.0 and how 1.0 is loaded |
 | `EftGlow_BuildTables`, `EftGlow_SpawnPart`, `EftGlow_PairPart`, `EftGlow_DrawParts` | `eft_p_b.c` | 23 of 205 (how the address of `dir[i].y` is formed); 73 of 546 (the original shares ONE `jal Vec4_Sub` between two arms); 57 of 120 (s2 / s3 swapped, three copies of one pointer); 9 of 487 (registers of the three off-screen tests) |
 | `EftTrail_Draw` | `eft_q.c` | 320 of 507; dead code (nothing references its class) |
-| `EftStruggle_Init` | `eft_r.c` | 5 of 104: registers of two source pointers and two definitions |
 | `EftKiObj_DrawFrags`, `EftChain_BlendKeys`, `EftChain_DrawStrand`, `EftChain_StartStrand` | `eft_s.c` | 3 of 72 (`li s2,4` before the 2^31 constant in the original); 707 of 743 (frame 0x180 against 0x1A0, `out` in s6); 29 of 433 (a `beqzl` with the loop-step load in its slot, and where 1.0f is loaded); 5 of 350 (f4 / f2 against f2 / f1) |
 | `EftRay_DrawRays`, `EftRay_DrawQuad2D` | `eft_s.c` (second part) | 59 of 306: the corner loop counts up in the original (this source gives it with `-fno-rerun-loop-opt`); 311 of 339 (three values in s4..s6 and a frame 0x10 bigger in the original) |
 | `EftStreak_Draw`, `EftStreak_Step`, `EftStreak_DrawScreen` | `eft_t_b.c` | 342 of 377 (four spills and fp for a corner address in the original); 96 of 140 (the original computes 1.0f - 0.4f at run time; the compiler folds it here); 356 of 373 (1.0 loaded twice in the original) |
@@ -152,19 +136,24 @@ Still pulled from assembly inside linked files:
 | `EftRibbon_DrawKind1`, `EftZap_Draw`, `EftZap_InitLine`, `EftZap_DrawQuad` | `eft_ab_c.c` (second part) | 15 of 302 (s6 / s7 swapped; compiled as a stub for `EftRibbon_Draw`); 9 of 420 (temporaries of three memsets); 7 of 567 (f2 / f3 swapped in one of three identical blocks); 45 of 274 (packet header constants) |
 | `EftMesh_DrawTriClip`, `EftMesh_DrawNowTriClip`, `EftMesh_QueueTri`, `EftMesh_SendTri` | `eft_ad_b.c` | 178 instructions against 180 and 149 against 147 (other induction variables in the fan loop); 644 against 654 (t8 / t9 swapped, store order of the packet headers); 309 against 311 |
 | `EftSpr_DrawFlat`, `EftSpr_DrawRot` | `eft_ad_c.c` | 250 instructions against 254; 325 against 407 (the original writes the four corners out one by one) |
-| `StgCol_SplitStep`, `StgCol_FighterBreakObj`, `StgCol_TraceZone` | `eft_det_b.c` | 1.0f loaded before the division and branch in the original; ONE instruction (`bnez` in the original, `bnezl` here, after a call into another file: not a missing definition in this file); 15 of 111 (s2 / s3 swapped) |
-| `StgNavNode_Clear`, `StgNav_FindPath` | `eft_det_b_b.c` | two adjacent `li` in the other order; the operand order of two `addu` |
-| `BtlAiSeq_PushRule` | `eft_det_b_c.c` | 66 of 85: the original does not reduce the two byte lists to walking pointers |
 | `ColObb_Contact` | `col_a.c` | not matched (1137 of 1140); dead code with no caller; owns the jump table at 0x2F2170 |
 | `EftSprAnim_Draw`, `EftSprAnim_DrawQuad`, `EftSprAnim_DrawQuadSubdiv` | `eft_ae.c` | 9 of 110, scheduling only (the original loads the constant 2 into t1 right after reading the draw flags); the quad writers: the original computes the GS context bit as an int after the entry test of the fan loop and uses it unextended / sign-extended for different registers, the two stq pointers swap registers and two header stores swap (one inlined `EftSprAnim_QueueTri` attempt covers both) |
 | `BtlAiStep_GuardUntilSafe` | `btl_ai_seq.c` | 2 of 74: `sltiu v0,v0,1` and `li a1,0x10` in the other order around the first branch |
 | `FontIcon_PutSprite` | `col_c_b.c` | 125 of 129: same operations; the original builds every 64-bit register value after the visibility test, keeps x0, x1, colour and TEX0 in saved registers and y0, y1 on the stack |
-| `BtlObjAnim_SamplePosRot`, `BtlObjAnim_Load`, `BtlObjAnim_SamplePose`, `BtlObjXf_Update` | `bobj_a.c` | 202 of 244 (the original re-reads the first key's frame from memory at every use and keeps a pointer to it in a1); 8 of 29 (v0 / v1 swapped, the table entry loaded before `*size` is stored); 165 of 197 (the original copies `&pos` / `&rot` into saved registers in each arm of the layer 1 sampling); 23 of 65 (saved registers; owns the two constants at 0x2FE658 / 0x2FE65C, emitted with LIT4_WORD) |
-| `BtlObj_BindTables` | `bobj_a.c` (second part) | 43 of 213: callee-saved registers of three values and the base of the three-entry loop (`(obj + 0x20) + 0x90` against `(obj + 0x10) + 0xA0`) |
-| `BObjChainB_Step`, `BObjChainB_Build`, `BObjChainA_Step` | `bobj_b_b.c` | 492 of 600 and 521 of 711 (frame size, register allocation and float scheduling: the original keeps the clamp limits in f26..f31 from the top; the arithmetic of the attempts is read from the disassembly, not verified); 9 of 122 (operand order of four address additions around the id stack). `BObjChainB_Step` owns 28 constants in the middle of the pool (LIT4_WORD), `BObjChainA_Step` the 19 at 0x2FE718..0x2FE764 (assembly chunk) |
+| `BObjChainA_Step` | `bobj_b_b.c` | 9 of 122 (operand order of four address additions around the id stack); owns the 19 constants at 0x2FE718..0x2FE764 (assembly chunk) |
+| `Dialog_SetCursor` | `sys/dialog.c` | 7 of 22, registers only: the original has `gDialog` in v1, `choice ^ 1` in v0 and the old cursor in a1 (matches only with the cursor pinned to `$5`, which is not source). Because it is assembly, the two label strings it uses are named objects in dialog.c |
+| `HudGauge_UpdateAura` | `hud_b.c` | 351 instructions against 349: the compiler rotates the redraw loop (or, written with a `goto`, keeps `n * 8` in another register); owns the table at 0x2F1B90 |
+| `StgPanBlur_UpdateView`, `StgPanBlur_DrawView`, `GfxPost_DrawGlow`, `StgDepthTint_Draw` | `sys/gfxm_a.c` | 60 of 191 (two saved registers, and the original recomputes `view + i * 0x30` for each store); 83 of 454 (registers in the layer loop); 20 of 966 (two texel coordinates stepped as 64-bit values in the up-scaling loops); 51 of 59 (a zero kept in a saved register across a call) |
+| `GfxPost_DrawTintRect`, `GfxLens_DrawAll`, `GfxLens_PutCapture`, `GfxWater_DrawView`, `GfxWater_Draw`, `GfxPost_ShiftHighWord` | `sys/gfxm_b.c` | 33 of 136 (the original computes `0 << 4` at run time); 15 of 240 (an indexed store where this walks a pointer; owns the table at 0x2EB6A0); about 230 of 299 (five strip counters against four); about 508 of 640 (nine locals on the stack in the original); one hoisted address (frame 0x80 against 0x90); 87 of 191 (registers only) |
+| `TexChain_Build`, `TexChain_BuildPair`, `GfxClut_InitPacket` | `sys/gfxm_b_b.c` | 3 of 94 and 31 of 120 (`addu s0,v0,s0` where the compiler knows the offset is 0x10); 7 of 76 (registers of three constants) |
+| `Flash_SkipNamed` | `sys/gfxm_b_c.c` | 16 of 28: where the NULL result is loaded |
+| `Num_DrawEx`, `ChrGrid_Build`, `BgmList_ApplyUnlocks` | `view_a_e.c` | 29 of 179 (three saved registers rotated); 210 of 347 (the original keeps three separate copies of the cell copy); 9 of 40 (two registers swapped) |
 
 `StgVu_RotateZ`, `StgVu_RotateX`, `StgVu_RotateY` (0x240C68..0x240DB8) are hand-written VU0 macro code and stay an
-assembly chunk between `stg_a.c` and `stg_a_b.c` (they cannot be INCLUDE_ASM, see decomp_guide.md).
+assembly chunk between `stg_a.c` and `stg_a_b.c`. They cannot be INCLUDE_ASM: the per-function files splat writes
+for a C segment spell the VU0 registers `ACC` / `Q` without `$`, which the assembler rejects. The vector library
+(`src/sys/vu0_a_c*.c`, `vu0_b_c.c`) carries its hand-written routines as top-level `__asm__` blocks instead; the
+same could be done here.
 
 ## Game structure
 
@@ -178,10 +167,8 @@ assembly chunk between `stg_a.c` and `stg_a_b.c` (they cannot be INCLUDE_ASM, se
 
 ## Not started
 
-- The stage, effects, HUD and camera internals.
 - The 3D renderer, the model/texture/animation formats and the nine VU1 microprograms.
-- The VU0 vector library (about 223 functions).
-- The memory card module and the movie player.
+- The memory card module (being decompiled: src/sys/mcflow_a.c).
 - The whole menu overlay (737 functions).
 - `SOUNDS.IRX` (the sound driver) and the bank format.
 - The archives: nothing has been extracted or catalogued.

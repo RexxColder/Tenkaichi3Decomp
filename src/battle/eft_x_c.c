@@ -35,11 +35,11 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);    /* rotate about Z */
-extern void func_00120AB0(void);                                 /* VU0: push the current matrix */
-extern void func_00120B80(Mtx44 *m);                             /* VU0: load a matrix */
-extern void func_00120AC8(void);                                 /* VU0: pop */
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);    /* rotate about Z */
+extern void Vu0Cur_Push(void);                                 /* VU0: push the current matrix */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                             /* VU0: load a matrix */
+extern void Vu0Cur_Pop(void);                                 /* VU0: pop */
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
 extern f32 EftMath_WrapAngle(f32 angle);
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -230,14 +230,14 @@ void EftQuad_Draw(EftXTask *task) {
     if ((em->flags & EFT_PART9_VIEWONLY) && !BtlScene_IsCharInView(em->objId)) {
         return;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     if (em->def->flags & 0x20) {
         EftQuad_DrawAllFacing(em, def->layer);
     } else {
         EftQuad_DrawAllSprite(em, def->layer);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Emitter reset callback: the emitter does not survive a scene reset. */
@@ -280,7 +280,7 @@ s32 EftQuad_InitQuad(EftPart9Ptcl *p, EftPart9 *em) {
     p->dir.y = 0.0f;
     p->dir.z = cosf(a);
     p->dir.w = 1.0f;
-    func_00120308(&m, &m, EftMath_WrapAngle(Rand_FloatRange(0.0f, 1.0f) * 6.2831853f));
+    Mtx_RotateZ(&m, &m, EftMath_WrapAngle(Rand_FloatRange(0.0f, 1.0f) * 6.2831853f));
     Mtx_MulVec4(&p->dir, &m, &p->dir);
     Vec3_Sub(&p->vel, &up, &p->dir);
     Vec3_Normalize(&p->vel, &p->vel);
@@ -423,8 +423,8 @@ s32 EftQuad_InitQuad(EftPart9Ptcl *p, EftPart9 *em) {
     end.y = Rand_FloatRange(em->endColorMin[1], em->endColorMin[1] + em->endColorRange[1]);
     end.z = Rand_FloatRange(em->endColorMin[2], em->endColorMin[2] + em->endColorRange[2]);
     end.w = 0.0f;
-    func_00122118(&p->color0, &p->color0, end.w, 255.0f);
-    func_00122118(&end, &end, 0.0f, 255.0f);
+    Vec4_Clamp(&p->color0, &p->color0, end.w, 255.0f);
+    Vec4_Clamp(&end, &end, 0.0f, 255.0f);
     Vec4_Copy(&p->color, &p->color0);
     Vec3_Sub(&p->colorStep, &end, &p->color0);
     p->color.w = Rand_FloatRange(em->colorMin[3], em->colorMin[3] + em->colorRange[3]);

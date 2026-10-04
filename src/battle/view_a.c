@@ -15,7 +15,7 @@
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 sprintf(char *dst, const char *fmt, ...);
 
-extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
+extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
 extern void func_0010D648(Flash *flash);                                  /* destroys the movie */
 extern void func_0010D6F0(Flash *flash);                                  /* steps the movie */
@@ -35,8 +35,8 @@ extern void Num_Draw_(Flash *flash, char *fmt, s32 first, s32 count, s32 value, 
 extern void func_00260118(TextBox *box, s32 a, s32 b, s32 c, s32 d, s32 e);
 extern void func_002604C0(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box); /* draws a line in a clip */
 
-/* Defined in this object in the original, in .sdata: `GetWin *gGetWin = NULL;` (see the report on the data layout). */
-extern GetWin *gGetWin;
+/* Defined here: this object's .sdata (0x2FF0D0). */
+GetWin *gGetWin = NULL;
 
 /* Allocates the reward window and builds its movie and five text boxes from a pack file. */
 void GetWin_Init(u32 *pack, s32 lang) {

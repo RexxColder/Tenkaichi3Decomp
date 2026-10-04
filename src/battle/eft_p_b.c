@@ -24,9 +24,9 @@
  *     orientation of `frame` frames ago, leans by the fighter's frame movement, animates its width / length in
  *     two stages, fades in and out, and is drawn as a camera-facing textured strip of four vertices.
  *
- * Callees named by address: func_00120230 matrix copy; func_00120308 / func_00120398 / func_00120428 rotate about
- * Z / X / Y; func_00121E40 sets x, y, z; func_00121F68 divides a vector; func_00122118 clamps each component;
- * func_001210D8 projects a point to GS screen coordinates.
+ * Callees named by address: Mtx_Copy matrix copy; Mtx_RotateZ / Mtx_RotateX / Mtx_RotateY rotate about
+ * Z / X / Y; Vec3_Set sets x, y, z; Vec4_Div divides a vector; Vec4_Clamp clamps each component;
+ * Vu0Cur_ProjectPoint projects a point to GS screen coordinates.
  */
 
 extern s32 rand(void);
@@ -47,14 +47,14 @@ extern void Vec3_Cross(EftPVec *dst, EftPVec *a, EftPVec *b);
 extern f32 Vec3_Dot(EftPVec *a, EftPVec *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(EftPVec *dst, void *m, EftPVec *src);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_00121E40(EftPVec *dst, f32 x, f32 y, f32 z);
-extern void func_00121F68(EftPVec *dst, EftPVec *src, f32 div);
-extern void func_00122118(EftPVec *dst, EftPVec *src, f32 lo, f32 hi);
-extern void func_001210D8(EftPScr *out, EftPVec *pos);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Vec3_Set(EftPVec *dst, f32 x, f32 y, f32 z);
+extern void Vec4_Div(EftPVec *dst, EftPVec *src, f32 div);
+extern void Vec4_Clamp(EftPVec *dst, EftPVec *src, f32 lo, f32 hi);
+extern void Vu0Cur_ProjectPoint(EftPScr *out, EftPVec *pos);
 
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftPVec *out);
 extern void BtlCharApi_GetDir(s32 objId, EftPVec *out);
@@ -139,7 +139,7 @@ void EftGlow_Spline3(EftPVec *out, EftPVec *p, f32 t) {
     Vec4_Set(&tv, t * t * t, t * t, t, 1.0f);
     Mtx_MulVec4(&tv, &basis, &tv);
     Mtx_MulVec4(&tv, &pts, &tv);
-    func_00121F68(out, &tv, 2.0f);
+    Vec4_Div(out, &tv, 2.0f);
     out->w = 1.0f;
 }
 
@@ -227,13 +227,13 @@ void EftGlow_CalcFrame(Mtx44 *m, s32 objId, s32 kind) {
         }
         Vec3_Normalize(&dir, &dir);
         rot.x = asinf(dir.y);
-        func_00120398(m, m, rot.x);
+        Mtx_RotateX(m, m, rot.x);
         BtlCharApi_GetRot(objId, &rot);
         rot.y += 3.14159265f;
         if (rot.y > 3.14159265f) {
             rot.y -= 6.2831853f;
         }
-        func_00120428(m, m, rot.y);
+        Mtx_RotateY(m, m, rot.y);
     } else {
         BtlCharApi_GetNodePos(objId, 0x2E, &a);
         BtlCharApi_GetNodePos(objId, 3, &dir);
@@ -241,8 +241,8 @@ void EftGlow_CalcFrame(Mtx44 *m, s32 objId, s32 kind) {
         Vec3_Normalize(&dir, &dir);
         rot.x = asinf(-dir.y);
         rot.y = atan2f(dir.x, dir.z);
-        func_00120398(m, m, rot.x);
-        func_00120428(m, m, rot.y);
+        Mtx_RotateX(m, m, rot.x);
+        Mtx_RotateY(m, m, rot.y);
     }
 }
 
@@ -263,7 +263,7 @@ void EftGlow_CalcDrift(EftPVec *out, s32 objId) {
     Vec4_Scale(&d, &d, s);
     BtlCharApi_GetFrameMove(objId, out);
     Vec3_Scale(out, out, gEftGlowCfg2->moveScale);
-    func_00122118(out, out, -0.5f, 0.5f);
+    Vec4_Clamp(out, out, -0.5f, 0.5f);
     Vec4_Add(out, out, &d);
     out->w = 0.0f;
 }
@@ -644,7 +644,7 @@ void EftGlow_SpawnNext(EftPGlow *e, s32 objId) {
             angle -= 360.0f;
         }
     }
-    func_00121E40(&v, 0.0f, 1.0f, 0.3f);
+    Vec3_Set(&v, 0.0f, 1.0f, 0.3f);
     Vec3_Normalize(&v, &v);
     Vec3_Scale(&off, &e->offset, e->scale);
     off.w = 1.0f;
@@ -730,7 +730,7 @@ void EftGlow_Begin(EftPGlow *e, s32 *arg) {
     e->offset.z = gEftGlowCfg->offZ;
     EftGlow_CalcFrame(&m, arg[0], e->kind);
     for (i = 4; i >= 0; i--) {
-        func_00120230(&e->frame[i], &m);
+        Mtx_Copy(&e->frame[i], &m);
     }
     e->fade = 1;
     e->fadeTime = gEftGlowCfg->fadeIn;
@@ -745,12 +745,12 @@ void EftGlow_UpdateFrames(EftPGlow *e, s32 objId) {
 
     if (e->flags & 2) {
         for (i = 4; i > 0; i--) {
-            func_00120230(&e->frame[i], &e->frame[i - 1]);
+            Mtx_Copy(&e->frame[i], &e->frame[i - 1]);
         }
     } else {
         EftGlow_CalcFrame(&e->frame[0], objId, e->kind);
         for (i = 4; i > 0; i--) {
-            func_00120230(&e->frame[i], &e->frame[i - 1]);
+            Mtx_Copy(&e->frame[i], &e->frame[i - 1]);
         }
     }
 }
@@ -844,7 +844,7 @@ void EftGlow_StepParts(EftPGlow *e, s32 objId) {
                 p->next = gEftGlow->free;
                 gEftGlow->free = p;
             } else {
-        func_00120230(&frame, &e->frame[p->frame]);
+        Mtx_Copy(&frame, &e->frame[p->frame]);
         p->frame++;
         if (p->frame >= 5) {
             p->frame = 4;
@@ -854,7 +854,7 @@ void EftGlow_StepParts(EftPGlow *e, s32 objId) {
         EftGlow_GetShapePoint(&p->point, objId, p->shape, e->scale * p->dist);
         EftGlow_GetShapeDir(&p->dir, objId, p->shape, p->dirY);
         Mtx_StoreIdentity(&rot);
-        func_00120308(&rot, &rot, p->angle * 3.14159265f / 180.0f);
+        Mtx_RotateZ(&rot, &rot, p->angle * 3.14159265f / 180.0f);
         Mtx_MulVec4(&b, &rot, &p->point);
         Mtx_MulVec4(&p->dir, &rot, &p->dir);
         Mtx_MulVec4(&b, &frame, &b);
@@ -894,7 +894,7 @@ void EftGlow_StepParts(EftPGlow *e, s32 objId) {
             }
         }
         Vec4_Add(&p->color, &p->color, &p->dColor);
-        func_00122118(&p->color, &p->color, 0.0f, 1.0f);
+        Vec4_Clamp(&p->color, &p->color, 0.0f, 1.0f);
         if (p->flags & 2) {
             f32 t = p->life / p->lifeMax;
 
@@ -937,10 +937,10 @@ void EftGlow_MakeFacingMtx(Mtx44 *m, EftPVec *dir, EftPVec *pos) {
     d = Vec3_Dot(&cam, dir);
     if (d < s) {
         s = -d * 0.4f;
-        func_00121E40(&t, -cam.x, -cam.y, -cam.z);
+        Vec3_Set(&t, -cam.x, -cam.y, -cam.z);
     } else {
         s = d * 0.4f;
-        func_00121E40(&t, cam.x, cam.y, cam.z);
+        Vec3_Set(&t, cam.x, cam.y, cam.z);
     }
     Vec4_Sub(&t, dir, &t);
     Vec3_Normalize(&t, &t);
@@ -1028,7 +1028,7 @@ void EftGlow_DrawParts(EftPGlow *e, s32 objId, f32 alpha) {
                 v.z *= p->taper;
             }
             Mtx_MulVec4(&w, &m, &v);
-            func_001210D8(&scr[i], &w);
+            Vu0Cur_ProjectPoint(&scr[i], &w);
             if ((u32)scr[i].x > 0xFFF0) {
                 clip = 1;
                 break;

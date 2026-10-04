@@ -17,11 +17,11 @@ extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
-extern void func_00121E18(Vec4 *dst);                            /* dst = (0, 0, 0, 1) */
-extern void func_00121E20(Vec4 *dst);                            /* dst = (0, 0, 0, 0) */
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);   /* dst = a * t + b * (1 - t) */
-extern void func_00122030(Vec4 *dst, Vec4 *angles, Vec4 *src);   /* dst = src rotated by Euler angles */
-extern void func_00122140(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamp x, y, z */
+extern void Vec4_SetZeroW1(Vec4 *dst);                            /* dst = (0, 0, 0, 1) */
+extern void Vec4_SetZero(Vec4 *dst);                            /* dst = (0, 0, 0, 0) */
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);   /* dst = a * t + b * (1 - t) */
+extern void Vec4_RotateEuler(Vec4 *dst, Vec4 *angles, Vec4 *src);   /* dst = src rotated by Euler angles */
+extern void Vec3_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamp x, y, z */
 extern f32 Mathf_Sin(f32 a);
 extern f32 Mathf_Cos(f32 a);
 extern f32 Mathf_Tan(f32 a);

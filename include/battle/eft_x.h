@@ -54,7 +54,7 @@ typedef struct EftXTexSet {
     /* 0x104 */ u32 ready;     /* bit n: entry n holds a blended TEX0 built by EftPart10_BuildTex */
 } EftXTexSet; /* 0x108 */
 
-/* A GS screen position as func_001210D8 / func_00121240 / func_001220F0 write it. */
+/* A GS screen position as Vu0Cur_ProjectPoint / Vu0Cur_ProjectPointsStq / Vec4_ToInt write it. */
 typedef struct EftXIVec {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;

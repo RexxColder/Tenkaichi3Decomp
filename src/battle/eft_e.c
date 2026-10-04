@@ -48,10 +48,10 @@ extern EftStageMarker *BtlStage_GetFxResC2(void);
 extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
 extern u64 EftVram_AddTex(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
-extern void func_00120AB0(void);
-extern void func_00120B80(Mtx44 *mtx);
-extern void func_00120AC8(void);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_LoadMtx(Mtx44 *mtx);
+extern void Vu0Cur_Pop(void);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -176,14 +176,14 @@ extern f32 EftStage_GetTintScale(void);
 extern void EftMath_MtxFromDir(Mtx44 *out, Vec4 *dir, f32 angle);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *mtx, Vec4 *v);
 
-/* A projected point as func_00121140 writes it: GS x, y in 12.4 fixed point, z, and a fourth word. */
+/* A projected point as Vu0Cur_ProjectPoints writes it: GS x, y in 12.4 fixed point, z, and a fourth word. */
 typedef struct EftSteamScr {
     /* 0x00 */ s32 x;
     /* 0x04 */ s32 y;
     /* 0x08 */ s32 z;
     /* 0x0C */ s32 unkC;
 } EftSteamScr; /* size 0x10 */
-extern void func_00121140(EftSteamScr *out, Vec4 *in, s32 count);
+extern void Vu0Cur_ProjectPoints(EftSteamScr *out, Vec4 *in, s32 count);
 
 /* GS XYZF2 register value. */
 typedef struct EftSteamXyzf {
@@ -368,10 +368,10 @@ void EftSteam_Draw(EftSteamTask *task) {
 
     if (!(gBtlStage->flags & 1)) {
         if (EftStage_IsDrawOn()) {
-            func_00120AB0();
-            func_00120B80(&gBtlCamView->world2screen);
+            Vu0Cur_Push();
+            Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
             EftSteam_DrawParts(work, work->tex->tex0);
-            func_00120AC8();
+            Vu0Cur_Pop();
         }
     }
 }
@@ -397,7 +397,7 @@ void EftSteam_Emit(EftSteamWork *work) {
     EftEVec up = {0.0f, -1.0f, 0.0f, 1.0f};
 
     if (part != NULL) {
-        func_001202A0(&cam, &gBtlCamView->world2view2);
+        Mtx_InverseRT(&cam, &gBtlCamView->world2view2);
         Vec4_Sub(&toCam, (Vec4 *)cam.m[3], (Vec4 *)&work->arg.pos);
         Vec3_Normalize(&toCam, &toCam);
         Vec3_Cross(&side, (Vec4 *)&up, &toCam);
@@ -520,7 +520,7 @@ void EftSteam_DrawQuad(EftEVec *color, EftEVec *pos, f32 w, f32 h, f32 u0, f32 v
         Vec3_Add(&corner[i], &corner[i], (Vec4 *)pos);
         corner[i].w = 1.0f;
     }
-    func_00121140(scr, corner, 4);
+    Vu0Cur_ProjectPoints(scr, corner, 4);
     if (EftSteam_IsClipped(scr[0].x, scr[0].y, scr[0].z)) {
         return;
     }
@@ -1012,9 +1012,9 @@ void EftWater_Draw(void) {
     if (!(gBtlStage->flags & 1)) {
         if (EftStage_IsDrawOn()) {
             if (BtlStage_IsReady()) {
-                func_00120AB0();
-                func_00120B80(&gBtlCamView->world2screen);
-                func_001202A0(&gEftDust->camMtx, &gBtlCamView->world2view2);
+                Vu0Cur_Push();
+                Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
+                Mtx_InverseRT(&gEftDust->camMtx, &gBtlCamView->world2view2);
                 gEftDust->camMtx.m[3][0] = gEftDust->camMtx.m[3][1] = gEftDust->camMtx.m[3][2] = 0.0f;
                 EftWaterSplash_DrawList(gEftDust->splashList[0]);
                 EftWaterTrail_DrawList(gEftDust->trailList[0]);
@@ -1022,7 +1022,7 @@ void EftWater_Draw(void) {
                 EftWaterSpray_DrawList(gEftDust->sprayList[0], D_002C3630);
                 EftWaterDrop_DrawList(gEftDust->dropList[0], D_002C3630);
                 EftWaterMist_DrawList(gEftDust->mistList[0]);
-                func_00120AC8();
+                Vu0Cur_Pop();
             }
         }
     }
@@ -1347,9 +1347,9 @@ extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 EftWater_GetSurfaceY(f32 *outY); /* eft_e.c: height of the water surface; 0 when there is none */
 #define EftWaterSplash_IsEmpty ((s32 (*)(EftWaterSplashView *src))EftWaterSplash_IsEmpty) /* eft_e.c: 1 when the splash has nothing left */
 extern f32 EftMath_WrapAngle(f32 angle);        /* wraps an angle into -pi..pi */
-extern void func_00120230(EftWaterMtx *dst, EftWaterMtx *src); /* matrix copy */
+extern void Mtx_Copy(EftWaterMtx *dst, EftWaterMtx *src); /* matrix copy */
 
-extern void func_00122190(EftWaterVec *out, EftWaterVec *up, EftWaterVec *dir, f32 angle); /* orientation from an up vector, a direction and a tilt */
+extern void Vec3_Lerp(EftWaterVec *out, EftWaterVec *up, EftWaterVec *dir, f32 angle); /* orientation from an up vector, a direction and a tilt */
 extern void EftUtil_MakeFacingMtx(EftWaterMtx *out, EftWaterVec *rot, EftWaterVec *pos);            /* matrix from that orientation and a position */
 
 /* libc rand() scaled to 0..1 (appearance only) */
@@ -1358,15 +1358,15 @@ extern void EftUtil_MakeFacingMtx(EftWaterMtx *out, EftWaterVec *rot, EftWaterVe
 #define EFT_WATER_SCALE(objId, scale) (BtlCharApi_GetHeight(objId) * 0.05f * (scale))
 extern void Mtx_StoreIdentity(EftWaterMtx *m);
 #define Mtx_MulVec4 ((void (*)(EftWaterVec *dst, EftWaterMtx *m, EftWaterVec *src))Mtx_MulVec4)
-extern void func_001201B8(EftWaterMtx *dst, EftWaterMtx *a, EftWaterMtx *b);  /* matrix product */
-extern void func_00120308(EftWaterMtx *dst, EftWaterMtx *src, f32 angle);    /* rotate about Z */
-extern void func_00120428(EftWaterMtx *dst, EftWaterMtx *src, f32 angle);    /* rotate about Y */
-extern s32 func_00122350(EftWaterIVec *out, EftWaterMtx *m, EftWaterVec *v);  /* projects a point to GS coordinates */
-extern void func_001224E0(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterMtx *m, EftWaterVec *pos, EftWaterVec *uv,
+extern void Mtx_Mul(EftWaterMtx *dst, EftWaterMtx *a, EftWaterMtx *b);  /* matrix product */
+extern void Mtx_RotateZ(EftWaterMtx *dst, EftWaterMtx *src, f32 angle);    /* rotate about Z */
+extern void Mtx_RotateY(EftWaterMtx *dst, EftWaterMtx *src, f32 angle);    /* rotate about Y */
+extern s32 Mtx_ProjectPoint(EftWaterIVec *out, EftWaterMtx *m, EftWaterVec *v);  /* projects a point to GS coordinates */
+extern void Mtx_ProjectPointsStq(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterMtx *m, EftWaterVec *pos, EftWaterVec *uv,
                           s32 n);                                           /* projects n points, perspective STQ */
-extern void func_00121990(EftWaterClipVtx *out, EftWaterVec *pos, EftWaterVec *uv, EftWaterVec *color, s32 n);
-extern s32 func_00121A10(EftWaterClipVtx *poly, EftWaterVec *plane, s32 n);  /* clips a polygon, returns its size */
-extern void func_00121D48(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterClipVtx *poly, s32 n); /* projects it */
+extern void ClipVtx_SetArray(EftWaterClipVtx *out, EftWaterVec *pos, EftWaterVec *uv, EftWaterVec *color, s32 n);
+extern s32 ClipPoly_ClipPlane(EftWaterClipVtx *poly, EftWaterVec *plane, s32 n);  /* clips a polygon, returns its size */
+extern void ClipPoly_ProjectCur(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterClipVtx *poly, s32 n); /* projects it */
 extern EftWaterVec *EftGfx_GetClipPlanes(void);                                    /* the 5 clip planes of the view */
 extern s32 EftUtil_IsCamBelowLevel(void); /* eft_g.c: camera height against the water level; picks the depth bias */
 #define EftVram_AddTex ((u64 (*)(void *entry, s32 a1, s32 a2))EftVram_AddTex)                     /* advances a texture, returns TEX0 */
@@ -1909,7 +1909,7 @@ void EftWaterDrop_DrawList(EftWaterDrop *drop, EftWaterVec origin) {
     EftWaterMtx world2screen;
     EftWaterVec pos;
 
-    func_00120230(&world2screen, &gBtlCamView->world2screen);
+    Mtx_Copy(&world2screen, &gBtlCamView->world2screen);
     for (; drop != NULL; drop = drop->next) {
         if (drop->flags & EFT_WATER_LIVE) {
             Vec4_Add(&pos, &drop->pos, &origin);
@@ -2089,7 +2089,7 @@ s32 EftWaterRing_Update(EftWaterRing *ring) {
 void EftWaterRing_DrawList(EftWaterRing *ring) {
     EftWaterMtx world2screen;
 
-    func_00120230(&world2screen, &gBtlCamView->world2screen);
+    Mtx_Copy(&world2screen, &gBtlCamView->world2screen);
     for (; ring != NULL; ring = ring->next) {
         if (ring->flags & EFT_WATER_LIVE) {
             EftWater_DrawGroundQuad(&ring->pos, &world2screen, ring->size, ring->rot, ring->r, ring->g, ring->b,
@@ -2278,10 +2278,10 @@ void EftWaterSpray_DrawList(EftWaterSpray *spray, EftWaterVec origin) {
     EftWaterVec pos;
     EftWaterVec rot;
 
-    func_00120230(&world2screen, &gBtlCamView->world2screen);
+    Mtx_Copy(&world2screen, &gBtlCamView->world2screen);
     for (; spray != NULL; spray = spray->next) {
         if (spray->flags & EFT_WATER_LIVE) {
-            func_00122190(&rot, &up, &spray->dir, spray->tilt);
+            Vec3_Lerp(&rot, &up, &spray->dir, spray->tilt);
             EftUtil_MakeFacingMtx(&orient, &rot, &D_002C3630);
             Vec4_Add(&pos, &spray->pos, &origin);
             pos.w = 1.0f;
@@ -2500,10 +2500,10 @@ void EftWaterMist_DrawList(EftWaterMist *mist) {
     EftWaterVec2 up = { 0.0f, -1.0f, 0.0f, 1.0f };
     EftWaterVec rot;
 
-    func_00120230(&world2screen, &gBtlCamView->world2screen);
+    Mtx_Copy(&world2screen, &gBtlCamView->world2screen);
     for (; mist != NULL; mist = mist->next) {
         if (mist->live) {
-            func_00122190(&rot, (EftWaterVec *)&up, &mist->dir, mist->tilt);
+            Vec3_Lerp(&rot, (EftWaterVec *)&up, &mist->dir, mist->tilt);
             EftUtil_MakeFacingMtx(&orient, &rot, &D_002C3630);
             EftWater_DrawSprayQuad(&mist->pos, &orient, &world2screen, mist->roll, mist->size, mist->nearScale,
                                    0.0f, mist->widthScale, mist->r, mist->g, mist->b, 0x40,
@@ -2622,11 +2622,11 @@ void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 siz
     s32 z;
     s32 i;
 
-    func_00120230(&m, &gEftDust->billboard);
+    Mtx_Copy(&m, &gEftDust->billboard);
     if (rot != 0.0f) {
         Mtx_StoreIdentity(&rotM);
-        func_00120308(&rotM, &rotM, EftMath_WrapAngle(rot * 3.14159265f / 180.0f));
-        func_001201B8(&m, &m, &rotM);
+        Mtx_RotateZ(&rotM, &rotM, EftMath_WrapAngle(rot * 3.14159265f / 180.0f));
+        Mtx_Mul(&m, &m, &rotM);
     }
     half = size * 0.5f;
     Vec4_Copy((EftWaterVec *)m.m[3], pos);
@@ -2636,7 +2636,7 @@ void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 siz
     Vec4_Set(&corner[3], half, half, 0.0f, 1.0f);
     for (i = 0; i < 4; i++) {
         Mtx_MulVec4(&corner[i], &m, &corner[i]);
-        func_00122350(&scr[i], world2screen, &corner[i]);
+        Mtx_ProjectPoint(&scr[i], world2screen, &corner[i]);
         if (!EftWater_IsOnScreen(scr[i], 2)) {
             return;
         }
@@ -2715,7 +2715,7 @@ void EftWater_DrawGroundQuad(EftWaterVec *pos, EftWaterMtx *world2screen, f32 si
 
     Mtx_StoreIdentity(&m);
     if (rot != 0.0f) {
-        func_00120428(&m, &m, EftMath_WrapAngle(rot * 3.14159265f / 180.0f));
+        Mtx_RotateY(&m, &m, EftMath_WrapAngle(rot * 3.14159265f / 180.0f));
     }
     half = size * 0.5f;
     Vec4_Set(&corner[0], -half, 0.0f, -half, 1.0f);
@@ -2735,9 +2735,9 @@ void EftWater_DrawGroundQuad(EftWaterVec *pos, EftWaterMtx *world2screen, f32 si
     Vec4_Set(&color[1], r, g, b, a);
     Vec4_Set(&color[2], r, g, b, a);
     Vec4_Set(&color[3], r, g, b, a);
-    func_00121990(poly, &corner[0], &uv[0], &color[0], 3);
+    ClipVtx_SetArray(poly, &corner[0], &uv[0], &color[0], 3);
     EftWater_DrawClippedFan(poly, layer, *tex);
-    func_00121990(poly, &corner[1], &uv[1], &color[1], 3);
+    ClipVtx_SetArray(poly, &corner[1], &uv[1], &color[1], 3);
     EftWater_DrawClippedFan(poly, layer, *tex);
 }
 
@@ -2772,7 +2772,7 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
     if (roll != 0.0f) {
         mid = (corner[0].z - corner[2].z) * 0.5f;
         Mtx_StoreIdentity(&rollM);
-        func_00120428(&rollM, &rollM, EftMath_WrapAngle(roll * 3.14159265f / 180.0f));
+        Mtx_RotateY(&rollM, &rollM, EftMath_WrapAngle(roll * 3.14159265f / 180.0f));
         c = corner;
         zp = &corner[0].z;
         for (i = 0; i < 4; i++) {
@@ -2792,7 +2792,7 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
         Vec4_Add(&corner[i], &corner[i], pos);
         corner[i].w = 1.0f;
     }
-    func_001224E0(scr, stq, world2screen, corner, uv, 4);
+    Mtx_ProjectPointsStq(scr, stq, world2screen, corner, uv, 4);
     for (i = 0; i < 4; i++) {
         if (!EftWater_IsOnScreen(scr[i], 4)) {
             return;
@@ -2908,10 +2908,10 @@ void EftWater_DrawClippedFan(EftWaterClipVtx *poly, s32 layer, u64 tex0) {
     plane = EftGfx_GetClipPlanes();
     n = 3;
     for (i = 0; i < 5; i++) {
-        n = func_00121A10(poly, &plane[i], n);
+        n = ClipPoly_ClipPlane(poly, &plane[i], n);
     }
     if (n != 0) {
-        func_00121D48(scr, stq, poly, n);
+        ClipPoly_ProjectCur(scr, stq, poly, n);
         for (i = 2; i < n; i++) {
             z = (scr[0].z + scr[i - 1].z + scr[i].z) / 3 >> 8;
             if (EftUtil_IsCamBelowLevel()) {

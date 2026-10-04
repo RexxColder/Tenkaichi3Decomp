@@ -12,7 +12,7 @@
 
 #define SAVE_SIZE 0x4000
 
-#define SAVE_CHARA_COUNT 161  /* bits in charaBits (ids 0..160; 161..164 are list markers in func_0025F610) */
+#define SAVE_CHARA_COUNT 161  /* bits in charaBits (ids 0..160; 161..164 are list markers in ChrGrid_Build) */
 #define SAVE_CHARA_WORDS 3
 #define SAVE_STAGE_COUNT 35   /* bits in stageBits */
 #define SAVE_BGM_LIST_COUNT 25 /* entries of the list bgmBits belongs to (loop bound) */
@@ -64,7 +64,7 @@ typedef struct SaveRec {
     /* 0x00 */ u8 unk0[0x14];
     /* 0x14 */ u16 level;  /* used instead of SaveCustom.level when func_00260DB8 is asked for one of these */
     /* 0x16 */ u16 unk16;
-    /* 0x18 */ s32 chara;  /* character id, -1 = empty (defaults; func_0025F610 appends the non-empty ones to the character list) */
+    /* 0x18 */ s32 chara;  /* character id, -1 = empty (defaults; ChrGrid_Build appends the non-empty ones to the character list) */
 } SaveRec;
 
 typedef struct SaveData {
@@ -83,9 +83,9 @@ typedef struct SaveData {
     /* 0x0A0C */ s32 unkA0C;        /* counter kept in 0..23 by menu func_00362160 */
     /* 0x0A10 */ s32 unkA10;
     /* 0x0A14 */ u8 unkA14[0xC10 - 0xA14];
-    /* 0x0C10 */ u64 charaBits[SAVE_CHARA_WORDS]; /* bit id: character unlocked (func_0025F610, BattleSetup_InitCharaBits) */
-    /* 0x0C28 */ u64 stageBits;     /* bit id: stage unlocked (func_0025FC50 turns locked ids into 0x24) */
-    /* 0x0C30 */ u32 bgmBits;       /* bit id: entry of a 25-entry list unlocked (func_0025FD60 turns locked ids into 0x19); BGM is a guess */
+    /* 0x0C10 */ u64 charaBits[SAVE_CHARA_WORDS]; /* bit id: character unlocked (ChrGrid_Build, BattleSetup_InitCharaBits) */
+    /* 0x0C28 */ u64 stageBits;     /* bit id: stage unlocked (StgGrid_ApplyUnlocks turns locked ids into 0x24) */
+    /* 0x0C30 */ u32 bgmBits;       /* bit id: entry of a 25-entry list unlocked (BgmList_ApplyUnlocks turns locked ids into 0x19); BGM is a guess */
     /* 0x0C34 */ s32 rule[SAVE_RULE_COUNT]; /* 3, 2, 2, 0, 0, 0 by default (Save_ResetRules); read by menu 0x348710 / 0x351508 / 0x353518 */
     /* 0x0C4C */ u8 unkC4C[0x1008 - 0xC4C]; /* menu 0x359358 / 0x35BB88 index an s32 array at 0xE0C */
     /* 0x1008 */ s32 unk1008;       /* flag bits, menu func_0033ACB0 / func_00399790 */

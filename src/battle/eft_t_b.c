@@ -31,18 +31,18 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern f32 Vec3_Length(Vec4 *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_00120150(Mtx44 *dst, Mtx44 *src, Vec4 *pos);  /* translate */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);     /* matrix product */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);             /* inverse of a rotation + translation matrix */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about Z */
-extern void func_00120AB0(void);                               /* saves the VU0 matrix state */
-extern void func_00120AC8(void);                               /* restores it */
-extern void func_00120B80(Mtx44 *m);                           /* loads a matrix into VU0 */
-extern void func_00121950(EftTClipVtx *out, Vec4 *pos, Vec4 *st, Vec4 *col); /* one clip vertex */
-extern void func_00121F88(Vec4 *dst, Vec4 *src, f32 div);      /* dst = src / div */
-extern void func_001220F0(EftTIVec *dst, Vec4 *src);           /* float vector to integer vector */
-extern s32 func_00122350(EftTIVec *out, Mtx44 *m, Vec4 *pos);  /* projects one point */
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *pos, f32 scale); /* dst = pos + dir * scale */
+extern void Mtx_Translate(Mtx44 *dst, Mtx44 *src, Vec4 *pos);  /* translate */
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);     /* matrix product */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);             /* inverse of a rotation + translation matrix */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about Z */
+extern void Vu0Cur_Push(void);                               /* saves the VU0 matrix state */
+extern void Vu0Cur_Pop(void);                               /* restores it */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                           /* loads a matrix into VU0 */
+extern void ClipVtx_Set(EftTClipVtx *out, Vec4 *pos, Vec4 *st, Vec4 *col); /* one clip vertex */
+extern void Vec3_Div(Vec4 *dst, Vec4 *src, f32 div);      /* dst = src / div */
+extern void Vec4_ToInt(EftTIVec *dst, Vec4 *src);           /* float vector to integer vector */
+extern s32 Mtx_ProjectPoint(EftTIVec *out, Mtx44 *m, Vec4 *pos);  /* projects one point */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *pos, f32 scale); /* dst = pos + dir * scale */
 
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -253,7 +253,7 @@ void EftStreak_Draw(EftTTask *task) {
     f32 dist = 0.0f;
 
     Mtx_StoreIdentity(&frame);
-    func_001202A0(&camInv, &gBtlCamView->view);
+    Mtx_InverseRT(&camInv, &gBtlCamView->view);
     Vec4_Set((Vec4 *)camInv.m[3], 0.0f, 0.0f, 0.0f, 1.0f);
     Mtx_MulVec4((Vec4 *)&dir, &camInv, (Vec4 *)&dir);
     Vec3_Normalize((Vec4 *)&dir, (Vec4 *)&dir);
@@ -266,13 +266,13 @@ void EftStreak_Draw(EftTTask *task) {
         } else {
             dist = 30.0f;
         }
-        func_001225D0(&center, (Vec4 *)&dir, &gBtlCamView->pos, dist);
+        Vec3_ScaleAdd(&center, (Vec4 *)&dir, &gBtlCamView->pos, dist);
     } else {
         Vec4_Copy(&center, (Vec4 *)&w->pos);
     }
-    func_00122350(&scr, &gBtlCamView->screen, &center);
+    Mtx_ProjectPoint(&scr, &gBtlCamView->screen, &center);
     if (w->flags & EFT_STREAK_WORLD) {
-        func_001201B8(&frame, &frame, &camInv);
+        Mtx_Mul(&frame, &frame, &camInv);
         Vec4_Copy((Vec4 *)frame.m[3], &center);
     } else {
         if (scr.z < 0) {
@@ -283,8 +283,8 @@ void EftStreak_Draw(EftTTask *task) {
         frame.m[3][2] = 0.0f;
         frame.m[3][3] = 1.0f;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     {
         Vec4 base[4] = { 0 };
         Vec4 corner[4] = { 0 };
@@ -307,9 +307,9 @@ void EftStreak_Draw(EftTTask *task) {
                 Vec4_Set((Vec4 *)&w->axis, 1.0f, 0.0f, 0.0f, 1.0f);
                 Vec3_Scale(&along, (Vec4 *)&w->axis, s->pos);
                 Vec4_Set(&across, 0.0f, s->offset, 0.0f, 1.0f);
-                func_00120150(&m, &m, &across);
-                func_00120150(&m, &m, &along);
-                func_00120308(&m, &m, w->angle);
+                Mtx_Translate(&m, &m, &across);
+                Mtx_Translate(&m, &m, &along);
+                Mtx_RotateZ(&m, &m, w->angle);
                 for (j = 0; j < 4; j++) {
                     corner[j].x = base[j].x * s->width;
                     corner[j].y = base[j].y * s->length;
@@ -328,7 +328,7 @@ void EftStreak_Draw(EftTTask *task) {
             }
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 RODATA_ALIGN16();
@@ -514,13 +514,13 @@ void EftStreak_DrawWorld(Vec4 *corner, EftTVec uv0, EftTVec uv1, EftTVec color, 
     Vec4_Copy(&p[1], &corner[1]);
     Vec4_Copy(&p[2], &corner[2]);
     Vec4_Copy(&p[3], &corner[3]);
-    func_00121950(&tri[0], &p[0], &st[0], (Vec4 *)&color);
-    func_00121950(&tri[1], &p[1], &st[1], (Vec4 *)&color);
-    func_00121950(&tri[2], &p[2], &st[2], (Vec4 *)&color);
+    ClipVtx_Set(&tri[0], &p[0], &st[0], (Vec4 *)&color);
+    ClipVtx_Set(&tri[1], &p[1], &st[1], (Vec4 *)&color);
+    ClipVtx_Set(&tri[2], &p[2], &st[2], (Vec4 *)&color);
     EftGfx_DrawPolyScaledZ(tri, blend, 1, 0, flag, 0, mgr->tex[tex].tex0, 2.0f);
-    func_00121950(&tri[0], &p[1], &st[1], (Vec4 *)&color);
-    func_00121950(&tri[1], &p[2], &st[2], (Vec4 *)&color);
-    func_00121950(&tri[2], &p[3], &st[3], (Vec4 *)&color);
+    ClipVtx_Set(&tri[0], &p[1], &st[1], (Vec4 *)&color);
+    ClipVtx_Set(&tri[1], &p[2], &st[2], (Vec4 *)&color);
+    ClipVtx_Set(&tri[2], &p[3], &st[3], (Vec4 *)&color);
     EftGfx_DrawPolyScaledZ(tri, blend, 1, 0, flag, 0, mgr->tex[tex].tex0, 2.0f);
 }
 
@@ -562,15 +562,15 @@ void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 
 
     Vec3_Sub(&d[0], &corner[0], &corner[1]);
     Vec3_Sub(&d[1], &corner[2], &corner[3]);
-    func_00121F88(&d[0], &d[0], fsegs);
-    func_00121F88(&d[1], &d[1], fsegs);
+    Vec3_Div(&d[0], &d[0], fsegs);
+    Vec3_Div(&d[1], &d[1], fsegs);
     Vec4_Copy(&p[1], &corner[1]);
     Vec4_Copy(&p[3], &corner[3]);
     p[0].w = 1.0f;
     p[3].w = 1.0f;
     p[2].w = 1.0f;
     p[1].w = 1.0f;
-    func_001220F0(&col, (Vec4 *)&color);
+    Vec4_ToInt(&col, (Vec4 *)&color);
     t.y = uv[0].w;
     t.w = uv[1].w;
     step[0] = (uv[0].y - uv[0].w) / fsegs;
@@ -586,10 +586,10 @@ void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 
         Vec3_Add(&p[2], &p[3], &d[1]);
         t.x = t.y + step[0];
         t.z = t.w + step[1];
-        func_001220F0(&scr[0], &p[0]);
-        func_001220F0(&scr[1], &p[1]);
-        func_001220F0(&scr[2], &p[2]);
-        func_001220F0(&scr[3], &p[3]);
+        Vec4_ToInt(&scr[0], &p[0]);
+        Vec4_ToInt(&scr[1], &p[1]);
+        Vec4_ToInt(&scr[2], &p[2]);
+        Vec4_ToInt(&scr[3], &p[3]);
         q = (EftTQuadPkt *)gOtCur;
         gOtCur = (u32 *)(q + 1);
         q->tag = 0x20000008;

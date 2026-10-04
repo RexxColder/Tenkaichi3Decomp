@@ -3,7 +3,7 @@ _start = 0x00100008; // type:func
 
 // CRI middleware, named from the error strings each function references (scripts/names_from_strings.py)
 adxf_ChkPrmPt = 0x00269308; // type:func
-adxf_GetPtStat = 0x00269F68; // type:func
+adxf_GetPtStatEx = 0x00269F68; // type:func
 adxf_CreateAdxFs = 0x0026A438; // type:func
 adxf_SetFileInfoEx = 0x0026A4D0; // type:func
 adxf_ReadSj32 = 0x0026AD08; // type:func
@@ -12,14 +12,14 @@ adxf_ReadNw = 0x0026B058; // type:func
 adxf_Stop = 0x0026B0D0; // type:func
 adxf_StopNw = 0x0026B1F8; // type:func
 adxf_Seek = 0x0026B468; // type:func
-ADXF_Tell = 0x0026B5B8; // type:func
+adxf_Tell = 0x0026B5B8; // type:func
 adxf_GetFsizeSct = 0x0026B620; // type:func
 adxf_GetFsizeByte = 0x0026B6D0; // type:func
 adxf_GetFsizeByte64 = 0x0026B790; // type:func
 adxf_GetNumReqSct = 0x0026B810; // type:func
 adxf_GetNumReadSct = 0x0026B898; // type:func
 adxf_GetStat = 0x0026B900; // type:func
-ADXF_SetReqRdSct = 0x0026BE70; // type:func
+adxf_SetReqRdSct = 0x0026BE70; // type:func
 adxt_EntryFnameRange = 0x0026C4D0; // type:func
 adxt_EntryAfs = 0x0026C590; // type:func
 adxt_StartSeamless = 0x0026C688; // type:func

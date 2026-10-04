@@ -40,7 +40,7 @@ extern void Common_Reload(void);
 extern void Progress_Init(void);
 extern void Save_Init(void);
 extern void Job_Init(void);
-extern void func_00121DA8(void);
+extern void Vu0_Init(void);
 extern void Dbg_Init(void);
 extern void Pad_Init(void);
 extern void func_00116BA8(void);
@@ -143,7 +143,7 @@ void Game_Main(void) {
     Progress_Init();
     Save_Init();
     Job_Init();
-    func_00121DA8();
+    Vu0_Init();
     Dma_InitBuffers();
     Dbg_Init();
     Pad_Init();

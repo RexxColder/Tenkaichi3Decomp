@@ -288,7 +288,7 @@ typedef struct EftSurfClut {
     /* 0x00 */ u32 color[0x100];
 } EftSurfClut; /* size 0x400 */
 
-/* Work buffer set up by func_0010A5A0. */
+/* Work buffer set up by GfxClut_InitPacket. */
 typedef struct EftSurfBuf {
     /* 0x000 */ u8 unk0[0x490];
     /* 0x490 */ EftSurfClut *clut;

@@ -26,8 +26,8 @@ extern void Vec3_Sub(EftRbnVec *dst, EftRbnVec *a, EftRbnVec *b);
 extern void Vec3_Scale(EftRbnVec *dst, EftRbnVec *src, f32 s);
 extern void Vec3_Cross(EftRbnVec *dst, EftRbnVec *a, EftRbnVec *b);
 extern void Vec3_Normalize(EftRbnVec *dst, EftRbnVec *src);
-extern void func_00121F88(EftRbnVec *dst, EftRbnVec *src, f32 d);   /* dst.xyz = src.xyz / d */
-extern void func_00121FB8(EftRbnVec *dst, EftRbnVec *src);          /* copies x, y, z */
+extern void Vec3_Div(EftRbnVec *dst, EftRbnVec *src, f32 d);   /* dst.xyz = src.xyz / d */
+extern void Vec3_Copy(EftRbnVec *dst, EftRbnVec *src);          /* copies x, y, z */
 
 extern u64 EftVram_AddImage(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
 extern s32 EftVram_AddClut(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
@@ -250,7 +250,7 @@ void EftRibbon_InitNodes(EftRbn *w, EftRbnArg *arg) {
     }
     Vec4_Copy(&w->end, &arg->pos);
     w->width = cur->width;
-    func_00121FB8(&w->color, &cur->color);
+    Vec3_Copy(&w->color, &cur->color);
     w->color.w = 0.0f;
     w->fadeInTime = prm->fadeIn * 30.0f;
     if (w->fadeInTime <= w->color.w) {
@@ -300,13 +300,13 @@ void EftRibbon_PlaceStrip(EftRbnPrm *prm, EftRbn *w, EftRbnVec *start) {
 
     Vec4_Copy(&pos, start);
     Vec3_Sub(&step, &w->end, &pos);
-    func_00121F88(&step, &step, w->numNodes);
+    Vec3_Div(&step, &step, w->numNodes);
     r = w;
     step.w = 0.0f;
     n = r->head;
     if (n != NULL) {
         do {
-            func_00121FB8(&n->pos, &pos);
+            Vec3_Copy(&n->pos, &pos);
             if (i == 0) {
                 n->tex = 0;
             } else if (i < w->numNodes - 2) {
@@ -324,7 +324,7 @@ void EftRibbon_PlaceStrip(EftRbnPrm *prm, EftRbn *w, EftRbnVec *start) {
             if (i < w->numNodes - 2) {
                 Vec3_Add(&pos, &pos, &step);
             } else {
-                func_00121FB8(&pos, &w->end);
+                Vec3_Copy(&pos, &w->end);
             }
             next = n->next;
             i++;
@@ -374,8 +374,8 @@ void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
     n = r->head;
     if (n != NULL) {
         do {
-            func_00121FB8(&old, &n->pos);
-            func_00121FB8(&n->pos, &cur);
+            Vec3_Copy(&old, &n->pos);
+            Vec3_Copy(&n->pos, &cur);
             if (i == 0) {
                 n->tex = 2;
             } else if (i < w->numNodes - 2) {
@@ -385,7 +385,7 @@ void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
             }
             Vec4_Copy(&n->color, &r->color);
             i++;
-            func_00121FB8(&cur, &old);
+            Vec3_Copy(&cur, &old);
             next = n->next;
             n = next;
         } while (next != NULL);
@@ -394,7 +394,7 @@ void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
 #endif
 INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftRibbon_PlaceTrail2);
 
-/* A vertex as func_00121950 fills it (eft_a.h EftGfxVert). */
+/* A vertex as ClipVtx_Set fills it (eft_a.h EftGfxVert). */
 typedef struct EftRbnVert {
     /* 0x00 */ EftRbnVec pos;
     /* 0x10 */ EftRbnVec color;
@@ -407,7 +407,7 @@ typedef struct EftRbnView {
 } EftRbnView;
 extern EftRbnView *gBtlCamView;
 
-extern void func_00121950(EftRbnVert *out, EftRbnVec *pos, EftRbnVec *uv, EftRbnVec *color);
+extern void ClipVtx_Set(EftRbnVert *out, EftRbnVec *pos, EftRbnVec *uv, EftRbnVec *color);
 extern void EftGfx_DrawPolyScaledZ(EftRbnVert *verts, s32 blend, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex0,
                                    f32 zScale);
 
@@ -512,9 +512,9 @@ void EftRibbon_DrawStrip(EftRbn *w, EftRbnArg *arg, EftRbnPrm *prm) {
             Vec4_Copy(&col[2], &next->color);
             Vec4_Copy(&col[3], &next->color);
             for (i = 0; i < 2; i++) {
-                func_00121950(&verts[0], &quad[i], &uv[i], &col[i]);
-                func_00121950(&verts[1], &quad[i + 1], &uv[i + 1], &col[i + 1]);
-                func_00121950(&verts[2], &quad[i + 2], &uv[i + 2], &col[i + 2]);
+                ClipVtx_Set(&verts[0], &quad[i], &uv[i], &col[i]);
+                ClipVtx_Set(&verts[1], &quad[i + 1], &uv[i + 1], &col[i + 1]);
+                ClipVtx_Set(&verts[2], &quad[i + 2], &uv[i + 2], &col[i + 2]);
                 EftGfx_DrawPolyScaledZ(verts, prm->blend, 0, 0, 0, 0, w->tex0[n->tex], 1.0f);
             }
             if (w->flags & 0x20) {
@@ -523,9 +523,9 @@ void EftRibbon_DrawStrip(EftRbn *w, EftRbnArg *arg, EftRbnPrm *prm) {
                 Vec4_Copy(&col[2], &next->color2);
                 Vec4_Copy(&col[3], &next->color2);
                 for (i = 0; i < 2; i++) {
-                    func_00121950(&verts[0], &quad[i], &uv2[i], &col[i]);
-                    func_00121950(&verts[1], &quad[i + 1], &uv2[i + 1], &col[i + 1]);
-                    func_00121950(&verts[2], &quad[i + 2], &uv2[i + 2], &col[i + 2]);
+                    ClipVtx_Set(&verts[0], &quad[i], &uv2[i], &col[i]);
+                    ClipVtx_Set(&verts[1], &quad[i + 1], &uv2[i + 1], &col[i + 1]);
+                    ClipVtx_Set(&verts[2], &quad[i + 2], &uv2[i + 2], &col[i + 2]);
                     EftGfx_DrawPolyScaledZ(verts, prm->blend, 1, 0, 0, 0, w->tex0[3], 1.0f);
                 }
             }
@@ -579,21 +579,21 @@ extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 s);
 #define Vec3_Scale ((void (*)(Vec4 *dst, Vec4 *src, f32 s))Vec3_Scale)
 #define Vec3_Cross ((void (*)(Vec4 *dst, Vec4 *a, Vec4 *b))Vec3_Cross)
 #define Vec3_Normalize ((void (*)(Vec4 *dst, Vec4 *src))Vec3_Normalize)
-extern f32 func_00122200(Vec4 *a, Vec4 *b);                 /* distance between two points */
-extern s32 func_00121140(EftAcScr *out, Vec4 *pos, s32 count); /* projects count points */
-#define func_00121950 ((void (*)(EftAcVert *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col))func_00121950)
+extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);                 /* distance between two points */
+extern s32 Vu0Cur_ProjectPoints(EftAcScr *out, Vec4 *pos, s32 count); /* projects count points */
+#define ClipVtx_Set ((void (*)(EftAcVert *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col))ClipVtx_Set)
 #define EftGfx_DrawPolyScaledZ ((void (*)(EftAcVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex, f32 zScale))EftGfx_DrawPolyScaledZ)
-extern void func_00120AB0(void);       /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);   /* load the matrix */
-extern void func_00120AC8(void);       /* pop */
+extern void Vu0Cur_Push(void);       /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);   /* load the matrix */
+extern void Vu0Cur_Pop(void);       /* pop */
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 roll,
                               s32 layer, s32 front, u64 tex0);
 extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 roll,
                                   s32 layer, s32 front, u64 tex0);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
-extern s32 func_00121240(EftAcScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects n points with the loaded matrix */
-extern void func_001220F0(EftAcScr *dst, Vec4 *src);                            /* float to fixed vector */
+extern s32 Vu0Cur_ProjectPointsStq(EftAcScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects n points with the loaded matrix */
+extern void Vec4_ToInt(EftAcScr *dst, Vec4 *src);                            /* float to fixed vector */
 extern u8 *gOtCur;
 extern EftAcOtSlot *gOtZ;
 extern s32 BtlPool_GetCurrent(void);
@@ -612,11 +612,11 @@ extern f32 cosf(f32 x);
 extern f32 EftMath_WrapAngle(f32 angle);
 extern f32 atan2f(f32 y, f32 x);
 extern f32 Mathf_Asin(f32 x);
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
-extern void func_00120150(Mtx44 *dst, Mtx44 *src, Vec4 *v);         /* translate */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);                  /* copy */
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);    /* clamps each component */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
+extern void Mtx_Translate(Mtx44 *dst, Mtx44 *src, Vec4 *v);         /* translate */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);                  /* copy */
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);    /* clamps each component */
 extern f32 Rand_FloatRange(f32 lo, f32 hi);
 extern s32 Rand_IntRange(s32 lo, s32 hi);
 
@@ -712,7 +712,7 @@ void EftRibbon_DrawKind1(EftRibbon *w, EftRibbonArg *arg, EftRibbonPrm *prm) {
                     Vec3_Scale(V(&side), V(&side), -1.0f);
                 }
                 if (Vec3_Dot(V(&side), V(&prevSide)) < 0.82f) {
-                    func_00122200(&node->pos, np);
+                    Vec3_Dist(&node->pos, np);
                 }
                 Vec4_Copy(V(&pos[0]), V(&prev[0]));
                 Vec4_Copy(V(&pos[1]), V(&prev[1]));
@@ -724,15 +724,15 @@ void EftRibbon_DrawKind1(EftRibbon *w, EftRibbonArg *arg, EftRibbonPrm *prm) {
             Vec4_Copy(V(&prev[0]), V(&pos[2]));
             Vec4_Copy(V(&prev[1]), V(&pos[3]));
             Vec4_Copy(V(&prevSide), V(&side));
-            func_00121140(scr, V(pos), 4);
+            Vu0Cur_ProjectPoints(scr, V(pos), 4);
             uv[0].x = u;
             uv[1].x = u;
             uv[2].x = u2;
             uv[3].x = u2;
             for (i = 0; i < 2; i++) {
-                func_00121950(&verts[0], V(&pos[i]), V(&uv[i]), V(&col));
-                func_00121950(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&col));
-                func_00121950(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&col));
+                ClipVtx_Set(&verts[0], V(&pos[i]), V(&uv[i]), V(&col));
+                ClipVtx_Set(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&col));
+                ClipVtx_Set(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&col));
                 EftGfx_DrawPolyScaledZ(verts, prm->blend, 0, 0, 0, 0, w->tex[node->tex], 1.0f);
             }
         }
@@ -813,7 +813,7 @@ void EftRibbon_DrawKind2(EftRibbon *w, EftRibbonArg *arg, EftRibbonPrm *prm) {
                     Vec3_Scale(V(&half), V(&half), -1.0f);
                     Vec3_Scale(V(&side), V(&side), -1.0f);
                 }
-                if (Vec3_Dot(V(&side), V(&prevSide)) < 0.82f && func_00122200(&node->pos, &next->pos) > 0.8f) {
+                if (Vec3_Dot(V(&side), V(&prevSide)) < 0.82f && Vec3_Dist(&node->pos, &next->pos) > 0.8f) {
                     sprite = 1;
                     mid.x = (node->pos.x + next->pos.x) * 0.5f;
                     mid.y = (node->pos.y + next->pos.y) * 0.5f;
@@ -848,9 +848,9 @@ void EftRibbon_DrawKind2(EftRibbon *w, EftRibbonArg *arg, EftRibbonPrm *prm) {
                 Vec4_Copy(V(&col[2]), &next->color);
                 Vec4_Copy(V(&col[3]), &next->color);
                 for (i = 0; i < 2; i++) {
-                    func_00121950(&verts[0], V(&pos[i]), V(&uv[i]), V(&col[i]));
-                    func_00121950(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&col[i + 1]));
-                    func_00121950(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&col[i + 2]));
+                    ClipVtx_Set(&verts[0], V(&pos[i]), V(&uv[i]), V(&col[i]));
+                    ClipVtx_Set(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&col[i + 1]));
+                    ClipVtx_Set(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&col[i + 2]));
                     EftGfx_DrawPolyScaledZ(verts, prm->blend, 0, 0, 0, 0, w->tex[node->tex], 1.0f);
                 }
             }
@@ -1087,8 +1087,8 @@ void EftRibbon_Draw(EftAcTask *task) {
     if (BtlScene_IsEffectHidden(arg->chr, arg->type)) {
         return;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     if (w->kind == 0) {
         EftRibbon_DrawStrip(w, arg, prm);
     } else if (w->kind == 1) {
@@ -1096,7 +1096,7 @@ void EftRibbon_Draw(EftAcTask *task) {
     } else if (w->kind == 2) {
         EftRibbon_DrawKind2(w, arg, prm);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Manager init: the manager block, the node buffer and the list of 40 ribbon tasks. */
@@ -1554,8 +1554,8 @@ void EftZap_Draw(EftAcTask *task) {
     EftZapWork *w = task->work;
     EftZapDef *def = w->arg.def;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     {
     EftAcScr scr[4];
     EftAcVec seg;
@@ -1646,11 +1646,11 @@ void EftZap_Draw(EftAcTask *task) {
                         uv[2].x = u[1];
                         uv[3].x = u[1];
                         if (def->flags & 0x80) {
-                            func_00121140(scr, V(pos), 4);
+                            Vu0Cur_ProjectPoints(scr, V(pos), 4);
                             for (i = 0; i < 2; i++) {
-                                func_00121950(&verts[0], V(&pos[i]), V(&uv[i]), V(&line->color));
-                                func_00121950(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&line->color));
-                                func_00121950(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&line->color));
+                                ClipVtx_Set(&verts[0], V(&pos[i]), V(&uv[i]), V(&line->color));
+                                ClipVtx_Set(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&line->color));
+                                ClipVtx_Set(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&line->color));
                                 EftGfx_DrawPolyScaledZ(verts, def->blend, 0, 0, (w->flags >> 17) & 1, 0,
                                                        EFT_TEX0(w->arg.tex, w->texIdx), 2.0f);
                             }
@@ -1670,7 +1670,7 @@ void EftZap_Draw(EftAcTask *task) {
         }
     }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 INCLUDE_RODATA("asm/nonmatchings/battle/eft_ab_c", D_002ED690);
@@ -1873,7 +1873,7 @@ s32 EftZap_InitLine(EftZapStrand *line, EftZapWork *w) {
     line->colorFrame = 0.0f;
     line->colorTime = line->life * (line->colorEnd - line->colorStart);
     line->delay = Rand_FloatRange(def->delayMin, def->delayMin + def->delayRange) * fps;
-    func_00120230(&line->mtx, &gEftZapMgr->identity);
+    Mtx_Copy(&line->mtx, &gEftZapMgr->identity);
     ZAP_MODE(def->modeRise, 0x200);
     key[0] = Rand_FloatRange(def->riseKey[0], def->riseKey[0] + def->riseKeyRange[0]);
     key[1] = Rand_FloatRange(def->riseKey[1], def->riseKey[1] + def->riseKeyRange[1]);
@@ -1934,8 +1934,8 @@ s32 EftZap_InitLine(EftZapStrand *line, EftZapWork *w) {
         colEnd.y = Rand_FloatRange(w->curC.y, w->curC.y + w->curD.y);
         colEnd.z = Rand_FloatRange(w->curC.z, w->curC.z + w->curD.z);
         colEnd.w = 0.0f;
-        func_00122118(V(&line->color0), V(&line->color0), 0.0f, 255.0f);
-        func_00122118(V(&colEnd), V(&colEnd), 0.0f, 255.0f);
+        Vec4_Clamp(V(&line->color0), V(&line->color0), 0.0f, 255.0f);
+        Vec4_Clamp(V(&colEnd), V(&colEnd), 0.0f, 255.0f);
         Vec4_Copy(V(&line->color), V(&line->color0));
         line->color.w = 0.0f;
         Vec3_Sub(V(&line->colorStep), V(&colEnd), V(&line->color));
@@ -2077,9 +2077,9 @@ void EftZap_UpdateLines(EftZapWork *w) {
             break;
         }
         Vec4_Copy(V(&head), V(&line->axis));
-        func_00120398(&line->mtx, &gEftZapMgr->identity, pitch);
-        func_00120428(&line->mtx, &line->mtx, yaw);
-        func_00120150(&line->mtx, &line->mtx, V(&w->origin));
+        Mtx_RotateX(&line->mtx, &gEftZapMgr->identity, pitch);
+        Mtx_RotateY(&line->mtx, &line->mtx, yaw);
+        Mtx_Translate(&line->mtx, &line->mtx, V(&w->origin));
         k = 0.0f;
         if (def->flags & 0x20) {
             k = ZAP_CLAMP01(line->tintFrame / line->tintTime);
@@ -2170,7 +2170,7 @@ void EftZap_UpdateLines(EftZapWork *w) {
 }
 
 /* Queues one gouraud textured quad (4-vertex strip) of the current matrix: projects the four points with their
-   texture coordinates (func_00121240), converts the colour to bytes and links a 0x90-byte GS packet into the
+   texture coordinates (Vu0Cur_ProjectPointsStq), converts the colour to bytes and links a 0x90-byte GS packet into the
    ordering table at the mean depth of the four points (>> 10), in layer `layer` (2 and 3 = layers 0 and 1 with GS
    context 2). With `front` the vertices are drawn at the nearest depth. Nothing is drawn when the projection
    clips the quad. */
@@ -2195,7 +2195,7 @@ void EftZap_DrawQuad(EftAcVec *pos, EftAcVec color, f32 u0, f32 v0, f32 u1, f32 
     Vec4_Set(V(&uv[1]), u1, v1, 1.0f, 1.0f);
     Vec4_Set(V(&uv[2]), u2, v2, 1.0f, 1.0f);
     Vec4_Set(V(&uv[3]), u3, v3, 1.0f, 1.0f);
-    if (!func_00121240(scr, V(stq), V(pos), V(uv), 4)) {
+    if (!Vu0Cur_ProjectPointsStq(scr, V(stq), V(pos), V(uv), 4)) {
         return;
     }
     p = (EftAcQuadPkt *)gOtCur;
@@ -2218,7 +2218,7 @@ void EftZap_DrawQuad(EftAcVec *pos, EftAcVec color, f32 u0, f32 v0, f32 u1, f32 
         scr[2].z = 0xFFFFFF;
         scr[3].z = 0xFFFFFF;
     }
-    func_001220F0(&icol, V(&color));
+    Vec4_ToInt(&icol, V(&color));
     t = (u64 *)((u8 *)tex + (texIdx << 4));
     l = layer;
     if (l >= 2) {

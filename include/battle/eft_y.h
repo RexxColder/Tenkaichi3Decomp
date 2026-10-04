@@ -366,7 +366,7 @@ typedef struct EftQuadArg {
     /* 0x3C */ s32 pad3C;
 } EftQuadArg; /* size 0x40 */
 
-/* One vertex as func_00121950 builds it for the clipped polygon drawers of eft_a. */
+/* One vertex as ClipVtx_Set builds it for the clipped polygon drawers of eft_a. */
 typedef struct EftYClipVtx {
     /* 0x00 */ u8 unk0[0x30];
 } EftYClipVtx; /* size 0x30 */
@@ -379,7 +379,7 @@ typedef struct EftYScr {
     /* 0xC */ s32 w;
 } EftYScr;
 
-/* A colour as func_001220F0 converts it. */
+/* A colour as Vec4_ToInt converts it. */
 typedef struct EftYCol {
     /* 0x0 */ s32 r;
     /* 0x4 */ s32 g;

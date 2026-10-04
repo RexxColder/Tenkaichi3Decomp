@@ -24,7 +24,7 @@
 
 /* ---- surface triangles ---------------------------------------------------------------- */
 
-/* A projected vertex as func_00121D48 / func_00122350 write it: GS XYZ, x and y in 12.4 fixed point. */
+/* A projected vertex as ClipPoly_ProjectCur / Mtx_ProjectPoint write it: GS XYZ, x and y in 12.4 fixed point. */
 typedef struct EftScrPos {
     /* 0x00 */ s32 x;
     /* 0x04 */ s32 y;
@@ -32,7 +32,7 @@ typedef struct EftScrPos {
     /* 0x0C */ s32 unkC;
 } EftScrPos; /* 0x10 */
 
-/* One vertex of the surface module. A triangle is three of them; the clipper (func_00121A10) grows it in
+/* One vertex of the surface module. A triangle is three of them; the clipper (ClipPoly_ClipPlane) grows it in
    place to up to nine. */
 typedef struct EftSurfVtxD {
     /* 0x00 */ Vec4 pos;
@@ -127,7 +127,7 @@ typedef struct EftBurstTexPack {
 typedef struct EftBurstGroup {
     /* 0x00 */ s32 flags;      /* 0x800: second, environment-mapped pass */
     /* 0x04 */ s32 texIdx;
-    /* 0x08 */ s16 *verts;     /* 3 s16 per vertex, unpacked by func_0011FA40 */
+    /* 0x08 */ s16 *verts;     /* 3 s16 per vertex, unpacked by IVec4_Set */
     /* 0x0C */ s16 *tris;      /* 0x1E bytes per triangle: s16 vertex[3], s16 normal[3][2], u8 rgba[3][4] */
     /* 0x10 */ f32 scale;
     /* 0x14 */ s16 triCount;

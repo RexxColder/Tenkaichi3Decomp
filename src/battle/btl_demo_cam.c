@@ -9,15 +9,15 @@ extern void *memset(void *dst, s32 c, u32 n);
 
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
-extern void func_00121E18(Vec4 *dst);                /* dst = 0 */
+extern void Vec4_SetZeroW1(Vec4 *dst);                /* dst = 0 */
 extern void Mtx_StoreIdentity(Mtx44 *dst);
-extern void func_001201B8(Mtx44 *a, Mtx44 *b, Mtx44 *dst); /* matrix product */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);       /* copy */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);       /* inverse of a rotation + translation matrix */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
-extern void func_00121408(Mtx44 *m);
+extern void Mtx_Mul(Mtx44 *a, Mtx44 *b, Mtx44 *dst); /* matrix product */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);       /* copy */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);       /* inverse of a rotation + translation matrix */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
+extern void Vu0View_LoadMtx(Mtx44 *m);
 
 extern void *BtlObj_Get(s32 id);
 extern void *BtlCharApi_GetPlayer(void *arg);
@@ -104,8 +104,8 @@ void DemoCam_Reset(void) {
     memset(&gDemoCam->base, 0, 0xE0);
     View_InitLayout(&gDemoCam->view, VIEW_LAYOUT_FULL);
     Mtx_StoreIdentity(&gDemoCam->base);
-    func_00121E18(&gDemoCam->fixedPos);
-    func_00121E18(&gDemoCam->fixedRot);
+    Vec4_SetZeroW1(&gDemoCam->fixedPos);
+    Vec4_SetZeroW1(&gDemoCam->fixedRot);
 }
 
 /* Allocates the demo camera. */
@@ -231,14 +231,14 @@ s32 DemoCam_Update(void) {
         }
         Mtx_StoreIdentity(&gDemoCam->view.world2view2);
         Mtx_StoreIdentity(&m);
-        func_00120398(&m, &m, rot.x);
-        func_001201B8(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
+        Mtx_RotateX(&m, &m, rot.x);
+        Mtx_Mul(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
         Mtx_StoreIdentity(&m);
-        func_00120428(&m, &m, rot.y);
-        func_001201B8(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
+        Mtx_RotateY(&m, &m, rot.y);
+        Mtx_Mul(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
         Mtx_StoreIdentity(&m);
-        func_00120308(&m, &m, rot.z);
-        func_001201B8(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
+        Mtx_RotateZ(&m, &m, rot.z);
+        Mtx_Mul(&gDemoCam->view.world2view2, &m, &gDemoCam->view.world2view2);
         if (gDemoCam->obj != NULL) {
             owner = gDemoCam->obj;
         } else {
@@ -256,10 +256,10 @@ s32 DemoCam_Update(void) {
             gDemoCam->view.world2view2.m[3][1] = pose->f.pos[1] + shakePos.y;
             gDemoCam->view.world2view2.m[3][2] = pose->f.pos[2] + shakePos.z;
         }
-        func_001201B8(&gDemoCam->view.world2view2, &gDemoCam->base, &gDemoCam->view.world2view2);
-        func_001202A0(&gDemoCam->view.world2view2, &gDemoCam->view.world2view2);
-        func_00121408(&gDemoCam->view.world2view2);
-        func_001202A0(&inv, &gDemoCam->view.world2view2);
+        Mtx_Mul(&gDemoCam->view.world2view2, &gDemoCam->base, &gDemoCam->view.world2view2);
+        Mtx_InverseRT(&gDemoCam->view.world2view2, &gDemoCam->view.world2view2);
+        Vu0View_LoadMtx(&gDemoCam->view.world2view2);
+        Mtx_InverseRT(&inv, &gDemoCam->view.world2view2);
         if (gDemoCam->obj != NULL || gDemoCam->chr != NULL) {
             if (BtlStage_IsReady() != 0) {
                 Vec4_Copy(&from, (Vec4 *)inv.m[3]);
@@ -270,8 +270,8 @@ s32 DemoCam_Update(void) {
                 }
                 if (BtlCam_TraceStage(&hit, &from, &to, &frac, NULL) != 0) {
                     Vec4_Copy((Vec4 *)inv.m[3], &hit);
-                    func_001202A0(&gDemoCam->view.world2view2, &inv);
-                    func_00121408(&gDemoCam->view.world2view2);
+                    Mtx_InverseRT(&gDemoCam->view.world2view2, &inv);
+                    Vu0View_LoadMtx(&gDemoCam->view.world2view2);
                 }
             }
         }
@@ -287,7 +287,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/btl_demo_cam", DemoCam_Update);
 /* Sets the matrix the animation is relative to (ignored while no animation is selected). */
 void DemoCam_SetBase(Mtx44 *base) {
     if (gDemoCam->anim != NULL) {
-        func_00120230(&gDemoCam->base, base);
+        Mtx_Copy(&gDemoCam->base, base);
     }
 }
 

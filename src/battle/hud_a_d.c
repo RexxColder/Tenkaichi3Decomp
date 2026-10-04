@@ -12,6 +12,9 @@ extern void func_00224B90(HudSprite *spr, s32 show);
 extern void func_00224C00(HudSprite *spr, s32 tex, s32 sub);
 extern void func_00224CA0(HudSprite *spr, s32 dx, s32 dy);
 
+/* The gauge work (full layout: HudBWork in src/battle/hud_b.c). Defined here: this object's .sdata (0x2FEB48). */
+HudGauge *gHudGauge = NULL;
+
 /* GS state before a mask is drawn (the same packet as HudTeam_GsBeginMask). */
 void HudGauge_GsBeginMask(void) {
     u32 pkt[24] = {
@@ -85,18 +88,18 @@ void HudGauge_UpdateHp(void) {
     s32 bars2;
     s32 w;
 
-    rem = gHudGauge->hp[side] % HUD_GAUGE_BAR;
-    bars = gHudGauge->hp[side] / HUD_GAUGE_BAR;
+    rem = gHudGauge->hpShown[side] % HUD_GAUGE_BAR;
+    bars = gHudGauge->hpShown[side] / HUD_GAUGE_BAR;
     if (rem == 0 && bars != 0) {
         rem = HUD_GAUGE_BAR;
         bars--;
     }
-    if (gHudGauge->hp[side] != gHudGauge->shown.hp[side]) {
+    if (gHudGauge->hpShown[side] != gHudGauge->cur.hp[side]) {
         tip = &gHudGauge->sprites[6];
         bar = &gHudGauge->sprites[5];
         bar->pos = tip->pos;
         w = rem * 160 / HUD_GAUGE_BAR;
-        if (w < 3 && rem != 0 && gHudGauge->shown.hp[side] != 0 && bars == 0) {
+        if (w < 3 && rem != 0 && gHudGauge->cur.hp[side] != 0 && bars == 0) {
             func_00224CA0(bar, 3, 0);
         } else {
             func_00224CA0(bar, w, 0);
@@ -110,8 +113,8 @@ void HudGauge_UpdateHp(void) {
         func_00224B90(bar, 0);
     }
 
-    rem2 = gHudGauge->shown.hp[side] % HUD_GAUGE_BAR;
-    bars2 = gHudGauge->shown.hp[side] / HUD_GAUGE_BAR;
+    rem2 = gHudGauge->cur.hp[side] % HUD_GAUGE_BAR;
+    bars2 = gHudGauge->cur.hp[side] / HUD_GAUGE_BAR;
     if (rem2 == 0 && bars2 != 0) {
         rem2 = HUD_GAUGE_BAR;
         bars2--;

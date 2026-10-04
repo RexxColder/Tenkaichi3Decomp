@@ -37,18 +37,18 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_0010A288(EftBurstTex *tex, s32 x, s32 y); /* uploads a texture to the given frame-buffer position */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b); /* matrix product */
-extern void func_00120258(Mtx44 *dst, Mtx44 *src);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotation about one axis */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotation about another axis */
-extern void func_0011FA40(f32 *out, s32 a, s32 b, s32 c, s32 d); /* three packed 16-bit values to a vector */
-extern void func_0011FD20(f32 *out, f32 *in);
-extern void func_0011FD40(f32 *out, s32 *in); /* integer vector to float vector */
-extern void func_001220F0(s32 *dst, Vec4 *src); /* float vector to integer vector */
-extern void func_00122118(f32 *out, f32 *in, f32 min, f32 max); /* clamps a vector */
-extern s32 func_00122350(EftScrPos *out, Mtx44 *m, Vec4 *v); /* projects one point */
-extern void func_00122458(s32 *scr, f32 *st, Mtx44 *m, f32 *pos, f32 *nrm); /* projects, makes env-map st */
+extern void Tex_Upload(EftBurstTex *tex, s32 x, s32 y); /* uploads a texture entry; the two numbers are GS block pointers (tbp, cbp), not a position */
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b); /* matrix product */
+extern void Mtx_Transpose(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotation about one axis */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotation about another axis */
+extern void IVec4_Set(f32 *out, s32 a, s32 b, s32 c, s32 d); /* three packed 16-bit values to a vector */
+extern void IVec4_ToFloat12(f32 *out, f32 *in);
+extern void IVec4_ToFloat(f32 *out, s32 *in); /* integer vector to float vector */
+extern void Vec4_ToInt(s32 *dst, Vec4 *src); /* float vector to integer vector */
+extern void Vec4_Clamp(f32 *out, f32 *in, f32 min, f32 max); /* clamps a vector */
+extern s32 Mtx_ProjectPoint(EftScrPos *out, Mtx44 *m, Vec4 *v); /* projects one point */
+extern void Mtx_ProjectPointStq(s32 *scr, f32 *st, Mtx44 *m, f32 *pos, f32 *nrm); /* projects, makes env-map st */
 
 /* Local vectors as plain arrays (sceVu0FVECTOR / sceVu0IVECTOR style): 16-byte aligned, so the compiler
    copies them with 64-bit loads. */
@@ -63,7 +63,7 @@ typedef struct EftVec16 {
 /* The part of the camera view (gBtlCamView) the transition reads. */
 typedef struct EftView {
     /* 0x000 */ u8 unk0[0x40];
-    /* 0x040 */ Mtx44 unk40;    /* DrawSprite: its transform (func_00120258) is applied to the sprite's corners */
+    /* 0x040 */ Mtx44 unk40;    /* DrawSprite: its transform (Mtx_Transpose) is applied to the sprite's corners */
     /* 0x080 */ u8 unk80[0xC0];
     /* 0x140 */ Mtx44 proj;     /* camera space to screen */
 } EftView;
@@ -105,7 +105,7 @@ void EftBurst_DrawQuad(EftBurstPtcl *p) {
         Vec4_Scale((Vec4 *)v, (Vec4 *)pc[i], scale);
         Vec4_Add((Vec4 *)v, (Vec4 *)v, &p->pos);
         v[3] = 1.0f;
-        func_00122350((EftScrPos *)ps[i], &gBtlCamView->proj, (Vec4 *)v);
+        Mtx_ProjectPoint((EftScrPos *)ps[i], &gBtlCamView->proj, (Vec4 *)v);
         vis += scr[i][2] > 0;
     }
     if (vis != 0) {
@@ -200,18 +200,18 @@ void EftBurst_DrawQuadRot(EftBurstPtcl *p) {
         }
         if (rotate) {
             Mtx_StoreIdentity(&m);
-            func_00120428(&m, &m, p->rot.y);
+            Mtx_RotateY(&m, &m, p->rot.y);
             Mtx_StoreIdentity(&m2);
-            func_00120308(&m2, &m2, p->rot.z);
-            func_001201B8(&m, &m2, &m);
+            Mtx_RotateZ(&m2, &m2, p->rot.z);
+            Mtx_Mul(&m, &m2, &m);
             Mtx_StoreIdentity(&m2);
-            func_00120428(&m2, &m2, p->rot.x);
-            func_001201B8(&m, &m, &m2);
+            Mtx_RotateY(&m2, &m2, p->rot.x);
+            Mtx_Mul(&m, &m, &m2);
             Mtx_MulVec4((Vec4 *)v, &m, (Vec4 *)v);
         }
         Vec4_Add((Vec4 *)v, (Vec4 *)v, &p->pos);
         v[3] = 1.0f;
-        func_00122350((EftScrPos *)scr[i], &gBtlCamView->proj, (Vec4 *)v);
+        Mtx_ProjectPoint((EftScrPos *)scr[i], &gBtlCamView->proj, (Vec4 *)v);
         vis += scr[i][2] > 0;
     }
     if (vis != 0) {
@@ -292,13 +292,13 @@ void EftBurst_DrawSprite(EftBurstPtcl *p) {
     lifeMax = p->lifeMax;
     alpha = p->alpha;
     flags = p->flags;
-    func_00120258(&m, &gBtlCamView->unk40);
+    Mtx_Transpose(&m, &gBtlCamView->unk40);
     for (i = 0; i < 2; i++) {
         Mtx_MulVec4((Vec4 *)v, &m, (Vec4 *)corner[i]);
         Vec4_Scale((Vec4 *)v, (Vec4 *)v, scale);
         Vec4_Add((Vec4 *)v, (Vec4 *)v, &p->pos);
         v[3] = 1.0f;
-        func_00122350((EftScrPos *)scr[i], &gBtlCamView->proj, (Vec4 *)v);
+        Mtx_ProjectPoint((EftScrPos *)scr[i], &gBtlCamView->proj, (Vec4 *)v);
         vis += scr[i][2] > 0;
     }
     if (vis != 0) {
@@ -588,14 +588,14 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
                 s16 *v = &verts[tri[k] * 3];
                 u8 *c = (u8 *)tri + 0x12 + k * 4;
 
-                func_0011FA40(ang, v[0], v[1], v[2], 0);
-                func_0011FD20(pos, ang);
-                func_0011FA40(ang, tri[3 + k * 2], tri[4 + k * 2], 0, 0);
-                func_0011FD20(nrm[k], ang);
+                IVec4_Set(ang, v[0], v[1], v[2], 0);
+                IVec4_ToFloat12(pos, ang);
+                IVec4_Set(ang, tri[3 + k * 2], tri[4 + k * 2], 0, 0);
+                IVec4_ToFloat12(nrm[k], ang);
                 Vec4_Scale((Vec4 *)pos, (Vec4 *)pos, scale);
                 Vec4_Sub((Vec4 *)d, (Vec4 *)origin, (Vec4 *)pos);
                 pos[3] = 1.0f;
-                func_00122458(scr[k], st[k], &gBtlCamView->proj, pos, nrm[k]);
+                Mtx_ProjectPointStq(scr[k], st[k], &gBtlCamView->proj, pos, nrm[k]);
                 rgba[0] = c[0];
                 rgba[1] = c[1];
                 rgba[2] = c[2];
@@ -619,18 +619,18 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
                         if (lit > 255.0f) {
                             lit = 255.0f;
                         }
-                        func_0011FD40(colF, rgba);
+                        IVec4_ToFloat(colF, rgba);
                         Vec4_Scale((Vec4 *)light, (Vec4 *)light, fade * 0.6f * lit);
                         Vec4_Add((Vec4 *)ambient, (Vec4 *)light, (Vec4 *)ambient);
-                        func_00122118(ambient, ambient, 0.0f, 255.0f);
-                        func_001220F0(rgba, (Vec4 *)ambient);
+                        Vec4_Clamp(ambient, ambient, 0.0f, 255.0f);
+                        Vec4_ToInt(rgba, (Vec4 *)ambient);
                         rgbaq[k][1] = (s64)rgba[0] | ((s64)rgba[1] << 8) | ((s64)rgba[2] << 16) |
                                       ((s64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
                         if (len < dist) {
                             Vec4_Scale((Vec4 *)lightDir, (Vec4 *)lightDir, lit);
                             Vec4_Add((Vec4 *)ambient, (Vec4 *)lightDir, (Vec4 *)colF);
-                            func_00122118(ambient, ambient, 0.0f, 255.0f);
-                            func_001220F0(rgba, (Vec4 *)ambient);
+                            Vec4_Clamp(ambient, ambient, 0.0f, 255.0f);
+                            Vec4_ToInt(rgba, (Vec4 *)ambient);
                             rgbaq[k][0] = (s64)rgba[0] | ((s64)rgba[1] << 8) | ((s64)rgba[2] << 16) |
                                           ((s64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
                         }
@@ -707,7 +707,7 @@ void EftBurst_SetTexture(EftBurstTex *tex, s32 x, s32 y) {
     if (w->curTex != tex) {
         w->curTex = tex;
         if (tex != NULL) {
-            func_0010A288(tex, x, y);
+            Tex_Upload(tex, x, y);
         }
     }
 }
@@ -1067,10 +1067,10 @@ extern EftStageMarker *BtlStage_GetFxResC2(void);
 extern void EftTexSet_Load8(EftSteamTex *tex, s32 *data);
 extern u64 EftVram_AddTex(u64 *tex0, s32 a1, s32 a2);
 extern s32 EftStage_IsDrawOn(void);
-extern void func_00120AB0(void);
-extern void func_00120B80(Mtx44 *mtx);
-extern void func_00120AC8(void);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_LoadMtx(Mtx44 *mtx);
+extern void Vu0Cur_Pop(void);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -1176,14 +1176,14 @@ extern f32 EftStage_GetTintScale(void);
 extern void EftMath_MtxFromDir(Mtx44 *out, Vec4 *dir, f32 angle);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *mtx, Vec4 *v);
 
-/* A projected point as func_00121140 writes it: GS x, y in 12.4 fixed point, z, and a fourth word. */
+/* A projected point as Vu0Cur_ProjectPoints writes it: GS x, y in 12.4 fixed point, z, and a fourth word. */
 typedef struct EftSteamScr {
     /* 0x00 */ s32 x;
     /* 0x04 */ s32 y;
     /* 0x08 */ s32 z;
     /* 0x0C */ s32 unkC;
 } EftSteamScr; /* size 0x10 */
-extern void func_00121140(EftSteamScr *out, Vec4 *in, s32 count);
+extern void Vu0Cur_ProjectPoints(EftSteamScr *out, Vec4 *in, s32 count);
 
 /* GS XYZF2 register value. */
 typedef struct EftSteamXyzf {

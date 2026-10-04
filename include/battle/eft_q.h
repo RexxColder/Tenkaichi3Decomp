@@ -271,7 +271,7 @@ typedef struct EftQScr {
     /* 0xC */ s32 unkC;
 } EftQScr; /* size 0x10 */
 
-/* One vertex as func_00121950 builds it for EftGfx_DrawPolyAvgZ. */
+/* One vertex as ClipVtx_Set builds it for EftGfx_DrawPolyAvgZ. */
 typedef struct EftQVert {
     u8 unk0[0x30];
 } EftQVert;

@@ -29,11 +29,11 @@ extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = base + dir * s */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Y */
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = base + dir * s */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Y */
 extern u64 EftVram_AddImage(EftUPtclTex *tex, s32 a, s32 b);       /* uploads the image, returns its TEX0 */
 extern s32 EftVram_AddClut(EftUPtclTex *tex);                     /* uploads the palette, returns its block */
 
@@ -420,8 +420,8 @@ s32 EftPtcl_Spawn(EftUPtclWork *w, EftUPtclWork *w2, s32 count) {
             a = (cur->coneA - cur->coneB) * ((f32)rand() / RAND_MAX_F);
             a = EftMath_WrapAngle(a + cur->coneB);
             Vec4_Set(V(&p->axis), 0.0f, 0.0f, 1.0f, 1.0f);
-            func_00120398(M(&m), M(&gEftPtcl->identity), a);
-            func_00120308(M(&m), M(&m), w->roll);
+            Mtx_RotateX(M(&m), M(&gEftPtcl->identity), a);
+            Mtx_RotateZ(M(&m), M(&m), w->roll);
             Mtx_MulVec4(V(&p->axis), M(&m), V(&p->axis));
             p->axis.x *= cur->flatten + 1.0f;
             Vec3_Normalize(V(&p->axis), V(&p->axis));
@@ -437,22 +437,22 @@ s32 EftPtcl_Spawn(EftUPtclWork *w, EftUPtclWork *w2, s32 count) {
         switch (def->originKind) {
         case 0:
             Vec4_Set(V(&p->origin), 0.0f, 0.0f, a, 1.0f);
-            func_00120398(M(&m), M(&gEftPtcl->identity), w->ang.x);
-            func_00120428(M(&m), M(&m), w->ang.y);
+            Mtx_RotateX(M(&m), M(&gEftPtcl->identity), w->ang.x);
+            Mtx_RotateY(M(&m), M(&m), w->ang.y);
             Mtx_MulVec4(V(&p->origin), M(&m), V(&p->origin));
             break;
         case 1:
             Vec4_Set(V(&p->origin), 0.0f, 0.0f, a, 1.0f);
-            func_00120428(M(&m), M(&gEftPtcl->identity), w->ang.y);
+            Mtx_RotateY(M(&m), M(&gEftPtcl->identity), w->ang.y);
             Mtx_MulVec4(V(&p->origin), M(&m), V(&p->origin));
             break;
         case 2:
             Vec4_Set(V(&p->origin), 0.0f, a, 0.0f, 1.0f);
-            func_00120428(M(&m), M(&gEftPtcl->identity), w->ang.y);
-            func_00120308(M(&m), M(&m), w->ang.z);
+            Mtx_RotateY(M(&m), M(&gEftPtcl->identity), w->ang.y);
+            Mtx_RotateZ(M(&m), M(&m), w->ang.z);
             Mtx_MulVec4(V(&p->origin), M(&m), V(&p->origin));
             Mtx_MulVec4(V(&p->origin), M(&w->mtx), V(&p->origin));
-            func_001225D0(V(&p->origin), V(&w2->arg.dir), V(&p->origin), cur->along * ((f32)rand() / RAND_MAX_F));
+            Vec3_ScaleAdd(V(&p->origin), V(&w2->arg.dir), V(&p->origin), cur->along * ((f32)rand() / RAND_MAX_F));
             break;
         }
         switch (def->accelKind) {
@@ -620,7 +620,7 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
                     }
                 }
             }
-            func_001225D0(V(&p->travel), V(&p->axis), V(&p->travel), p->speed);
+            Vec3_ScaleAdd(V(&p->travel), V(&p->axis), V(&p->travel), p->speed);
             if (!(p->flags & EFT_UPTCL_DETACHED)) {
                 Vec3_Add(V(&p->rel), V(&p->travel), V(&p->origin));
                 Vec3_Add(V(&p->pos), V(&p->rel), V(&w2->arg.pos));
@@ -653,7 +653,7 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
             } else {
                 Vec4_Copy(V(&p->color), V(&p->colorStart));
             }
-            func_00122118(V(&p->color), V(&p->color), 0.0f, 255.0f);
+            Vec4_Clamp(V(&p->color), V(&p->color), 0.0f, 255.0f);
             if (!(p->flags & EFT_UPTCL_FADED_IN)) {
                 k = p->fadeInT / p->fadeIn;
                 p->fadeInT += 1.0f;
@@ -751,9 +751,9 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
 #define Vec3_Scale Vec3_Scale__p2
 #define Vec3_Normalize Vec3_Normalize__p2
 #define Mtx_MulVec4 Mtx_MulVec4__p2
-#define func_00120398 func_00120398__p2
-#define func_00120428 func_00120428__p2
-#define func_001225D0 func_001225D0__p2
+#define Mtx_RotateX func_00120398__p2
+#define Mtx_RotateY func_00120428__p2
+#define Vec3_ScaleAdd func_001225D0__p2
 #define EftPtcl_PickTexture EftPtcl_PickTexture__p2
 #define EftPtcl_UploadTexture EftPtcl_UploadTexture__p2
 #define EftPtcl_SetKey EftPtcl_SetKey__p2
@@ -773,9 +773,9 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
 #undef Vec3_Scale
 #undef Vec3_Normalize
 #undef Mtx_MulVec4
-#undef func_00120398
-#undef func_00120428
-#undef func_001225D0
+#undef Mtx_RotateX
+#undef Mtx_RotateY
+#undef Vec3_ScaleAdd
 #undef EftPtcl_PickTexture
 #undef EftPtcl_UploadTexture
 #undef EftPtcl_SetKey
@@ -794,9 +794,9 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
 #define Vec3_Scale ((void (*)(EftVVec *dst, EftVVec *src, f32 s))Vec3_Scale)
 #define Vec3_Normalize ((void (*)(EftVVec *dst, EftVVec *src))Vec3_Normalize)
 #define Mtx_MulVec4 ((void (*)(EftVVec *dst, EftVMtx *m, EftVVec *src))Mtx_MulVec4)
-#define func_00120398 ((void (*)(EftVMtx *dst, EftVMtx *src, f32 angle))func_00120398)
-#define func_00120428 ((void (*)(EftVMtx *dst, EftVMtx *src, f32 angle))func_00120428)
-#define func_001225D0 ((void (*)(EftVVec *dst, EftVVec *dir, EftVVec *base, f32 s))func_001225D0)
+#define Mtx_RotateX ((void (*)(EftVMtx *dst, EftVMtx *src, f32 angle))Mtx_RotateX)
+#define Mtx_RotateY ((void (*)(EftVMtx *dst, EftVMtx *src, f32 angle))Mtx_RotateY)
+#define Vec3_ScaleAdd ((void (*)(EftVVec *dst, EftVVec *dir, EftVVec *base, f32 s))Vec3_ScaleAdd)
 #define EftPtcl_PickTexture ((void (*)(EftPtclWork *w, void *res, s32 a, s32 b))EftPtcl_PickTexture)
 #define EftPtcl_UploadTexture ((void (*)(EftPtclWork *w, EftPtclWork *w2))EftPtcl_UploadTexture)
 #define EftPtcl_SetKey ((void (*)(EftPtclCur *cur, EftPtclWork *w, s32 key))EftPtcl_SetKey)
@@ -962,7 +962,7 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
                     Vec3_Sub(&quad[3], &quad[3], &len);
                 }
             }
-            if (func_00121140(scr, quad, 4)) {
+            if (Vu0Cur_ProjectPoints(scr, quad, 4)) {
                 pkt = (EftVStripPkt *)gOtCur;
                 gOtCur = (u32 *)(pkt + 1);
                 if (pkt == NULL) {
@@ -992,7 +992,7 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
                     EFTV_AT(&uv[0].y, o) = (i / 2) * w->dv + p->v0;
                     Vec3_Scale((EftVVec *)((u8 *)st + o), (EftVVec *)((u8 *)&uv[0].x + o), q);
                 }
-                func_001220F0(&col, &p->color);
+                Vec4_ToInt(&col, &p->color);
                 z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
                 if (w->flags & EFT_PTCL_FRONT) {
                     for (i = 0; i < 4; i++) {
@@ -1131,11 +1131,11 @@ void EftPtcl_DrawAxisPolys(EftPtclWork *w, EftPtclWork *w2) {
                 EFTV_AT(&uv[0].x, o) = (i % 2) * w->du + p->u0;
                 EFTV_AT(&uv[0].y, o) = (i / 2) * w->dv + p->v0;
             }
-            func_00121140(scr, quad, 4);
+            Vu0Cur_ProjectPoints(scr, quad, 4);
             for (i = 0; i < 2; i++) {
-                func_00121950(&vert[0], &quad[i], &uv[i], &p->color);
-                func_00121950(&vert[1], &quad[i + 1], &uv[i + 1], &p->color);
-                func_00121950(&vert[2], &quad[i + 2], &uv[i + 2], &p->color);
+                ClipVtx_Set(&vert[0], &quad[i], &uv[i], &p->color);
+                ClipVtx_Set(&vert[1], &quad[i + 1], &uv[i + 1], &p->color);
+                ClipVtx_Set(&vert[2], &quad[i + 2], &uv[i + 2], &p->color);
                 EftGfx_DrawPolyScaledZ(vert, def->layer, 0, 0, (w->flags >> 4) & 1, 0, w->tex0, 2.0f);
             }
         }
@@ -1177,11 +1177,11 @@ void EftPtcl_Init(EftVTask *task, EftPtclArg *arg) {
     } else {
         EftPtcl_SetKey(cur, w, 2);
     }
-    func_00122140(&arg->dir, &arg->dir, -1.0f, 1.0f);
+    Vec3_Clamp(&arg->dir, &arg->dir, -1.0f, 1.0f);
     w->pitch = Mathf_Asin(-arg->dir.y);
     w->yaw = atan2f(arg->dir.x, arg->dir.z);
-    func_00120398(&w->mtx, &gEftPtcl->identity, w->pitch);
-    func_00120428(&w->mtx, &w->mtx, w->yaw);
+    Mtx_RotateX(&w->mtx, &gEftPtcl->identity, w->pitch);
+    Mtx_RotateY(&w->mtx, &w->mtx, w->yaw);
     w->roll = cur->roll + cur->rollRange * EFTV_RAND01();
     w->roll = EftMath_WrapAngle(w->roll);
     w->ang.x = (def->angX + def->angXRange * EFTV_RAND01()) * 3.14159265f;
@@ -1301,8 +1301,8 @@ void EftPtcl_Draw(EftVTask *task) {
     if ((w->flags & EFT_PTCL_FRONT) && !BtlScene_IsCharInView(w->arg.objId)) {
         return;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     switch (def->shape) {
     case 0:
         if (def->flags & 2) {
@@ -1318,7 +1318,7 @@ void EftPtcl_Draw(EftVTask *task) {
         EftPtcl_DrawSprites(w, w);
         break;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Manager init: the manager block, the particle pool and the list of 60 emitter tasks. */
@@ -1423,7 +1423,7 @@ s32 EftPtcl_SetPos(EftVTask *task, EftVVec *pos) {
     if (!(w->flags & EFT_PTCL_ALIVE)) {
         return 0;
     }
-    func_00121FB8(&w->arg.pos, pos);
+    Vec3_Copy(&w->arg.pos, pos);
     return 1;
 }
 
@@ -1443,7 +1443,7 @@ s32 EftPtcl_Warp(EftVTask *task, EftVVec *pos) {
     if (!(w->flags & EFT_PTCL_ALIVE)) {
         return 0;
     }
-    func_00121FB8(&w->arg.pos, pos);
+    Vec3_Copy(&w->arg.pos, pos);
     link = &w->head;
     while (*link != NULL) {
         p = *link;
@@ -1481,8 +1481,8 @@ s32 EftPtcl_SetDir(EftVTask *task, EftVVec *dir) {
     w->arg.dir.w = 1.0f;
     w->pitch = Mathf_Asin(-w->arg.dir.y);
     w->yaw = atan2f(d->x, w->arg.dir.z);
-    func_00120398(m, &gEftPtcl->identity, w->pitch);
-    func_00120428(m, m, w->yaw);
+    Mtx_RotateX(m, &gEftPtcl->identity, w->pitch);
+    Mtx_RotateY(m, m, w->yaw);
     return 1;
 }
 

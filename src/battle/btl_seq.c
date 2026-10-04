@@ -582,12 +582,12 @@ extern s32 func_0022FC20(void);
 extern s32 func_00212FF8(s32 a, s32 b);     /* pause / result menu update */
 extern void func_00213220(void);
 extern void Snd_SetPause(s32 a, s32 b);
-extern void func_00218A58(s32 on);          /* HUD visibility bits */
-extern void func_00218AE8(s32 on);
-extern void func_00218B08(s32 on);
-extern void func_00218B30(s32 on);
-extern void func_00218B58(s32 on);
-extern void func_00218B80(s32 on);
+extern void Hud_ShowAll(s32 on);          /* HUD visibility bits */
+extern void Hud_ShowGauges(s32 on);
+extern void Hud_ShowTimer(s32 on);
+extern void Hud_ShowNotice(s32 on);
+extern void Hud_ShowCombo(s32 on);
+extern void Hud_ShowPrompt(s32 on);
 extern void Fade_Start(s32 idx, s32 dir, f32 seconds);
 
 
@@ -1023,17 +1023,17 @@ s32 BtlSeqWinTalk_Enter(BtlSeqTalkCtx *ctx) {
         } else {
             BtlSeqWinTalk_Setup(ctx);
         }
-        func_00218AE8(0);
-        func_00218B08(0);
-        func_00218B58(0);
-        func_00218B80(0);
-        func_00218B30(0);
+        Hud_ShowGauges(0);
+        Hud_ShowTimer(0);
+        Hud_ShowCombo(0);
+        Hud_ShowPrompt(0);
+        Hud_ShowNotice(0);
     } else {
         BtlSeqWinTalk_Setup(ctx);
-        func_00218AE8(0);
-        func_00218B08(0);
-        func_00218B58(0);
-        func_00218B80(0);
+        Hud_ShowGauges(0);
+        Hud_ShowTimer(0);
+        Hud_ShowCombo(0);
+        Hud_ShowPrompt(0);
     }
     return 1;
 }
@@ -1308,7 +1308,7 @@ s32 BtlSeqFight_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
     Battle_GetWork()->flags &= ~BATTLE_FLAG_READY;
     if (Battle_GetMode() == 8) {
-        func_00218A58(1);
+        Hud_ShowAll(1);
     }
     return 1;
 }
@@ -1359,7 +1359,7 @@ s32 BtlSeqReady_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     ctx->step = 0;
     Ramp_Start(&ctx->timer, 0.8f, 0.0f, 1.0f);
-    func_00218A58(1);
+    Hud_ShowAll(1);
     return 1;
 }
 

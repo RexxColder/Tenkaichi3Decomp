@@ -12,8 +12,8 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *dst);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);              /* 4x4 matrix copy */
-extern f32 func_00122200(Vec4 *a, Vec4 *b);                     /* distance between two points */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);              /* 4x4 matrix copy */
+extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);                     /* distance between two points */
 extern f32 Mathf_Sqrt(f32 x);
 extern void ColSphere_Set(RigidSphere *out, Vec4 *center, f32 radius); /* fills a sphere */
 
@@ -285,15 +285,15 @@ void Rigid_Step(RigidBody *body, f32 dt) {
     Mat3_Add(&rot, &body->rot, &delta);
     Mat3_Orthonormalize(&rot);
     Vec4_Copy(&body->pos, &pos);
-    func_00120230(&body->rot, &rot);
+    Mtx_Copy(&body->rot, &rot);
 }
 
 /* Places the body and stops it: velocities, force and torque are cleared, previous transform = current. */
 void Rigid_SetTransform(RigidBody *body, Vec4 *pos, Mtx44 *rot) {
     Vec4_Copy(&body->pos, pos);
-    func_00120230(&body->rot, rot);
+    Mtx_Copy(&body->rot, rot);
     Vec4_Copy(&body->prevPos, &body->pos);
-    func_00120230(&body->prevRot, &body->rot);
+    Mtx_Copy(&body->prevRot, &body->rot);
     body->vel.x = 0.0f;
     body->vel.y = 0.0f;
     body->vel.z = 0.0f;
@@ -326,7 +326,7 @@ void Rigid_SetTransform2(RigidBody *body, Vec4 *pos, Mtx44 *rot) {
 void Rigid_BeginFrame(RigidBody *body) {
     body->prevFlags = body->flags;
     Vec4_Copy(&body->prevPos, &body->pos);
-    func_00120230(&body->prevRot, &body->rot);
+    Mtx_Copy(&body->prevRot, &body->rot);
     body->flags &= 0xFF;
     body->unk210 = 0;
 }
@@ -360,7 +360,7 @@ s32 Rigid_CheckRest(RigidBody *body) {
     f32 sum;
     s32 ret;
 
-    body->moved = func_00122200(&body->pos, &body->prevPos);
+    body->moved = Vec3_Dist(&body->pos, &body->prevPos);
     sum = RIGID_ABS(body->angVel.x);
     sum += RIGID_ABS(body->angVel.y);
     sum += RIGID_ABS(body->angVel.z);
@@ -403,7 +403,7 @@ s32 Rigid_CheckRest(RigidBody *body) {
     ret = 0;
     if (body->moved <= 0.015f && sum < 0.2f) {
         Vec4_Copy(&body->pos, &body->prevPos);
-        func_00120230(&body->rot, &body->prevRot);
+        Mtx_Copy(&body->rot, &body->prevRot);
         ret = 1;
     }
     return ret;

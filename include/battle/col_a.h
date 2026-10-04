@@ -35,10 +35,10 @@
  *   operations:
  *     Vec3_Dot(a, b)        = (a.x*b.x + a.y*b.y) + a.z*b.z   (the last step is a multiply-add with vf3.x, which
  *                             the maths init leaves at 1.0)
- *     func_001221E0(v)      = (v.x*v.x + v.y*v.y) + v.z*v.z
+ *     Vec3_LengthSq(v)      = (v.x*v.x + v.y*v.y) + v.z*v.z
  *     Vec4_Sub(d, a, b)     = a - b on all four components
  *     Mtx_MulVec4(d, m, v)  = ((m[0]*v.x + m[1]*v.y) + m[2]*v.z) + m[3]*v.w, per component
- *     func_00121FB8(d, s)   = copy x, y, z; d.w is left as it was
+ *     Vec3_Copy(d, s)   = copy x, y, z; d.w is left as it was
  *   plus the VU0 / FPU number format of the machine (no denormals, no infinities, results truncated).
  */
 

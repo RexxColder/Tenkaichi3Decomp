@@ -17,6 +17,9 @@
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 func_00212A08(void); /* returns gBtlGameReplayActive */
 
+/* The caption work. Defined here: this object's .sdata (0x2FEB44). */
+HudCaption *gHudCaption = NULL;
+
 extern void func_00224B90(HudSprite *spr, s32 show);
 extern void func_00224C10(HudSprite *spr, s32 r, s32 g, s32 b, s32 a);
 extern void func_00224CA0(HudSprite *spr, s32 dx, s32 dy);

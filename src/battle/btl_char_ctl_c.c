@@ -37,12 +37,12 @@ extern void Vec3_Normalize(Vec4 *out, Vec4 *v);
 extern void Vec3_Cross(Vec4 *out, Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *m, Vec4 *v);
-extern void func_001201B8(Mtx44 *out, Mtx44 *a, Mtx44 *b);
-extern void func_00120230(Mtx44 *out, Mtx44 *in);
-extern void func_001202A0(Mtx44 *out, Mtx44 *in);
-extern void func_00120398(Mtx44 *out, Mtx44 *in, f32 angle);
-extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
-extern void func_00122698(Vec4 *out, Vec4 *v, Vec4 *axis, f32 angle);
+extern void Mtx_Mul(Mtx44 *out, Mtx44 *a, Mtx44 *b);
+extern void Mtx_Copy(Mtx44 *out, Mtx44 *in);
+extern void Mtx_InverseRT(Mtx44 *out, Mtx44 *in);
+extern void Mtx_RotateX(Mtx44 *out, Mtx44 *in, f32 angle);
+extern void Vec4_Lerp(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
+extern void Vec3_RotateAxis(Vec4 *out, Vec4 *v, Vec4 *axis, f32 angle);
 
 extern BtlCtlObj *BtlChar_GetObj(BtlCtlChr *chr);
 extern BtlCtlPose *BtlChar_GetPos(BtlCtlChr *chr);
@@ -144,11 +144,11 @@ void BtlChar_UpdateLook(BtlCtlChr *chr) {
     blend = 0.0f;
     Vec4_Copy(&q0, (Vec4 *)&head->rot);
     Vec4_Copy(&q1, (Vec4 *)&neck->rot);
-    func_00120230(&m, &head->mtx);
+    Mtx_Copy(&m, &head->mtx);
     Mtx_StoreIdentity(&rotm);
-    func_00120398(&rotm, &rotm, neckPitch);
-    func_001201B8(&m, &m, &rotm);
-    func_001202A0(&inv, &m);
+    Mtx_RotateX(&rotm, &rotm, neckPitch);
+    Mtx_Mul(&m, &m, &rotm);
+    Mtx_InverseRT(&inv, &m);
     BtlOpp_GetDelta(chr, &target);
     Vec4_Add(&target, &target, &look->offset);
     BtlOpp_GetUnk15A0(chr, &other);
@@ -158,7 +158,7 @@ void BtlChar_UpdateLook(BtlCtlChr *chr) {
     if (look->snap) {
         Vec4_Copy(&look->dir, &target);
     } else {
-        func_00122168(&look->dir, &target, &look->dir, 0.3f);
+        Vec4_Lerp(&look->dir, &target, &look->dir, 0.3f);
     }
     look->dir.w = 0.0f;
     if (active) {
@@ -200,20 +200,20 @@ void BtlChar_UpdateLook(BtlCtlChr *chr) {
             angle = -asinf(local.y);
             angle -= fabsf(atan2f(-local.x, -local.z)) * local.y * 0.2f;
             if (limC < angle) {
-                func_00122698(&local, &local, &axis, angle - limC);
+                Vec3_RotateAxis(&local, &local, &axis, angle - limC);
             }
             if (angle < down) {
-                func_00122698(&local, &local, &axis, angle - down);
+                Vec3_RotateAxis(&local, &local, &axis, angle - down);
             }
             Vec4_Copy(&axes[0], (Vec4 *)inv.m[1]);
             Vec4_Set(&axes[1], 0.0f, 1.0f, 0.0f, 0.0f);
             for (i = 0; i < 2; i++) {
                 angle = atan2f(-local.x, -local.z);
                 if (angle < -limB) {
-                    func_00122698(&local, &local, &axes[i], -limB - angle);
+                    Vec3_RotateAxis(&local, &local, &axes[i], -limB - angle);
                 }
                 if (limB < angle) {
-                    func_00122698(&local, &local, &axes[i], limB - angle);
+                    Vec3_RotateAxis(&local, &local, &axes[i], limB - angle);
                 }
             }
             Quat_FromVectors((Quat *)&axis, &fwd, &local, 0.5f);
@@ -287,8 +287,8 @@ void BtlChar_UpdateLookAlt(BtlCtlChr *chr) {
     Vec4_Copy(&q0, (Vec4 *)&head->rot);
     blend = 0.0f;
     Vec4_Copy(&q1, (Vec4 *)&neck->rot);
-    func_00120230(&m, &head->mtx);
-    func_001202A0(&inv, &m);
+    Mtx_Copy(&m, &head->mtx);
+    Mtx_InverseRT(&inv, &m);
     BtlOpp_GetDelta(chr, &target);
     Vec4_Add(&target, &target, &look->offset);
     BtlOpp_GetUnk15A0(chr, &other);
@@ -298,7 +298,7 @@ void BtlChar_UpdateLookAlt(BtlCtlChr *chr) {
     if (look->snap) {
         Vec4_Copy(&look->dir, &target);
     } else {
-        func_00122168(&look->dir, &target, &look->dir, 0.3f);
+        Vec4_Lerp(&look->dir, &target, &look->dir, 0.3f);
     }
     look->dir.w = 0.0f;
     if (active) {

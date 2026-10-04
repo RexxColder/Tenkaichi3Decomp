@@ -63,7 +63,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             node &= CHRCUT_NODE_MASK;
             BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
             BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
-            func_00122168(&cut->vecA, &tmp0, &tmp1, 0.5f);
+            Vec4_Lerp(&cut->vecA, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
             BtlCharApi_GetNodePos(id, cut->unk88 & CHRCUT_NODE_MASK, &cut->vecA);
         }
@@ -73,7 +73,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     node = cut->unk8C;
     if (node >= 0) {
         if (cut->unk88 == node) {
-            func_00121E18(&cut->vecADelta);
+            Vec4_SetZeroW1(&cut->vecADelta);
         } else {
             other = 0;
             if (node & CHRCUT_NODE_OPP) {
@@ -90,7 +90,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
                 node &= CHRCUT_NODE_MASK;
                 BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp2);
                 BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp3);
-                func_00122168(&tmp0, &tmp2, &tmp3, 0.5f);
+                Vec4_Lerp(&tmp0, &tmp2, &tmp3, 0.5f);
             } else if (frozen == 0 || other == 0) {
                 BtlCharApi_GetNodePos(id, cut->unk8C & CHRCUT_NODE_MASK, &tmp0);
             }
@@ -114,7 +114,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             node &= CHRCUT_NODE_MASK;
             BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
             BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
-            func_00122168(&cut->vecC, &tmp0, &tmp1, 0.5f);
+            Vec4_Lerp(&cut->vecC, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
             BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &cut->vecC);
         }
@@ -123,7 +123,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     node = cut->unk94;
     if (node >= 0) {
         if (cut->unk90 == node) {
-            func_00121E18(&cut->vecCDelta);
+            Vec4_SetZeroW1(&cut->vecCDelta);
         } else {
             other = 0;
             if (node & CHRCUT_NODE_OPP) {
@@ -138,7 +138,7 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
                 node &= CHRCUT_NODE_MASK;
                 BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp1);
                 BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp2);
-                func_00122168(&tmp0, &tmp1, &tmp2, 0.5f);
+                Vec4_Lerp(&tmp0, &tmp1, &tmp2, 0.5f);
             } else if (frozen == 0 || other == 0) {
                 BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &tmp0);
             }
@@ -151,11 +151,11 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
         } else if (usedMid) {
             Vec4_Copy(&tmp0, *(Vec4 **)((u8 *)BtlOpp_GetObj(chr) + 0xFA0));
             Vec4_Copy(&tmp1, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
-            func_00122168(&cut->vecB, &tmp0, &tmp1, 0.5f);
+            Vec4_Lerp(&cut->vecB, &tmp0, &tmp1, 0.5f);
         } else {
             Vec4_Copy(&cut->vecB, *(Vec4 **)((u8 *)BtlChar_GetObj(chr) + 0xFA0));
         }
-        func_00121E18(&cut->vecBDelta);
+        Vec4_SetZeroW1(&cut->vecBDelta);
     }
 
     eps = 0.001f;
@@ -173,12 +173,12 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     dir.z = Mathf_Cos(pitch) * Mathf_Cos(yaw);
     Vec4_Scale(&dir, &dir, dist);
     Vec4_Sub(eye, eye, &dir);
-    func_00121E20(rot);
+    Vec4_SetZero(rot);
     Vec4_Sub(&dir, &look, eye);
     len = Vec3_Length(&dir);
     if (eps < len) {
         Vec4_Scale(&dir, &dir, 1.0f / len);
-        func_00122140(&dir, &dir, -1.0f, 1.0f);
+        Vec3_Clamp(&dir, &dir, -1.0f, 1.0f);
         rot->x = Mathf_Asin(-dir.y);
         if (__builtin_fabsf(dir.x) < eps && __builtin_fabsf(dir.z) < eps) {
             rot->y = 0.0f;

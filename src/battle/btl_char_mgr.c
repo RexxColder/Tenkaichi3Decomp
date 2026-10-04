@@ -91,7 +91,7 @@
  *   BtlChars_Snapshot(n)     per fighter BtlChar_Snapshot(chr, &pose, &pose + 0x10, n): position snapshot n
  *   BtlParam_GetUnkAD(chr)   byte 0xAD of the object's parameter block (BtlObj + 0x91C)
  *   BtlAtk_GetId(chr)   id of the technique in use
- *   func_00121E20(v)     zeroes a Vec4
+ *   Vec4_SetZero(v)     zeroes a Vec4
  * BtlChar_GetObj / BtlChar_GetPos / BtlChar_IsFrozen / BtlUtil_Clamp / BtlUtil_Max and the ChrCam_ / BtlReplay_
  * names come from config/symbols (btl_replay.txt, btl_char_cam.txt); they are declared here with this
  * module's own view of the fighter.
@@ -112,7 +112,7 @@ extern void BtlInput_Stub(BtlMgrChr *chr);
 extern s32 BtlInput_IsPressed(BtlMgrChr *chr, u32 mask);
 extern s32 BtlCtrl_CanAct(s32 side);
 
-extern void func_00121E20(void *vec);
+extern void Vec4_SetZero(void *vec);
 extern void BtlBodyHit_Update(void);
 extern void StgGround_UpdateFighter(BtlMgrObj *obj);
 extern void StgCol_UpdateFighter(BtlMgrObj *obj, s32 arg1, s32 arg2);
@@ -1228,10 +1228,10 @@ void BtlChar_PostScene(BtlMgrChr *chr) {
         if (!BtlChar_TestFlag(chr, 0x30)) {
             BtlChar_GetSnapDelta(chr, opp->unkF30, 1, 4);
         } else {
-            func_00121E20(opp->unkF30);
+            Vec4_SetZero(opp->unkF30);
         }
     } else {
-        func_00121E20(opp->unkF30);
+        Vec4_SetZero(opp->unkF30);
     }
 }
 
@@ -1270,8 +1270,8 @@ void BtlChar_EndFrame(BtlMgrChr *chr) {
         BtlChar_GetSnapDelta(chr, pose->unk30, 0, 1);
         BtlChar_GetMoveSince(chr, pose->unk40, 0);
     } else {
-        func_00121E20(pose->unk30);
-        func_00121E20(pose->unk40);
+        Vec4_SetZero(pose->unk30);
+        Vec4_SetZero(pose->unk40);
     }
     BtlChar_RaiseEvents(chr);
     BtlChar_UpdateVibration(chr);

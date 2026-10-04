@@ -34,9 +34,9 @@ void BtlStage_UpdateObjs(void);
 void StgModel_UpdateAnims(void);
 void StgRigid_Update(void);
 void Vec4_Copy(Vec4 *dst, Vec4 *src);
-void func_001202A0(Mtx44 *out, Mtx44 *in);
+void Mtx_InverseRT(Mtx44 *out, Mtx44 *in);
 s32 BtlStage_GetWaterLevel(f32 *out);
-f32 func_00122200(Vec4 *a, Vec4 *b);
+f32 Vec3_Dist(Vec4 *a, Vec4 *b);
 void *memset(void *, s32, u32);
 
 extern StgAmb gStgAmb;
@@ -44,15 +44,15 @@ extern StgAmb gStgAmb;
 void sceGsSetDefStoreImage(void *sp, s16 sbp, s16 sbw, s16 spsm, s16 x, s16 y, s16 w, s16 h);
 s32 sceGsExecStoreImage(void *sp, void *dst);
 void FlushCache(s32 mode);
-void func_0010A5A0(void *tex, u16 arg);
+void GfxClut_InitPacket(void *tex, u16 arg);
 void StgCurve_Build(StgFogPoint *pts, f32 *curve);
 void Vec4_Set(Vec4 *v, f32 x, f32 y, f32 z, f32 w);
-void func_00106D60(s32 a, s32 tbp, s32 cbp, u64 alpha);
-s32 func_00109F50(s32 size);
-void func_00120230(Mtx44 *out, Mtx44 *in);
-void func_00121388(Mtx44 *out);
-void func_00122310(Vec4 *out, Mtx44 *m, Vec4 *in);
-void func_0011FD40(Vec4 *out, Vec4 *in);
+void GfxPost_DrawDepthClut(s32 a, s32 tbp, s32 cbp, u64 alpha);
+s32 Tex_Log2Size(s32 size);
+void Mtx_Copy(Mtx44 *out, Mtx44 *in);
+void Vu0Screen_StoreMtx(Mtx44 *out);
+void Mtx_ProjectInt(Vec4 *out, Mtx44 *m, Vec4 *in);
+void IVec4_ToFloat(Vec4 *out, Vec4 *in);
 
 /* The path of StgAmb_Update10 (16-byte aligned: it is copied by doublewords). */
 typedef struct StgAmbPath {
@@ -572,7 +572,7 @@ void StgAmb_Update02(void) {
     if (view != NULL) {
         f32 vol;
 
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             vol = StgAmb_Falloff(h[0] - m.m[3][1], 20.0f, 180.0f) * 128.0f;
@@ -606,7 +606,7 @@ void StgAmb_Update03(void) {
     if (view != NULL) {
         f32 x;
 
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             x = h[0] - m.m[3][1];
@@ -695,7 +695,7 @@ void StgAmb_Update10(void) {
         StgAmb_PlaySe(8, 10, vol >> 2, pan, 0);
     }
     if (view != NULL) {
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             k = StgAmb_Falloff(h[0] - m.m[3][1], 20.0f, 180.0f);
@@ -707,7 +707,7 @@ void StgAmb_Update10(void) {
         Vec4_Copy(&pos, (Vec4 *)m.m[3]);
         pos.y = 0.0f;
         for (i = 0; i < 8; i++) {
-            d = func_00122200(&pts.p[i], &pos);
+            d = Vec3_Dist(&pts.p[i], &pos);
             if (i == 0) {
                 best = d;
             } else if (d < best) {
@@ -728,7 +728,7 @@ void StgAmb_Update11(void) {
     if (view != NULL) {
         f32 x;
 
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             x = h[0] - m.m[3][1];
@@ -748,7 +748,7 @@ void StgAmb_Update12(void) {
     if (view != NULL) {
         f32 x;
 
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             x = h[0] - m.m[3][1];
@@ -773,7 +773,7 @@ void StgAmb_Update14(void) {
     if (view != NULL) {
         f32 x;
 
-        func_001202A0(&m, &view->world2view2);
+        Mtx_InverseRT(&m, &view->world2view2);
         BtlStage_GetWaterLevel(h);
         if (m.m[3][1] < h[0]) {
             x = h[0] - m.m[3][1];
@@ -1488,12 +1488,12 @@ void ScrWarp_UpdateAll(void) {
         }
         if (!(o->flags & 2)) {
             if (Battle_IsSplitScreen() && !BtlScene_IsSingleView()) {
-                func_00120230(&m, &gBtlCam->views[o->view].view.world2screen);
+                Mtx_Copy(&m, &gBtlCam->views[o->view].view.world2screen);
             } else {
-                func_00121388(&m);
+                Vu0Screen_StoreMtx(&m);
             }
-            func_00122310(&v, &m, &o->pos);
-            func_0011FD40(&o->screen, &v);
+            Mtx_ProjectInt(&v, &m, &o->pos);
+            IVec4_ToFloat(&o->screen, &v);
             if (!ScrWarp_IsOnScreen(&o->screen)) {
                 ScrWarp_Free(o);
                 continue;
@@ -1568,7 +1568,7 @@ s32 ScrWarp_Spawn(s32 view, Vec4 *pos, f32 seconds, f32 radius, f32 width, f32 s
 
 /* Sets up the texture object of the table and remembers where its entries are. */
 void StgFog_SetupTex(StgFog *tone, u16 arg) {
-    func_0010A5A0(tone, arg);
+    GfxClut_InitPacket(tone, arg);
     tone->clut = tone->clutSrc;
 }
 
@@ -1628,7 +1628,7 @@ void StgFog_Draw(void) {
     Dma_AddTexFlush();
     Dma_AddFrame(!(gGfx.frame & 1) ? 0x70 : 0, 8, 0xFFFFFF);
     Dma_AddZbuf(0xE0, 1);
-    func_00106D60(0, 0x1C00, tone->cbp, (0x80UL << 32) | 0x48);
+    GfxPost_DrawDepthClut(0, 0x1C00, tone->cbp, (0x80UL << 32) | 0x48);
     Dma_AddZbuf(0xE0, 0);
     {
         u32 tbp[2] = { 0x2A00, 0x2D80 };
@@ -1637,8 +1637,8 @@ void StgFog_Draw(void) {
         s32 tw;
         u64 fbw = 4;
 
-        tw = func_00109F50(0x100);
-        th = func_00109F50(0xE0);
+        tw = Tex_Log2Size(0x100);
+        th = Tex_Log2Size(0xE0);
 
         p = Dma_BeginDirect();
         Gfx_PutDefaultEnv((GsQword **)&p);

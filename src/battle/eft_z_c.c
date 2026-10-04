@@ -116,8 +116,8 @@ void EftGndDustImpact_Draw(EftZTask *task) {
     EftGndDustPart *p = (EftGndDustPart *)List_GetHead(&w->parts);
     Vec4 color;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
@@ -125,7 +125,7 @@ void EftGndDustImpact_Draw(EftZTask *task) {
                       (f32)p->scale * w->arg.scale * p->size.y, p->angle, w->tex, 0);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Steps every particle of a task: life, attachment to the owner, colour, size, spin, velocity, fade-out; frees

@@ -42,16 +42,16 @@ extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_001200D8(Vec4 *angles, Mtx44 *m);
-extern void func_00120150(Mtx44 *dst, Mtx44 *src, Vec4 *pos);
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_001204B8(Mtx44 *dst, Mtx44 *src, Vec4 *angles);
-extern void func_00120508(Mtx44 *dst, Mtx44 *src, Vec4 *angles);
-extern void func_00120590(Mtx44 *dst, Mtx44 *src, f32 scale);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);
-extern void func_00122140(Vec4 *dst, Vec4 *src, f32 a, f32 b);
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);
+extern void Mtx_AxisZToEuler(Vec4 *angles, Mtx44 *m);
+extern void Mtx_Translate(Mtx44 *dst, Mtx44 *src, Vec4 *pos);
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Mtx_RotateZXY(Mtx44 *dst, Mtx44 *src, Vec4 *angles);
+extern void Mtx_RotateXYZ(Mtx44 *dst, Mtx44 *src, Vec4 *angles);
+extern void Mtx_ScaleDiagUniform(Mtx44 *dst, Mtx44 *src, f32 scale);
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);
+extern void Vec3_Clamp(Vec4 *dst, Vec4 *src, f32 a, f32 b);
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);
 
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -354,7 +354,7 @@ void EftShotTech_MoveAimed(EftKTask *task) {
             Vec3_Sub(&d, pos, start);
             dist = sqrtf(Vec3_Dot(&d, &d)) + 30.0f;
             Vec3_Normalize(&d, &d);
-            func_001225D0(pos, &d, dist, start);
+            Vec3_ScaleAdd(pos, &d, dist, start);
         } else {
             dist = 30.0f;
             BtlCharApi_GetNodePos(src->objId, 0x1F, pos);
@@ -363,7 +363,7 @@ void EftShotTech_MoveAimed(EftKTask *task) {
                 dist = 30.0f * 0.6f;
             }
             Vec3_Normalize(&d, &d);
-            func_001225D0(pos, &d, dist, start);
+            Vec3_ScaleAdd(pos, &d, dist, start);
         }
         Vec4_Copy(&w->dir, &d);
     }
@@ -396,7 +396,7 @@ void EftShotTech_UpdateConnected(EftKTask *task) {
         }
         if (w->flags & 0x100000) {
             BtlCharApi_GetNodePos(src->objId, 0x36, &pos);
-            func_00122140(&d, &w->dir, -1.0f, 1.0f);
+            Vec3_Clamp(&d, &w->dir, -1.0f, 1.0f);
             ang.x = Mathf_Asin(d.y);
             ang.y = atan2f(d.x, d.z);
             ang.x = EftMath_WrapAngle(ang.x);
@@ -1112,10 +1112,10 @@ void EftObjTech_SetModelPose(EftKTask *task, Vec4 *pos, Vec4 *angles) {
     EftKModel *model;
 
     Mtx_StoreIdentity(&m);
-    func_00120590(&m, &m, w->scale);
+    Mtx_ScaleDiagUniform(&m, &m, w->scale);
     model = &w->model;
-    func_001204B8(&m, &m, angles);
-    func_00120150(&m, &m, pos);
+    Mtx_RotateZXY(&m, &m, angles);
+    Mtx_Translate(&m, &m, pos);
     EftObj_SetMtx(model->objId, &m);
 }
 
@@ -1183,11 +1183,11 @@ void EftObjTech_PlaceRings(EftKTask *task, Vec4 *pos, Vec4 *angles, f32 width, f
         m.m[2][2] *= width * rings->scale[i];
         angles->x = rings->roll[i];
         angles->x = EftMath_WrapAngle(angles->x);
-        func_001204B8(&m, &m, angles);
+        Mtx_RotateZXY(&m, &m, angles);
         Vec3_Scale(&p, &w->dir, rings->offset[i]);
         Vec3_Add(&p, &p, pos);
         p.w = 1.0f;
-        func_00120150(&m, &m, &p);
+        Mtx_Translate(&m, &m, &p);
         EftMesh_SetMtx(rings->ring[i], &m);
     }
 }
@@ -1305,7 +1305,7 @@ void EftObjTech_UpdateMotion(EftKTask *task) {
             Vec4 ang;
             Vec4 d;
 
-            func_00122140(&d, &w->dir, -1.0f, 1.0f);
+            Vec3_Clamp(&d, &w->dir, -1.0f, 1.0f);
             ang.x = Mathf_Asin(d.y);
             ang.y = atan2f(d.x, d.z) + 3.14159265f;
             ang.x = EftMath_WrapAngle(ang.x);
@@ -1352,10 +1352,10 @@ void EftObjTech_UpdateMotion(EftKTask *task) {
                 Vec3_Cross(&y, &z, &x);
                 Vec3_Cross(&y, &z, &y);
                 Vec3_Normalize(&y, &y);
-                func_00121FB8((Vec4 *)m.m[0], &x);
-                func_00121FB8((Vec4 *)m.m[1], &y);
-                func_00121FB8((Vec4 *)m.m[2], &z);
-                func_001200D8(&ang, &m);
+                Vec3_Copy((Vec4 *)m.m[0], &x);
+                Vec3_Copy((Vec4 *)m.m[1], &y);
+                Vec3_Copy((Vec4 *)m.m[2], &z);
+                Mtx_AxisZToEuler(&ang, &m);
                 BtlCharApi_GetNodePos(id, 0x1F, &a);
                 EftObjTech_SetModelPose(task, &a, &ang);
             }
@@ -1412,7 +1412,7 @@ void EftObjTech_UpdateMotion(EftKTask *task) {
                 }
                 Vec4_Copy(&pos, (Vec4 *)&w->held.pos);
             } else {
-                func_00122140(&d, &w->dir, -1.0f, 1.0f);
+                Vec3_Clamp(&d, &w->dir, -1.0f, 1.0f);
                 ang.x = Mathf_Asin(-d.y);
                 ang.y = atan2f(d.x, d.z);
                 ang.x = EftMath_WrapAngle(ang.x);
@@ -1596,7 +1596,7 @@ void EftObjTech_Update(EftKTask *task) {
                     }
                     Vec3_Add((Vec4 *)&w->body.pos, (Vec4 *)&w->body.pos, (Vec4 *)&w->body.vel);
                 } else {
-                    func_00121FB8((Vec4 *)&w->body.pos, &task->pos);
+                    Vec3_Copy((Vec4 *)&w->body.pos, &task->pos);
                 }
             }
         }
@@ -1662,7 +1662,7 @@ void EftObjTech_PostUpdate(EftKTask *task) {
     EftEmit_UpdateAlive(w->mgr, w->emit);
     if (task->hit & 1) {
         Vec3_Sub(&d, &task->pos, (Vec4 *)&w->body.pos);
-        func_00121FB8((Vec4 *)&w->body.pos, &task->pos);
+        Vec3_Copy((Vec4 *)&w->body.pos, &task->pos);
         Vec3_Add((Vec4 *)&w->body.prev, (Vec4 *)&w->body.prev, &d);
         w->flags |= 0x40;
     }
@@ -1828,7 +1828,7 @@ void EftRushShot_UpdateModels(EftKTask *task) {
                         ang -= 6.2831853f;
                     }
                     Mtx_StoreIdentity(&rot);
-                    func_00120428(&rot, &rot, ang);
+                    Mtx_RotateY(&rot, &rot, ang);
                     Vec4_Copy(&o->center, &w->unk350);
                     Vec4_Set(&o->offset, 0.0f, (rand() / 2147483647.0f * 8.0f + 3.0f) * w->scale,
                              (rand() / 2147483647.0f * 4.0f + 6.0f) * w->scale, 1.0f);
@@ -1889,11 +1889,11 @@ void EftRushShot_UpdateModels(EftKTask *task) {
                 o->rot.x = EftMath_WrapAngle(o->rot.x);
                 o->rot.y = EftMath_WrapAngle(o->rot.y);
                 o->rot.z = EftMath_WrapAngle(o->rot.z);
-                func_00120590(&m, &base, o->scale);
-                func_00120508(&m, &m, &o->rot);
+                Mtx_ScaleDiagUniform(&m, &base, o->scale);
+                Mtx_RotateXYZ(&m, &m, &o->rot);
                 Vec3_Add(&p, &o->center, &off);
                 p.w = 1.0f;
-                func_00120150(&m, &m, &p);
+                Mtx_Translate(&m, &m, &p);
                 EftObj_SetMtx(o->model.objId, &m);
                 EftObj_SetVisible(o->model.objId, 1);
             }
@@ -1901,15 +1901,15 @@ void EftRushShot_UpdateModels(EftKTask *task) {
             f32 pitch;
             f32 yaw;
 
-            func_00120590(&base, &base, w->scale);
-            func_00122140(&d, &w->dir, -1.0f, 1.0f);
+            Mtx_ScaleDiagUniform(&base, &base, w->scale);
+            Vec3_Clamp(&d, &w->dir, -1.0f, 1.0f);
             pitch = Mathf_Asin(-d.y);
             yaw = atan2f(d.x, d.z);
             pitch = EftMath_WrapAngle(pitch);
             yaw = EftMath_WrapAngle(yaw);
-            func_00120398(&m, &base, pitch);
-            func_00120428(&m, &m, yaw);
-            func_00120150(&m, &m, (Vec4 *)&w->body.pos);
+            Mtx_RotateX(&m, &base, pitch);
+            Mtx_RotateY(&m, &m, yaw);
+            Mtx_Translate(&m, &m, (Vec4 *)&w->body.pos);
             EftObj_SetMtx(o->model.objId, &m);
         }
     }
@@ -1944,7 +1944,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 scale);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);
 
 extern s32 BtlScene_IsCharStopped(s32 objId);
 extern s32 *BtlScene_GetPackEntry(s32 *base, s32 idx);
@@ -2350,7 +2350,7 @@ void EftRushShot_Update(EftTask *task) {
                         }
                         Vec3_Add(&w->pos, &w->pos, &w->vel);
                     } else {
-                        func_00121FB8(&w->pos, &task->hitPos);
+                        Vec3_Copy(&w->pos, &task->hitPos);
                     }
                 }
                 if (EftShot_TestBits(arg->objId, 8)) {
@@ -2418,7 +2418,7 @@ void EftRushShot_PostUpdate(EftTask *task) {
     EftEmit_UpdateAlive(w->model, &w->inst);
     if (task->hit & 1) {
         Vec3_Sub(&move, &task->hitPos, &w->pos);
-        func_00121FB8(&w->pos, &task->hitPos);
+        Vec3_Copy(&w->pos, &task->hitPos);
         Vec3_Add(&w->prev, &w->prev, &move);
         w->flags |= EFT_RUSHSHOT_HIT_MOVED;
     }

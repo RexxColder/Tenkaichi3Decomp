@@ -17,7 +17,7 @@ extern f32 sinf(f32 x);
 extern f32 cosf(f32 x);
 extern f32 Mathf_Asin(f32 x);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t); /* a + (b - a) * t */
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t); /* a + (b - a) * t */
 extern f32 BtlUtil_WrapAngle(f32 a);
 extern f32 BtlUtil_ClampF(f32 v, f32 lo, f32 hi);
 extern BtlFlagChr *BtlChar_Get(s32 i);
@@ -194,7 +194,7 @@ void BtlClash_SetMidCut(Vec4 *mid, f32 bias) {
     BtlCharApi_GetNodePos(0, 0x11, &a);
     ang = ang * half;
     BtlCharApi_GetNodePos(1, 0x11, &b);
-    func_00122168(&look, &b, &a, bias * 0.6f + half);
+    Vec4_Lerp(&look, &b, &a, bias * 0.6f + half);
     ang = ang + -1.5707963f;
     yaw = BtlUtil_WrapAngle(atan2f(d.x, d.z) + ang);
     pitch = -Mathf_Asin(d.y);
@@ -379,7 +379,7 @@ s32 BtlClash_UpdateA(s32 state) {
     c->bias = BtlClash_CalcBias(c->lead);
     BtlCharApi_GetNodePos(0, 0x11, &a);
     BtlCharApi_GetNodePos(1, 0x11, &b);
-    func_00122168(&c->mid, &b, &a, c->bias * 0.5f + 0.5f);
+    Vec4_Lerp(&c->mid, &b, &a, c->bias * 0.5f + 0.5f);
     return state;
 }
 

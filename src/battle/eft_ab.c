@@ -41,12 +41,12 @@ extern void Vec3_Normalize(EftAbVec *dst, EftAbVec *src);
 extern f32 Vec3_Length(EftAbVec *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(EftAbVec *dst, Mtx44 *m, EftAbVec *v);
-extern void func_001225D0(EftAbVec *dst, EftAbVec *dir, f32 s, EftAbVec *base); /* dst = base + dir * s */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
-extern void func_00120AB0(void);                                    /* VU0 matrix stack: push */
-extern void func_00120AC8(void);                                    /* VU0 matrix stack: pop */
-extern void func_00120B80(Mtx44 *m);                                /* VU0 current matrix = m */
+extern void Vec3_ScaleAdd(EftAbVec *dst, EftAbVec *dir, f32 s, EftAbVec *base); /* dst = base + dir * s */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
+extern void Vu0Cur_Push(void);                                    /* VU0 matrix stack: push */
+extern void Vu0Cur_Pop(void);                                    /* VU0 matrix stack: pop */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                                /* VU0 current matrix = m */
 
 extern f32 Rand_FloatRange(f32 a, f32 b);
 extern s32 Rand_IntRange(s32 a, s32 b);
@@ -246,10 +246,10 @@ void EftOrbTail_PostUpdate(void) {
 void EftOrbTail_Draw(EftAbTask *task) {
     EftOrbTail *w = task->work;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->viewMtx);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->viewMtx);
     EftOrbTail_DrawStreaks(w);
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Reset callback (battle restart): the task dies. */
@@ -282,9 +282,9 @@ void EftOrbTail_AddNode(EftOrbTail *w) {
     EftOrbTailNode *n;
 
     if (w->nodeTail != NULL) {
-        func_001225D0(&pos, &w->dir, -(prm->nodeLen * w->scale), &w->nodeTail->pos);
+        Vec3_ScaleAdd(&pos, &w->dir, -(prm->nodeLen * w->scale), &w->nodeTail->pos);
     } else {
-        func_001225D0(&pos, &w->dir, prm->headOffset * w->scale, &w->pos);
+        Vec3_ScaleAdd(&pos, &w->dir, prm->headOffset * w->scale, &w->pos);
     }
     n = EftOrbTail_AllocNode();
     if (n != NULL) {
@@ -322,7 +322,7 @@ void EftOrbTail_UpdateNodes(EftOrbTail *w) {
     f32 len = 0.0f;
 
     if (w->nodeHead != NULL) {
-        func_001225D0(&w->nodeHead->pos, &w->dir, prm->headOffset * w->scale, &w->pos);
+        Vec3_ScaleAdd(&w->nodeHead->pos, &w->dir, prm->headOffset * w->scale, &w->pos);
     }
     for (n = w->nodeHead; n != NULL; n = n->next) {
         if (n->next != NULL) {
@@ -331,9 +331,9 @@ void EftOrbTail_UpdateNodes(EftOrbTail *w) {
             if (len > 0.0f) {
                 Vec3_Normalize(&d, &d);
                 if (!(prm->nodeLen * w->scale < len)) {
-                    func_001225D0(&t, &d, len, &n->pos);
+                    Vec3_ScaleAdd(&t, &d, len, &n->pos);
                 } else {
-                    func_001225D0(&t, &d, prm->nodeLen * w->scale, &n->pos);
+                    Vec3_ScaleAdd(&t, &d, prm->nodeLen * w->scale, &n->pos);
                 }
             } else {
                 Vec4_Copy(&t, &n->pos);
@@ -361,8 +361,8 @@ void EftOrbTail_UpdateNodes(EftOrbTail *w) {
             n->yaw = n->prev->yaw;
         }
         Mtx_StoreIdentity(&n->mtx);
-        func_00120398(&n->mtx, &n->mtx, n->pitch);
-        func_00120428(&n->mtx, &n->mtx, n->yaw);
+        Mtx_RotateX(&n->mtx, &n->mtx, n->pitch);
+        Mtx_RotateY(&n->mtx, &n->mtx, n->yaw);
         Vec4_Copy((EftAbVec *)n->mtx.m[3], &n->pos);
     }
 }
@@ -692,7 +692,7 @@ void EftOrbTail_StartBurst(EftOrbTail *w) {
             arg.size = prm->burstSize[i] * w->scale;
             arg.tex = &gEftOrbTail->mgr->burstTex[i];
             w->burst[i] = EftPtcl_Create(&arg);
-            func_001225D0(&pos, &w->dir, prm->headOffset * w->scale, &w->pos);
+            Vec3_ScaleAdd(&pos, &w->dir, prm->headOffset * w->scale, &w->pos);
             EftPtcl_SetPos(w->burst[i], &pos);
             EftPtcl_SetDir(w->burst[i], &w->dir);
             EftPtcl_SetTexture(w->burst[i], &gEftOrbTail->mgr->burstTex[i], 0, 0);

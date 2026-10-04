@@ -14,7 +14,7 @@ extern void Gfx_EndFrame(s32 vsyncs);
 extern void Snd_Update(void);
 extern void Fade_Start(s32 idx, s32 dir, f32 seconds);
 extern s32 Fade_IsDone(s32 idx);
-extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
+extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void File_Stub264D90(void);
 
 extern void PadWatch_SetEnabled(s32 enable);                 /* stores (enable == 0) at +0x20 of the object at gPadWatch */
@@ -23,8 +23,8 @@ extern void *Sprite_Unpack(void *src, void *dst, s32 *rawSize); /* wrapper of Bp
 extern void Sprite_DrawList(void *res, s32 x, s32 y, LoadSprite *list); /* draws a sprite run at an offset */
 extern s32 Rand_IntRange(s32 a, s32 b);                /* random integer in [a, b] */
 extern f32 Mathf_Sin(f32 angle);                   /* sine */
-extern s32 func_0025E5E8(u8 *digits, s32 value, s32 count, s32 zeroPad); /* decimal digits, 10 = blank */
-extern s32 func_0025EC78(s32 value);                   /* number of decimal digits */
+extern void Num_ToDigits(u8 *digits, s32 value, s32 count, s32 zeroPad); /* decimal digits, 10 = blank */
+extern s32 Num_CountDigits(s32 value);                   /* number of decimal digits */
 
 /* The one pad field read here. sys/pad.h describes the whole struct but was still changing while this file was
    written, so the field is declared by offset. */
@@ -319,7 +319,7 @@ void Load_DrawScreen(void) {
         gLoadScreen.sprites[4].x1 = gLoadScreen.pulse.rect[2] + (s32)gLoadScreen.pulse.size;
         Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[4]);
         if (gLoadScreen.count != 0) {
-            func_0025E5E8(digits, gLoadScreen.count, 3, 0);
+            Num_ToDigits(digits, gLoadScreen.count, 3, 0);
             for (i = 0; i < 3; i++) {
                 LoadSprite *spr = &gLoadScreen.sprites[6 + i];
 
@@ -329,7 +329,7 @@ void Load_DrawScreen(void) {
                 spr->u0 = (digits[i] & 7) << 4;
                 spr->u1 = spr->u0 + 16;
             }
-            switch (func_0025EC78(gLoadScreen.count)) {
+            switch (Num_CountDigits(gLoadScreen.count)) {
             default:
                 Sprite_DrawList(gLoadScreen.res, 0, 0, &gLoadScreen.sprites[6]);
                 break;

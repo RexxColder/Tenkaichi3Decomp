@@ -23,7 +23,7 @@ extern void *EftW_MemsetCall(void *dst, s32 c, u32 n) __asm__("memset");
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern EftWTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void EftLink_Update(EftWTask *task);
-/* One vertex as func_00121950 builds it for the EftGfx_DrawPoly functions. */
+/* One vertex as ClipVtx_Set builds it for the EftGfx_DrawPoly functions. */
 typedef struct EftWVert {
     /* 0x00 */ Vec4 pos;
     /* 0x10 */ Vec4 uv;
@@ -94,15 +94,15 @@ typedef struct EftWQuadPkt {
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern s32 func_00121240(EftWIVec *scr, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n);
-extern void func_001220F0(EftWIVec *dst, Vec4 *src);
-extern void func_00121950(EftWVert *dst, Vec4 *pos, Vec4 *uv, Vec4 *color);
-extern s32 func_001210D8(EftWIVec *scr, Vec4 *pos);
-extern void func_00121F08(Vec4 *dst, Vec4 *a, Vec4 *b);
-extern void func_00120150(Mtx44 *dst, Mtx44 *src, Vec4 *scale);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
+extern s32 Vu0Cur_ProjectPointsStq(EftWIVec *scr, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n);
+extern void Vec4_ToInt(EftWIVec *dst, Vec4 *src);
+extern void ClipVtx_Set(EftWVert *dst, Vec4 *pos, Vec4 *uv, Vec4 *color);
+extern s32 Vu0Cur_ProjectPoint(EftWIVec *scr, Vec4 *pos);
+extern void Vec4_Mul(Vec4 *dst, Vec4 *a, Vec4 *b);
+extern void Mtx_Translate(Mtx44 *dst, Mtx44 *src, Vec4 *scale);
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
 extern void EftGfx_DrawPolyScaledZ(EftWVert *v, s32 layer, s32 a2, s32 a3, s32 noDepth, s32 a5, u64 tex0, f32 zScale);
 extern void EftGfx_DrawPolyFixedZ(EftWVert *v, s32 layer, s32 a2, s32 a3, s32 noDepth, s32 a5, u64 tex0, s32 z);
 s32 EftLink_IsCornerOffScreen(s32 x, s32 y, s32 z);
@@ -132,7 +132,7 @@ void EftLink_DrawQuad(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32
     Vec4_Set(&uv[1], uv0.z, uv0.w, 1.0f, 1.0f);
     Vec4_Set(&uv[2], uv1.x, uv1.y, 1.0f, 1.0f);
     Vec4_Set(&uv[3], uv1.z, uv1.w, 1.0f, 1.0f);
-    if (!func_00121240(scr, stq, corner, uv, 4)) {
+    if (!Vu0Cur_ProjectPointsStq(scr, stq, corner, uv, 4)) {
         return;
     }
     p = (EftWStripPkt *)gOtCur;
@@ -155,7 +155,7 @@ void EftLink_DrawQuad(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32
         scr[2].z = 0xFFFFFF;
         scr[3].z = 0xFFFFFF;
     }
-    func_001220F0(&col, V(&color));
+    Vec4_ToInt(&col, V(&color));
     p->v[0].rgbaq.r = col.x;
     p->v[0].rgbaq.g = col.y;
     p->v[0].rgbaq.b = col.z;
@@ -233,13 +233,13 @@ void EftLink_DrawQuadClipped(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec col
     Vec4_Copy(&c[1], &corner[1]);
     Vec4_Copy(&c[2], &corner[2]);
     Vec4_Copy(&c[3], &corner[3]);
-    func_00121950(&v[0], &c[0], &uv[0], V(&color));
-    func_00121950(&v[1], &c[1], &uv[1], V(&color));
-    func_00121950(&v[2], &c[2], &uv[2], V(&color));
+    ClipVtx_Set(&v[0], &c[0], &uv[0], V(&color));
+    ClipVtx_Set(&v[1], &c[1], &uv[1], V(&color));
+    ClipVtx_Set(&v[2], &c[2], &uv[2], V(&color));
     EftGfx_DrawPolyScaledZ(v, layer, 1, 0, noDepth, 0, EFTW_TEX0(tex, texIdx), 2.0f);
-    func_00121950(&v[0], &c[1], &uv[1], V(&color));
-    func_00121950(&v[1], &c[2], &uv[2], V(&color));
-    func_00121950(&v[2], &c[3], &uv[3], V(&color));
+    ClipVtx_Set(&v[0], &c[1], &uv[1], V(&color));
+    ClipVtx_Set(&v[1], &c[2], &uv[2], V(&color));
+    ClipVtx_Set(&v[2], &c[3], &uv[3], V(&color));
     EftGfx_DrawPolyScaledZ(v, layer, 1, 0, noDepth, 0, EFTW_TEX0(tex, texIdx), 2.0f);
 }
 
@@ -306,21 +306,21 @@ extern f32 sinf(f32 x);
 extern f32 EftMath_WrapAngle(f32 a);
 extern u64 EftVram_AddImage(EftWTexEntry *e, s32 a, s32 b);
 extern u64 EftVram_AddClut(EftWTexEntry *e);
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);
-extern void func_00120C18(Vec4 *v);
-extern void func_00120F88(f32 s);
-extern void func_00120DB0(f32 a);
-extern void func_00120E20(f32 a);
-extern void func_00120E90(f32 a);
-extern void func_00120FC8(Vec4 *dst, Vec4 *src);
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);
+extern void Vu0Cur_Translate(Vec4 *v);
+extern void Vu0Cur_ScaleDiagUniform(f32 s);
+extern void Vu0Cur_RotateZ(f32 a);
+extern void Vu0Cur_RotateX(f32 a);
+extern void Vu0Cur_RotateY(f32 a);
+extern void Vu0Cur_MulVec4(Vec4 *dst, Vec4 *src);
 
 void EftLink_InitNode(EftWLinkNode *p, EftWLink *w);
 void EftLink_LinkNode(EftWLinkNode **head, EftWLinkNode **tail, EftWLinkNode *p);
 void EftLink_UnlinkNode(EftWLinkNode **head, EftWLinkNode **tail, EftWLinkNode *p);
 void EftLink_BuildCorners(EftWLinkNode *p, EftWLink *w);
-extern void func_00120AB0(void);
-extern void func_00120A98(void);
-extern void func_00120AC8(void);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_LoadIdentity(void);
+extern void Vu0Cur_Pop(void);
 
 extern EftWLinkMgr *gEftLink;
 extern u8 gEftLinkClass[0x18];
@@ -459,8 +459,8 @@ void EftLink_InitNode(EftWLinkNode *p, EftWLink *w) {
     c1.y = Rand_FloatRange(w->col1.y, w->col1.y + w->col1Range.y);
     c1.z = Rand_FloatRange(w->col1.z, w->col1.z + w->col1Range.z);
     c1.w = Rand_FloatRange(w->col1.w, w->col1.w + w->col1Range.w);
-    func_00122118(&p->col0, &p->col0, 0.0f, 255.0f);
-    func_00122118(&c1, &c1, 0.0f, 255.0f);
+    Vec4_Clamp(&p->col0, &p->col0, 0.0f, 255.0f);
+    Vec4_Clamp(&c1, &c1, 0.0f, 255.0f);
     Vec3_Sub(&p->colDelta, &c1, &p->col0);
     Vec4_Copy(&p->col, &p->col0);
     sz[0] = Rand_FloatRange(w->size[0], w->size[0] + w->sizeRange[0]);
@@ -579,7 +579,7 @@ void EftLink_StepNodes(EftWLink *w, f32 alpha) {
             p->col.z = p->col0.z * mul[2];
         }
         p->col.w = p->col0.w * a * alpha;
-        func_00122118(&p->col, &p->col, 0.0f, 255.0f);
+        Vec4_Clamp(&p->col, &p->col, 0.0f, 255.0f);
         if (w->flags & 0x100) {
             u8 f = 0;
 
@@ -606,10 +606,10 @@ void EftLink_StepNodes(EftWLink *w, f32 alpha) {
         }
         if (0.0f < p->col.w && 0.0f < p->size) {
             if (!(def->flags & 0x10)) {
-                func_00120AB0();
-                func_00120A98();
+                Vu0Cur_Push();
+                Vu0Cur_LoadIdentity();
                 EftLink_BuildCorners(p, w);
-                func_00120AC8();
+                Vu0Cur_Pop();
             }
             p->flags |= 0x40;
         } else {
@@ -639,24 +639,24 @@ void EftLink_BuildCorners(EftWLinkNode *p, EftWLink *w) {
     Vec4_Set(&p->corner[1], p->size * -0.5f, p->size * 0.5f, 0.0f, 1.0f);
     Vec4_Set(&p->corner[2], p->size * 0.5f, p->size * -0.5f, 0.0f, 1.0f);
     Vec4_Set(&p->corner[3], p->size * 0.5f, p->size * 0.5f, 0.0f, 1.0f);
-    func_00120C18(&p->ofs);
-    func_00120F88(w->arg.size * w->scale * p->scale);
-    func_00120DB0(p->rotZ);
-    func_00120E20(p->rotX);
-    func_00120DB0(p->twist);
+    Vu0Cur_Translate(&p->ofs);
+    Vu0Cur_ScaleDiagUniform(w->arg.size * w->scale * p->scale);
+    Vu0Cur_RotateZ(p->rotZ);
+    Vu0Cur_RotateX(p->rotX);
+    Vu0Cur_RotateZ(p->twist);
     if (!(def->flags & 0x2000)) {
         Vec3_Scale(&v, &p->dir, w->scale);
-        func_00120C18(&v);
+        Vu0Cur_Translate(&v);
     } else {
-        func_00120C18(&p->dir);
+        Vu0Cur_Translate(&p->dir);
     }
-    func_00120E20(w->pitch);
-    func_00120E90(w->yaw);
-    func_00120C18(&p->origin);
-    func_00120FC8(&p->corner[0], &p->corner[0]);
-    func_00120FC8(&p->corner[1], &p->corner[1]);
-    func_00120FC8(&p->corner[2], &p->corner[2]);
-    func_00120FC8(&p->corner[3], &p->corner[3]);
+    Vu0Cur_RotateX(w->pitch);
+    Vu0Cur_RotateY(w->yaw);
+    Vu0Cur_Translate(&p->origin);
+    Vu0Cur_MulVec4(&p->corner[0], &p->corner[0]);
+    Vu0Cur_MulVec4(&p->corner[1], &p->corner[1]);
+    Vu0Cur_MulVec4(&p->corner[2], &p->corner[2]);
+    Vu0Cur_MulVec4(&p->corner[3], &p->corner[3]);
 }
 
 /* Appends a sprite to an emitter's list. */
@@ -714,19 +714,19 @@ void EftLink_DrawBillboardClipped(Vec4 *pos, f32 w, f32 h, Vec4 *color, Vec4 *sc
     Vec4_Set(&c[1], w, -h, 0.0f, 1.0f);
     Vec4_Set(&c[2], -w, h, 0.0f, 1.0f);
     Vec4_Set(&c[3], w, h, 0.0f, 1.0f);
-    func_00120150(&m, &gEftLink->camMtx, scale);
-    func_00120308(&m, &m, rot);
-    func_001202A0(&inv, &gBtlCamView->unk40);
+    Mtx_Translate(&m, &gEftLink->camMtx, scale);
+    Mtx_RotateZ(&m, &m, rot);
+    Mtx_InverseRT(&inv, &gBtlCamView->unk40);
     inv.m[3][0] = 0.0f;
     inv.m[3][1] = 0.0f;
     inv.m[3][2] = 0.0f;
-    func_001201B8(&m, &inv, &m);
+    Mtx_Mul(&m, &inv, &m);
     for (i = 0; i < 4; i++) {
         Mtx_MulVec4(&c[i], &m, &c[i]);
         Vec3_Add(&c[i], &c[i], pos);
         c[i].w = 1.0f;
     }
-    func_001210D8(&scr, pos);
+    Vu0Cur_ProjectPoint(&scr, pos);
     z = scr.z >> 8;
     if (scr.z >= 0) {
         Vec4_Set(&uv[0], u0, v0, 1.0f, 0.0f);
@@ -734,9 +734,9 @@ void EftLink_DrawBillboardClipped(Vec4 *pos, f32 w, f32 h, Vec4 *color, Vec4 *sc
         Vec4_Set(&uv[2], u0, v1, 1.0f, 0.0f);
         Vec4_Set(&uv[3], u1, v1, 1.0f, 0.0f);
         for (i = 0; i < 2; i++) {
-            func_00121950(&v[0], &c[i], &uv[i], color);
-            func_00121950(&v[1], &c[i + 1], &uv[i + 1], color);
-            func_00121950(&v[2], &c[i + 2], &uv[i + 2], color);
+            ClipVtx_Set(&v[0], &c[i], &uv[i], color);
+            ClipVtx_Set(&v[1], &c[i + 1], &uv[i + 1], color);
+            ClipVtx_Set(&v[2], &c[i + 2], &uv[i + 2], color);
             EftGfx_DrawPolyFixedZ(v, layer, 0, 0, noDepth, 0, tex0, z * zScale);
         }
     }
@@ -778,7 +778,7 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
 
     Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
     pos->w = 1.0f;
-    func_001210D8(&scr, pos);
+    Vu0Cur_ProjectPoint(&scr, pos);
     sw = w;
     sh = h;
     scale *= 4096.0f;
@@ -807,19 +807,19 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
     Vec4_Set(&b, offX - sw, sh + oy, 0.0f, 1.0f);
     Vec4_Set(&c, sw + offX, oy - sh, 0.0f, 1.0f);
     Vec4_Set(&d, sw + offX, sh + oy, 0.0f, 1.0f);
-    func_00120308(&m, &gEftLink->camMtx, rot);
+    Mtx_RotateZ(&m, &gEftLink->camMtx, rot);
     Mtx_MulVec4(&a, &m, &a);
     Mtx_MulVec4(&b, &m, &b);
     Mtx_MulVec4(&c, &m, &c);
     Mtx_MulVec4(&d, &m, &d);
-    func_00121F08(&a, &a, &aspect);
-    func_00121F08(&b, &b, &aspect);
-    func_00121F08(&c, &c, &aspect);
-    func_00121F08(&d, &d, &aspect);
-    func_001220F0(&ia, &a);
-    func_001220F0(&ib, &b);
-    func_001220F0(&ic, &c);
-    func_001220F0(&id, &d);
+    Vec4_Mul(&a, &a, &aspect);
+    Vec4_Mul(&b, &b, &aspect);
+    Vec4_Mul(&c, &c, &aspect);
+    Vec4_Mul(&d, &d, &aspect);
+    Vec4_ToInt(&ia, &a);
+    Vec4_ToInt(&ib, &b);
+    Vec4_ToInt(&ic, &c);
+    Vec4_ToInt(&id, &d);
     if (EftLink_IsCornerOffScreen(scr.x + ia.x, scr.y + ia.y, scr.z)) {
         return;
     }
@@ -1292,7 +1292,7 @@ extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Mathf_Asin(f32 x);
 extern f32 atan2f(f32 y, f32 x);
 extern void BtlTask_SetDead(EftWTask *task);
-extern void func_00120B80(Mtx44 *m);
+extern void Vu0Cur_LoadMtx(Mtx44 *m);
 extern void EftPart10_InitSpin(EftPart10 *w);
 extern void EftPart10_StartKeys(EftPart10 *w);
 extern void EftPart10_SetKey(EftPart10 *w, s32 key);
@@ -1487,8 +1487,8 @@ void EftPart10_Draw(EftWTask *task) {
 
     EftW_MemsetCall(&pos, 0, sizeof(Vec4));
     pos.w = 1.0f;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->unk140);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->unk140);
     for (grp = w->grpHead; grp != NULL; grp = grp->next) {
         for (p = grp->head; p != NULL; p = p->next) {
             if (p->flags & 0x40) {
@@ -1516,7 +1516,7 @@ void EftPart10_Draw(EftWTask *task) {
             }
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Reset callback: kills the task. */
@@ -1665,14 +1665,14 @@ void EftPart10_Step(f32 alpha, EftPart10 *w) {
             p->ang[1] = EftMath_WrapAngle(p->ang[1]);
             p->ang[2] = EftMath_WrapAngle(p->ang[2]);
             Vec3_Scale(&p->pos, &p->base, p->dist * w->arg.size * w->scale);
-            func_00120AB0();
-            func_00120A98();
-            func_00120E20(w->yaw);
-            func_00120E90(w->pitch);
-            func_00120E20(EftMath_WrapAngle(p->ang[0] + w->angA0 + pitch));
-            func_00120E90(EftMath_WrapAngle(p->ang[1] + w->angB0 + yaw));
-            func_00120FC8(&p->pos, &p->pos);
-            func_00120AC8();
+            Vu0Cur_Push();
+            Vu0Cur_LoadIdentity();
+            Vu0Cur_RotateX(w->yaw);
+            Vu0Cur_RotateY(w->pitch);
+            Vu0Cur_RotateX(EftMath_WrapAngle(p->ang[0] + w->angA0 + pitch));
+            Vu0Cur_RotateY(EftMath_WrapAngle(p->ang[1] + w->angB0 + yaw));
+            Vu0Cur_MulVec4(&p->pos, &p->pos);
+            Vu0Cur_Pop();
             if (t < def->sizeSplit) {
                 p->size += p->sizeVel0;
             } else {
@@ -1702,7 +1702,7 @@ void EftPart10_Step(f32 alpha, EftPart10 *w) {
                 a = 1.0f - (p->age - (p->life - p->fadeOut)) / p->fadeOut;
             }
             p->col.w = p->col0.w * EFTW_CLAMP01(a) * alpha;
-            func_00122118(&p->col, &p->col, 0.0f, 255.0f);
+            Vec4_Clamp(&p->col, &p->col, 0.0f, 255.0f);
             if (w->flags & 0x100) {
                 if (p->flags & 0x200) {
                     Vec4_Set(&p->uv0, w->uv[(s32)p->texFrame][2], w->uv[(s32)p->texFrame][1],
@@ -1724,10 +1724,10 @@ void EftPart10_Step(f32 alpha, EftPart10 *w) {
             }
             if (0.0f < p->col.w && 0.0f < p->size) {
                 if (w->arg.def->mode != 1) {
-                    func_00120AB0();
-                    func_00120A98();
+                    Vu0Cur_Push();
+                    Vu0Cur_LoadIdentity();
                     EftPart10_BuildCorners(p, w);
-                    func_00120AC8();
+                    Vu0Cur_Pop();
                 }
                 p->flags |= 0x40;
             } else {

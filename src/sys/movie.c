@@ -27,7 +27,7 @@ extern ADXF ADXF_Open(char *fname, void *atr);
 extern void ADXF_Close(ADXF adxf);
 extern s32 ADXF_ReadNw(ADXF adxf, s32 nsct, void *buf);
 extern s32 ADXF_GetStat(ADXF adxf);
-extern s32 func_0026B580(ADXF adxf);    /* file position in sectors (locked wrapper around the function named ADXF_Tell) */
+extern s32 ADXF_Tell(ADXF adxf);    /* file position in sectors (locked wrapper around adxf_Tell) */
 extern s32 ADXT_GetStat(ADXT_HN adxt);
 extern void ADXT_Pause(ADXT_HN adxt, s32 sw);
 extern s32 func_00277A70(ADXT_HN adxt); /* non-zero while the player's own stream must not be disturbed (inferred) */
@@ -417,7 +417,7 @@ MovieBuf *Movie_FindBuf(s32 full) {
         }
         if (best != NULL) {
             end = best->startSct + best->sectors;
-            if (func_0026B580(m->adxf) < end) {
+            if (ADXF_Tell(m->adxf) < end) {
                 Movie_WaitRead(end);
             }
         }
@@ -445,7 +445,7 @@ s32 Movie_ReadBuf(MovieBuf *buf, char *tag) {
         return 0;
     }
     Movie_WaitRead(-1);
-    pos = func_0026B580(m->adxf);
+    pos = ADXF_Tell(m->adxf);
     n = ADXF_ReadNw(m->adxf, MOVIE_BUF_SECTORS, buf->data);
     if (n == 0) {
         return n;
@@ -478,7 +478,7 @@ void Movie_WaitRead(s32 sector) {
                 break;
             }
         }
-    } while (sector < 0 ? ADXF_GetStat(m->adxf) == ADXF_STAT_READING : func_0026B580(m->adxf) < sector);
+    } while (sector < 0 ? ADXF_GetStat(m->adxf) == ADXF_STAT_READING : ADXF_Tell(m->adxf) < sector);
     if (m->audioOn) {
         ADXT_Pause(m->adxt, 0);
     }

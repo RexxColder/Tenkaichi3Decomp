@@ -19,7 +19,7 @@
 extern BtlReplayTracks *BattleReplay_GetData(void);
 extern s32 BattleReplay_IsActive(void);
 extern s32 func_00215000(void); /* word 8 of the pause / text work (D_002FEB30) */
-extern void func_00218A48(s32 mode); /* HUD work (D_002FEB3C) + 0x34 = mode */
+extern void Hud_SetReplayMode(s32 mode); /* HUD work (gHud) + 0x34 = mode */
 
 extern BtlReplayRoster *gBtlChars;
 extern s32 gBtlReplayHudMode;
@@ -113,7 +113,7 @@ void BtlReplay_UpdateViewer(void) {
         if (gBtlReplayHudMode < 0) {
             gBtlReplayHudMode = 2;
         }
-        func_00218A48(gBtlReplayHudMode);
+        Hud_SetReplayMode(gBtlReplayHudMode);
         v->row = 0;
     } else {
         v->row = 0;

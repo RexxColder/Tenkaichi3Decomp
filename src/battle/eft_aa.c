@@ -51,9 +51,9 @@ extern f32 Vec3_Length(Vec4 *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
 extern f32 Rand_Float01(void);
-extern void func_00121240(EftAaScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n);            /* projects n points with the current matrix */
-extern void func_001224E0(EftAaScr *xyz, Vec4 *stq, Mtx44 *m, Vec4 *pos, Vec4 *uv, s32 n);  /* projects n points, perspective STQ */
-extern void func_00122190(Vec4 *out, Vec4 *up, Vec4 *dir, f32 angle);                       /* orientation from an up vector, a direction and a tilt */
+extern void Vu0Cur_ProjectPointsStq(EftAaScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n);            /* projects n points with the current matrix */
+extern void Mtx_ProjectPointsStq(EftAaScr *xyz, Vec4 *stq, Mtx44 *m, Vec4 *pos, Vec4 *uv, s32 n);  /* projects n points, perspective STQ */
+extern void Vec3_Lerp(Vec4 *out, Vec4 *up, Vec4 *dir, f32 angle);                       /* orientation from an up vector, a direction and a tilt */
 
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -363,7 +363,7 @@ void EftGndDust_SpawnChip(EftGroundWork *w, Vec4 *pos, Vec4 *dir, EftGroundRgba 
     Vec4_Scale((Vec4 *)&off, (Vec4 *)&d, (f32)rand() / 2147483647.0f * 5.0f + 4.0f);
     Vec4_Add((Vec4 *)&p, pos, (Vec4 *)&off);
     p.y += 7.0f;
-    func_00122190((Vec4 *)&q, (Vec4 *)&up, (Vec4 *)&d, 0.5f);
+    Vec3_Lerp((Vec4 *)&q, (Vec4 *)&up, (Vec4 *)&d, 0.5f);
     EftGndDust_SpawnPieceEx(w, (Vec4 *)&p, (Vec4 *)&q, colA, colB, 0.8f, 1.0f, 0.0f, 0.2f, 0.0f, 1.0f, 0.0f, 0.0f,
                            (f32)life, (f32)fade, 10, 1.0f, 0.0f, 0x50);
 }
@@ -483,7 +483,7 @@ void EftGndDust_DrawQuad(Vec4 *pos, Vec4 *color, Mtx44 *mtx, u64 tex0, f32 scale
         Vec4_Add((Vec4 *)&c[i], (Vec4 *)&c[i], pos);
         c[i].w = 1.0f;
     }
-    func_00121240(scr, (Vec4 *)stq, (Vec4 *)c, (Vec4 *)uv, 4);
+    Vu0Cur_ProjectPointsStq(scr, (Vec4 *)stq, (Vec4 *)c, (Vec4 *)uv, 4);
     for (i = 0; i < 4; i++) {
         if (!EftGndDust_IsOnScreen(&scr[i])) {
             return;
@@ -1116,7 +1116,7 @@ void EftBlade_Draw(EftAaTask *task) {
             pos[0].w = 1.0f;
             pos[1].w = 1.0f;
             pos[2].w = 1.0f;
-            func_001224E0(scr, (Vec4 *)stq, &gBtlCamView->world2screen, (Vec4 *)pos, (Vec4 *)uv, 3);
+            Mtx_ProjectPointsStq(scr, (Vec4 *)stq, &gBtlCamView->world2screen, (Vec4 *)pos, (Vec4 *)uv, 3);
             if (EftBlade_IsClipped(&scr[0])) {
                 continue;
             }

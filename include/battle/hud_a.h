@@ -149,16 +149,17 @@ typedef struct HudCaption {
     /* 0x0C */ Ramp pulse;
 } HudCaption;
 
-/* Health gauge work (gHudGauge): only the fields used before 0x21CA60. */
+/* Health gauge work (gHudGauge): only the fields used before 0x21CA60. The full layout is HudBWork in
+ * src/battle/hud_b.c, whose matching setters fix which word is which: HudGauge_SetHp writes +0x30. */
 typedef struct HudGauge {
     /* 0x00 */ HudRes *res;
     /* 0x04 */ HudSprite *sprites;
     /* 0x08 */ u8 unk8[0x1C];
     /* 0x24 */ s32 side;        /* side being updated / drawn */
-    /* 0x28 */ s32 hp[2];       /* health now */
+    /* 0x28 */ s32 hpShown[2];  /* the health the trailing (damage) bar shows; falls towards cur.hp */
     /* 0x30 */ struct {         /* a nested structure (addressed like the pairs of HudTeam) */
-        s32 hp[2];              /* the health the trailing (damage) bar shows */
-    } shown;
+        s32 hp[2];              /* health now (HudGauge_SetHp) */
+    } cur;
 } HudGauge;
 
 #define HUD_GAUGE_BAR 10000  /* health per bar */

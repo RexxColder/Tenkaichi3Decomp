@@ -65,10 +65,10 @@ extern EftAdVec gEftSprUvScale; /* {1, 1.1666666, 1, 1}: the screen's pixel aspe
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00121F08(Vec4 *dst, Vec4 *a, Vec4 *b);       /* per-component product */
-extern void func_001220F0(EftAdScr *dst, Vec4 *src);          /* float vector to integer vector */
-extern s32 func_00122350(EftAdScr *out, Mtx44 *m, Vec4 *pos); /* projects one point; out->w = view depth */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Vec4_Mul(Vec4 *dst, Vec4 *a, Vec4 *b);       /* per-component product */
+extern void Vec4_ToInt(EftAdScr *dst, Vec4 *src);          /* float vector to integer vector */
+extern s32 Mtx_ProjectPoint(EftAdScr *out, Mtx44 *m, Vec4 *pos); /* projects one point; out->w = view depth */
 extern s32 EftSpr_IsOffScreen(s32 x, s32 y, s32 z);                /* 1 = outside the GS drawing area */
 
 /* Queues an upright camera-facing sprite at pos: w x h (half sizes, in screen units at the reference depth,
@@ -89,7 +89,7 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     if (w == 0 || h == 0) {
         return;
     }
-    func_00122350(&scr, &gBtlCamView->world2screen, pos);
+    Mtx_ProjectPoint(&scr, &gBtlCamView->world2screen, pos);
     k = scale * 4096.0f / scr.w;
     w = (w * k) >> 12;
     h = (h * k) >> 12;
@@ -191,7 +191,7 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
     s32 l;
 
     Vec4_Set((Vec4 *)&pos, x, y, z, 1.0f);
-    func_00122350(&scr, &gBtlCamView->world2screen, (Vec4 *)&pos);
+    Mtx_ProjectPoint(&scr, &gBtlCamView->world2screen, (Vec4 *)&pos);
     k = size * scale / scr.w;
     w = (w * k) >> 12;
     h = (h * k) >> 12;
@@ -204,7 +204,7 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
         rot += 6.2831853f;
     }
     Mtx_StoreIdentity(&m);
-    func_00120308(&m, &m, rot);
+    Mtx_RotateZ(&m, &m, rot);
     if (ofsX >= 0) {
         ox = (s32)(ofsX * k) >> 12;
     } else {
@@ -237,8 +237,8 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
         f[i].z = c[i].z;
         f[i].w = c[i].w;
         Mtx_MulVec4((Vec4 *)&f[i], &m, (Vec4 *)&f[i]);
-        func_00121F08((Vec4 *)&f[i], (Vec4 *)&f[i], (Vec4 *)&gEftSprUvScale);
-        func_001220F0(&c[i], (Vec4 *)&f[i]);
+        Vec4_Mul((Vec4 *)&f[i], (Vec4 *)&f[i], (Vec4 *)&gEftSprUvScale);
+        Vec4_ToInt(&c[i], (Vec4 *)&f[i]);
     }
     for (i = 0; i < 4; i++) {
         if (EftSpr_IsOffScreen(scr.x + c[i].x, scr.y + c[i].y, scr.z)) {

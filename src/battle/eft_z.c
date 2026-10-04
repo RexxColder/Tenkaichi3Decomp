@@ -27,22 +27,22 @@ extern void Vec3_Sub(EftYVec *dst, EftYVec *a, EftYVec *b);
 extern void Vec3_Scale(EftYVec *dst, EftYVec *src, f32 s);
 extern void Vec3_Cross(EftYVec *dst, EftYVec *a, EftYVec *b);
 extern void Vec3_Normalize(EftYVec *dst, EftYVec *src);
-extern void func_00120A98(void);                 /* VU0 current matrix = identity (inferred) */
-extern void func_00120AB0(void);                 /* VU0 matrix stack: push */
-extern void func_00120AC8(void);                 /* pop */
-extern void func_00120C18(EftYVec *v);           /* current matrix: translate */
-extern void func_00120DB0(f32 angle);            /* current matrix: rotate about Z */
-extern void func_00120E20(f32 angle);            /* rotate about X */
-extern void func_00120E90(f32 angle);            /* rotate about Y */
-extern void func_00120F88(f32 scale);            /* scale */
-extern void func_00120FC8(EftYVec *dst, EftYVec *src); /* transform a point by the current matrix */
-extern s32 func_00121140(EftYScr *out, EftYVec *pos, s32 count); /* project; 0 when clipped */
-extern s32 func_00121240(EftYScr *xyz, EftYVec *stq, EftYVec *pos, EftYVec *uv, s32 n); /* project with texture */
-extern void func_00121950(EftYClipVtx *out, EftYVec *pos, EftYVec *st, EftYVec *color);
-extern void func_00121FB8(EftYVec *dst, EftYVec *src); /* copies x, y, z */
-extern void func_001220F0(EftYCol *dst, EftYVec *src); /* float vector to integer vector */
-extern void func_00122118(EftYVec *dst, EftYVec *src, f32 lo, f32 hi); /* clamps each component */
-extern void func_001225D0(EftYVec *dst, EftYVec *dir, EftYVec *base, f32 s); /* dst = base + dir * s */
+extern void Vu0Cur_LoadIdentity(void);                 /* VU0 current matrix = identity (inferred) */
+extern void Vu0Cur_Push(void);                 /* VU0 matrix stack: push */
+extern void Vu0Cur_Pop(void);                 /* pop */
+extern void Vu0Cur_Translate(EftYVec *v);           /* current matrix: translate */
+extern void Vu0Cur_RotateZ(f32 angle);            /* current matrix: rotate about Z */
+extern void Vu0Cur_RotateX(f32 angle);            /* rotate about X */
+extern void Vu0Cur_RotateY(f32 angle);            /* rotate about Y */
+extern void Vu0Cur_ScaleDiagUniform(f32 scale);            /* scale */
+extern void Vu0Cur_MulVec4(EftYVec *dst, EftYVec *src); /* transform a point by the current matrix */
+extern s32 Vu0Cur_ProjectPoints(EftYScr *out, EftYVec *pos, s32 count); /* project; 0 when clipped */
+extern s32 Vu0Cur_ProjectPointsStq(EftYScr *xyz, EftYVec *stq, EftYVec *pos, EftYVec *uv, s32 n); /* project with texture */
+extern void ClipVtx_Set(EftYClipVtx *out, EftYVec *pos, EftYVec *st, EftYVec *color);
+extern void Vec3_Copy(EftYVec *dst, EftYVec *src); /* copies x, y, z */
+extern void Vec4_ToInt(EftYCol *dst, EftYVec *src); /* float vector to integer vector */
+extern void Vec4_Clamp(EftYVec *dst, EftYVec *src, f32 lo, f32 hi); /* clamps each component */
+extern void Vec3_ScaleAdd(EftYVec *dst, EftYVec *dir, EftYVec *base, f32 s); /* dst = base + dir * s */
 extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                   s32 z);
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
@@ -189,7 +189,7 @@ void EftLine_Animate(EftLineWork *w) {
 /* Draws the line as one order table strip: a quad from pos -/+ side * width to the same two points + dir *
    length, where side is perpendicular to dir and to the direction to the camera. */
 /* NON-MATCHING: 26 of 340 instructions differ, one cause: the original fills the delay slot of the branch after
-   func_00121140 with the first instruction of the epilogue (ld s0) and this C with the following load of gOtCur, which
+   Vu0Cur_ProjectPoints with the first instruction of the epilogue (ld s0) and this C with the following load of gOtCur, which
    shifts the 25 instructions up to the next alignment nop by one. Same instructions otherwise. */
 #if 0
 void EftLine_DrawSprite(EftYTask *task) {
@@ -221,7 +221,7 @@ void EftLine_DrawSprite(EftYTask *task) {
     Vec3_Scale(&len, &w->arg.dir, w->length);
     Vec3_Add(&p[2], &p[0], &len);
     Vec3_Add(&p[3], &p[1], &len);
-    if (func_00121140(scr, p, 4)) {
+    if (Vu0Cur_ProjectPoints(scr, p, 4)) {
         pk = (EftYStripPkt *)gOtCur;
         gOtCur = (u32 *)(pk + 1);
         if (pk != NULL) {
@@ -257,7 +257,7 @@ void EftLine_DrawSprite(EftYTask *task) {
                 }
             }
             z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
-            func_001220F0(&col, &w->color);
+            Vec4_ToInt(&col, &w->color);
             pk->v[0].rgbaq.r = col.r;
             pk->v[0].rgbaq.g = col.g;
             pk->v[0].rgbaq.b = col.b;
@@ -358,12 +358,12 @@ void EftLine_DrawClipped(EftYTask *task) {
         st[i].z = 1.0f;
         st[i].w = 0.0f;
     }
-    func_00121140(scr, p, 4);
+    Vu0Cur_ProjectPoints(scr, p, 4);
     z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
     for (i = 0; i < 2; i++) {
-        func_00121950(&v[0], &p[i], (EftYVec *)&st[i], &w->color);
-        func_00121950(&v[1], &p[i + 1], (EftYVec *)&st[i + 1], &w->color);
-        func_00121950(&v[2], &p[i + 2], (EftYVec *)&st[i + 2], &w->color);
+        ClipVtx_Set(&v[0], &p[i], (EftYVec *)&st[i], &w->color);
+        ClipVtx_Set(&v[1], &p[i + 1], (EftYVec *)&st[i + 1], &w->color);
+        ClipVtx_Set(&v[2], &p[i + 2], (EftYVec *)&st[i + 2], &w->color);
         EftGfx_DrawPolyFixedZ(v, def->layer, 0, 0, (w->flags >> 5) & 1, 0, w->gsTex0, z);
     }
 }
@@ -376,7 +376,7 @@ void EftLine_DrawClipped(EftYTask *task) {
 #define gBtlCamView gBtlCamView__p2
 #define Vec4_Set Vec4_Set__p2
 #define Vec4_Copy Vec4_Copy__p2
-#define func_00121FB8 func_00121FB8__p2
+#define Vec3_Copy func_00121FB8__p2
 #define Vec4_Add Vec4_Add__p2
 #define Vec3_Add Vec3_Add__p2
 #define Vec3_Sub Vec3_Sub__p2
@@ -394,7 +394,7 @@ void EftLine_DrawClipped(EftYTask *task) {
 #undef gBtlCamView
 #undef Vec4_Set
 #undef Vec4_Copy
-#undef func_00121FB8
+#undef Vec3_Copy
 #undef Vec4_Add
 #undef Vec3_Add
 #undef Vec3_Sub
@@ -411,7 +411,7 @@ void EftLine_DrawClipped(EftYTask *task) {
 #define gBtlCamView ((EftZView *)gBtlCamView)
 #define Vec4_Set ((void (*)(Vec4 *dst, f32 x, f32 y, f32 z, f32 w))Vec4_Set)
 #define Vec4_Copy ((void (*)(Vec4 *dst, Vec4 *src))Vec4_Copy)
-#define func_00121FB8 ((void (*)(Vec4 *dst, Vec4 *src))func_00121FB8)
+#define Vec3_Copy ((void (*)(Vec4 *dst, Vec4 *src))Vec3_Copy)
 #define Vec4_Add ((void (*)(Vec4 *dst, Vec4 *a, Vec4 *b))Vec4_Add)
 #define Vec3_Add ((void (*)(Vec4 *dst, Vec4 *a, Vec4 *b))Vec3_Add)
 #define Vec3_Sub ((void (*)(Vec4 *dst, Vec4 *a, Vec4 *b))Vec3_Sub)
@@ -462,7 +462,7 @@ void EftBill_Init(EftZTask *task, EftBillArg *arg) {
     w->spin = def->spinRange * RANDF() * 3.14159265f;
     w->w = key->w;
     w->h = key->h;
-    func_00121FB8(&w->color, &key->color);
+    Vec3_Copy(&w->color, &key->color);
     w->color.w = 0.0f;
     a = w->color.w;
     w->fadeInLen = def->fadeIn * 30.0f;
@@ -673,8 +673,8 @@ void EftBill_Draw(EftZTask *task) {
     if (!(w->flags & EFT_BILL_VISIBLE)) {
         return;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     switch (def->shape) {
     case 0:
         if (def->flags & 2) {
@@ -691,7 +691,7 @@ void EftBill_Draw(EftZTask *task) {
         }
         break;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Manager init: a 4-byte block nothing reads, and the child list of 40 sprites. */
@@ -797,7 +797,7 @@ s32 EftBill_SetPos(EftZTask *task, Vec4 *pos) {
     if (!(w->flags & EFT_BILL_ALIVE)) {
         return 0;
     }
-    func_00121FB8(V(&w->arg.pos), pos);
+    Vec3_Copy(V(&w->arg.pos), pos);
     return 1;
 }
 
@@ -1360,8 +1360,8 @@ void EftGndDustPuff_Draw(EftZTask *task) {
     Vec4 color;
     Vec4 pos;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
@@ -1369,7 +1369,7 @@ void EftGndDustPuff_Draw(EftZTask *task) {
         EftGfx_DrawSprite(&pos, &color, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, 0, w->tex);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Kind 1 init: binds to the fighter and emits the first particles. */
@@ -1457,8 +1457,8 @@ void EftGndDustSlide_Draw(EftZTask *task) {
     Vec4 pos;
     s32 far;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         far = 0;
         if (p->flags & EFT_GDUST_PART_FAR) {
@@ -1470,7 +1470,7 @@ void EftGndDustSlide_Draw(EftZTask *task) {
         EftGndDust_DrawPiece(&pos, &color, &p->dir, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, p->angle, far ? w->texFar : w->tex, far);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Kind 2 init: binds to the fighter and emits the first particles at a random angle. */
@@ -1550,8 +1550,8 @@ void EftGndDustDash_Draw(EftZTask *task) {
     Vec4 color;
     Vec4 pos;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
@@ -1559,7 +1559,7 @@ void EftGndDustDash_Draw(EftZTask *task) {
         EftGfx_DrawSprite(&pos, &color, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, 0, w->tex);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Kind 3 init: one burst (0x19A548). */
@@ -1614,8 +1614,8 @@ void EftGndDustBurst_Draw(EftZTask *task) {
     memset(&dir, 0, sizeof(dir));
     dir.w = 1.0f;
     p = (EftGndDustPart *)List_GetHead(&w->parts);
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
@@ -1623,5 +1623,5 @@ void EftGndDustBurst_Draw(EftZTask *task) {
         EftGndDust_DrawPiece(&pos, &color, &dir, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, p->angle, w->tex, (p->flags >> 6) & 1);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }

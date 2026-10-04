@@ -26,13 +26,13 @@ extern void Vec3_Scale(EftVec *dst, EftVec *src, f32 scale);
 extern void Vec3_Cross(EftVec *dst, EftVec *a, EftVec *b);
 extern void Mtx_MulVec4(EftVec *dst, EftMtx *m, EftVec *src);
 extern void Mtx_StoreIdentity(EftMtx *m);
-extern void func_001202A0(EftMtx *dst, EftMtx *src);            /* inverse of a rigid transform (view -> world) */
-extern void func_00120308(EftMtx *dst, EftMtx *src, f32 angle); /* rotation about Z */
-extern void func_001201B8(EftMtx *dst, EftMtx *a, EftMtx *b);   /* matrix product */
-extern void func_00121F68(EftVec *dst, EftVec *src, f32 div);   /* dst = src / div */
-extern void func_00122168(EftVec *dst, EftVec *a, EftVec *b, f32 t); /* dst = a * t + b * (1 - t) */
-extern s32 func_00121A10(EftGfxVert *verts, EftVec *plane, s32 count); /* clips a polygon against a plane, new count */
-extern void func_00121D48(s32 (*scr)[4], EftVec *col, EftGfxVert *verts, s32 count); /* projects a polygon */
+extern void Mtx_InverseRT(EftMtx *dst, EftMtx *src);            /* inverse of a rigid transform (view -> world) */
+extern void Mtx_RotateZ(EftMtx *dst, EftMtx *src, f32 angle); /* rotation about Z */
+extern void Mtx_Mul(EftMtx *dst, EftMtx *a, EftMtx *b);   /* matrix product */
+extern void Vec4_Div(EftVec *dst, EftVec *src, f32 div);   /* dst = src / div */
+extern void Vec4_Lerp(EftVec *dst, EftVec *a, EftVec *b, f32 t); /* dst = a * t + b * (1 - t) */
+extern s32 ClipPoly_ClipPlane(EftGfxVert *verts, EftVec *plane, s32 count); /* clips a polygon against a plane, new count */
+extern void ClipPoly_ProjectCur(s32 (*scr)[4], EftVec *col, EftGfxVert *verts, s32 count); /* projects a polygon */
 extern void EftPrim_DrawTriangle(s32 *p0, s32 *p1, s32 *p2, EftVec *uv0, EftVec *uv1, EftVec *uv2,
                           EftVec *col0, EftVec *col1, EftVec *col2, s32 arg9, s32 arg10, s32 arg11, s32 z, u64 tex);
 extern s32 abs(s32 x);
@@ -1096,7 +1096,7 @@ void EftGfx_LightClutSpecular(u8 *dst, u8 *nrm, EftMtx view, EftMtx light, EftVe
     f32 d = 0.0f;
 
     z.w = 1.0f;
-    func_001202A0(&inv, &view);
+    Mtx_InverseRT(&inv, &view);
     z.x = -inv.row[2].x;
     z.y = -inv.row[2].y;
     z.z = -inv.row[2].z;
@@ -1150,7 +1150,7 @@ void EftGfx_LerpClut(u8 *dst, u8 *a, u8 *b, f32 t) {
     for (i = 0; i < 256; i++) {
         Vec4_Set(&va, a[i * 4], a[i * 4 + 1], a[i * 4 + 2], a[i * 4 + 3]);
         Vec4_Set(&vb, b[i * 4], b[i * 4 + 1], b[i * 4 + 2], b[i * 4 + 3]);
-        func_00122168(&out, &va, &vb, t);
+        Vec4_Lerp(&out, &va, &vb, t);
         dst[i * 4] = (u32)out.x;
         dst[i * 4 + 1] = (u32)out.y;
         dst[i * 4 + 2] = (u32)out.z;
@@ -1222,8 +1222,8 @@ s32 EftMath_MtxFromDir(EftMtx *out, EftVec *dir, f32 roll) {
     out->row[2].z = fwd.z;
     if (roll != 0.0f) {
         Mtx_StoreIdentity(&rot);
-        func_00120308(&rot, &rot, roll);
-        func_001201B8(out, out, &rot);
+        Mtx_RotateZ(&rot, &rot, roll);
+        Mtx_Mul(out, out, &rot);
     }
     return 1;
 }
@@ -1258,7 +1258,7 @@ void EftMath_CatmullRom(EftVec out, EftVec *p, f32 t) {
     Vec4_Set(&tv, t * t * t, t * t, t, 1.0f);
     Mtx_MulVec4(&tv, &basis, &tv);
     Mtx_MulVec4(&tv, &pts, &tv);
-    func_00121F68(&out, &tv, 2.0f);
+    Vec4_Div(&out, &tv, 2.0f);
 }
 
 /* Quadratic spline point of three control points at t (basis 0x2EC520), w = 1. */
@@ -1275,7 +1275,7 @@ void EftMath_Spline3(EftVec *out, EftVec *p, f32 t) {
     Vec4_Set(&tv, t * t * t, t * t, t, 1.0f);
     Mtx_MulVec4(&tv, &basis, &tv);
     Mtx_MulVec4(&tv, &pts, &tv);
-    func_00121F68(out, &tv, 2.0f);
+    Vec4_Div(out, &tv, 2.0f);
     out->w = 1.0f;
 }
 
@@ -1293,7 +1293,7 @@ void EftMath_Spline3B(EftVec out, EftVec *p, f32 t) {
     Vec4_Set(&tv, t * t * t, t * t, t, 1.0f);
     Mtx_MulVec4(&tv, &basis, &tv);
     Mtx_MulVec4(&tv, &pts, &tv);
-    func_00121F68(&out, &tv, 2.0f);
+    Vec4_Div(&out, &tv, 2.0f);
 }
 
 /* Cubic Bezier point of four control points at t; result lost in a by-value argument (no caller). */
@@ -1397,7 +1397,7 @@ void EftGfx_UpdateClipPlanes(void) {
     plane[4].y = 0.0f;
     plane[4].z = one;
     plane[4].w = -one;
-    func_001202A0(&m, (EftMtx *)(gBtlCamView + 0x40));
+    Mtx_InverseRT(&m, (EftMtx *)(gBtlCamView + 0x40));
     Vec4_Copy(&eye, &m.row[3]);
     m.row[3].x = m.row[3].y = m.row[3].z = 0.0f;
     for (i = 0; i < 5; i++) {
@@ -1558,11 +1558,11 @@ void EftGfx_DrawPolyAvgZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 fl
 
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        count = func_00121A10(verts, plane, count);
+        count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(scr, col, verts, count);
+        ClipPoly_ProjectCur(scr, col, verts, count);
         for (i = 2; i < count; i++) {
             z = ((scr[0][2] + scr[i - 1][2] + scr[i][2]) / 3) >> 8;
             if (flip) {
@@ -1597,11 +1597,11 @@ void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 
 
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        count = func_00121A10(verts, plane, count);
+        count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(scr, col, verts, count);
+        ClipPoly_ProjectCur(scr, col, verts, count);
         for (i = 2; i < count; i++) {
             if (scr[0][2] > 0xFFFFFF) {
                 scr[0][2] = 0xFFFFFF;
@@ -1643,11 +1643,11 @@ void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s
 
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        count = func_00121A10(verts, plane, count);
+        count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(scr, col, verts, count);
+        ClipPoly_ProjectCur(scr, col, verts, count);
         for (i = 2; i < count; i++) {
             zPrev = scr[i - 1][2];
             z = ((scr[0][2] + zPrev + scr[i][2]) / 3) >> 8;
@@ -1691,11 +1691,11 @@ void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32
 
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        count = func_00121A10(verts, plane, count);
+        count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(scr, col, verts, count);
+        ClipPoly_ProjectCur(scr, col, verts, count);
         for (i = 2; i < count; i++) {
             zPrev = scr[i - 1][2];
             z = ((scr[0][2] + zPrev + scr[i][2]) / 3) >> 8;

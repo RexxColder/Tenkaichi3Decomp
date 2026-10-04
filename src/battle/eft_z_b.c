@@ -64,7 +64,7 @@ void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
         Vec3_Normalize(&dir, &dir);
         Vec4_Scale(&off, &dir, 2.0f);
         Vec4_Add(&pos, V(&arg->pos), &off);
-        func_00122190(&v, V(&arg->dir), &dir, RANDF() * 0.2f + 0.6f);
+        Vec3_Lerp(&v, V(&arg->dir), &dir, RANDF() * 0.2f + 0.6f);
         EftGndDust_SpawnPieceEx(w, &pos, &v, colA.c, colB.c, (f32)arg->life, (f32)arg->fade, 10, 5.0f, 6.0f, 0.0f, 1.0f, 0.0f,
                       1.0f, 0.0f, 0.0f, 0.7f, 0.0f, EFT_GDUST_PART_FAR);
     }
@@ -135,8 +135,8 @@ void EftGndDustLand_Draw(EftZTask *task) {
     f32 fade;
     f32 dist;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     while (p != NULL) {
         far = 0;
         if (p->flags & EFT_GDUST_PART_FAR) {
@@ -146,7 +146,7 @@ void EftGndDustLand_Draw(EftZTask *task) {
         Vec3_Add(&pos, &p->pos, &p->base);
         if (far) {
             Vec3_Sub(&d, &pos, &gBtlCamView->eye);
-            dist = func_001221E0(&d);
+            dist = Vec3_LengthSq(&d);
             fade = (dist - 6400.0f) / 16100.0f;
             if (22500.0f < dist) {
                 fade = 1.0f;
@@ -161,5 +161,5 @@ void EftGndDustLand_Draw(EftZTask *task) {
                       (f32)p->scale * w->arg.scale * p->size.y, p->angle, far ? w->texFar : w->tex, far);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }

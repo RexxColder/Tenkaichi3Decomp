@@ -361,3 +361,26 @@ Tools
   behavioural check: build/scratch_cleanup_eft/emu*.py.
 - fdiff cannot assemble an unlinked file that contains INCLUDE_ASM: check a copy with the
   INCLUDE_ASM / INCLUDE_RODATA / LIT4_WORD lines removed. Use `.venv/bin/python configure.py`.
+
+## Linking lessons from the ninth step (2026-10-04)
+- To find where an object's `.rodata` / `.lit4` / `.sdata` belongs, search the original image for
+  the section's bytes (relocated words masked), restricted to that section's range; a few lines
+  of Python over `readelf -S / -r` do it. Ambiguous hits (a 4-byte zero) are settled by order.
+- A global pointer that the disassembly shows inside `.sdata` (address below 0x2FF180) must be
+  defined `= NULL` in its file; one in `.sbss` stays `extern`. A local array initialiser of 8
+  bytes or less (`u8 col[8] = {...}`) is also `.sdata`, 8-byte aligned.
+- `INCLUDE_RODATA` .s files are written only for a file that has a `.rodata` subsegment, and
+  after renaming the symbol run configure again before building. Give the table its size in the
+  symbol file if a subsegment boundary used to fall inside it.
+- A read-only table that lands 8 bytes early means the object is larger than the file: the
+  section's alignment (16 with a jump table, 8 with only tables and strings) comes from the whole
+  object. Merge the files rather than forcing the alignment.
+- An INCLUDE_ASM function that uses a string of the C part needs that string as a named object
+  (`const char gName[] __attribute__((aligned(8))) = "...";` placed in front of the function
+  whose pool emits it first, and used by name everywhere in the file).
+- Hand-written VU0 routines inside a C file: top-level `__asm__` blocks with `$ACC` / `$Q`
+  operands (build/scratch_integ/asmblocks.py turns INCLUDE_ASM lines into such blocks from the
+  split's per-function files); fdiff checks them like C functions.
+- Initialiser VALUES (colour tables, packet words, floats) are invisible to fdiff. Compare them
+  with the original data before reporting a match; the image compare is the only other check.
+

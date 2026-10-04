@@ -26,11 +26,11 @@ extern void Vec3_Normalize(Vec4 *out, Vec4 *v);
 extern f32 Vec3_Length(Vec4 *v);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *m, Vec4 *v);
-extern void func_00121F68(Vec4 *out, Vec4 *v, f32 d);      /* out = v / d */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);         /* matrix copy */
-extern void func_00120A98(void);                           /* VU0: current matrix = identity */
-extern void func_00120C18(Vec4 *pos);                      /* VU0: translate the current matrix */
-extern void func_00120B98(void *m);                        /* VU0: store the current matrix */
+extern void Vec4_Div(Vec4 *out, Vec4 *v, f32 d);      /* out = v / d */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);         /* matrix copy */
+extern void Vu0Cur_LoadIdentity(void);                           /* VU0: current matrix = identity */
+extern void Vu0Cur_Translate(Vec4 *pos);                      /* VU0: translate the current matrix */
+extern void Vu0Cur_StoreMtx(void *m);                        /* VU0: store the current matrix */
 
 extern void *File_Request(s32 id, void *buf, s32 arg);
 extern void StreamSe_PlayDefault(s32 se, s32 id);
@@ -98,12 +98,12 @@ extern s32 StgNode_IsRigid(StgNode *node) __attribute__((pure));
 
 /* Node matrix = rotation X, Y, Z then translation, through the VU0 matrix registers; returns the position. */
 #define STG_NODE_BUILD()                          \
-    func_00120A98();                              \
+    Vu0Cur_LoadIdentity();                              \
     StgVu_RotateX(rot.x);                         \
     StgVu_RotateY(rot.y);                         \
     StgVu_RotateZ(rot.z);                         \
-    func_00120C18(&pos);                          \
-    func_00120B98(node);                          \
+    Vu0Cur_Translate(&pos);                          \
+    Vu0Cur_StoreMtx(node);                          \
     Vec4_Copy(out, (Vec4 *)node->mtx.m[3])
 
 #define STG_ANGLE(deg) Stg_WrapRange(-3.14159265f, 3.14159265f, (deg) * 3.14159265f / 180.0f)

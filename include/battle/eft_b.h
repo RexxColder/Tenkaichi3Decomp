@@ -71,7 +71,7 @@ typedef struct EftBTexSet {
 typedef Vec4 EftBVec __attribute__((aligned(16)));
 typedef Mtx44 EftBMtx __attribute__((aligned(16)));
 
-/* A projected vertex as func_00122350 / func_001210D8 / func_00121140 write it: GS 12.4 fixed point. */
+/* A projected vertex as Mtx_ProjectPoint / Vu0Cur_ProjectPoint / Vu0Cur_ProjectPoints write it: GS 12.4 fixed point. */
 typedef struct EftBIVec {
     /* 0x00 */ s32 x;
     /* 0x04 */ s32 y;

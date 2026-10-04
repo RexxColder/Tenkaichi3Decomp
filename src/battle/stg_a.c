@@ -46,11 +46,11 @@ extern void Vec3_Normalize(Vec4 *out, Vec4 *v);
 extern f32 Vec3_Length(Vec4 *v);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *m, Vec4 *v);
-extern void func_00121F68(Vec4 *out, Vec4 *v, f32 d);      /* out = v / d */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);         /* matrix copy */
-extern void func_00120A98(void);                           /* VU0: current matrix = identity */
-extern void func_00120C18(Vec4 *pos);                      /* VU0: translate the current matrix */
-extern void func_00120B98(void *m);                        /* VU0: store the current matrix */
+extern void Vec4_Div(Vec4 *out, Vec4 *v, f32 d);      /* out = v / d */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);         /* matrix copy */
+extern void Vu0Cur_LoadIdentity(void);                           /* VU0: current matrix = identity */
+extern void Vu0Cur_Translate(Vec4 *pos);                      /* VU0: translate the current matrix */
+extern void Vu0Cur_StoreMtx(void *m);                        /* VU0: store the current matrix */
 
 extern void *File_Request(s32 id, void *buf, s32 arg);
 extern void StreamSe_PlayDefault(s32 se, s32 id);
@@ -405,7 +405,7 @@ void StgFrustum_Build(StgView *view, StgFrustum *fr) {
     fr->proj.m[1][3] = 0.0f;
     fr->proj.m[2][3] = -1.0f;
     fr->proj.m[3][3] = 0.0f;
-    func_00120230(&fr->view, &view->mtx);
+    Mtx_Copy(&fr->view, &view->mtx);
 }
 
 /* Frustum test of the cube (x, y, z) +- r: 0 inside, 1 crossing, 2 outside. Drawing only. */
@@ -441,7 +441,7 @@ s32 StgFrustum_TestBox(StgFrustum *fr, f32 x, f32 y, f32 z, f32 r) {
                 Mtx_MulVec4(&v, &fr->view, &p);
                 p.w = 1.0f;
                 Mtx_MulVec4(&p, &fr->proj, &v);
-                func_00121F68(&p, &p, p.w);
+                Vec4_Div(&p, &p, p.w);
                 if (p.x < -1.0f) {
                     code = 1;
                 }
@@ -525,7 +525,7 @@ s32 StgFrustum_TestPart(StgPart *part, StgFrustum *fr) {
         in = 0;
     } else {
         Mtx_MulVec4(&p, &fr->proj, &v);
-        func_00121F68(&p, &p, p.w);
+        Vec4_Div(&p, &p, p.w);
         if (-1.0f <= p.x && p.x <= 1.0f && -1.0f <= p.y && p.y <= 1.0f) {
             goto end;
         }

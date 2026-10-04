@@ -9,7 +9,7 @@
 
 extern void *memset(void *dst, s32 c, u32 n);
 
-extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
+extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
 extern void func_0010D648(Flash *flash);
 extern void func_0010D6F0(Flash *flash);
@@ -23,8 +23,8 @@ extern void Font_FlushAll(void);
 extern void func_002604C0(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
 extern s32 func_00260140(TextBox *box, s32 a, s32 b);
 
-/* Defined in this object in the original, in .sdata: `MsgWin *gMsgWin = NULL;` (see the report on the data layout). */
-extern MsgWin *gMsgWin;
+/* Defined here: this object's .sdata (0x2FF0D8). */
+MsgWin *gMsgWin = NULL;
 
 /* Allocates the message window: movie and textures from the pack, text box preset 5 on `text`. */
 void MsgWin_Init(u32 *pack, void *text, s32 side) {

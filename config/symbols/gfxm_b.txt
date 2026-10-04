@@ -105,3 +105,7 @@ Flash_ReadBits = 0x0010AA28; // type:func // guess
 Flash_ReadSBits = 0x0010AAB0; // type:func // guess
 Flash_MtxIdentity = 0x0010AB08; // type:func // guess
 Flash_ReadMtx = 0x0010AB38; // type:func // guess
+
+// GfxLens_DrawAll's `offs` initialiser: seven corner offsets, 0x10 bytes each (INCLUDE_RODATA in gfxm_b.c while the
+// function is assembly).
+gGfxLensCornerOfs = 0x002EB6A0; // size:0x70

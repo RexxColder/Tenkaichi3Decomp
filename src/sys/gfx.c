@@ -78,7 +78,7 @@ extern void Fade_DrawScreen(void);
 extern void FontIcon_Tick(s32 vsyncs);
 extern void PadWatch_Update(void);
 extern void PadWatch_Draw(void);
-extern void func_00121DE0(void);
+extern void Vu0_CheckState(void);
 
 /* GS privileged (display) registers. */
 #define GS_PMODE ((volatile u64 *)0x12000000)
@@ -184,7 +184,7 @@ void Gfx_EndFrame(s32 vsyncs) {
     PadWatch_Draw();
     Dbg_ProfColor(gBattleProf, 0x80404040);
     Dbg_EndFrame();
-    func_00121DE0();
+    Vu0_CheckState();
     sceGsSyncPath(0, 0);
     Vsync_Wait(vsyncs);
     gGfx.frame++;

@@ -36,7 +36,7 @@ typedef struct EftAcTask {
     /* 0x38 */ void *work;
 } EftAcTask;
 
-/* A vertex as func_00121950 fills it and the EftGfx_DrawPoly* functions take it (EftGfxVert in eft_a.h). */
+/* A vertex as ClipVtx_Set fills it and the EftGfx_DrawPoly* functions take it (EftGfxVert in eft_a.h). */
 typedef struct EftAcVert {
     /* 0x00 */ EftAcVec pos;
     /* 0x10 */ EftAcVec color;
@@ -49,7 +49,7 @@ typedef struct EftAcTex {
     /* 0x08 */ u64 unk8;
 } EftAcTex; /* 0x10 */
 
-/* A GS screen position as func_00121140 writes it. */
+/* A GS screen position as Vu0Cur_ProjectPoints writes it. */
 typedef struct EftAcScr {
     s32 x, y, z, w;
 } __attribute__((aligned(16))) EftAcScr;

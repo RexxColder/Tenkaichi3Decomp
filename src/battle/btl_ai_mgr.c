@@ -38,8 +38,8 @@ extern void Vec4_Scale(BtlAiVec *dst, BtlAiVec *src, f32 k);
 extern void Vec3_Normalize(BtlAiVec *dst, BtlAiVec *src);
 extern f32 Vec3_Length(BtlAiVec *v);
 extern f32 Vec3_Dot(BtlAiVec *a, BtlAiVec *b);
-extern void func_00121E20(BtlAiVec *v);                         /* v = (0, 0, 0, 0) */
-extern void func_00122868(BtlAiVec *dst, BtlAiVec *src, f32 angle); /* rotate about Y */
+extern void Vec4_SetZero(BtlAiVec *v);                         /* v = (0, 0, 0, 0) */
+extern void Vec3_RotateY(BtlAiVec *dst, BtlAiVec *src, f32 angle); /* rotate about Y */
 extern f32 Mathf_Cos(f32 angle);                        /* cos */
 extern f32 Mathf_Sin(f32 angle);                        /* sin */
 
@@ -317,12 +317,12 @@ s32 BtlAiMove_PickDir(BtlAiWork *s, s32 mode) {
             if (0.0f < Vec3_Dot(&out, &d)) {
                 goto both;
             }
-            func_00122868(&r, &d, -1.0471975f);
+            Vec3_RotateY(&r, &d, -1.0471975f);
             Vec3_Normalize(&r, &r);
             if (0.0f < Vec3_Dot(&out, &r)) {
                 list->v[n++] = 3;
             }
-            func_00122868(&r, &d, 1.0471975f);
+            Vec3_RotateY(&r, &d, 1.0471975f);
             Vec3_Normalize(&r, &r);
             if (0.0f < Vec3_Dot(&out, &r)) {
                 list->v[n++] = 4;
@@ -360,7 +360,7 @@ void BtlAiMove_CalcTarget(BtlAiWork *s) {
     Vec3_Normalize(&dir, &dir);
     Vec4_Scale(&a, &dir, m->dist[m->type]);
     if (special != 0 && (u32)m->type >= 2) {
-        func_00121E20(&m->target);
+        Vec4_SetZero(&m->target);
         m->target.y = pos.y;
     } else if (m->type == 4) {
         BtlStage_GetStartPlace(s->objId, &m->target, &tmp, 0);

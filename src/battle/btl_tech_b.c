@@ -55,14 +55,14 @@ extern void BtlSeq_PreUpdate(void);
 extern s32 BtlSeq_Update(void);
 extern void func_00212F90(void);
 extern void func_0022F9A8(void);
-extern void func_00219648(void);
-extern void func_00218BA8(void);
+extern void Hud_Reset(void);
+extern void Hud_Init(void);
 extern void func_00212FC8(void);
 extern void func_0022F9C8(s32 n);
-extern void func_00218D38(void);
+extern void Hud_Term(void);
 extern void func_00212FE0(void);
 extern void func_0022F9F0(void);
-extern void func_00218D88(void);
+extern void Hud_PreUpdate(void);
 
 s32 BtlKiBlast_GetTypeOf(BtlTechBChr *chr, u32 kind);
 s32 BtlSuper_GetShots(BtlTechBChr *chr, s32 slot);
@@ -1655,7 +1655,7 @@ s32 BtlSkill_GetValE(BtlTechBChr *chr, s32 slot) {
 void BtlGame_Reset(void) {
     func_00212F90();
     func_0022F9A8();
-    func_00219648();
+    Hud_Reset();
     BtlSeq_Reset();
     if (BattleReplay_IsActive()) {
         gBtlGameReplayActive = 1;
@@ -1666,7 +1666,7 @@ void BtlGame_Reset(void) {
 
 /* Battle start: initialises the same modules; the 0x22F9C8 module gets 2 in split screen, else 1. */
 void BtlGame_Init(void) {
-    func_00218BA8();
+    Hud_Init();
     func_00212FC8();
     if (Battle_IsSplitScreen()) {
         func_0022F9C8(2);
@@ -1678,7 +1678,7 @@ void BtlGame_Init(void) {
 
 /* Battle end. */
 void BtlGame_Term(void) {
-    func_00218D38();
+    Hud_Term();
     func_00212FE0();
     func_0022F9F0();
     BtlSeq_Term();
@@ -1686,7 +1686,7 @@ void BtlGame_Term(void) {
 
 /* Before the fighters are updated: HUD pre-update, then the sequence's. */
 void BtlGame_PreUpdate(void) {
-    func_00218D88();
+    Hud_PreUpdate();
     BtlSeq_PreUpdate();
 }
 

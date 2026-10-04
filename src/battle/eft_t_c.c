@@ -204,12 +204,12 @@ extern f32 Vec3_Length(Vec4 *v);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);          /* copy */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);          /* inverse of a rotation + translation matrix */
-extern void func_00120AB0(void);                            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
-extern void func_00120AC8(void);                            /* pop */
-extern void func_00121240(EftUIVec *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects with the loaded matrix */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);          /* copy */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);          /* inverse of a rotation + translation matrix */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
+extern void Vu0Cur_Pop(void);                            /* pop */
+extern void Vu0Cur_ProjectPointsStq(EftUIVec *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects with the loaded matrix */
 extern void EftTexSet_Keep4(EftShotFxTex *tex, s32 a, s32 b);
 extern EftUBattleWork *Battle_GetWork(void);
 extern s32 BtlPool_GetCurrent(void);
@@ -250,12 +250,12 @@ void EftShotFx_PostUpdate(void) {
 
 /* Task draw: takes the camera rotation of the view being drawn, then draws the lines under its world-to-screen matrix. */
 void EftShotFx_Draw(void) {
-    func_001202A0(&gEftShotFx->camRot, &gBtlCamView->world2view2);
+    Mtx_InverseRT(&gEftShotFx->camRot, &gBtlCamView->world2view2);
     gEftShotFx->camRot.m[3][0] = gEftShotFx->camRot.m[3][1] = gEftShotFx->camRot.m[3][2] = 0.0f;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     EftShotFx_DrawLines();
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Returns a zeroed free line, or NULL when all 200 are in use. */
@@ -395,7 +395,7 @@ void EftShotFx_DrawLines(void) {
     Vec4 quad[4];
     EftShotFxLine *p;
 
-    func_00120230((Mtx44 *)&mtx, &gBtlCamView->world2screen);
+    Mtx_Copy((Mtx44 *)&mtx, &gBtlCamView->world2screen);
     for (p = gEftShotFx->head; p != NULL; p = p->next) {
         if (p->flags & EFT_SHOTFX_LINE_ACTIVE) {
             EftShotFx_BuildQuad(quad, p);
@@ -499,7 +499,7 @@ void EftShotFx_BuildQuad(Vec4 *out, EftShotFxLine *p) {
     Vec4 *out3 = &out[3];
     Vec4 *out1 = &out[1];
 
-    func_001202A0(&inv, &gBtlCamView->world2view2);
+    Mtx_InverseRT(&inv, &gBtlCamView->world2view2);
     Vec4_Sub(&mid, (Vec4 *)inv.m[3], &p->pos);
     Vec3_Normalize(&mid, &mid);
     Vec4_Scale(&mid, &mid, p->toward);
@@ -546,7 +546,7 @@ void EftShotFx_DrawQuad(Vec4 *quad, EftUMtx mtx, u8 r, u8 g, u8 b, u8 a, u64 *te
     Vec4_Set(&uv[1], 1.0f, 0.0f, 1.0f, 0.0f);
     Vec4_Set(&uv[2], 0.0f, 1.0f, 1.0f, 0.0f);
     Vec4_Set(&uv[3], 1.0f, 1.0f, 1.0f, 0.0f);
-    func_00121240(scr, stq, quad, uv, 4);
+    Vu0Cur_ProjectPointsStq(scr, stq, quad, uv, 4);
     for (i = 0; i < 4; i++) {
         if (!EftShotFx_IsOnScreen(&scr[i], 4)) {
             return;

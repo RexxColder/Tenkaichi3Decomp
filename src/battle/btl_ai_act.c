@@ -63,7 +63,7 @@ extern void Vec3_Sub(AiActVec *dst, AiActVec *a, AiActVec *b);
 extern void Vec3_Normalize(AiActVec *dst, AiActVec *src);
 extern f32 Vec3_Length(AiActVec *v);
 extern f32 Vec3_Dot(AiActVec *a, AiActVec *b);
-extern f32 func_00122200(AiActVec *a, AiActVec *b); /* distance between two points */
+extern f32 Vec3_Dist(AiActVec *a, AiActVec *b); /* distance between two points */
 
 extern s32 BtlSeq_GetState(void);
 extern s32 BtlAi_ScaleByLevel(s32 level, s32 lo, s32 hi);
@@ -1614,10 +1614,10 @@ s32 BtlAiSense_IsSteep(AiActSide *s) {
 
     BtlCharApi_GetPos(s->side, &pos);
     BtlCharApi_GetPos(s->side ^ 1, &opp);
-    if (func_00122200(&opp, &pos) < 30.0f) {
+    if (Vec3_Dist(&opp, &pos) < 30.0f) {
         return 0;
     }
-    a = -atan2f(opp.y - pos.y, func_00122200(&opp, &pos));
+    a = -atan2f(opp.y - pos.y, Vec3_Dist(&opp, &pos));
     if (a < 0.0f) {
         if (!(-0.7f < a)) {
             return 1;

@@ -8,7 +8,7 @@
  * 2D sprite helpers. Source range 0x126608-0x126B88 (src/sys/sprite.c).
  *
  * A sprite sheet ("resource") is a BPE-packed file. Once unpacked, the word at +0x10 points to an array of
- * 0x40-byte texture entries (SpriteTex); the entry index is LoadSprite.tex. func_0010A218(res, index, tbp, cbp)
+ * 0x40-byte texture entries (SpriteTex); the entry index is LoadSprite.tex. TexFile_UploadOne(res, index, tbp, cbp)
  * uploads entry `index`: its pixels to GS block `tbp` and its palette to block `cbp` (either is skipped when
  * negative). This module always uses tbp 0x3000 and cbp = 0x3000 (+ 0x40 for the list drawer) + entry->cbpOfs,
  * so only one texture is in video memory at a time and it is uploaded again for every sprite drawn.

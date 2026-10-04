@@ -15,7 +15,7 @@
  *   0x231F38  ColObb_Contact (dead code, left in assembly)
  *
  * Everything here is compiled C on the FPU; no function contains VU0 code. The vector helpers it CALLS are
- * hand-written VU0 routines (Vec4_Copy, Vec4_Sub, Vec3_Dot, Mtx_MulVec4, func_00121FB8, func_001221E0,
+ * hand-written VU0 routines (Vec4_Copy, Vec4_Sub, Vec3_Dot, Mtx_MulVec4, Vec3_Copy, Vec3_LengthSq,
  * Vec3_Normalize): see the header for what that means for a port.
  *
  * SIMULATION: all of it is pure geometry called by the stage collision (eft_det_b.c), the hit detection
@@ -30,9 +30,9 @@ extern void Vec4_Copy(ColVec *dst, ColVec *src);
 extern void Vec4_Sub(ColVec *dst, ColVec *a, ColVec *b);
 extern void Mtx_MulVec4(ColVec *dst, void *mtx, ColVec *v);
 extern f32 Vec3_Dot(ColVec *a, ColVec *b);
-extern void func_00120230(void *dst, void *src);      /* copies a 4x4 matrix (128-bit moves) */
-extern void func_00121FB8(ColVec *dst, ColVec *src);  /* copies x, y, z and leaves w (VU0) */
-extern f32 func_001221E0(ColVec *v);                  /* squared length of x, y, z (VU0) */
+extern void Mtx_Copy(void *dst, void *src);      /* copies a 4x4 matrix (128-bit moves) */
+extern void Vec3_Copy(ColVec *dst, ColVec *src);  /* copies x, y, z and leaves w (VU0) */
+extern f32 Vec3_LengthSq(ColVec *v);                  /* squared length of x, y, z (VU0) */
 extern void ColSeg_GetMidpoint(ColSeg *seg, ColVec *out);  /* middle of a segment, w = 1 */
 
 /* Sets a box from its centre and half extents. */
@@ -217,7 +217,7 @@ void ColObb_Init(ColObb *obb, ColVec *center, f32 hx, f32 hy, f32 hz) {
 
 /* Places an oriented box: copies the matrix, then takes the axes, the centre and the world corners from it. */
 void ColObb_Update(ColObb *obb, void *mtx) {
-    func_00120230(obb->mtx, mtx);
+    Mtx_Copy(obb->mtx, mtx);
     obb->axis[0].x = obb->mtx[0][0];
     obb->axis[0].y = obb->mtx[0][1];
     obb->axis[0].z = obb->mtx[0][2];
@@ -461,12 +461,12 @@ void Col_LineLineParams(f32 *s, f32 *t, ColVec *p1, ColVec *d1, ColVec *p2, ColV
     f32 den;
     f32 inv;
 
-    if (Col_NearEq(func_001221E0(d1), 1.0f, 0.000001f)) {
+    if (Col_NearEq(Vec3_LengthSq(d1), 1.0f, 0.000001f)) {
         *s = 0.0f;
         *t = 0.0f;
         return;
     }
-    if (Col_NearEq(func_001221E0(d2), 1.0f, 0.000001f)) {
+    if (Col_NearEq(Vec3_LengthSq(d2), 1.0f, 0.000001f)) {
         *s = 0.0f;
         *t = 0.0f;
         return;
@@ -499,8 +499,8 @@ s32 ColObb_Overlaps(ColObb *a, ColObb *b) {
     f32 sum;
     f32 ra;
 
-    func_00121FB8(&ha, &a->half);
-    func_00121FB8(&hb, &b->half);
+    Vec3_Copy(&ha, &a->half);
+    Vec3_Copy(&hb, &b->half);
     Vec4_Sub(&diff, &a->center, &b->center);
     R.m[0][0] = Vec3_Dot(&a->axis[0], &b->axis[0]);
     R.m[0][1] = Vec3_Dot(&a->axis[0], &b->axis[1]);

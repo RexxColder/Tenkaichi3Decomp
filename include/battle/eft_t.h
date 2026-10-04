@@ -50,7 +50,7 @@ typedef struct EftTTaskList {
     /* 0x04 */ s32 count;         /* live children */
 } EftTTaskList;
 
-/* A screen position as func_00122350 writes it: GS units (1 / 16 pixel) with the 0x7000 / 0x7200 offset. */
+/* A screen position as Mtx_ProjectPoint writes it: GS units (1 / 16 pixel) with the 0x7000 / 0x7200 offset. */
 typedef struct EftTIVec {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -217,7 +217,7 @@ typedef struct EftRayMgr {
     /* 0x20C */ s32 unk20C;
 } EftRayMgr; /* size 0x210 */
 
-/* A clip-space vertex as func_00121950 / func_00121990 build it (0x30 bytes). */
+/* A clip-space vertex as ClipVtx_Set / ClipVtx_SetArray build it (0x30 bytes). */
 typedef struct EftTClipVtx {
     /* 0x00 */ EftTVec pos;
     /* 0x10 */ EftTVec st;

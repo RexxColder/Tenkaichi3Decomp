@@ -345,7 +345,7 @@ extern f32 Mathf_SinFast(f32 angle);
 extern f32 Mathf_CosFast(f32 angle);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -353,11 +353,11 @@ extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00122190(Vec4 *out, Vec4 *up, Vec4 *dir, f32 angle);
-extern f32 func_001221E0(Vec4 *v);                          /* squared length */
-extern void func_00120AB0(void);                            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
-extern void func_00120AC8(void);                            /* pop */
+extern void Vec3_Lerp(Vec4 *out, Vec4 *up, Vec4 *dir, f32 angle);
+extern f32 Vec3_LengthSq(Vec4 *v);                          /* squared length */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
+extern void Vu0Cur_Pop(void);                            /* pop */
 extern f32 EftMath_WrapAngle(f32 angle);
 /* tex0 is declared last here: the callers load it after the floats (eft_b.c declares it fifth; the registers are
    the same either way). */

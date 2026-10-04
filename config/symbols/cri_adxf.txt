@@ -1,28 +1,3 @@
-// --- Two-choice confirmation window (game code, 0x268248-0x269228; src/sys/lib_a.c) ---
-gDialog = 0x002FF160; // size:0x4
-Dialog_DrawText = 0x00268248; // type:func
-Dialog_DrawTitle = 0x002684E8; // type:func
-Dialog_DrawBody = 0x00268678; // type:func
-Dialog_PlayCursorPlate = 0x002688A0; // type:func
-Dialog_Init = 0x00268930; // type:func
-Dialog_Term = 0x00268B28; // type:func
-Dialog_Draw = 0x00268B60; // type:func
-Dialog_Start = 0x00268DB0; // type:func
-Dialog_Input = 0x00268F78; // type:func
-Dialog_SetChoices = 0x00269130; // type:func
-Dialog_SetPort = 0x00269140; // type:func
-Dialog_SetLayout = 0x00269150; // type:func
-Dialog_SetMsgTable = 0x00269160; // type:func
-Dialog_SetMsg = 0x00269170; // type:func
-Dialog_SetTitle = 0x00269180; // type:func
-Dialog_SetCursor = 0x00269190; // type:func
-Dialog_IsClosed = 0x002691E8; // type:func
-Dialog_IsOpen = 0x00269200; // type:func
-Dialog_GetTitleTable = 0x00269218; // type:func
-// Evidence: strings "mc_dummy_text_1..4", "mc_menu_plate_%d", "fl_window_s_in" ..., all 19 functions use gDialog.
-// Callers: the eight memory-card / confirmation flows at 0x119FB8-0x11E1E8 (main executable) and
-// 0x2BDF78 / 0x2BF398 (Dialog_Init), 0x2BE2D0 / 0x2BF488 (Dialog_Term). Dialog_Draw is passed by address.
-
 // --- CRI ADX file system, adx_fs.c of "ADXT/PS2EE Ver.9.71 Build:Dec 13 2005" (0x269228-0x26C050) -----------
 // THIRD-PARTY LIBRARY CODE (CRI Middleware), not decompiled. Evidence: the error strings at 0x2F36F8-0x2F3E58
 // carry the function names in brackets ("(adxf_ChkPrmPt)", "(load partition)", "(adxf_CreateAdxFs)" ...), the
@@ -31,13 +6,13 @@ Dialog_GetTitleTable = 0x00269218; // type:func
 // Upper-case names are the locked public entries, lower-case the workers. Names without `guess` are fixed by
 // an error string or by an existing name of the other half of the pair; `guess` names follow the CRI headers.
 // Already named elsewhere (config/symbol_addrs.txt, config/symbols/sys_file.txt), listed here for the map only:
-//   0x269308 adxf_ChkPrmPt        0x2694C0 ADXF_LoadPartitionNw  0x269EE0 ADXF_GetPtStat   0x269F68 adxf_GetPtStat
+//   0x269308 adxf_ChkPrmPt        0x2694C0 ADXF_LoadPartitionNw  0x269EE0 ADXF_GetPtStat   0x269F68 adxf_GetPtStatEx
 //   0x26A438 adxf_CreateAdxFs     0x26A4D0 adxf_SetFileInfoEx    0x26A580 ADXF_Open        0x26A8E8 ADXF_OpenAfs
 //   0x26AA40 ADXF_Close           0x26AD08 adxf_ReadSj32         0x26AE60 adxf_ReadNw32    0x26B000 ADXF_ReadNw
 //   0x26B058 adxf_ReadNw          0x26B098 ADXF_Stop             0x26B0D0 adxf_Stop        0x26B1F8 adxf_StopNw
-//   0x26B468 adxf_Seek            0x26B5B8 ADXF_Tell (the WORKER) 0x26B5E8 ADXF_GetFsizeSct 0x26B620 adxf_GetFsizeSct
+//   0x26B468 adxf_Seek            0x26B5B8 adxf_Tell (the worker) 0x26B5E8 ADXF_GetFsizeSct 0x26B620 adxf_GetFsizeSct
 //   0x26B6D0 adxf_GetFsizeByte    0x26B790 adxf_GetFsizeByte64   0x26B810 adxf_GetNumReqSct 0x26B898 adxf_GetNumReadSct
-//   0x26B8C8 ADXF_GetStat         0x26B900 adxf_GetStat          0x26BE70 ADXF_SetReqRdSct (the WORKER)
+//   0x26B8C8 ADXF_GetStat         0x26B900 adxf_GetStat          0x26BE70 adxf_SetReqRdSct (the worker)
 // 0x269228(cmd, phase, p1, p2, p3): ring of 16 command records at 0x2E6248 + per-command call counters at 0x2E6348.
 adxf_SetCmdHstry = 0x00269228; // type:func
 // 0x2692D8: busy loop of 50000 iterations, used while polling a blocking partition load.
@@ -73,9 +48,10 @@ adxf_LoadPtBothNw = 0x00269B48; // type:func // guess
 adxf_CloseLdptnwHn = 0x00269DF8; // type:func // guess
 ADXF_StopPtLd = 0x00269E38; // type:func // guess
 adxf_StopPtLd = 0x00269E60; // type:func // guess
-// 0x269F18 is the worker of ADXF_GetPtStat: a bare tail call to 0x269F68 (which the error strings call adxf_GetPtStat).
-adxf_GetPtStatThunk = 0x00269F18; // type:func // guess
-// 0x269F30: locked entry that calls 0x269F68 directly.
+// 0x269F18 is the worker of ADXF_GetPtStat (0x269EE0): a bare tail call to 0x269F68. 0x269F30 is a second locked
+// entry that calls 0x269F68 directly, so 0x269F68 is the worker of that pair (adxf_GetPtStatEx in config/symbol_addrs.txt;
+// its error strings say "(adxf_GetPtStat)", which is the name it had before the pairs were sorted out).
+adxf_GetPtStat = 0x00269F18; // type:func // guess
 ADXF_GetPtStatEx = 0x00269F30; // type:func // guess
 // partition info word +4 (size of the info block).
 ADXF_GetPtinfoSize = 0x0026A390; // type:func // guess
@@ -106,8 +82,9 @@ adxf_ExecOne = 0x0026B2C0; // type:func // guess
 ADXF_ExecServer = 0x0026B388; // type:func // guess
 adxf_ExecServer = 0x0026B3B0; // type:func // guess
 ADXF_Seek = 0x0026B410; // type:func
-// 0x26B580 is the locked public entry of the worker that config/symbol_addrs.txt calls ADXF_Tell (0x26B5B8).
-ADXF_TellLocked = 0x0026B580; // type:func // guess
+// 0x26B580 is the locked public entry; its worker 0x26B5B8 is adxf_Tell in config/symbol_addrs.txt (it carried the
+// upper-case name until the dialog / ADXF naming pass).
+ADXF_Tell = 0x0026B580; // type:func
 ADXF_GetFsizeByte = 0x0026B698; // type:func
 ADXF_GetFsizeByte64 = 0x0026B758; // type:func
 ADXF_GetNumReqSct = 0x0026B7C8; // type:func
@@ -132,8 +109,9 @@ ADXF_GetNumFilesFromAfs = 0x0026BD88; // type:func // guess
 adxf_GetNumFilesFromAfs = 0x0026BDC0; // type:func // guess
 // stores the switch at 0x2E6240 that adxf_CloseSjStm / adxf_ReadNw32 test.
 ADXF_SetOcbiSw = 0x0026BE20; // type:func // guess
-// 0x26BE30 is the locked public entry of the worker that config/symbol_addrs.txt calls ADXF_SetReqRdSct (0x26BE70).
-ADXF_SetReqRdSctLocked = 0x0026BE30; // type:func // guess
+// 0x26BE30 is the locked public entry; its worker 0x26BE70 is adxf_SetReqRdSct in config/symbol_addrs.txt (it carried
+// the upper-case name until the dialog / ADXF naming pass).
+ADXF_SetReqRdSct = 0x0026BE30; // type:func
 // forwards adxf->stm to the ADXSTM getter at 0x272180 (0 for a NULL handle or stream).
 ADXF_GetStatRead = 0x0026BEA8; // type:func // guess
 adxf_GetStatRead = 0x0026BEE0; // type:func // guess

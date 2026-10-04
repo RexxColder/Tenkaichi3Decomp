@@ -176,11 +176,11 @@ void EftLink_Draw(EftVTask *task) {
     f32 size;
     f32 rot;
 
-    func_00120230(EFTV_MTX(&m), &gEftLink->identity);
-    func_00120398(EFTV_MTX(&m), EFTV_MTX(&m), w->pitch);
-    func_00120428(EFTV_MTX(&m), EFTV_MTX(&m), w->yaw);
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Mtx_Copy(EFTV_MTX(&m), &gEftLink->identity);
+    Mtx_RotateX(EFTV_MTX(&m), EFTV_MTX(&m), w->pitch);
+    Mtx_RotateY(EFTV_MTX(&m), EFTV_MTX(&m), w->yaw);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (n = w->head; n != NULL; n = n->next) {
         if (n->flags & 0x40) {
             if (def->flags & 0x10) {
@@ -209,7 +209,7 @@ void EftLink_Draw(EftVTask *task) {
             }
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Task reset: ends the task. */
@@ -254,7 +254,7 @@ void EftLink_Place(EftLinkWork *w) {
         n = w->head;
         for (i = 0; i < (s32)count; i++) {
             fi = i;
-            func_001225D0(EFTV_VEC(&p), &w->dir, &arg->pos, len * (fi / count));
+            Vec3_ScaleAdd(EFTV_VEC(&p), &w->dir, &arg->pos, len * (fi / count));
             Vec3_Scale(EFTV_VEC(&off), &w->dir, Rand_FloatRange(w->val[11].cur, w->val[12].cur));
             Vec3_Add(EFTV_VEC(&p), EFTV_VEC(&p), EFTV_VEC(&off));
             if (n == NULL) {

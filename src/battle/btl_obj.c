@@ -44,8 +44,9 @@ extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern s32 BtlStage_IsReady(void);
 
-/* Resource lookup in a relocated table: (table, kind, key, -1). */
-extern s32 func_0010A218(void *table, s32 kind, s32 key, s32 arg3);
+/* Uploads texture `index` of a texture file to texture block tbp, its CLUT to cbp (-1: none). Returns nothing
+   (src/sys/gfxm_b_b.c); the older reading of this as a table lookup was wrong. */
+extern void TexFile_UploadOne(void *file, s32 index, s32 tbp, s32 cbp);
 /* Model object setup / teardown (0x113598 binds the resource, 0x1135F0 clears the object). */
 extern void func_001135F0(BtlObj *obj);
 extern void func_00113598(s32 type, BtlObj *obj, BtlResSlot *res);
@@ -54,10 +55,10 @@ extern void func_001146E0(void);
 extern void func_001147F8(void);
 /* Matrix helpers: 0x120230 copies the rotation rows, 0x1202A0 inverts a view matrix, 0x121388 gets the
  * current world-to-screen matrix, 0x122310 projects a point to integer screen coordinates. */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
-extern void func_00121388(Mtx44 *dst);
-extern void func_00122310(s32 *out, Mtx44 *m, Vec4 *v);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
+extern void Vu0Screen_StoreMtx(Mtx44 *dst);
+extern void Mtx_ProjectInt(s32 *out, Mtx44 *m, Vec4 *v);
 /* Box helpers: reset, set from centre + half size, add a point, get centre, get half size, contains point. */
 extern void StgAabb_SetEmpty(BtlObjBox *box);
 extern void ColBox_SetCenterHalf(BtlObjBox *box, Vec4 *center, Vec4 *extent);
@@ -85,17 +86,17 @@ extern void BtlObj_SaveNodePositions(BtlObj *obj, s32 arg);
 extern void BtlObj_InitChains(BtlObj *obj);
 extern void BtlObj_UpdateChains(BtlObj *obj);
 /* Drawing modules. */
-extern void func_00105C58(void);
-extern void func_00105CB0(void);
-extern void func_00105CD8(void);
-extern void func_00106A08(void);
-extern void func_00106AC8(void);
-extern void func_00106AF0(u8 *table);
-extern void func_00106BA8(void);
-extern void func_00106FE8(void);
-extern void func_001086D8(void);
-extern void func_00108728(void);
-extern void func_00108750(void);
+extern void ObjOutline_Init(void);
+extern void ObjOutline_Term(void);
+extern void ObjOutline_Draw(void);
+extern void ObjGlow_Init(void);
+extern void ObjGlow_Term(void);
+extern void ObjGlow_SetAlphaTable(u8 *table);
+extern void ObjGlow_Draw(void);
+extern void GfxPost_CopyAlphaToDepth(void);
+extern void GfxAlphaKey_Init(void);
+extern void GfxAlphaKey_Term(void);
+extern void GfxAlphaKey_Draw(void);
 
 extern f32 gBtlObjFarDist[];
 
@@ -246,14 +247,15 @@ void BtlObjLight_GetColor(Vec4 *out) {
     Vec4_Copy(out, &BtlObjLight_Get()->color);
 }
 
-/* Looks up entry (0, 0x3D40) of the light's resource table. */
-s32 BtlObjLight_FindRes0(void) {
-    return func_0010A218(BtlObjLight_Get()->res, 0, 0x3D40, -1);
+/* Uploads texture 0 of the light's texture file to block 0x3D40. (The name predates the texture-file module: it
+   uploads, it does not look anything up, and returns nothing.) */
+void BtlObjLight_FindRes0(void) {
+    TexFile_UploadOne(BtlObjLight_Get()->res, 0, 0x3D40, -1);
 }
 
-/* Looks up entry (1, key) of the light's resource table. */
-s32 BtlObjLight_FindRes1(s32 key) {
-    return func_0010A218(BtlObjLight_Get()->res, 1, key, -1);
+/* Uploads texture 1 of the light's texture file to block `key`. */
+void BtlObjLight_FindRes1(s32 key) {
+    TexFile_UploadOne(BtlObjLight_Get()->res, 1, key, -1);
 }
 
 /* Returns the 0xE0-byte node pool. */
@@ -580,7 +582,7 @@ void BtlObj_UpdateBounds(BtlObj *obj, BtlObjState *state) {
                 part->active = 1;
                 Vec3_Sub(&rel, &bound->center, &bound->unk10);
                 Mtx_MulVec4(&center, &part->mtx, &rel);
-                func_00120230(&mtx, &part->mtx);
+                Mtx_Copy(&mtx, &part->mtx);
                 Vec4_Copy((Vec4 *)mtx.m[3], &center);
                 Vec4_Set(&ext, bound->extent.x, bound->extent.y, bound->extent.z, 0.0f);
                 Vec4_Set(&corner[0], ext.x, ext.y, ext.z, 1.0f);
@@ -732,10 +734,10 @@ s32 BtlObj_IsOffscreen(BtlObj *obj) {
     Vec4_Set(&corner[5], -ext.x, ext.y, -ext.z, 1.0f);
     Vec4_Set(&corner[6], ext.x, -ext.y, -ext.z, 1.0f);
     Vec4_Set(&corner[7], -ext.x, -ext.y, -ext.z, 1.0f);
-    func_00121388(&mtx);
+    Vu0Screen_StoreMtx(&mtx);
     for (i = 0; i < 8; i++) {
         Vec3_Add(&corner[i], &corner[i], &center);
-        func_00122310(scr, &mtx, &corner[i]);
+        Mtx_ProjectInt(scr, &mtx, &corner[i]);
         scr[0] -= 0x700;
         scr[1] -= 0x720;
         if (scr[2] < 0) {
@@ -810,7 +812,7 @@ void BtlObj_UpdateView(BtlObj *obj) {
                     Vec4 ext;
                     BtlObjBox8 box;
 
-                    func_001202A0(&cam, &gBtlCamView->world2view2);
+                    Mtx_InverseRT(&cam, &gBtlCamView->world2view2);
                     box = body->box;
                     ColBox_GetCenter((BtlObjBox *)&box, &center);
                     ColBox_GetHalf((BtlObjBox *)&box, &ext);
@@ -1011,25 +1013,25 @@ void BtlObj_FillAlphaRow(u8 *table, BtlObj *obj) {
 
 /* Initialises the three drawing modules objects are drawn with. */
 void BtlObj_InitDraw(void) {
-    func_00105C58();
-    func_00106A08();
-    func_001086D8();
+    ObjOutline_Init();
+    ObjGlow_Init();
+    GfxAlphaKey_Init();
 }
 
 /* Shuts the three drawing modules down. */
 void BtlObj_TermDraw(void) {
-    func_00105CB0();
-    func_00106AC8();
-    func_00108728();
+    ObjOutline_Term();
+    ObjGlow_Term();
+    GfxAlphaKey_Term();
 }
 
 /* Sets the full-screen scissor and starts a frame of the drawing modules. */
 void BtlObj_BeginDraw(void) {
     Dma_AddScissor(0, 0x1FF, 0, 0x1BF);
-    func_00106FE8();
-    func_00108750();
-    func_00105CD8();
-    func_00106BA8();
+    GfxPost_CopyAlphaToDepth();
+    GfxAlphaKey_Draw();
+    ObjOutline_Draw();
+    ObjGlow_Draw();
 }
 
 /* Builds the 0x100-byte alpha table from every active object and hands it to the drawing module. */
@@ -1046,7 +1048,7 @@ void BtlObj_UploadAlphaTable(void) {
             BtlObj_FillAlphaRow(table, obj);
         }
     }
-    func_00106AF0(table);
+    ObjGlow_SetAlphaTable(table);
 }
 
 /* Takes a free fixed slot (the two with preallocated buffers). */

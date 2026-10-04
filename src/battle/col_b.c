@@ -45,7 +45,7 @@ extern f32 sqrtf(f32 x);
      Vec3_Cross  out = a x b, w = 0.
      Vec3_Normalize   len = VU0 sqrt of the dot above, then q = 1 / len (VU0 divide), out.xyz = v.xyz * q, w = 0:
                  a multiplication by the reciprocal, not a division. A zero vector gives (0, 0, 0, 0).
-     func_001221E0    squared length (the same sum as Vec3_Dot); func_00122200  distance of two points (VU0 sqrt). */
+     Vec3_LengthSq    squared length (the same sum as Vec3_Dot); Vec3_Dist  distance of two points (VU0 sqrt). */
 extern void Vec4_Copy(CpVec *dst, CpVec *src);
 extern void Vec4_Add(CpVec *out, CpVec *a, CpVec *b);
 extern void Vec4_Sub(CpVec *out, CpVec *a, CpVec *b);
@@ -54,8 +54,8 @@ extern void Vec3_Scale(CpVec *out, CpVec *v, f32 s);
 extern f32 Vec3_Dot(CpVec *a, CpVec *b);
 extern void Vec3_Cross(CpVec *out, CpVec *a, CpVec *b);
 extern void Vec3_Normalize(CpVec *out, CpVec *v);
-extern f32 func_001221E0(CpVec *v);            /* squared length */
-extern f32 func_00122200(CpVec *a, CpVec *b);  /* distance between two points */
+extern f32 Vec3_LengthSq(CpVec *v);            /* squared length */
+extern f32 Vec3_Dist(CpVec *a, CpVec *b);  /* distance between two points */
 
 /* Box helpers (col_a.c). */
 extern void StgAabb_SetEmpty(CpBox *box);
@@ -601,7 +601,7 @@ s32 ColSphere_TestSphere(CpSphere *a, CpSphere *b) {
     f32 r = a->radius + b->radius;
 
     Vec4_Sub(&d, &a->pos, &b->pos);
-    if (func_001221E0(&d) <= r * r) {
+    if (Vec3_LengthSq(&d) <= r * r) {
         return 1;
     }
     return 0;
@@ -614,7 +614,7 @@ s32 ColSphere_ContactSphere(CpSphere *a, CpSphere *b, CpVec *nrm, CpVec *pos, f3
     f32 dist;
 
     Vec4_Sub(&d, &a->pos, &b->pos);
-    dist = func_001221E0(&d);
+    dist = Vec3_LengthSq(&d);
     if (!(dist <= r * r)) {
         return 0;
     }
@@ -1029,7 +1029,7 @@ void ColCapsule_GetBoundSphere(CpSphere *out, CpCapsule *cap) {
     f32 r;
 
     ColSeg_GetMidpoint3(&out->pos, (CpSeg *)cap);
-    r = func_00122200(&cap->a, &cap->b) * 0.5f + cap->radius;
+    r = Vec3_Dist(&cap->a, &cap->b) * 0.5f + cap->radius;
     out->radius = r;
     out->radiusSq = r * r;
 }

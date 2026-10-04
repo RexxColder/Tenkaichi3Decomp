@@ -118,15 +118,15 @@ extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);          /* copies a matrix */
-extern void func_00120AB0(void);                            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
-extern void func_00120AC8(void);                            /* pop */
-extern void func_00121F08(Vec4 *dst, Vec4 *a, Vec4 *b);     /* per-component product */
-extern s32 func_00121240(EftAdScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects n points with uv */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);          /* copies a matrix */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
+extern void Vu0Cur_Pop(void);                            /* pop */
+extern void Vec4_Mul(Vec4 *dst, Vec4 *a, Vec4 *b);     /* per-component product */
+extern s32 Vu0Cur_ProjectPointsStq(EftAdScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects n points with uv */
 extern EftAdVec *EftGfx_GetClipPlanes(void);                 /* the five clip planes of the view */
-extern s32 func_00121A10(void *poly, EftAdVec *plane, s32 count); /* clips a polygon in place, new count */
-extern void func_00121D48(EftAdScr *scr, EftAdVec *stq, void *poly, s32 count); /* projects a polygon */
+extern s32 ClipPoly_ClipPlane(void *poly, EftAdVec *plane, s32 count); /* clips a polygon in place, new count */
+extern void ClipPoly_ProjectCur(EftAdScr *scr, EftAdVec *stq, void *poly, s32 count); /* projects a polygon */
 extern s32 BtlScene_IsEffectHidden(s32 objId, s32 type);
 extern s32 BtlObj_Create(s32 type, void *res, s32 active);
 extern s32 BtlObj_Destroy(s32 id);
@@ -180,7 +180,7 @@ void EftMesh_SetTex(EftMesh *mesh, EftAdTex *tex) {
 
 /* Sets the model-to-world matrix. */
 void EftMesh_SetMtx(EftMesh *mesh, Mtx44 *m) {
-    func_00120230(&mesh->mtx, m);
+    Mtx_Copy(&mesh->mtx, m);
 }
 
 /* Copies an instance. */
@@ -334,8 +334,8 @@ void EftMesh_DrawClip(EftMesh *mesh) {
     blend = mesh->blend;
     zOfs = mesh->zOfs;
     scale = mesh->uvScale;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (g = 0; g < n; g++) {
         tri = &tris[group->firstTri];
         for (i = 0; i < group->numTris; i++) {
@@ -351,9 +351,9 @@ void EftMesh_DrawClip(EftMesh *mesh) {
             Vec4_Add(&v[0].uv, &v[0].uv, (Vec4 *)&ofs);
             Vec4_Add(&v[1].uv, &v[1].uv, (Vec4 *)&ofs);
             Vec4_Add(&v[2].uv, &v[2].uv, (Vec4 *)&ofs);
-            func_00121F08(&v[0].color, &a->color, (Vec4 *)&color);
-            func_00121F08(&v[1].color, &b->color, (Vec4 *)&color);
-            func_00121F08(&v[2].color, &c->color, (Vec4 *)&color);
+            Vec4_Mul(&v[0].color, &a->color, (Vec4 *)&color);
+            Vec4_Mul(&v[1].color, &b->color, (Vec4 *)&color);
+            Vec4_Mul(&v[2].color, &c->color, (Vec4 *)&color);
             hasTex = 0;
             if (tri->tex >= 0 && tex != NULL) {
                 tex0 = *(u64 *)((u8 *)tex + ((tri->tex + mesh->texBase) << 4));
@@ -370,7 +370,7 @@ void EftMesh_DrawClip(EftMesh *mesh) {
         }
         group++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Draws every triangle of the mesh through the clipper, sent to the GS at once. Always textured. */
@@ -406,8 +406,8 @@ void EftMesh_DrawNowClip(EftMesh *mesh, s32 abe) {
     verts = mesh->verts;
     tex = mesh->tex;
     scale = mesh->uvScale;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (g = 0; g < n; g++) {
         tri = &tris[group->firstTri];
         for (i = 0; i < group->numTris; i++) {
@@ -423,9 +423,9 @@ void EftMesh_DrawNowClip(EftMesh *mesh, s32 abe) {
             Vec4_Add(&v[0].uv, &v[0].uv, (Vec4 *)&ofs);
             Vec4_Add(&v[1].uv, &v[1].uv, (Vec4 *)&ofs);
             Vec4_Add(&v[2].uv, &v[2].uv, (Vec4 *)&ofs);
-            func_00121F08(&v[0].color, &a->color, (Vec4 *)&color);
-            func_00121F08(&v[1].color, &b->color, (Vec4 *)&color);
-            func_00121F08(&v[2].color, &c->color, (Vec4 *)&color);
+            Vec4_Mul(&v[0].color, &a->color, (Vec4 *)&color);
+            Vec4_Mul(&v[1].color, &b->color, (Vec4 *)&color);
+            Vec4_Mul(&v[2].color, &c->color, (Vec4 *)&color);
             tex0 = *(u64 *)((u8 *)tex + ((tri->tex + mesh->texBase) << 4));
             tri++;
             v[0].uv.z = 1.0f;
@@ -438,7 +438,7 @@ void EftMesh_DrawNowClip(EftMesh *mesh, s32 abe) {
         }
         group++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Draws every triangle of the mesh that is wholly on screen, queued in the order table by its first vertex's
@@ -494,8 +494,8 @@ void EftMesh_DrawPlain(EftMesh *mesh) {
     blend = mesh->blend;
     zOfs = mesh->zOfs;
     scale = mesh->uvScale;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (g = 0; g < n; g++) {
         tri = &tris[group->firstTri];
         for (i = 0; i < group->numTris; i++) {
@@ -511,16 +511,16 @@ void EftMesh_DrawPlain(EftMesh *mesh) {
             Vec4_Add((Vec4 *)&uv[0], (Vec4 *)&uv[0], (Vec4 *)&ofs);
             Vec4_Add((Vec4 *)&uv[1], (Vec4 *)&uv[1], (Vec4 *)&ofs);
             Vec4_Add((Vec4 *)&uv[2], (Vec4 *)&uv[2], (Vec4 *)&ofs);
-            func_00121F08((Vec4 *)&col[0], &a->color, (Vec4 *)&color);
-            func_00121F08((Vec4 *)&col[1], &b->color, (Vec4 *)&color);
-            func_00121F08((Vec4 *)&col[2], &c->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[0], &a->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[1], &b->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[2], &c->color, (Vec4 *)&color);
             uv[0].z = 1.0f;
             uv[0].w = 0.0f;
             uv[1].z = 1.0f;
             uv[1].w = 0.0f;
             uv[2].z = 1.0f;
             uv[2].w = 0.0f;
-            func_00121240(scr, (Vec4 *)stq, (Vec4 *)pos, (Vec4 *)uv, 3);
+            Vu0Cur_ProjectPointsStq(scr, (Vec4 *)stq, (Vec4 *)pos, (Vec4 *)uv, 3);
             z = scr[0].z >> 8;
             if (zflip) {
                 z = 0x1000 - z;
@@ -539,7 +539,7 @@ void EftMesh_DrawPlain(EftMesh *mesh) {
         }
         group++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Draws every triangle of the mesh that is wholly on screen, sent to the GS at once. Always textured. */
@@ -579,8 +579,8 @@ void EftMesh_DrawNowPlain(EftMesh *mesh, s32 abe) {
     verts = mesh->verts;
     tex = mesh->tex;
     scale = mesh->uvScale;
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (g = 0; g < n; g++) {
         tri = &tris[group->firstTri];
         for (i = 0; i < group->numTris; i++) {
@@ -596,16 +596,16 @@ void EftMesh_DrawNowPlain(EftMesh *mesh, s32 abe) {
             Vec4_Add((Vec4 *)&uv[0], (Vec4 *)&uv[0], (Vec4 *)&ofs);
             Vec4_Add((Vec4 *)&uv[1], (Vec4 *)&uv[1], (Vec4 *)&ofs);
             Vec4_Add((Vec4 *)&uv[2], (Vec4 *)&uv[2], (Vec4 *)&ofs);
-            func_00121F08((Vec4 *)&col[0], &a->color, (Vec4 *)&color);
-            func_00121F08((Vec4 *)&col[1], &b->color, (Vec4 *)&color);
-            func_00121F08((Vec4 *)&col[2], &c->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[0], &a->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[1], &b->color, (Vec4 *)&color);
+            Vec4_Mul((Vec4 *)&col[2], &c->color, (Vec4 *)&color);
             uv[0].z = 1.0f;
             uv[0].w = 0.0f;
             uv[1].z = 1.0f;
             uv[1].w = 0.0f;
             uv[2].z = 1.0f;
             uv[2].w = 0.0f;
-            func_00121240(scr, (Vec4 *)stq, (Vec4 *)pos, (Vec4 *)uv, 3);
+            Vu0Cur_ProjectPointsStq(scr, (Vec4 *)stq, (Vec4 *)pos, (Vec4 *)uv, 3);
             if (!EftMesh_IsOffScreen(scr[0]) && !EftMesh_IsOffScreen(scr[1]) && !EftMesh_IsOffScreen(scr[2])) {
                 tex0 = *(u64 *)((u8 *)tex + ((tri->tex + mesh->texBase) << 4));
                 EftMesh_SendTri(&scr[0], &scr[1], &scr[2], &col[0], &col[1], &col[2], &stq[0], &stq[1], &stq[2],
@@ -615,7 +615,7 @@ void EftMesh_DrawNowPlain(EftMesh *mesh, s32 abe) {
         }
         group++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Whether a projected point is outside the GS drawing area or behind the camera. A non-static inline of the
@@ -658,13 +658,13 @@ void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 fl
     plane = EftGfx_GetClipPlanes();
     n = 3;
     for (i = 0; i < 5; i++) {
-        n = func_00121A10(v, plane, n);
+        n = ClipPoly_ClipPlane(v, plane, n);
         plane++;
     }
     if (n == 0) {
         return;
     }
-    func_00121D48(scr, stq, v, n);
+    ClipPoly_ProjectCur(scr, stq, v, n);
     for (i = 2; i < n; i++) {
         z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
         if (zflip) {
@@ -706,13 +706,13 @@ void EftMesh_DrawNowTriClip(EftMeshOut *v, u64 tex0, s32 abe) {
     plane = EftGfx_GetClipPlanes();
     n = 3;
     for (i = 0; i < 5; i++) {
-        n = func_00121A10(v, plane, n);
+        n = ClipPoly_ClipPlane(v, plane, n);
         plane++;
     }
     if (n == 0) {
         return;
     }
-    func_00121D48(scr, stq, v, n);
+    ClipPoly_ProjectCur(scr, stq, v, n);
     for (i = 2; i < n; i++) {
         if (scr[0].z > 0xFFFFFF) {
             scr[0].z = 0xFFFFFF;

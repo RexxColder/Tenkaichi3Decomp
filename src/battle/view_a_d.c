@@ -79,8 +79,8 @@ extern ChrViewStage *gBtlStage;
 /* sys/file.h declares two parameters; the call passes a third (0), which File_Request ignores */
 extern void *File_Request3(s32 id, void *buf, s32 unused) __asm__("File_Request");
 
-/* Defined in this object in the original, in .sdata: `ChrView *gChrView = NULL;` (see the report on the data layout). */
-extern ChrView *gChrView;
+/* Defined here: this object's .sdata (0x2FF108). */
+ChrView *gChrView = NULL;
 
 #define BTL_OBJ_FLAGS(obj) (*(u32 *)((obj) + 0xA40))
 

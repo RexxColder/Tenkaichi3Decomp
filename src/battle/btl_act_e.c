@@ -24,7 +24,7 @@ extern f32 BtlUtil_WrapAngle(f32 a);
 extern f32 sqrtf(f32 x);
 extern void Vec3_Normalize(Vec4 *out, Vec4 *in);
 extern void Vec4_Add(Vec4 *out, Vec4 *a, Vec4 *b);
-extern void func_00121E20(Vec4 *v); /* zeroes a vector */
+extern void Vec4_SetZero(Vec4 *v); /* zeroes a vector */
 extern void BtlEvent_Raise(s32 side, s32 event);
 extern void BtlChar_AddStageTimer(f32 seconds);
 extern void BtlChar_SetSmallVibration(BtlActEChr *chr, f32 seconds);
@@ -518,7 +518,7 @@ s32 BtlAct_VanishStepHandler(BtlActEChr *chr, s32 phase) {
             BtlMove_ApplyGravity(chr);
         } else {
             if (*counter == 7) {
-                func_00121E20(&dir);
+                Vec4_SetZero(&dir);
                 BtlOpp_GetDelta(chr, &delta);
                 Vec3_Normalize(&delta, &delta);
                 yaw = -BtlOpp_GetYaw(chr);

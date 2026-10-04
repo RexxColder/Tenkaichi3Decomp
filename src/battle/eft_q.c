@@ -32,19 +32,19 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00120AB0(void);            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);        /* load the matrix */
-extern void func_00120AC8(void);            /* pop */
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t); /* dst = a * t + b * (1 - t) */
+extern void Vu0Cur_Push(void);            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);        /* load the matrix */
+extern void Vu0Cur_Pop(void);            /* pop */
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t); /* dst = a * t + b * (1 - t) */
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);     /* dst = from + dir * len */
-extern f32 func_00122200(Vec4 *a, Vec4 *b);                               /* distance */
-extern s32 func_00121140(EftQScr *out, Vec4 *pos, s32 count);             /* projects count points */
-extern void func_00121950(EftQVert *out, Vec4 *pos, Vec4 *uv, Vec4 *col); /* builds one vertex */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);     /* dst = from + dir * len */
+extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);                               /* distance */
+extern s32 Vu0Cur_ProjectPoints(EftQScr *out, Vec4 *pos, s32 count);             /* projects count points */
+extern void ClipVtx_Set(EftQVert *out, Vec4 *pos, Vec4 *uv, Vec4 *col); /* builds one vertex */
 extern void EftGfx_DrawPolyAvgZ(EftQVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 flip, u64 tex, s32 zOfs);
 extern void EftMath_MtxFromDir(Mtx44 *out, Vec4 *dir, f32 angle);
-extern void func_001223C8(EftQScr *out, Mtx44 *m, Vec4 *pos, s32 count);  /* projects count points */
-extern s32 func_0011FF58(EftQScr *a, EftQScr *b, EftQScr *c, EftQScr *d);  /* 1 when the quad is off screen */
+extern void Mtx_ProjectPoints(EftQScr *out, Mtx44 *m, Vec4 *pos, s32 count);  /* projects count points */
+extern s32 IVec4_InGsRange4(EftQScr *a, EftQScr *b, EftQScr *c, EftQScr *d);  /* 1 when the quad is off screen */
 
 extern EftQBattleWork *Battle_GetWork(void);
 extern s32 Battle_IsSplitScreen(void);
@@ -297,10 +297,10 @@ void EftGlowTask_Draw(EftQTask *task) {
     if (BtlScene_IsCharInView(*objId) && BtlCharApi_ObjTestFlagBit21(*objId)) {
         alpha = 0.3f;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     EftGlow_DrawParts(w, *objId, alpha);
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Manager init: the 0x700-byte work, 70 particles per character, the two texture sets and the settings. */
@@ -1158,7 +1158,7 @@ void EftFlash_Draw(EftQTask *task) {
     EftQSpritePkt *p;
     OtEntry *e;
 
-    func_00122168((Vec4 *)&col, (Vec4 *)&clear, (Vec4 *)&w->arg.color, w->fade);
+    Vec4_Lerp((Vec4 *)&col, (Vec4 *)&clear, (Vec4 *)&w->arg.color, w->fade);
     p = (EftQSpritePkt *)gOtCur;
     gOtCur = (u32 *)(p + 1);
     p->dmaTag = 0x20000003;
@@ -1531,10 +1531,10 @@ void EftTrail_Draw(EftQTask *task) {
     if (BtlScene_IsEffectHidden(w->objId, w->kind)) {
         return;
     }
-    func_00120AB0();
+    Vu0Cur_Push();
     p = &w->pts[0];
     i = 0;
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     Vec4_Copy(&camPos, &gBtlCamView->pos);
     for (; i < w->count - 1; i++) {
         seg = 1;
@@ -1550,8 +1550,8 @@ void EftTrail_Draw(EftQTask *task) {
         Vec3_Cross(&side, &side, &toCam);
         Vec3_Normalize(&side, &side);
         if (first) {
-            func_001225D0(&quad[0], &side, width, p);
-            func_001225D0(&quad[1], &side, -width, p);
+            Vec3_ScaleAdd(&quad[0], &side, width, p);
+            Vec3_ScaleAdd(&quad[1], &side, -width, p);
             first = 0;
         } else {
             if (Vec3_Dot(&side, &prevSide) < 0.0f) {
@@ -1562,7 +1562,7 @@ void EftTrail_Draw(EftQTask *task) {
                 if (w->flags & 1) {
                     color.w = w->color.w;
                 }
-                if (func_00122200(p, p + 1) > 0.8f) {
+                if (Vec3_Dist(p, p + 1) > 0.8f) {
                     f32 bias = gEftTrailGlowBias[0];
 
                     mid.x = (p->x + p[1].x) * 0.5f;
@@ -1579,8 +1579,8 @@ void EftTrail_Draw(EftQTask *task) {
             Vec4_Copy(&quad[0], &prev[0]);
             Vec4_Copy(&quad[1], &prev[1]);
         }
-        func_001225D0(&quad[2], &side, width, p + 1);
-        func_001225D0(&quad[3], &side, -width, p + 1);
+        Vec3_ScaleAdd(&quad[2], &side, width, p + 1);
+        Vec3_ScaleAdd(&quad[3], &side, -width, p + 1);
         Vec4_Copy(&prevSide, &side);
         Vec4_Copy(&prev[0], &quad[2]);
         Vec4_Copy(&prev[1], &quad[3]);
@@ -1588,17 +1588,17 @@ void EftTrail_Draw(EftQTask *task) {
         quad[2].w = 1.0f;
         quad[1].w = 1.0f;
         quad[0].w = 1.0f;
-        func_00121140(scr, quad, 4);
+        Vu0Cur_ProjectPoints(scr, quad, 4);
         z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
         for (j = 0; j < 2; j++) {
-            func_00121950(&v[0], &quad[j], (Vec4 *)&uv[j], &color);
-            func_00121950(&v[1], &quad[j + 1], (Vec4 *)&uv[j + 1], &color);
-            func_00121950(&v[2], &quad[j + 2], (Vec4 *)&uv[j + 2], &color);
+            ClipVtx_Set(&v[0], &quad[j], (Vec4 *)&uv[j], &color);
+            ClipVtx_Set(&v[1], &quad[j + 1], (Vec4 *)&uv[j + 1], &color);
+            ClipVtx_Set(&v[2], &quad[j + 2], (Vec4 *)&uv[j + 2], &color);
             EftGfx_DrawPolyAvgZ(v, 1, 0, 0, 0, w->tex0[seg], z);
         }
         p++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 LIT4_WORD(D_002FCBE8, 0x3F51EB85); /* 0.82f */
@@ -1676,8 +1676,8 @@ void EftTrail_DrawSprite(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 w, f32
         Vec3_Add(&c[i], &c[i], &pos);
         c[i].w = 1.0f;
     }
-    func_001223C8(scr, &gBtlCamView->world2screen, c, 4);
-    if (func_0011FF58(&scr[0], &scr[1], &scr[2], &scr[3])) {
+    Mtx_ProjectPoints(scr, &gBtlCamView->world2screen, c, 4);
+    if (IVec4_InGsRange4(&scr[0], &scr[1], &scr[2], &scr[3])) {
         return;
     }
     p = (EftQQuadPkt *)gOtCur;

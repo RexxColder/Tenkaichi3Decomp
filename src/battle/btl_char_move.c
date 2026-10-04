@@ -27,9 +27,9 @@ extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00121E20(Vec4 *dst);
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
-extern void func_00122030(Vec4 *dst, Vec4 *angles, Vec4 *src);
+extern void Vec4_SetZero(Vec4 *dst);
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
+extern void Vec4_RotateEuler(Vec4 *dst, Vec4 *angles, Vec4 *src);
 extern f32 Mathf_Sin(f32 a);
 extern f32 Mathf_Cos(f32 a);
 extern f32 Mathf_Asin(f32 a);
@@ -387,7 +387,7 @@ s32 BtlMove_ClipToRadius(Vec4 *out, Vec4 *from, Vec4 *to, f32 radius) {
     if (t < 0.0f || t > 1.0f) {
         return 0;
     }
-    func_00122168(out, to, from, t);
+    Vec4_Lerp(out, to, from, t);
     return 1;
 }
 
@@ -905,7 +905,7 @@ void BtlMove_SnapToOpponent(BtlMoveChr *chr) {
     Vec4_Add(&pose->pos, &pose->pos, &d);
     pose->speed = 0.0f;
     pose->fallSpeed = 0.0f;
-    func_00121E20(&pose->unk70);
+    Vec4_SetZero(&pose->unk70);
     BtlChar_SetUnk1310(chr, &opp);
     BtlChar_SetFlag(chr, 0x3F);
     BtlChar_SetFlag(chr, 0x24);
@@ -1295,7 +1295,7 @@ void BtlMove_ApplyOrbit(BtlMoveChr *chr) {
             a = -a;
         }
         Vec4_Set(&ang, 0.0f, a, 0.0f, 0.0f);
-        func_00122030(&pose->dir, &ang, &pose->dir);
+        Vec4_RotateEuler(&pose->dir, &ang, &pose->dir);
         pose->rot.y = BtlUtil_WrapAngle(pose->rot.y + a);
         pose->yaw = BtlUtil_WrapAngle(pose->yaw + a);
     }
@@ -1566,7 +1566,7 @@ s32 BtlMove_ApplyImpulse(BtlMoveChr *chr) {
         pose->pos.w = 1.0f;
         len = Vec3_Length(vel);
         if (len < BTL_IMPULSE_DECEL) {
-            func_00121E20(vel);
+            Vec4_SetZero(vel);
         } else {
             Vec4_Scale(vel, vel, (len - BTL_IMPULSE_DECEL) / len);
         }
@@ -1578,7 +1578,7 @@ void BtlMove_UpdateHoverOffset(BtlMoveChr *chr) {
     BtlMovePose *pose = BtlChar_GetPos(chr);
     f32 a;
 
-    func_00121E20(&pose->unk20);
+    Vec4_SetZero(&pose->unk20);
     if (BtlChar_TestFlag(chr, 0x29)) {
         pose->unkA8 = 0.0f;
     }

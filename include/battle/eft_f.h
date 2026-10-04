@@ -37,7 +37,7 @@ typedef struct EftWaterIVec {
     /* 0x0C */ s32 w;
 } __attribute__((aligned(8))) EftWaterIVec; /* size 0x10 */
 
-/* A vertex of the clipper's polygon (func_00121990 / func_00121A10 / func_00121D48). */
+/* A vertex of the clipper's polygon (ClipVtx_SetArray / ClipPoly_ClipPlane / ClipPoly_ProjectCur). */
 typedef struct EftWaterClipVtx {
     /* 0x00 */ EftWaterVec pos;
     /* 0x10 */ EftWaterVec uv;

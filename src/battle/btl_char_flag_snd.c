@@ -20,7 +20,7 @@ extern f32 Mathf_Sin(f32 x);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src); /* inverse of a rotation + translation matrix */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src); /* inverse of a rotation + translation matrix */
 extern f32 BtlUtil_WrapAngle(f32 a);
 extern s32 BtlUtil_Clamp(s32 v, s32 lo, s32 hi);
 extern s32 BtlUtil_Max(s32 a, s32 b);
@@ -155,7 +155,7 @@ void BtlCharSnd_CalcVolPan(Vec4 *pos, s32 *vol, s32 *pan, f32 near, f32 far) {
         *pan = 0;
         return;
     }
-    func_001202A0(&cam, &gBtlCamView->world2view2);
+    Mtx_InverseRT(&cam, &gBtlCamView->world2view2);
     Vec4_Sub(&d, pos, (Vec4 *)cam.m[3]);
     dist = Vec3_Length(&d);
     Vec4_Copy(&fwd, (Vec4 *)cam.m[2]);

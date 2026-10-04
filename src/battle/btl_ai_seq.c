@@ -74,7 +74,7 @@ extern void Vec3_Scale(BtlAiVec *dst, BtlAiVec *src, f32 s);
 extern void Vec3_Add(BtlAiVec *dst, BtlAiVec *a, BtlAiVec *b);
 extern void Vec3_Sub(BtlAiVec *dst, BtlAiVec *a, BtlAiVec *b);
 extern f32 Vec3_Dot(BtlAiVec *a, BtlAiVec *b);
-extern void func_00122868(BtlAiVec *dst, BtlAiVec *src, f32 angle); /* rotate about Y */
+extern void Vec3_RotateY(BtlAiVec *dst, BtlAiVec *src, f32 angle); /* rotate about Y */
 extern f32 sinf(f32 x);
 extern f32 cosf(f32 x);
 
@@ -817,7 +817,7 @@ s32 BtlAiPick_Direction(BtlAiWork *ai, s32 n, s32 arg) {
                     far = len;
                     best = i;
                 }
-                func_00122868(&dir, &dir, 0.7853981f);
+                Vec3_RotateY(&dir, &dir, 0.7853981f);
             }
             range = n == 8 ? 0x3B : 0x21;
         }

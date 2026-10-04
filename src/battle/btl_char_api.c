@@ -31,9 +31,9 @@ extern void BtlChar_SetHeldFlag(BtlCharApiChr *chr, s32 flag);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
-extern void func_00121E18(Vec4 *dst);                    /* dst = 0 */
-extern void func_00121E20(Vec4 *dst);                    /* dst = 0 */
-extern f32 func_00122200(Vec4 *a, Vec4 *b);              /* distance between two points */
+extern void Vec4_SetZeroW1(Vec4 *dst);                    /* dst = 0 */
+extern void Vec4_SetZero(Vec4 *dst);                    /* dst = 0 */
+extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);              /* distance between two points */
 
 extern f32 BtlAnim_GetFrame(BtlCharApiChr *chr);            /* BtlObj_Get(chr->objId)->unkC78 */
 extern s32 BtlAnim_GetId(BtlCharApiChr *chr);            /* chr->unk974 */
@@ -590,8 +590,8 @@ s32 BtlCharApi_GetCamPose(s32 objId, Vec4 *pos, Vec4 *rot) {
         Vec4_Copy(rot, &chr->camRot);
         return chr->camUnk494;
     }
-    func_00121E18(pos);
-    func_00121E20(rot);
+    Vec4_SetZeroW1(pos);
+    Vec4_SetZero(rot);
     return 0;
 }
 
@@ -630,7 +630,7 @@ void BtlCharApi_ShakeCamsNear(Vec4 *pos, f32 near, f32 far, f32 arg3, f32 arg4) 
         if (BtlChar_IsFrozen(chr)) {
             continue;
         }
-        dist = func_00122200(&chr->camUnk420, pos);
+        dist = Vec3_Dist(&chr->camUnk420, pos);
         if (dist < far) {
             rate = BtlUtil_ClampF(1.0f - (dist - near) / (far - near), 0.0f, 1.0f);
             ChrCam_AddShake(chr, arg3 * rate, arg4 * rate);

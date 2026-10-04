@@ -4,7 +4,7 @@
 #include "sys/gfx.h"
 #include "sys/sprite.h"
 
-extern void func_0010A218(SpriteRes *res, s32 index, s32 tbp, s32 cbp); /* uploads one texture and its palette */
+extern void TexFile_UploadOne(SpriteRes *res, s32 index, s32 tbp, s32 cbp); /* uploads one texture and its palette */
 
 /* Unpacks a BPE-compressed sprite sheet. */
 void *Sprite_Unpack(void *src, void *dst, s32 *rawSize) {
@@ -58,7 +58,7 @@ void Sprite_DrawPicture(SpriteRes *res, s32 x, s32 y, s32 alpha) {
     for (row = 0; row < 2; row++) {
         for (col = 0; col < 4; col++) {
             idx = col + row * 4;
-            func_0010A218(res, idx, SPRITE_TBP, res->tex[idx].cbpOfs + SPRITE_CBP_PICTURE);
+            TexFile_UploadOne(res, idx, SPRITE_TBP, res->tex[idx].cbpOfs + SPRITE_CBP_PICTURE);
             Dma_AddTexFlush();
             p = Dma_BeginDirect();
             y1 = row ? yy + 0xC0 : yy + 0xE0;
@@ -113,7 +113,7 @@ void Sprite_DrawList(SpriteRes *res, s32 x, s32 y, LoadSprite *list) {
 
         if (spr->flags & LOAD_SPR_DRAW) {
             if (res != NULL) {
-                func_0010A218(res, spr->tex, SPRITE_TBP, res->tex[spr->tex].cbpOfs + SPRITE_CBP_LIST);
+                TexFile_UploadOne(res, spr->tex, SPRITE_TBP, res->tex[spr->tex].cbpOfs + SPRITE_CBP_LIST);
                 Dma_AddTexFlush();
             }
             p = Dma_BeginDirect();

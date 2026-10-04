@@ -114,9 +114,11 @@ and released just before the first video frame. See graphics.md for the video si
 
 (verified by strings) 0x269228..0x26C050 is CRI ADX `adx_fs.c` (the ADXF file layer), library
 version "ADXT/PS2EE Ver.9.71 Build:Dec 13 2005 21:36:32", built with "GCC2096 SCE3020"; error
-strings carry the function names. 82 functions named in config/symbols/lib_a.txt (many marked
+strings carry the function names. 82 functions named in config/symbols/cri_adxf.txt (many marked
 guess), none decompiled: it is third-party library code. (inferred) 0x26C050..0x273CA0 is the
 rest of the same library (lock pair, ADXT, ADXSJD, ADXSTM), so the game code of that assembly
-range ends at 0x269228. Three existing names are on the wrong half of a lock / worker pair
-(`ADXF_Tell` 0x26B5B8, `ADXF_SetReqRdSct` 0x26BE70, `adxf_GetPtStat`): fix when listing
-lib_a.txt.
+range ends at 0x269228. Three names that were on the wrong half of a lock / worker pair are
+fixed: 0x26B580 `ADXF_Tell` / 0x26B5B8 `adxf_Tell`; 0x26BE30 `ADXF_SetReqRdSct` / 0x26BE70
+`adxf_SetReqRdSct`; 0x269EE0 `ADXF_GetPtStat` / 0x269F18 `adxf_GetPtStat` (a bare tail call) and
+0x269F30 `ADXF_GetPtStatEx` / 0x269F68 `adxf_GetPtStatEx` (the real worker; its error strings
+say "(adxf_GetPtStat)", so the Ex name is a guess from the pairing).

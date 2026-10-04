@@ -9,7 +9,7 @@
 
 extern void *memset(void *dst, s32 c, u32 n);
 
-extern void *Res_RelocateOffsets(void *out, void *base, void *hdr);
+extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Flash_Create(Flash *flash, void *data, void *tex);
 extern void func_0010D648(Flash *flash);
 extern void func_0010D6F0(Flash *flash);
@@ -17,8 +17,8 @@ extern void func_0010D750(Flash *flash);
 extern void func_0010D810(Flash *flash, s32 arg);
 extern void func_0010D878(Flash *flash, char *label, s32 arg);
 
-/* Defined in this object in the original, in .sdata: `IconWin *gIconWin = NULL;` (see the report on the data layout). */
-extern IconWin *gIconWin;
+/* Defined here: this object's .sdata (0x2FF0F0). */
+IconWin *gIconWin = NULL;
 
 /* Allocates the window: movie and three textures from the pack, two more from the icon resource. */
 void IconWin_Init(u32 *pack, FlashTexRes *icons) {

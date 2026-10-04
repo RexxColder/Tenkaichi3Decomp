@@ -29,15 +29,15 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);  /* inverse of a rigid transform (inferred) */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
-extern f32 func_00122200(Vec4 *a, Vec4 *b);         /* distance */
-extern f32 func_00122230(Vec4 *a, Vec4 *b);         /* squared distance */
-extern void func_00120AB0(void);                    /* saves the VU0 matrix state */
-extern void func_00120B80(Mtx44 *m);                /* loads a matrix into VU0 */
-extern void func_00120AC8(void);                    /* restores the VU0 matrix state */
-extern void func_001210A8(s32 *out, Vec4 *pos);     /* projects to GS screen coordinates */
-extern void func_00121950(EftSurfVtx *out, f32 *pos, f32 *st, f32 *color);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);  /* inverse of a rigid transform (inferred) */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
+extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);         /* distance */
+extern f32 Vec3_DistSq(Vec4 *a, Vec4 *b);         /* squared distance */
+extern void Vu0Cur_Push(void);                    /* saves the VU0 matrix state */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                /* loads a matrix into VU0 */
+extern void Vu0Cur_Pop(void);                    /* restores the VU0 matrix state */
+extern void Vu0Cur_ProjectInt(s32 *out, Vec4 *pos);     /* projects to GS screen coordinates */
+extern void ClipVtx_Set(EftSurfVtx *out, f32 *pos, f32 *st, f32 *color);
 
 extern void *BtlTask_CreateChildList(void *task, s32 capacity, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, void *cls, void *arg);
@@ -63,7 +63,7 @@ extern void EftTexSet_Load34(EftSurfTexTbl *tbl, s32 *data);
 extern void EftTexSet_Keep32(EftTexTbl *tbl, s32 a, s32 b);
 extern void EftTexSet_Keep4(EftTexEntry *tex, s32 a, s32 b);
 extern u64 EftVram_AddTex(EftSurfSlot *slot, s32 a, s32 b);
-extern void func_0010A5A0(EftSurfBuf *buf, s32 id);
+extern void GfxClut_InitPacket(EftSurfBuf *buf, s32 id);
 
 /* Sprite draws of the effect core. */
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 a,
@@ -84,8 +84,8 @@ extern void EftGndDust_InitTemplate(void);
 /* Clip planes and helpers of the effect core. */
 extern void EftGfx_UpdateClipPlanes(void);
 extern Vec4 *EftGfx_GetClipPlanes(void);
-extern s32 func_00121A10(EftSurfVtx *poly, Vec4 *plane, s32 count); /* clips in place, returns the new count */
-extern void func_00121D48(s32 (*xyz)[4], Vec4 *st, EftSurfVtx *poly, s32 count); /* projects count vertices */
+extern s32 ClipPoly_ClipPlane(EftSurfVtx *poly, Vec4 *plane, s32 count); /* clips in place, returns the new count */
+extern void ClipPoly_ProjectCur(s32 (*xyz)[4], Vec4 *st, EftSurfVtx *poly, s32 count); /* projects count vertices */
 extern void EftMath_CalcTangentFrame(Mtx44 *out, EftVec *a, EftVec *b);
 extern void EftGfx_LightClutDiffuse(EftSurfClut *dst, EftSurfClut *src, Vec4 *light, u8 r, u8 g, u8 b);
 extern void EftGfx_LightClutSpecular(EftSurfClut *dst, EftSurfClut *src, Mtx44 *view, Mtx44 *frame, Vec4 *light, f32 k);
@@ -354,7 +354,7 @@ void EftWeatherPtcl_Term(void) {
 /* Classifies the camera movement since the last frame: 2 = jumped (more than 15 units), 1 = moving (more than
    4, or still settling), and keeps the per-view settle counter. */
 static inline void EftWeather_TrackCam(Vec4 *cam, EftWeatherView *view, s32 second, s32 *moving) {
-    f32 dist = func_00122200(cam, &view->camPos[second]);
+    f32 dist = Vec3_Dist(cam, &view->camPos[second]);
 
     if (dist > 15.0f) {
         *moving = 2;
@@ -396,8 +396,8 @@ void EftWeather_Move(EftWeatherPtcl *p, EftWeatherView *view, s32 count) {
     Vec4_Set(&offs, 0.0f, 0.0f, 55.0f, 0.0f);
     Mtx_StoreIdentity(&inv);
     if (gBtlCamView != NULL) {
-        func_00120230(&m, &gBtlCamView->world2view2);
-        func_001202A0(&inv, &m);
+        Mtx_Copy(&m, &gBtlCamView->world2view2);
+        Mtx_InverseRT(&inv, &m);
     }
     Vec4_Copy(&cam, (Vec4 *)inv.m[3]);
     EftWeather_TrackCam(&cam, view, second, &moving);
@@ -479,7 +479,7 @@ void EftWeather_Move(EftWeatherPtcl *p, EftWeatherView *view, s32 count) {
             y = -500.0f;
         }
         y = 1.0f - y / -500.0f;
-        a = func_00122200(&cam, q) * (1.0f / 110.0f);
+        a = Vec3_Dist(&cam, q) * (1.0f / 110.0f);
         if (a > 1.0f) {
             a = 0.0f;
         } else if (a < 0.5f) {
@@ -580,14 +580,14 @@ void EftWeather_DrawPtcls(EftWeatherPtcl *p, s32 count) {
     EftTexTbl *tex = &gEftWeather->tex;
     s32 i;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (i = 0; i < count; i++) {
         EftGfx_DrawSprite(&p->pos, &p->color, gEftWeather->size * 16.0f, gEftWeather->size * 16.0f, 0.0f, 0.0f, 1.0f,
                       1.0f, 0.0f, 0, 0, (p->tex + tex->tex)->tex0);
         p++;
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Particle task draw: moves this view's particles (unless paused), then draws them. In split-screen each
@@ -943,10 +943,10 @@ void EftStage_DrawSprite(Vec4 *pos) {
         EftVec color = { 128.0f, 128.0f, 128.0f, 128.0f };
         f32 size = 16.0f;
 
-        func_00120AB0();
-        func_00120B80(&gBtlCamView->world2screen);
+        Vu0Cur_Push();
+        Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
         EftPrim_DrawQuadDepth(pos, (Vec4 *)&color, size, size, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0, 0, gEftStage->sprite.tex0);
-        func_00120AC8();
+        Vu0Cur_Pop();
     }
 }
 
@@ -977,9 +977,9 @@ void EftSurf_Init(void) {
         if (mesh->flags & EFT_SURF_REFLECT) {
             if (!(rt->flags & EFT_SURF_RT_READY)) {
                 EftTexSet_Load34(&rt->tex, (s32 *)((u8 *)pack + ((u32)pack[0xA] >> 2 << 2)));
-                func_0010A5A0(&rt->buf[0], 0x3E80);
-                func_0010A5A0(&rt->buf[1], 0x3E84);
-                func_0010A5A0(&rt->buf[2], 0x3E88);
+                GfxClut_InitPacket(&rt->buf[0], 0x3E80);
+                GfxClut_InitPacket(&rt->buf[1], 0x3E84);
+                GfxClut_InitPacket(&rt->buf[2], 0x3E88);
                 rt->animCount = rt->tex.count - 4;
                 rt->texA = rt->tex.count - 4;
                 rt->texB = rt->tex.count - 2;
@@ -1192,7 +1192,7 @@ s32 EftSurf_IsBoxVisible(Vec4 *min, Vec4 *max) {
     Vec4_Set(&corner[6], min->x, max->y, max->z, 1.0f);
     Vec4_Set(&corner[7], max->x, max->y, max->z, 1.0f);
     for (i = 0; i < 8; i++) {
-        func_001210A8(sc, &corner[i]);
+        Vu0Cur_ProjectInt(sc, &corner[i]);
         sc[0] -= 0x700;
         sc[1] -= 0x720;
         if (sc[2] < 0) {
@@ -1273,8 +1273,8 @@ void EftSurf_DrawMeshes(void) {
         tex[0] = EftSurfRt_GetTex(rt, rt->texA + rt->flip)->tex0;
         tex[1] = EftSurfRt_GetTex(rt, rt->texB + rt->flip)->tex0;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     for (i = 0; i < meshCount; i++, mesh++) {
         s32 flags;
         f32 u;
@@ -1316,12 +1316,12 @@ void EftSurf_DrawMeshes(void) {
         for (j = 0; j < triCount; j++, tri++) {
             s32 k;
 
-            dist[0] = func_00122230((Vec4 *)tri->v[0].pos, (Vec4 *)cam);
-            dist[1] = func_00122230((Vec4 *)tri->v[1].pos, (Vec4 *)cam);
-            dist[2] = func_00122230((Vec4 *)tri->v[2].pos, (Vec4 *)cam);
+            dist[0] = Vec3_DistSq((Vec4 *)tri->v[0].pos, (Vec4 *)cam);
+            dist[1] = Vec3_DistSq((Vec4 *)tri->v[1].pos, (Vec4 *)cam);
+            dist[2] = Vec3_DistSq((Vec4 *)tri->v[2].pos, (Vec4 *)cam);
             near = 1;
             for (k = 0; k < 3; k++) {
-                func_00121950(&out[k], tri->v[k].pos, tri->v[k].st, tri->v[k].color);
+                ClipVtx_Set(&out[k], tri->v[k].pos, tri->v[k].st, tri->v[k].color);
                 out[k].pos[3] = 1.0f;
                 out[k].st[2] = 1.0f;
                 out[k].st[3] = 1.0f;
@@ -1374,7 +1374,7 @@ void EftSurf_DrawMeshes(void) {
         }
     }
     EftSurf_EndDraw(0);
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 #define EFT_F2RGBA(c) \
@@ -1572,7 +1572,7 @@ void EftSurf_DrawTri(EftSurfVtx *tri, u64 tex0) {
     s32 xyz[3][4];
     Vec4 st[3];
 
-    func_00121D48(xyz, st, tri, 3);
+    ClipPoly_ProjectCur(xyz, st, tri, 3);
     if (EftSurf_IsOffScreen(xyz[0]) && EftSurf_IsOffScreen(xyz[1]) && EftSurf_IsOffScreen(xyz[2])) {
         return;
     }
@@ -1589,11 +1589,11 @@ void EftSurf_DrawTriClipped(EftSurfVtx *tri, u64 tex0) {
     s32 i;
 
     for (i = 4; i >= 0; i--) {
-        count = func_00121A10(tri, plane, count);
+        count = ClipPoly_ClipPlane(tri, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48((s32 (*)[4])xyz, st, tri, count);
+        ClipPoly_ProjectCur((s32 (*)[4])xyz, st, tri, count);
         for (i = 2; i < count; i++) {
             if (xyz[0].z > 0xFFFFFF) {
                 xyz[0].z = 0xFFFFFF;
@@ -1615,7 +1615,7 @@ void EftSurf_DrawReflectTri(EftSurfVtx *tri, u64 *tex, Vec4 *fog) {
     s32 xyz[3][4];
     Vec4 st[3];
 
-    func_00121D48(xyz, st, tri, 3);
+    ClipPoly_ProjectCur(xyz, st, tri, 3);
     if (EftSurf_IsOffScreen(xyz[0]) && EftSurf_IsOffScreen(xyz[1]) && EftSurf_IsOffScreen(xyz[2])) {
         return;
     }
@@ -1632,11 +1632,11 @@ void EftSurf_DrawReflectTriClipped(EftSurfVtx *tri, u64 *tex, Vec4 *fog) {
     s32 i;
 
     for (i = 4; i >= 0; i--) {
-        count = func_00121A10(tri, plane, count);
+        count = ClipPoly_ClipPlane(tri, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(xyz, st, tri, count);
+        ClipPoly_ProjectCur(xyz, st, tri, count);
         for (i = 2; i < count; i++) {
             EftSurf_DrawTriDirect(xyz[0], xyz[i - 1], xyz[i], (Vec4 *)tri[0].color, (Vec4 *)tri[i - 1].color,
                                   (Vec4 *)tri[i].color,                                   &st[0], &st[i - 1], &st[i], 0, tex, fog, 2);
@@ -1768,11 +1768,11 @@ void EftSurf_DrawTriOtClipped(EftSurfVtx *tri, s32 layer, s32 unused, s32 flipZ,
     s32 i;
 
     for (i = 4; i >= 0; i--) {
-        count = func_00121A10(tri, plane, count);
+        count = ClipPoly_ClipPlane(tri, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48((s32 (*)[4])xyz, st, tri, count);
+        ClipPoly_ProjectCur((s32 (*)[4])xyz, st, tri, count);
         for (i = 2; i < count; i++) {
             s32 z = xyz[0].z >> 8;
 
@@ -1867,7 +1867,7 @@ void EftSurf_RenderPalettes(void) {
     memset(rt->buf[2].clut, 0, sizeof(EftSurfClut));
     Mtx_StoreIdentity(&view);
     if (!Battle_IsSplitScreen()) {
-        func_00120230(&view, &gBtlCamView->world2view2);
+        Mtx_Copy(&view, &gBtlCamView->world2view2);
     } else {
         view.m[1][2] = 0.5f;
     }

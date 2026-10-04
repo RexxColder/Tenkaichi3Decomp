@@ -5,10 +5,10 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last build verified byte-identical: the commit "Link the battle object, collision library, task
-  tree, text printer and AI scripts" (68.41%; 152 C files; 5405 functions diff clean; DBZP 0%).
-  linked, none unlinked; 5405 functions diff clean; DBZP 0%). Uncommitted by the integrator: commit after
-  checking. The commit before it is "Link the second effects wave ..." (64.03%).
+- Last build verified byte-identical: the integration described in "Ninth step" at the end of this
+  file (75.62% of the main executable's game code; 171 linked C files; 5877 functions diff clean;
+  166 INCLUDE_ASM in linked files; DBZP 0%). Not committed by the integrator: commit after checking.
+  The commit before it is the cleanup link (69.83%).
 - Check at any time: `.venv/bin/python configure.py && ninja`, then
   `cmp build/SLUS_216.78.rom disc/SLUS_216.78.rom` and `cmp build/DBZP.BIN disc/BIN/DBZP.BIN`,
   then `python3 scripts/progress.py`.
@@ -132,8 +132,8 @@ module).
   fighter object; the merged picture is in docs/systems/fighter.md and combat.md.
 - Names proposed by the script-command agent for `BtlFacade_*` placeholders (lip sync, ki and
   blast gauge adders, CPU level) are not applied yet.
-- `Snd_SendFighters` sends sound handles, not fighter ids; `ADXF_Tell` in
-  config/symbol_addrs.txt may be the inner unlocked function. Neither is fixed yet.
+- `Snd_SendFighters` sends sound handles, not fighter ids (name not changed yet). The `ADXF_Tell`
+  lock / worker mix-up is fixed (docs/systems/audio.md).
 - Functions in linked files that are still INCLUDE_ASM are listed in docs/open_questions.md (seven added
   by the action-handler batch, 62 by the first effect / stage wave, 79 by the second, 13 by the last batch).
 - `BtlAi_GetPairRate` / `BtlAi_GetQuadRate` (btl_ai_cond.c): the switch shape that matched
@@ -284,3 +284,48 @@ Still to launch when slots free: misc_a 0x252F68..0x254A20, view_b 0x2600B0..0x2
 the unexplored tail before the SDK (check the yaml for what lies between 0x263098 and the
 linked sys files, and 0x2BDCE8..0x2BF488 result-screen code mentioned by the view_a report),
 then DBZP.BIN.
+
+## Ninth step: the first new-range files linked (2026-10-04)
+
+Gate passed after each module and at the end: ninja exit 0, both .ok files, both images
+identical, `scripts/fdiff.py` clean on all 171 linked files (5877 functions). Main executable
+75.62% (was 69.83%); INCLUDE_ASM in linked files 166 (147 + 19 that came with the new files).
+
+- **Vector library: linked.** src/sys/vu0_a_c.c 0x11FA10, vu0_a_c_b.c 0x11FE80, vu0_a_c_c.c
+  0x1204B8, vu0_b_c.c 0x121008..0x122940, no gap, no data sections. vu0_b_c.c now holds its 67
+  hand-written routines as top-level assembly blocks generated from the split (INCLUDE_ASM does
+  not work for VU0 code), so the file is contiguous.
+- **Dialog: linked** as src/sys/dialog.c (was lib_a.c; include/sys/dialog.h, with a forwarding
+  lib_a.h because src/sys/mcflow_a.c, still being written, includes the old name). Symbols split
+  into config/symbols/dialog.txt and cri_adxf.txt; three CRI lock / worker names fixed.
+  `.rodata` 0x2F35B0, `.sdata` 0x2FF160. `Dialog_SetCursor` stays INCLUDE_ASM.
+- **HUD: linked.** hud_a.c 0x2187E0, hud_a_b.c 0x219EB0, hud_a_c.c 0x21BCA0, hud_a_d.c 0x21C0E0,
+  hud_b.c 0x21CA60..0x222400. hud_a_d.c and hud_b.c are one module but were NOT merged: they use
+  two views of the gauge work (`HudGauge` in hud_a.h, `HudBWork` in hud_b.c) and the image is
+  the same either way; merge when the HUD headers are unified (hud_c / hud_d / hud_e are being
+  written against hud_a.h). The health-field correction is applied to hud_a.h.
+- **Graphics: linked.** gfxm_a.c 0x102F28, gfxm_b.c 0x106D60, gfxm_b_b.c 0x109938, gfxm_b_c.c
+  0x10A6E0..0x10AD58. `.rodata` 0x2EB6A0 (gfxm_b.c), `.lit4` 0x2FC290 (gfxm_b.c) and 0x2FC2B8
+  (gfxm_b_c.c), `.sdata` 0x2FE8D8 (gfxm_b_c.c, "LIT").
+- **Menu support: linked.** view_a.c 0x25C2A8, view_a_b.c 0x25CFC0, view_a_c.c 0x25D290,
+  view_a_d.c 0x25D468, view_a_e.c 0x25DE68..0x2600B0 (view_a_f.c merged into it: one object).
+
+Found only by the image compare, fixed at the source:
+1. gfxm_b.c, `GfxAlphaKey_BuildClut`: five of the eleven colours in the 33-byte table were wrong
+   (bytes transposed). fdiff cannot see initialiser values.
+2. view_a_e.c / view_a_f.c: as two objects the powers-of-ten table sat 8 bytes early; merged.
+3. dialog.c: `Dialog_SetCursor` (assembly) refers to two strings of the C part by symbol; they
+   are now named objects defined where the string pool has them.
+4. `INCLUDE_RODATA` tables (hud_b.c, gfxm_b.c) exist only once the file has a `.rodata`
+   subsegment, and a table that a subsegment boundary cuts is split: gfxm_b.c's needed its size
+   (0x70) in the symbol file.
+Prototype corrections in callers (all re-diffed): `TexFile_UploadOne` (btl_obj.c: uploads, returns
+nothing), `StgGlare_Init` / `StgDepthTint_Init` / `GfxDepthFog_Init` / `GfxPost_DrawDepthClut`
+(stg_c.c), `HudGauge_ShakeHp / ShakeKi` (hud_a.c), the GS mask callbacks (hud_b.c),
+`Num_ToDigits` and `Res_RelocateOffsets` (loading.c, view_a*.c). bobj_a.c still declares
+`Res_RelocateOffsets` with two arguments for one call (it matches that way).
+
+Left as it is: asm/ still holds chunks of earlier splits (splat does not delete them); they are
+assembled but not linked, and `scripts/progress.py` counts their labels, so its "functions still
+in assembly" line is too high. Deleting them was not possible in the integrator's session.
+

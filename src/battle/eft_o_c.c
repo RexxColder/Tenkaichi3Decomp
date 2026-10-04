@@ -53,15 +53,15 @@ extern void Vec3_Scale(void *dst, void *src, f32 scale);
 extern void Vec3_Normalize(void *dst, void *src);
 extern f32 Vec3_Dot(void *a, void *b);
 extern f32 EftMath_WrapAngle(f32 angle);
-extern void func_00120A98(void);        /* VU0 matrix stack: current = identity */
-extern void func_00120AB0(void);        /* push */
-extern void func_00120AC8(void);        /* pop */
-extern void func_00120B98(Mtx44 *m);    /* store the current matrix */
-extern void func_00120C18(void *pos);   /* translate */
-extern void func_00120DB0(f32 angle);   /* rotate about Z */
-extern void func_00120E20(f32 angle);   /* rotate about X */
-extern void func_00120E90(f32 angle);   /* rotate about Y */
-extern void func_00120F88(f32 scale);   /* scale */
+extern void Vu0Cur_LoadIdentity(void);        /* VU0 matrix stack: current = identity */
+extern void Vu0Cur_Push(void);        /* push */
+extern void Vu0Cur_Pop(void);        /* pop */
+extern void Vu0Cur_StoreMtx(Mtx44 *m);    /* store the current matrix */
+extern void Vu0Cur_Translate(void *pos);   /* translate */
+extern void Vu0Cur_RotateZ(f32 angle);   /* rotate about Z */
+extern void Vu0Cur_RotateX(f32 angle);   /* rotate about X */
+extern void Vu0Cur_RotateY(f32 angle);   /* rotate about Y */
+extern void Vu0Cur_ScaleDiagUniform(f32 scale);   /* scale */
 
 extern void *BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(void *pool, s32 size);
@@ -568,18 +568,18 @@ void EftDisc_Update(EftOTask *task) {
             w->rotX = EftMath_WrapAngle(w->rotX);
         }
         yaw = EftMath_WrapAngle(atan2f(arg->dir.x, arg->dir.z));
-        func_00120AB0();
-        func_00120A98();
-        func_00120F88(arg->scale * w->size * w->grown);
-        func_00120E90(w->rotY);
-        func_00120E20(w->rotX);
-        func_00120DB0(EftMath_WrapAngle(w->bankAngle + w->rollAngle));
-        func_00120E20(pitch);
-        func_00120E90(yaw);
-        func_00120C18(&arg->pos);
-        func_00120B98(&mtx);
+        Vu0Cur_Push();
+        Vu0Cur_LoadIdentity();
+        Vu0Cur_ScaleDiagUniform(arg->scale * w->size * w->grown);
+        Vu0Cur_RotateY(w->rotY);
+        Vu0Cur_RotateX(w->rotX);
+        Vu0Cur_RotateZ(EftMath_WrapAngle(w->bankAngle + w->rollAngle));
+        Vu0Cur_RotateX(pitch);
+        Vu0Cur_RotateY(yaw);
+        Vu0Cur_Translate(&arg->pos);
+        Vu0Cur_StoreMtx(&mtx);
         EftMesh_SetMtx(w->model, &mtx);
-        func_00120AC8();
+        Vu0Cur_Pop();
         if (w->flags & EFT_ODISC_END) {
             if (!(w->flags & EFT_ODISC_SHOWN)) {
                 w->flags |= EFT_ODISC_DEAD;

@@ -164,7 +164,7 @@ typedef struct StgFogParams {
 /* Depth tone (gStgFog, gp 0x2FEC08, 0x600 bytes from the heap): an alpha look-up table indexed by depth, drawn
    over the frame with the Z buffer as an 8-bit texture. */
 typedef struct StgFog {
-    /* 0x000 */ u8 tex[0x490];  /* texture object set up by func_0010A5A0 */
+    /* 0x000 */ u8 tex[0x490];  /* texture object set up by GfxClut_InitPacket */
     /* 0x490 */ u8 *clutSrc;
     /* 0x494 */ u8 load[0x20];  /* 0x10 bytes of it are handed to Dma_AddData: loads the table */
     /* 0x4B4 */ u16 cbp;

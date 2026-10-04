@@ -12,9 +12,7 @@
  * Everything here is drawing: nothing reads a pad, the clock or a random generator.
  *
  * Four functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
- * StgPanBlur_UpdateView, StgPanBlur_DrawView, GfxPost_DrawGlow, StgDepthTint_Draw. To check the rest with
- * fdiff, turn the four `#if 0` into `#if 1` and comment the INCLUDE_ASM lines out (the 42 others print OK
- * with or without the attempts compiled).
+ * StgPanBlur_UpdateView, StgPanBlur_DrawView, GfxPost_DrawGlow, StgDepthTint_Draw.
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -28,8 +26,8 @@ extern f32 Vec3_Length(Vec4 *v);
 extern void Vu0Screen_StoreMtx(Mtx44 *dst);              /* the current world-to-screen matrix */
 extern void Mtx_ProjectInt(s32 *dst, Mtx44 *m, Vec4 *v); /* v through m, perspective divide, to integers */
 
-extern void func_0010A5A0(GfxPostClut *blk, u16 cbp); /* creates a CLUT texture block */
-extern s32 func_00109F50(s32 size);                   /* log2 of a texture size */
+extern void GfxClut_InitPacket(GfxPostClut *blk, u16 cbp); /* creates a CLUT texture block */
+extern s32 Tex_Log2Size(s32 size);                   /* log2 of a texture size */
 extern void GfxPost_DrawDepthClut(s32 mode, s32 tbp, s32 cbp, u64 alpha); /* 0x106D60, next file */
 
 /* Stage parameter file readers (stg_a). */
@@ -91,7 +89,7 @@ typedef struct GfxPostSpritePkt {
 void StgPanBlur_Init(s32 cbp) {
     gStgPanBlur = Heap_Alloc(sizeof(StgPanBlur), 0x20, 0, 2);
     memset(gStgPanBlur, 0, sizeof(StgPanBlur));
-    func_0010A5A0(&gStgPanBlur->tex, cbp);
+    GfxClut_InitPacket(&gStgPanBlur->tex, cbp);
     StgPanBlur_BuildClut(gStgPanBlur->tex.clut);
     gStgPanBlur->view[0].maxAlpha = 101.0f;
     gStgPanBlur->view[1].maxAlpha = 101.0f;
@@ -385,7 +383,7 @@ void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
     p[0] = 0;
     p[1] = GS_TEXFLUSH;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x100) << 26) | ((u64)func_00109F50(0x100) << 30) | 0x400012A00;
+    p[0] = ((u64)Tex_Log2Size(0x100) << 26) | ((u64)Tex_Log2Size(0x100) << 30) | 0x400012A00;
     p[1] = GS_TEX0_1;
     p += 2;
     p[0] = 0x116;
@@ -688,7 +686,7 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p[0] = 0;
     p[1] = GS_TEXFLUSH;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x100) << 26) | ((u64)func_00109F50(0x100) << 30) | 0x12A00;
+    p[0] = ((u64)Tex_Log2Size(0x100) << 26) | ((u64)Tex_Log2Size(0x100) << 30) | 0x12A00;
     p[1] = GS_TEX0_1;
     p += 2;
     p[0] = 0x156;
@@ -734,7 +732,7 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p[0] = 0;
     p[1] = GS_TEXFLUSH;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x80) << 26) | ((u64)func_00109F50(0x80) << 30) | 0xAE00;
+    p[0] = ((u64)Tex_Log2Size(0x80) << 26) | ((u64)Tex_Log2Size(0x80) << 30) | 0xAE00;
     p[1] = GS_TEX0_1;
     p += 2;
     p[0] = 0x156;
@@ -776,10 +774,10 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p[0] = 0x8000000064;
     p[1] = GS_ALPHA_2;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x40) << 26) | ((u64)func_00109F50(0x40) << 30) | 0x7F00;
+    p[0] = ((u64)Tex_Log2Size(0x40) << 26) | ((u64)Tex_Log2Size(0x40) << 30) | 0x7F00;
     p[1] = GS_TEX0_1;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x40) << 26) | ((u64)func_00109F50(0x40) << 30) | 0x7EC0;
+    p[0] = ((u64)Tex_Log2Size(0x40) << 26) | ((u64)Tex_Log2Size(0x40) << 30) | 0x7EC0;
     p[1] = GS_TEX0_2;
     p += 2;
     p[0] = GS_SET_CLAMP(2, 2, 0, 0x3F, 0, 0x3F);
@@ -908,7 +906,7 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p[0] = 0;
     p[1] = GS_TEXFLUSH;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x80) << 26) | ((u64)func_00109F50(0x80) << 30) | 0xAE00;
+    p[0] = ((u64)Tex_Log2Size(0x80) << 26) | ((u64)Tex_Log2Size(0x80) << 30) | 0xAE00;
     p[1] = GS_TEX0_1;
     p += 2;
     p[0] = GIF_TAG_EX(4, 0, GIF_FLG_REGLIST, 4);
@@ -948,7 +946,7 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p[0] = GS_SET_CLAMP(2, 2, 0, 0xFF, 0, 0xFF);
     p[1] = GS_CLAMP_1;
     p += 2;
-    p[0] = ((u64)func_00109F50(0x100) << 26) | ((u64)func_00109F50(0x100) << 30) | 0x12A00;
+    p[0] = ((u64)Tex_Log2Size(0x100) << 26) | ((u64)Tex_Log2Size(0x100) << 30) | 0x12A00;
     p[1] = GS_TEX0_1;
     p += 2;
     p[0] = 0;
@@ -1362,7 +1360,7 @@ void GfxPost_AddXyOffset(s32 x, s32 y) {
 void ObjOutline_Init(void) {
     gObjOutline = Heap_Alloc(sizeof(ObjOutline), 0x20, 0, 2);
     memset(gObjOutline, 0, sizeof(ObjOutline));
-    func_0010A5A0(&gObjOutline->tex, 0x3E8C);
+    GfxClut_InitPacket(&gObjOutline->tex, 0x3E8C);
     ObjOutline_BuildClut(gObjOutline->tex.clut);
 }
 
@@ -1487,7 +1485,7 @@ void StgGlare_Reset(void) {
 /* Creates the sky glare. */
 void StgGlare_Init(u16 cbp) {
     memset(&gStgGlare, 0, sizeof(StgGlare));
-    func_0010A5A0(&gStgGlare.tex, cbp);
+    GfxClut_InitPacket(&gStgGlare.tex, cbp);
     StgGlare_Reset();
 }
 
@@ -1607,7 +1605,7 @@ void StgDepthTint_Init(u16 cbp) {
 
     for (i = 0; i < 2; i++) {
         memset(&gStgDepthTint[i], 0, sizeof(StgDepthTint));
-        func_0010A5A0(&gStgDepthTint[i].tex, cbp + 4);
+        GfxClut_InitPacket(&gStgDepthTint[i].tex, cbp + 4);
     }
 }
 
@@ -1728,8 +1726,8 @@ void ObjGlow_BuildClut(void) {
 void ObjGlow_Init(void) {
     gObjGlow = Heap_Alloc(sizeof(ObjGlow), 0x20, 0, 2);
     memset(gObjGlow, 0, sizeof(ObjGlow));
-    func_0010A5A0(&gObjGlow->tex[0], 0x3E90);
-    func_0010A5A0(&gObjGlow->tex[1], 0x3E90);
+    GfxClut_InitPacket(&gObjGlow->tex[0], 0x3E90);
+    GfxClut_InitPacket(&gObjGlow->tex[1], 0x3E90);
     gObjGlow->cur = &gObjGlow->tex[gObjGlow->index];
     gObjGlow->index ^= 1;
     gObjGlow->cur = &gObjGlow->tex[gObjGlow->index];

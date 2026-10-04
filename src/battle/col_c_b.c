@@ -15,7 +15,7 @@ typedef struct FontIconCommonRes {
 extern FontIconCommonRes *gCommonRes;
 
 extern void Res_RelocateOffsets(void *out, void *res, void *base);
-extern void func_0010A480(FontIconRes *res, s32 tbp, s32 cbp); /* uploads every texture of a file */
+extern void TexFile_UploadAll(FontIconRes *res, s32 tbp, s32 cbp); /* uploads every texture of a file */
 
 extern FontIconRes *gFontIconRes;
 extern s32 gFontIconUploaded;  /* 1 once the icon textures were uploaded for the current flush */
@@ -48,7 +48,7 @@ void FontIcon_Stub23C320(void) {
 
 /* Uploads the icon textures behind the fonts' VRAM blocks. */
 void FontIcon_Upload(s32 vramBase) {
-    func_0010A480(gFontIconRes, vramBase + 0x40, vramBase);
+    TexFile_UploadAll(gFontIconRes, vramBase + 0x40, vramBase);
 }
 
 /* 1 when a box in GS coordinates lies inside the drawing area. */

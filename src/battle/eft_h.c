@@ -18,10 +18,10 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);          /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);          /* rotate about Y */
-extern void func_00122140(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);       /* clamp x, y, z */
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *pos, f32 scale); /* dst = pos + dir * scale */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);          /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);          /* rotate about Y */
+extern void Vec3_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi);       /* clamp x, y, z */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *pos, f32 scale); /* dst = pos + dir * scale */
 extern f32 EftMath_WrapAngle(f32 angle);                                   /* wrap to -pi..pi */
 extern void EftAim_GetDir(Vec4 *out, Vec4 *target, s32 objId);
 extern void EftAim_GetDirKeep(EftHSlot *slot, Vec4 *out, Vec4 *target, s32 objId);
@@ -654,14 +654,14 @@ void EftVolley_Aim(s32 objId, EftHTask *task, Vec4 *target, s32 bySlot) {
         f32 pitch;
         f32 yaw;
 
-        func_00122140(&w->dir, &w->dir, -1.0f, 1.0f);
+        Vec3_Clamp(&w->dir, &w->dir, -1.0f, 1.0f);
         pitch = Mathf_Asin(-w->dir.y);
         yaw = atan2f(w->dir.x, w->dir.z);
         pitch = EftMath_WrapAngle(pitch + 3.14159265f / 4.0f);
         yaw = EftMath_WrapAngle(yaw);
         Mtx_StoreIdentity(&m);
-        func_00120398(&m, &m, pitch);
-        func_00120428(&m, &m, yaw);
+        Mtx_RotateX(&m, &m, pitch);
+        Mtx_RotateY(&m, &m, yaw);
         Mtx_MulVec4(&w->dir, &m, (Vec4 *)&fwd);
         w->dir.w = 1.0f;
         Vec3_Normalize(&w->dir, &w->dir);
@@ -1536,7 +1536,7 @@ void EftEmit_SpawnType2(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
     EftSetDef *part = &set->parts[n];
     Vec4 p;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
@@ -1592,7 +1592,7 @@ void EftEmit_SpawnType16(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     EftSetDef *part = &set->parts[n];
     Vec4 p;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
@@ -1664,9 +1664,9 @@ void EftEmit_SpawnType17(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     Vec4 p;
     Vec4 p2;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
-    func_001225D0(&p2, dir, pos2, part->unk14 * scale);
+    Vec3_ScaleAdd(&p2, dir, pos2, part->unk14 * scale);
     p2.w = 1.0f;
     if ((flags & EFT_CMD_START) && H(n) == NULL) {
         create = 1;
@@ -1745,7 +1745,7 @@ void EftEmit_SpawnType18(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     EftSetDef *part = &set->parts[n];
     Vec4 p;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
@@ -1817,7 +1817,7 @@ void EftEmit_SpawnType14(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     EftSetDef *part = &set->parts[n];
     Vec4 p;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
@@ -1886,7 +1886,7 @@ void EftEmit_SpawnType5(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
     EftSetDef *part = &set->parts[n];
     Vec4 p;
 
-    func_001225D0(&p, dir, pos, part->unk10 * scale);
+    Vec3_ScaleAdd(&p, dir, pos, part->unk10 * scale);
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {

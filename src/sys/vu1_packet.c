@@ -29,25 +29,25 @@ extern void *memset(void *dst, s32 value, u32 size);
 extern void Vec4_Set(void *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(void *dst, void *src);
 extern void Mtx_StoreIdentity(void *m);
-extern void func_001201B8(void *dst, void *a, void *b); /* matrix product */
-extern void func_00120230(void *dst, void *src);        /* 4x4 matrix copy */
-extern void func_00120AB0(void);                        /* VU0 matrix stack: push vf16-19 */
-extern void func_00120AE0(s32 count);                   /* VU0 matrix stack: pop count */
-extern void func_00120B18(void);                        /* VU0 matrix stack: reset (vi15 = 0) */
-extern void func_00120B80(void *m);                     /* vf16-19 = m */
-extern void func_00120B98(void *m);                     /* m = vf16-19 (current local-to-world) */
-extern void func_00120C28(void *vec);                   /* applies a translation to vf16-19 */
-extern void func_001217D0(void *vec);                   /* applies a rotation to vf16-19 */
-extern void func_001212F0(void *m);                     /* m = vf20-23 */
-extern void func_00121388(void *m);                     /* m = vf24-27 */
+extern void Mtx_Mul(void *dst, void *a, void *b); /* matrix product */
+extern void Mtx_Copy(void *dst, void *src);        /* 4x4 matrix copy */
+extern void Vu0Cur_Push(void);                        /* VU0 matrix stack: push vf16-19 */
+extern void Vu0Cur_PopN(s32 count);                   /* VU0 matrix stack: pop count */
+extern void Vu0Cur_ResetStack(void);                        /* VU0 matrix stack: reset (vi15 = 0) */
+extern void Vu0Cur_LoadMtx(void *m);                     /* vf16-19 = m */
+extern void Vu0Cur_StoreMtx(void *m);                     /* m = vf16-19 (current local-to-world) */
+extern void Vu0Cur_TranslateLocal(void *vec);                   /* applies a translation to vf16-19 */
+extern void Vu0Cur_RotateYXZ(void *vec);                   /* applies a rotation to vf16-19 */
+extern void Vu0Clip_StoreMtx(void *m);                     /* m = vf20-23 */
+extern void Vu0Screen_StoreMtx(void *m);                     /* m = vf24-27 */
 
 /* Program 7 draw: current matrix, the two camera matrices and w, then the caller's vertex chain. */
 u32 *Vu1Pkt_CallProg7(u32 chain, f32 w) {
     u32 *p = Dma_Alloc(0xF0);
 
-    func_00120B98(p + 4);
-    func_00121388(p + 0x14);
-    func_001212F0(p + 0x24);
+    Vu0Cur_StoreMtx(p + 4);
+    Vu0Screen_StoreMtx(p + 0x14);
+    Vu0Clip_StoreMtx(p + 0x24);
     ((f32 *)p)[0x37] = w;
     p[0] = VU1_DMA_CALL | 0xE;
     p[1] = chain & VU1_ADDR_MASK;
@@ -66,8 +66,8 @@ u32 *Vu1Pkt_LoadProg7(void) {
 
     Dma_AddRef(D_002C2D30, D_002C3080 - D_002C2D30);
     p = Dma_Alloc(0xF0);
-    func_00121388(p + 0x14);
-    func_001212F0(p + 0x24);
+    Vu0Screen_StoreMtx(p + 0x14);
+    Vu0Clip_StoreMtx(p + 0x24);
     p[0] = VU1_DMA_CNT | 0xE;
     p[1] = 0;
     p[2] = VU1_VIF_FLUSHE;
@@ -199,9 +199,9 @@ void Vu1Pkt_LoadProg4(void *mtx) {
 
     Dma_AddRef(D_002C04F0, D_002C1180 - D_002C04F0);
     p = Dma_Alloc(0xE0);
-    func_00120230(p + 0x24, mtx);
-    func_00121388(p + 4);
-    func_001212F0(p + 0x14);
+    Mtx_Copy(p + 0x24, mtx);
+    Vu0Screen_StoreMtx(p + 4);
+    Vu0Clip_StoreMtx(p + 0x14);
     p[0] = VU1_DMA_CNT | 0xD;
     p[1] = 0;
     p[2] = VU1_VIF_FLUSHE;
@@ -216,7 +216,7 @@ void Vu1Pkt_LoadProg4(void *mtx) {
 void Vu1Pkt_CallProg5(u32 chain, void *mtx) {
     u32 *p = Dma_Alloc(0x60);
 
-    func_00120230(p + 4, mtx);
+    Mtx_Copy(p + 4, mtx);
     p[0] = VU1_DMA_CALL | 5;
     p[1] = chain & VU1_ADDR_MASK;
     p[2] = VU1_VIF_FLUSHE;
@@ -234,9 +234,9 @@ void Vu1Pkt_LoadProg5(void *mtx) {
     Dma_AddRef(D_002C1180, D_002C1F00 - D_002C1180);
     p = Dma_Alloc(0x120);
     Mtx_StoreIdentity(p + 4);
-    func_00120230(p + 0x34, mtx);
-    func_00121388(p + 0x14);
-    func_001212F0(p + 0x24);
+    Mtx_Copy(p + 0x34, mtx);
+    Vu0Screen_StoreMtx(p + 0x14);
+    Vu0Clip_StoreMtx(p + 0x24);
     p[0] = VU1_DMA_CNT | 0x11;
     p[1] = 0;
     p[2] = VU1_VIF_FLUSHE;
@@ -280,10 +280,10 @@ void Vu1Node_Animate(Vu1Node *node, Vu1Track *track, void *mtx, f32 frame) {
     s32 i;
     f32 t;
 
-    func_00120B18();
-    func_00120B80(mtx);
+    Vu0Cur_ResetStack();
+    Vu0Cur_LoadMtx(mtx);
     while (1) {
-        func_00120AB0();
+        Vu0Cur_Push();
         if (track != NULL) {
             key = track->key;
             for (i = 1; i < track->keyCount; i++) {
@@ -312,14 +312,14 @@ void Vu1Node_Animate(Vu1Node *node, Vu1Track *track, void *mtx, f32 frame) {
         }
         node->rot[3] = 1.0f;
         node->pos[3] = 1.0f;
-        func_00120B98(node->parent);
-        func_00120C28(node->pos);
-        func_001217D0(node->rot);
-        func_00120B98(node->world);
+        Vu0Cur_StoreMtx(node->parent);
+        Vu0Cur_TranslateLocal(node->pos);
+        Vu0Cur_RotateYXZ(node->rot);
+        Vu0Cur_StoreMtx(node->world);
         Vec4_Copy(node->unkD0, node->unk30);
         Vec4_Copy(node->unkE0, node->unk40);
         if (node->popCount) {
-            func_00120AE0(node->popCount);
+            Vu0Cur_PopN(node->popCount);
         }
         if (node->last) {
             break;
@@ -340,8 +340,8 @@ void Vu1Node_Draw(Vu1Node *node) {
     while (1) {
         if (node->hasMesh) {
             p = Vu1Pkt_CallProg8(node);
-            func_00120230(p + 0x14, node->parent);
-            func_00120230(p + 4, node->world);
+            Mtx_Copy(p + 0x14, node->parent);
+            Mtx_Copy(p + 4, node->world);
             Vec4_Copy(p + 0x24, node->unkD0);
             Vec4_Copy(p + 0x28, node->unkE0);
         }
@@ -405,10 +405,10 @@ void Vu1Pkt_LoadProg6(u8 *obj, void *mtx, f32 *vec) {
     Dma_AddRef(D_002C1F00, D_002C2D30 - D_002C1F00);
     p = Dma_Alloc(0x130);
     memset(p, 0, 0x130);
-    func_00120230(p + 0x24, obj + 0x100);
-    func_001201B8(p + 4, obj + 0x80, obj + 0x40);
-    func_001201B8(p + 0x14, obj + 0xC0, obj + 0x40);
-    func_00120230(p + 0x34, mtx);
+    Mtx_Copy(p + 0x24, obj + 0x100);
+    Mtx_Mul(p + 4, obj + 0x80, obj + 0x40);
+    Mtx_Mul(p + 0x14, obj + 0xC0, obj + 0x40);
+    Mtx_Copy(p + 0x34, mtx);
     Vec4_Copy(p + 0x44, vec);
     p[0] = VU1_DMA_CNT | 0x12;
     p[1] = 0;

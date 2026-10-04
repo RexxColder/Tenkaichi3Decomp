@@ -86,12 +86,12 @@ extern void Vec3_Add(void *dst, void *a, void *b);
 extern void Vec3_Scale(void *dst, void *src, f32 scale);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(void *dst, Mtx44 *m, void *src);
-extern void func_00120150(Mtx44 *dst, Mtx44 *src, void *pos);  /* translate */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about Y */
-extern void func_00120590(Mtx44 *dst, Mtx44 *src, f32 scale);  /* uniform scale */
-extern void func_00121FB8(void *dst, void *src);               /* copies a position */
-extern void func_00122140(void *dst, void *src, f32 lo, f32 hi); /* clamp x, y, z */
+extern void Mtx_Translate(Mtx44 *dst, Mtx44 *src, void *pos);  /* translate */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);  /* rotate about Y */
+extern void Mtx_ScaleDiagUniform(Mtx44 *dst, Mtx44 *src, f32 scale);  /* uniform scale */
+extern void Vec3_Copy(void *dst, void *src);               /* copies a position */
+extern void Vec3_Clamp(void *dst, void *src, f32 lo, f32 hi); /* clamp x, y, z */
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftAim_Home(void *out, void *pos, void *dir, s32 objId, f32 speed, f32 maxTurn);
 
@@ -207,7 +207,7 @@ void EftBlastObj_UpdateModel(EftOTask *task) {
     f32 yaw;
 
     Mtx_StoreIdentity(&mtx);
-    func_00120590(&mtx, &mtx, w->scale);
+    Mtx_ScaleDiagUniform(&mtx, &mtx, w->scale);
     m = &w->model;
     if (w->flags & EFT_BLASTOBJ_ANIM) {
         if (m->step < 0) {
@@ -247,11 +247,11 @@ void EftBlastObj_UpdateModel(EftOTask *task) {
         if (change) {
             EftObj_PlayAnim(m->obj, m->step, mode);
         }
-        func_00122140(&dir, &w->dir, -1.0f, 1.0f);
+        Vec3_Clamp(&dir, &w->dir, -1.0f, 1.0f);
         if (!(w->flags & EFT_BLASTOBJ_FROZEN)) {
-            func_00120398(&mtx, &mtx, EftMath_WrapAngle(Mathf_Asin(dir.y)));
+            Mtx_RotateX(&mtx, &mtx, EftMath_WrapAngle(Mathf_Asin(dir.y)));
         }
-        func_00120428(&mtx, &mtx, EftMath_WrapAngle(atan2f(dir.x, dir.z) + 3.14159265f));
+        Mtx_RotateY(&mtx, &mtx, EftMath_WrapAngle(atan2f(dir.x, dir.z) + 3.14159265f));
         Vec4_Copy(&pos, &w->pose.pos);
         if (!(w->flags & EFT_BLASTOBJ_FROZEN)) {
             EftOVec ofs = { 0.0f, 5.5f, 0.0f, 1.0f };
@@ -264,15 +264,15 @@ void EftBlastObj_UpdateModel(EftOTask *task) {
             Mtx_MulVec4(&ofs, &mtx, &ofs);
             Vec3_Add(&pos, &pos, &ofs);
         }
-        func_00120150(&mtx, &mtx, &pos);
+        Mtx_Translate(&mtx, &mtx, &pos);
     } else {
-        func_00122140(&dir, &w->dir, -1.0f, 1.0f);
+        Vec3_Clamp(&dir, &w->dir, -1.0f, 1.0f);
         pitch = Mathf_Asin(dir.y);
         yaw = atan2f(dir.x, dir.z) + 3.14159265f;
         pitch = EftMath_WrapAngle(pitch);
-        func_00120428(&mtx, &mtx, EftMath_WrapAngle(yaw));
-        func_00120398(&mtx, &mtx, pitch);
-        func_00120150(&mtx, &mtx, &w->pose.pos);
+        Mtx_RotateY(&mtx, &mtx, EftMath_WrapAngle(yaw));
+        Mtx_RotateX(&mtx, &mtx, pitch);
+        Mtx_Translate(&mtx, &mtx, &w->pose.pos);
     }
     EftObj_SetMtx(m->obj, &mtx);
     EftObj_SetVisible(m->obj, 1);
@@ -484,7 +484,7 @@ void EftBlastObj_PostUpdate(EftOTask *task) {
     }
     EftEmit_UpdateAlive(w->set, w->state);
     if ((u16)(task->result & 1)) {
-        func_00121FB8(&w->pose.pos, &task->pos);
+        Vec3_Copy(&w->pose.pos, &task->pos);
         if (!(w->flags & EFT_BLASTOBJ_STUCK)) {
             w->flags |= EFT_BLASTOBJ_STUCK;
         }

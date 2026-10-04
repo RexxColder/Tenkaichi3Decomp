@@ -1,11 +1,15 @@
 # Battle HUD
 
-Source (not linked yet): src/battle/hud_a.c (manager, 0x2187E0..0x219EB0), hud_a_b.c (team
+Source (linked): src/battle/hud_a.c (manager, 0x2187E0..0x219EB0), hud_a_b.c (team
 panel, ..0x21BCA0), hud_a_c.c (caption, ..0x21C0E0), hud_a_d.c (head of the health / ki gauge
 part, ..0x21CA60). Layouts in include/battle/hud_a.h, names in config/symbols/hud_a.txt. All 56
 functions match. Suggested final names: hud.c, hud_team.c, hud_caption.c; hud_a_d.c belongs to
 the gauge file that continues at 0x21CA60. The file split is by module, not proven object
-boundaries (the four files concatenated also match).
+boundaries (the four files concatenated also match). Linked layout: each file defines its work
+pointer (`gHud` 0x2FEB3C, `gHudTeam` 0x2FEB40, `gHudCaption` 0x2FEB44, `gHudGauge` 0x2FEB48, in
+hud_a_d.c) as `.sdata`; hud_b.c's `.sdata` is the 8-byte colour initialiser of
+`HudGauge_UpdateStatIcons` at 0x2FEB50; `.rodata` 0x2F1B30 (hud_a.c) and 0x2F1B90 (hud_b.c);
+`.lit4` 0x2FE1D8..0x2FE20C.
 
 ## Structure (verified by matching C)
 
@@ -72,8 +76,8 @@ Verified by matching C:
 - Low health flash while health <= 10000; all five ki lamps pulse at ki > 99999; the blast
   digit pulses while blast >= `BtlSide_GetBlastMax`.
 - Status icons: four, 24 px apart, 0.2 s fade-out, 0.3 s slide (1 - (1 - t)^3), 0.2 s fade-in.
-- **Correction to hud_a.h**: `gHudGauge + 0x30` is health now and `+0x28` the trailing value
-  (hud_a.h has them reversed); 0x21FA38 / 0x21FA88 are `HudGauge_ShakeHp` / `ShakeKi(u16
+- **Correction applied to hud_a.h**: `gHudGauge + 0x30` is health now (`cur.hp`) and `+0x28` the
+  trailing value (`hpShown`); the header had them reversed; 0x21FA38 / 0x21FA88 are `HudGauge_ShakeHp` / `ShakeKi(u16
   count, u16 amp)`.
 
 **Random draws (netplay hazard)**: the HUD draws from libc `rand()` through `Rand_IntRange`:

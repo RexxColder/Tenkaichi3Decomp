@@ -25,12 +25,12 @@ other three are stored as 20-bit fields scaled by sqrt(2) / 1048575; the index o
 component is in bits 60..63. `Quat_Unpack` has 10 call sites (0x24BF58, 0x24C1A8, 0x1FC1E8,
 0x1FCEF0), which look like animation key decoding (inferred).
 
-## VU0 vector routines (not decompiled)
+## VU0 vector routines
 
-About 200 small functions at 0x11FA10..0x123130 are the vector library; many use VU0 (the PS2's vector coprocessor) and are
-hand-written or inline assembly in the original. The disassembler emits several of them as raw
-words. Names so far (`Vec4_Copy`, `Vec3_Normalize`, `Vec3_Cross`, `Vec3_Dot`, `Vec3_Length`,
-`Mtx_StoreIdentity`, ...) are from call patterns and are partly guesses. `func_0011F780` and
+176 functions at 0x11FA10..0x122940 are the vector library (linked: `src/sys/vu0_a_c*.c`,
+`vu0_b_c.c`; see the two sections at the end). Well over half are hand-written VU0 (the PS2's
+vector coprocessor) assembly in the original and are carried as assembly blocks inside the C
+files. None of the four files emits data: the library's constants are reached as externs. `func_0011F780` and
 `func_0011F740` are acos and asin with the argument clamped to [-1, 1].
 
 ## Scalar helpers (`src/sys/mathf.c`; verified)
@@ -74,8 +74,9 @@ relocations, so each emitted constant has to be checked against the original dat
 
 ## Vector / matrix library, second half (0x121008..0x122940; names in config/symbols/vu0_b.txt)
 
-92 functions: 25 are compiled C and match (`src/sys/vu0_b_c.c`, not linked yet); 67 are
-hand-written VU0 code and stay assembly. Every one has an exact portable reference
+92 functions, all in `src/sys/vu0_b_c.c` (linked, no gap): 25 are compiled C and match; 67 are
+hand-written VU0 code, kept as top-level assembly blocks in that file (three as raw words:
+`Vec3_Normalize` and two others the disassembler does not decode). Every one has an exact portable reference
 implementation, `Ref_<Name>` in `src/port/vu0_b.c` (not part of the matching build; it has been
 compiled and sanity-tested on the host, not checked against a console or emulator). The full
 table "address, name, exact semantics" is in the agent notes at the top of that file.
@@ -118,7 +119,7 @@ R = 0x3F800000 | (((R << 1) | b) & 0x7FFFFF). `Vu0_Init` seeds it from 0.1234141
 
 ## Vector / matrix library, first half (0x11FA10..0x121008; names in config/symbols/vu0_a.txt)
 
-84 functions. All 84 match in three files (`src/sys/vu0_a_c*.c`, not linked yet): 36 are
+84 functions. All 84 match in three files (`src/sys/vu0_a_c*.c`, linked): 36 are
 compiled C and 48 are the original hand-written VU0 routines kept as top-level assembly blocks
 inside those files. Exact portable references are in `src/port/vu0_a.c`: each routine executes
 the original instruction sequence on a register model (vf0..31, ACC, Q, vi, flags, VU0 memory),

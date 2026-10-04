@@ -874,7 +874,7 @@ extern void EftGndDust_SpawnImpact(s32 objId, Vec4 *pos, f32 scale);
 extern void EftCharaFx_Start(FxArg2 *arg);
 extern void EftCharaFx_Stop(s32 objId);
 extern void EftImpact_SpawnHitScaled(FxPosArg *arg, f32 size);
-extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
+extern void Vec4_Lerp(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
 extern s32 BtlOpp_GetObjId(FxChr *chr);
 extern s32 BtlCharApi_IsModelNew(s32 objId);
 #define BtlMember_GetActive ((s32 *(*)(FxChr *chr))BtlMember_GetActive)
@@ -903,8 +903,8 @@ extern s32 BtlObjAnim_GetEventArg(FxObj *obj, u64 mask);
 #define BtlObjAnim_MaskToNode ((s32 (*)(s32 bits))BtlObjAnim_MaskToNode)
 #define BtlObjAnim_QueryEvent ((s32 (*)(FxObj *obj, s32 a, s32 b, s32 c))BtlObjAnim_QueryEvent)
 extern void Vec3_Normalize(Vec4 *out, Vec4 *in);
-extern void func_00122698(Vec4 *out, Vec4 *a, Vec4 *b, f32 s);
-extern void func_00122868(Vec4 *out, Vec4 *in, f32 s);
+extern void Vec3_RotateAxis(Vec4 *out, Vec4 *a, Vec4 *b, f32 s);
+extern void Vec3_RotateY(Vec4 *out, Vec4 *in, f32 s);
 extern void EftDisc_Throw(FxHitArg2 *arg);
 extern void EftDisc_SpawnFromNode(FxHitArg2 *arg);
 extern void EftKiBlast_Fire(FxHitArg2 *arg);
@@ -1170,7 +1170,7 @@ void BtlFx_SpawnClashFlash(FxChr *chr) {
     if (size > 0.0f) {
         BtlCharApi_GetNodePos(chr->objId, 3, &a);
         BtlCharApi_GetNodePos(BtlOpp_GetObjId(chr), 3, &b);
-        func_00122168(&arg.pos, &a, &b, 0.5f);
+        Vec4_Lerp(&arg.pos, &a, &b, 0.5f);
         arg.objId = chr->objId;
         arg.unk28 = 0;
         Vec4_Copy(&arg.pos2, &BtlChar_GetPos(chr)->unk80);
@@ -1420,7 +1420,7 @@ void BtlFx_FireKiBlast(FxChr *chr) {
                         dir.y = 0.0f;
                         dir.z = -hitPos.x;
                         Vec3_Normalize(&dir, &dir);
-                        func_00122698(&arg.pos, &arg.pos, &dir, d);
+                        Vec3_RotateAxis(&arg.pos, &arg.pos, &dir, d);
                     } else {
                         s32 back = 0;
 
@@ -1439,9 +1439,9 @@ void BtlFx_FireKiBlast(FxChr *chr) {
                             break;
                         }
                         if (back) {
-                            func_00122868(&arg.pos, &arg.pos, -d);
+                            Vec3_RotateY(&arg.pos, &arg.pos, -d);
                         } else {
-                            func_00122868(&arg.pos, &arg.pos, d);
+                            Vec3_RotateY(&arg.pos, &arg.pos, d);
                         }
                     }
                 }

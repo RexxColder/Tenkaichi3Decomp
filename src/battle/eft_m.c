@@ -31,9 +31,9 @@ extern f32 sqrtf(f32 x);
 extern f32 Mathf_Sin(f32 angle);
 extern f32 Mathf_Cos(f32 angle);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
-extern void func_00121E40(Vec4 *dst, f32 x, f32 y, f32 z);  /* sets x, y, z */
+extern void Vec3_Set(Vec4 *dst, f32 x, f32 y, f32 z);  /* sets x, y, z */
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -43,14 +43,14 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
 extern void Mtx_StoreIdentity(Mtx44 *m);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);          /* copy */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);          /* inverse of a rotation + translation matrix */
-extern void func_00120AB0(void);                            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
-extern void func_00120AC8(void);                            /* pop */
-extern void func_00121950(void *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);          /* copy */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);          /* inverse of a rotation + translation matrix */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
+extern void Vu0Cur_Pop(void);                            /* pop */
+extern void ClipVtx_Set(void *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col);
 extern void EftGfx_DrawPolyAvgZFront(void *prim, s32 blend, s32 a2, s32 a3, s32 inView, s32 t1, u64 tex, s32 t3);
 extern void EftTexSet_Load4(EftSpdTex *tex, s32 *entry);
 extern void EftTexSet_Keep4(EftSpdTex *tex, s32 a, s32 b);
@@ -150,11 +150,11 @@ void EftSpdLine_Stub(void) {
 
 /* Task draw: both lists under the current view's world-to-screen matrix. */
 void EftSpdLine_Draw(void) {
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     EftSpdLine_DrawTrails();
     EftSpdLine_DrawStreaks();
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Returns a zeroed free trail slot, or NULL when all 30 are in use. */
@@ -269,7 +269,7 @@ void EftSpdLine_DrawTrails(void) {
     EftSpdTrail *p;
     s32 inView;
 
-    func_00120230(&mtx, &gBtlCamView->world2screen);
+    Mtx_Copy(&mtx, &gBtlCamView->world2screen);
     for (p = gEftSpdLine->trailHead; p != NULL; p = p->next) {
         if (p->flags & 1) {
             inView = BtlScene_IsCharInView(p->objId);
@@ -387,7 +387,7 @@ void EftSpdLine_DrawStreaks(void) {
     if (gEftSpdLine->texReady == 0) {
         return;
     }
-    func_00120230(&mtx, &gBtlCamView->world2screen);
+    Mtx_Copy(&mtx, &gBtlCamView->world2screen);
     for (p = gEftSpdLine->streakHead; p != NULL; p = p->next) {
         if (p->flags & 1) {
             inView = BtlScene_IsCharInView(p->objId);
@@ -408,7 +408,7 @@ void EftSpdLine_BuildTrailQuad(Vec4 *out, EftSpdTrail *p) {
     Vec4 *dir = &p->dir;
     Vec4 *out3 = &out[3];
 
-    func_001202A0(&inv, &gBtlCamView->world2view2);
+    Mtx_InverseRT(&inv, &gBtlCamView->world2view2);
     Vec4_Copy(&eye, (Vec4 *)inv.m[3]);
     Vec4_Sub(&toEye, &eye, first);
     Vec3_Normalize(&toEye, &toEye);
@@ -441,7 +441,7 @@ void EftSpdLine_BuildStreakQuad(Vec4 *out, EftSpdStreak *p) {
     Vec4 *out3 = &out[3];
     Vec4 *dir = &p->dir;
 
-    func_001202A0(&inv, &gBtlCamView->world2view2);
+    Mtx_InverseRT(&inv, &gBtlCamView->world2view2);
     Vec4_Copy(&eye, (Vec4 *)inv.m[3]);
     Vec4_Sub(&toEye, &eye, &p->pos);
     Vec3_Normalize(&toEye, &toEye);
@@ -485,9 +485,9 @@ void EftSpdLine_DrawQuad(Vec4 *quad, Mtx44 *mtx, EftSpdTex *tex, f32 r, f32 g, f
     Vec4_Set(&col[3], r, g, b, a);
     memset(prim, 0, sizeof(prim));
     for (i = 0; i < 2; i++) {
-        func_00121950(prim[0], &pos[i], &uv[i], &col[i]);
-        func_00121950(prim[1], &pos[i + 1], &uv[i + 1], &col[i + 1]);
-        func_00121950(prim[2], &pos[i + 2], &uv[i + 2], &col[i + 2]);
+        ClipVtx_Set(prim[0], &pos[i], &uv[i], &col[i]);
+        ClipVtx_Set(prim[1], &pos[i + 1], &uv[i + 1], &col[i + 1]);
+        ClipVtx_Set(prim[2], &pos[i + 2], &uv[i + 2], &col[i + 2]);
         EftGfx_DrawPolyAvgZFront(prim, blend, 0, 0, inView, 0, tex->tex, 0);
     }
 }
@@ -526,11 +526,11 @@ void EftAura_GetSparkDirAlt(Vec4 *out, s32 objId) {
     Vec4_Scale(&vel, &vel, gEftAuraPrm->sparkVelAlt);
     kind = BtlCharApi_GetActionFxKind(objId);
     if (kind == 3) {
-        func_00121E40(out, 0.0f, 1.0f - BtlCharApi_GetFallSpeed(objId), 0.0f);
+        Vec3_Set(out, 0.0f, 1.0f - BtlCharApi_GetFallSpeed(objId), 0.0f);
     } else if (kind == 4) {
-        func_00121E40(out, 0.0f, -1.0f - BtlCharApi_GetFallSpeed(objId), 0.0f);
+        Vec3_Set(out, 0.0f, -1.0f - BtlCharApi_GetFallSpeed(objId), 0.0f);
     } else {
-        func_00121E40(out, -vel.x, gEftAuraPrm->sparkRise * RANDF(), -vel.z);
+        Vec3_Set(out, -vel.x, gEftAuraPrm->sparkRise * RANDF(), -vel.z);
     }
     out->w = 1.0f;
     Vec3_Normalize(out, out);
@@ -601,7 +601,7 @@ void EftAura_GetFlameOutDir(EftAura *aura, Vec4 *out, s32 objId, s32 part, f32 p
     from.y = aura->pos.y;
     from.x = aura->axis.x + span.x * t;
     from.z = aura->axis.z + span.z * t;
-    func_00121FB8(&d, &aura->part[part]);
+    Vec3_Copy(&d, &aura->part[part]);
     d.w = 0.0f;
     Vec4_Sub(&d, &d, &from);
     Vec3_Normalize(&d, &d);
@@ -644,7 +644,7 @@ void EftAura_GetPartOffset(EftAura *aura, Vec4 *out, s32 objId, s32 part, f32 ra
     from.y = aura->pos.y;
     from.z = aura->axis.z;
     from.w = 0.0f;
-    func_00121FB8(&d, &aura->part[part]);
+    Vec3_Copy(&d, &aura->part[part]);
     Vec3_Sub(&d, &d, &from);
     d.w = 1.0f;
     Vec3_Normalize(&d, &d);
@@ -723,7 +723,7 @@ s32 EftAura_SpawnSpark(EftAura *aura, s32 objId, s32 emitter, s32 kind, Vec4 *of
     Vec4_Set(&s->move, 0.0f, 0.0f, 0.0f, 0.0f);
     s->unk7 = 1;
     if (!(aura->flags & 0x20)) {
-        func_00121FB8(&s->color, &aura->sparkColor[color]);
+        Vec3_Copy(&s->color, &aura->sparkColor[color]);
         s->color.w = 0.0f;
         alpha = aura->sparkColor[color].w * aura->level;
         EftAura_GetSparkDir(&dir, objId);
@@ -735,7 +735,7 @@ s32 EftAura_SpawnSpark(EftAura *aura, s32 objId, s32 emitter, s32 kind, Vec4 *of
             s->speed = gEftAuraCfg->sparkSize[0][1];
         }
     } else {
-        func_00121FB8(&s->color, &aura->sparkColorAlt[color]);
+        Vec3_Copy(&s->color, &aura->sparkColorAlt[color]);
         s->color.w = 0.0f;
         alpha = aura->sparkColorAlt[color].w;
         EftAura_GetSparkDirAlt(&dir, objId);
@@ -749,7 +749,7 @@ s32 EftAura_SpawnSpark(EftAura *aura, s32 objId, s32 emitter, s32 kind, Vec4 *of
     }
     Vec4_Copy(&s->dir, &dir);
     s->dir.w = 1.0f;
-    func_00121E40(&s->colorRate, 0.0f, 0.0f, 0.0f);
+    Vec3_Set(&s->colorRate, 0.0f, 0.0f, 0.0f);
     s->colorRate.w = alpha / gEftAuraCfg->sparkFadeIn;
     Vec4_Set(&s->uv, 0.0f, 0.0f, 1.0f, 1.0f);
     s->rot = 0.0f;
@@ -1251,7 +1251,7 @@ s32 EftAura_SpawnFlames(EftAura *aura, s32 objId, s32 part, s32 once) {
         r1 = RANDF() * 0.05f + 0.3f;
         EftAura_GetPartOffset(aura, &radial, objId, part, r1, RANDF() * 0.05f + 0.3f);
         Vec4_Scale(&radial, &radial, scale);
-        func_00121FB8(&offset, &radial);
+        Vec3_Copy(&offset, &radial);
         if (aura->altMask & (1U << part)) {
             aura->altMask &= ~(1U << part);
             alt = 1;
@@ -1388,7 +1388,7 @@ void EftAura_StepFlames(EftAura *aura, s32 objId) {
                 }
                 color = &f->color;
                 Vec4_Add(color, color, &f->colorRate);
-                func_00122118(color, color, 0.0f, 1.0f);
+                Vec4_Clamp(color, color, 0.0f, 1.0f);
                 f->time -= 1.0f;
                 if (f->time <= f->endTime) {
                     if (!(f->flags & 0x10)) {
@@ -1540,7 +1540,7 @@ void EftAura_BuildFlameMtx(Mtx44 *out, Vec4 *dir, Vec4 *pos) {
         v.w = one;
     } else {
         lean = d * gEftAuraPrm->lean;
-        func_00121FB8(&v, &view);
+        Vec3_Copy(&v, &view);
         v.w = one;
     }
     Vec4_Sub(&v, dir, &v);

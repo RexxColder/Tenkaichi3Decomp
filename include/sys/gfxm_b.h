@@ -4,17 +4,11 @@
 #include "types.h"
 #include "sys/dma.h"
 #include "sys/math3d.h"
+#include "sys/gfxm_a.h"
 
-/* Screen quad worked out by GfxPostQuad_Set (neighbouring file gfxm_a; same layout as its GfxPostQuad): colour, corners in GS units, texel corners. */
-typedef struct GfxQuad {
-    /* 0x00 */ s32 r, g, b, a; /* always 0x80 */
-    /* 0x10 */ s32 x0, y0;     /* top-left, 12.4 fixed point with the XYOFFSET added */
-    /* 0x18 */ s32 x1, y1;     /* bottom-right */
-    /* 0x20 */ s32 u0, v0;     /* texel of the top-left corner, 12.4 (+8 when `half`) */
-    /* 0x28 */ s32 u1, v1;
-    /* 0x30 */ s32 w, h;       /* size, 12.4 */
-    /* 0x38 */ s32 dx, dy;     /* position, 12.4 */
-} GfxQuad; /* 0x40 */
+/* The screen quad GfxPostQuad_Set works out: the type is GfxPostQuad of sys/gfxm_a.h (the two files were written
+ * side by side with one copy each; this alias keeps this file's name for it). */
+typedef GfxPostQuad GfxQuad;
 
 /* Integer vector as Vec4_ToFixed4 writes it. */
 typedef struct IVec4 {
@@ -49,7 +43,7 @@ typedef struct GfxLensCam {
     /* 0xC40 */ GfxLensView *view;
 } GfxLensCam;
 
-/* Work of a CLUT built at run time by func_0010A5A0 (0x4C0 bytes). */
+/* Work of a CLUT built at run time by GfxClut_InitPacket (0x4C0 bytes). */
 typedef struct GfxClutWork {
     /* 0x000 */ u8 packet[0x490]; /* upload packet: headers + 0x400 bytes of CLUT */
     /* 0x490 */ u8 *clut;         /* the CLUT inside `packet` */

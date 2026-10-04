@@ -33,9 +33,9 @@ typedef struct EftVec16 {
 extern s32 StgTint_IsOn(s32 idx);
 extern s32 BtlScene_IsSingleView(void);
 extern s32 BtlScene_IsSecondView(void);
-extern s32 func_00121A10(EftSurfVtxD *poly, Vec4 *plane, s32 count); /* clips a polygon in place, returns the new count */
-extern void func_00121D48(EftIVec *scr, EftFVec *st, EftSurfVtxD *poly, s32 count); /* projects; st = s/w, t/w, 1/w */
-extern void func_001220F0(s32 *dst, Vec4 *src); /* float vector to integer vector */
+extern s32 ClipPoly_ClipPlane(EftSurfVtxD *poly, Vec4 *plane, s32 count); /* clips a polygon in place, returns the new count */
+extern void ClipPoly_ProjectCur(EftIVec *scr, EftFVec *st, EftSurfVtxD *poly, s32 count); /* projects; st = s/w, t/w, 1/w */
+extern void Vec4_ToInt(s32 *dst, Vec4 *src); /* float vector to integer vector */
 
 /* GS XYZF2 register. */
 typedef struct EftXyzf {
@@ -177,11 +177,11 @@ void EftSurf_DrawPolyOtClipped(EftSurfVtxD *poly, s32 unused, u64 *tex, Vec4 *fo
     s32 abe = 1;
 
     for (k = 4; k >= 0; k--) {
-        count = func_00121A10(poly, plane, count);
+        count = ClipPoly_ClipPlane(poly, plane, count);
         plane++;
     }
     if (count != 0) {
-        func_00121D48(scr, st, poly, count);
+        ClipPoly_ProjectCur(scr, st, poly, count);
         for (k = 2; k < count; k++) {
             c0 = &poly[0].col;
             c1 = &poly[k - 1].col;
@@ -308,7 +308,7 @@ void EftSurf_DrawTriOt(EftSurfVtxD *tri, s32 unused, u64 *tex, Vec4 *fog, s32 zB
     Vec4 *c2;
     s32 abe = 1;
 
-    func_00121D48(scr, st, tri, 3);
+    ClipPoly_ProjectCur(scr, st, tri, 3);
     if (EftSurf_IsOffScreen(scr[0]) && EftSurf_IsOffScreen(scr[1]) && EftSurf_IsOffScreen(scr[2])) {
         return;
     }
@@ -435,12 +435,12 @@ void EftSurf_DrawTriDirect(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Ve
     if (blend < 0) {
         abe = 0;
     }
-    func_001220F0(col[0], col0);
-    func_001220F0(col[1], col1);
-    func_001220F0(col[2], col2);
-    func_001220F0(col[3], col0);
-    func_001220F0(col[4], col1);
-    func_001220F0(col[5], col2);
+    Vec4_ToInt(col[0], col0);
+    Vec4_ToInt(col[1], col1);
+    Vec4_ToInt(col[2], col2);
+    Vec4_ToInt(col[3], col0);
+    Vec4_ToInt(col[4], col1);
+    Vec4_ToInt(col[5], col2);
     col[3][3] = (f32)col[3][3] * fog[0].w;
     col[4][3] = (f32)col[4][3] * fog[1].w;
     col[5][3] = (f32)col[5][3] * fog[2].w;

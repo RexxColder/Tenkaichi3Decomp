@@ -1,11 +1,13 @@
 # Menu support code in the main executable (0x25C2A8..0x2600B0)
 
-Source (not linked yet): src/battle/view_a.c .. view_a_f.c, include/battle/view_a.h, names in
+Source (linked): src/battle/view_a.c .. view_a_e.c, include/battle/view_a.h, names in
 config/symbols/view_a.txt (all marked guess). 80 functions, 77 match; `Num_DrawEx`,
 `ChrGrid_Build` and `BgmList_ApplyUnlocks` (view_a_e.c) are INCLUDE_ASM with attempts. None of
 this is battle code: it is called almost entirely from the menu overlay DBZP.BIN. Suggested
 final names: menu/get_win.c, msg_win.c, icon_win.c, chr_view.c, menu_util.c, text_box.c.
-view_a_e.c + view_a_f.c are one object that continues past 0x2600B0 (rodata alignment).
+view_a_e.c is one object that continues past 0x2600B0: the TextBox head (written as view_a_f.c)
+was merged into it at link time, because as two files the powers-of-ten table landed at 0x2F3248
+instead of 0x2F3250 (the object's read-only data is 16-byte aligned by TextBox_Init's jump table).
 
 | File | Range | Module |
 |---|---|---|
@@ -13,8 +15,7 @@ view_a_e.c + view_a_f.c are one object that continues past 0x2600B0 (rodata alig
 | view_a_b.c | ..0x25D290 | `MsgWin`: message window sliding in from left or right |
 | view_a_c.c | ..0x25D468 | `IconWin`: window with an icon |
 | view_a_d.c | ..0x25DE68 | `ChrView`: character model viewer |
-| view_a_e.c | ..0x25FE00 | `Progress_*`, `FlashAnim_*`, `Num_*`, `ChrGrid_*`, `StgGrid_*`, `BgmList_*` |
-| view_a_f.c | ..0x2600B0 | `TextBox`: head of the text box module |
+| view_a_e.c | ..0x2600B0 | `Progress_*`, `FlashAnim_*`, `Num_*`, `ChrGrid_*`, `StgGrid_*`, `BgmList_*`; from 0x25FE00 `TextBox`: head of the text box module |
 
 Verified by matching C:
 - **Character viewer**: reuses the battle object, stage, scene and ordering-table modules
@@ -42,7 +43,9 @@ Inferred (from the non-matching attempts or names): `ChrGrid_Build` filters by
 `bgmBits` gates a 25-entry list; what `GetWin` kinds 0, 1, 7, 8, 9 announce; `TextBox` field
 meanings.
 
-For linking: each file's global pointer (`gGetWin` 0x2FF0D0, `gMsgWin` 0x2FF0D8, `gIconWin`
-0x2FF0F0, `gChrView` 0x2FF108, `gProgress` 0x2FF10C) must be defined `= NULL` at the top of
-its file to reproduce `.sdata`; sys/loading.c declares `Num_ToDigits` with the wrong return
-type.
+Linked layout: each file defines its global pointer `= NULL` (`gGetWin` 0x2FF0D0, `gMsgWin`
+0x2FF0D8, `gIconWin` 0x2FF0F0, `gChrView` 0x2FF108, `gProgress` 0x2FF10C), which with the short
+label strings reproduces `.sdata` 0x2FF0D0..0x2FF110; `.rodata` 0x2F30E0 (view_a.c), 0x2F3218
+(view_a_b.c), 0x2F3250 (view_a_e.c); `.lit4` 0x2FE7A4 (view_a_d.c). `Num_ToDigits` and
+`Res_RelocateOffsets` return nothing; the declarations in sys/loading.c and the window files
+were corrected.

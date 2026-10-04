@@ -49,7 +49,7 @@ Movie_CbVideoData = 0x00125F98; // type:func
 Movie_CbNoData = 0x001260A8; // type:func
 Movie_CbBackground = 0x001261D8; // type:func
 Movie_CbError = 0x00126238; // type:func
-// CRI calls left unnamed: 0x26B580(adxf) = locked wrapper around the function config names ADXF_Tell (0x26B5B8), returns
+// CRI calls: ADXF_Tell 0x26B580(adxf) = locked wrapper around adxf_Tell (0x26B5B8), returns
 // the file position in sectors; 0x277A70(adxt) = locked wrapper around 0x277AA8, non-zero while the player's stream
 // is reading (inferred from use: a video read is only started when it returns 0).
 // 0x126240(full): full != 0 -> the filled read buffer with the lowest sequence number (waiting until the disc read that

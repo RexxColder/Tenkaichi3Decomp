@@ -32,17 +32,17 @@ extern f32 Mathf_Sin(f32 a);
 extern f32 Mathf_Cos(f32 a);
 
 /* dst = 0. */
-extern void func_00121E20(Vec4 *dst);
+extern void Vec4_SetZero(Vec4 *dst);
 /* Inverse of a rotation + translation matrix. */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);
 /* Matrix product into the first argument. */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);
 /* dst = lerp(a, b, t). */
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);
 /* Rotations of a vector: about an axis vector, about x, about y. */
-extern void func_00122698(Vec4 *dst, Vec4 *src, Vec4 *axis, f32 angle);
-extern void func_00122790(Vec4 *dst, Vec4 *src, f32 angle);
-extern void func_00122868(Vec4 *dst, Vec4 *src, f32 angle);
+extern void Vec3_RotateAxis(Vec4 *dst, Vec4 *src, Vec4 *axis, f32 angle);
+extern void Vec3_RotateX(Vec4 *dst, Vec4 *src, f32 angle);
+extern void Vec3_RotateY(Vec4 *dst, Vec4 *src, f32 angle);
 /* Named "light direction" in stg_b.c; the chains use it as a wind vector whose w is the strength. */
 extern s32 BtlStage_GetLightDir(Vec4 *out);
 
@@ -214,10 +214,10 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (node == NULL) {
         return;
     }
-    func_001202A0(&inv, parent);
-    func_00121E20(&pull);
-    func_00121E20(&vel);
-    func_00121E20(&force);
+    Mtx_InverseRT(&inv, parent);
+    Vec4_SetZero(&pull);
+    Vec4_SetZero(&vel);
+    Vec4_SetZero(&force);
     if (link->parent == NULL) {
         BtlObj_GetNodeVelocity(obj, id, &tmp);
         tmp.w = 0.0f;
@@ -229,7 +229,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Vec4_Add(&vel, &vel, &tmp);
     len = Vec3_Length(&vel);
     if (1388.8888f / fps < len) {
-        func_00121E20(&vel);
+        Vec4_SetZero(&vel);
     }
     Vec4_Sub(&pull, &pull, &vel);
     BtlStage_GetLightDir(&wind);
@@ -291,7 +291,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (limA < ang) {
         ang = limA;
     }
-    func_00122698(&force, &force, &side, ang);
+    Vec3_RotateAxis(&force, &force, &side, ang);
     sum = 0.0f;
     sum += Mathf_Sin(link->swing[2]);
     ang = sum * k;
@@ -301,7 +301,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (limB < ang) {
         ang = limB;
     }
-    func_00122868(&force, &force, ang);
+    Vec3_RotateY(&force, &force, ang);
     Vec4_Add(&pull, &pull, &force);
     pull.w = 0.0f;
     pull.y += gravity;
@@ -331,10 +331,10 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     angle[1] = atan2f(dir.z, dir.y);
     t = BObjChainB_WrapAngle(angle[1] - angle[0]);
     if (t < yawMax) {
-        func_00122790(&dir, &dir, yawMax - t);
+        Vec3_RotateX(&dir, &dir, yawMax - t);
     }
     if (yawMin < t) {
-        func_00122790(&dir, &dir, yawMin - t);
+        Vec3_RotateX(&dir, &dir, yawMin - t);
     }
     lo = Mathf_Sin(-0.1f);
     hi = Mathf_Sin(0.1f);
@@ -351,7 +351,7 @@ void BObjChainB_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Vec4_Copy((Vec4 *)&link->rot, (Vec4 *)&rot);
     node->flags &= ~1;
     Quat_ToMtx(&mtx, &rot);
-    func_001201B8(out, parent, &mtx);
+    Mtx_Mul(out, parent, &mtx);
 }
 /* The function's 28 float constants, 0x2FE698..0x2FE708, in the middle of this file's pool. */
 
@@ -576,10 +576,10 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (node == NULL) {
         return;
     }
-    func_001202A0(&inv, parent);
-    func_00121E20(&pull);
-    func_00121E20(&vel);
-    func_00121E20(&force);
+    Mtx_InverseRT(&inv, parent);
+    Vec4_SetZero(&pull);
+    Vec4_SetZero(&vel);
+    Vec4_SetZero(&force);
     if (link->parent == NULL) {
         BtlObj_GetNodeVelocity(obj, id, &tmp);
         tmp.w = 0.0f;
@@ -591,7 +591,7 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Vec4_Add(&vel, &vel, &tmp);
     len = Vec3_Length(&vel);
     if (1388.8888f / fps < len) {
-        func_00121E20(&vel);
+        Vec4_SetZero(&vel);
     }
     Vec4_Sub(&pull, &pull, &vel);
     BtlStage_GetLightDir(&wind);
@@ -653,7 +653,7 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (swingMax < ang) {
         ang = swingMax;
     }
-    func_00122698(&force, &force, &side, ang);
+    Vec3_RotateAxis(&force, &force, &side, ang);
     sum = 0.0f;
     sum += Mathf_Sin(link->swing[2]);
     ang = sum * k;
@@ -663,9 +663,9 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     if (swingMax < ang) {
         ang = swingMax;
     }
-    func_00122868(&force, &force, ang);
+    Vec3_RotateY(&force, &force, ang);
     Vec4_Add(&pull, &pull, &force);
-    func_00122168(&link->offset, &vel, &link->offset, damping);
+    Vec4_Lerp(&link->offset, &vel, &link->offset, damping);
     Vec4_Scale(&tmp, &link->offset, inertia);
     Vec4_Add(&pull, &pull, &tmp);
     pull.w = 0.0f;
@@ -743,7 +743,7 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Vec4_Copy((Vec4 *)&link->rot, (Vec4 *)&rot);
     node->flags &= ~1;
     Quat_ToMtx(&mtx, &rot);
-    func_001201B8(out, parent, &mtx);
+    Mtx_Mul(out, parent, &mtx);
 }
 #endif
 INCLUDE_ASM("asm/nonmatchings/battle/bobj_b_b", BObjChainA_Step);

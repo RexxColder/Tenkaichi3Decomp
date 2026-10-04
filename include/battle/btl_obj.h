@@ -283,7 +283,7 @@ typedef struct BtlObjLight {
     /* 0x00 */ Vec4 dir;     /* unit vector */
     /* 0x10 */ Vec4 half;    /* normalize((dir + {0, -1.6, 0, 1}) * 0.5) */
     /* 0x20 */ Vec4 color;   /* 10, 10, 10, 32 at init; 10, 10, 40, 64 or the stage's bytes during a battle */
-    /* 0x30 */ void *res;    /* table inside common file 2 (gCommonRes->data[0]), searched by func_0010A218 */
+    /* 0x30 */ void *res;    /* table inside common file 2 (gCommonRes->data[0]), a texture file (TexFile_UploadOne uploads from it) */
     /* 0x34 */ u8 unk34[0xC];
 } BtlObjLight; /* size 0x40 */
 
@@ -339,8 +339,8 @@ void BtlObjLight_GetDir(Vec4 *out);
 void BtlObjLight_GetHalf(Vec4 *out);
 void BtlObjLight_SetColor(Vec4 *color);
 void BtlObjLight_GetColor(Vec4 *out);
-s32 BtlObjLight_FindRes0(void);
-s32 BtlObjLight_FindRes1(s32 key);
+void BtlObjLight_FindRes0(void);
+void BtlObjLight_FindRes1(s32 key);
 
 BtlObjPoolE0Work *BtlObjPoolE0_Get(void);
 void BtlObjPoolE0_Init(void);

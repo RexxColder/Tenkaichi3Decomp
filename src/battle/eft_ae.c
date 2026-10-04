@@ -94,9 +94,9 @@ typedef struct EftAeClipVtx {
     /* 0x20 */ Vec4 col;
 } EftAeClipVtx; /* 0x30 */
 
-extern void func_00121990(EftAeClipVtx *out, Vec4 *pos, Vec4 *uv, Vec4 *color, s32 n); /* n clip vertices */
-extern s32 func_00121A10(EftAeClipVtx *poly, Vec4 *plane, s32 count);   /* clips in place, new count */
-extern void func_00121D48(EftAeScr *scr, Vec4 *stq, EftAeClipVtx *poly, s32 count); /* projects */
+extern void ClipVtx_SetArray(EftAeClipVtx *out, Vec4 *pos, Vec4 *uv, Vec4 *color, s32 n); /* n clip vertices */
+extern s32 ClipPoly_ClipPlane(EftAeClipVtx *poly, Vec4 *plane, s32 count);   /* clips in place, new count */
+extern void ClipPoly_ProjectCur(EftAeScr *scr, Vec4 *stq, EftAeClipVtx *poly, s32 count); /* projects */
 extern void EftGfx_UpdateClipPlanes(void);
 extern Vec4 *EftGfx_GetClipPlanes(void);
 
@@ -127,17 +127,17 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(EftAeMtx *m);
 extern void Mtx_MulVec4(Vec4 *dst, EftAeMtx *m, Vec4 *v);
-extern void func_001201B8(EftAeMtx *dst, EftAeMtx *a, EftAeMtx *b);   /* matrix product */
-extern void func_001202A0(EftAeMtx *dst, EftAeMtx *src);             /* transpose (inverse of a rotation) */
-extern void func_00120508(EftAeMtx *dst, EftAeMtx *src, Vec4 *rot);  /* rotate by three angles */
-extern void func_00120558(EftAeMtx *dst, EftAeMtx *src, Vec4 *scale); /* scale */
-extern void func_00120AB0(void);                                     /* VU0 matrix stack push */
-extern void func_00120B80(EftAeMtx *m);                              /* load the matrix */
-extern void func_00120AC8(void);                                     /* pop */
-extern s32 func_001210D8(EftAeScr *out, Vec4 *pos);                  /* project to GS screen coordinates */
-extern void func_00121F08(Vec4 *dst, Vec4 *a, Vec4 *b);              /* per-component product */
-extern void func_00122168(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);       /* interpolate a..b */
-extern void func_00122190(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);       /* interpolate b..a */
+extern void Mtx_Mul(EftAeMtx *dst, EftAeMtx *a, EftAeMtx *b);   /* matrix product */
+extern void Mtx_InverseRT(EftAeMtx *dst, EftAeMtx *src);             /* transpose (inverse of a rotation) */
+extern void Mtx_RotateXYZ(EftAeMtx *dst, EftAeMtx *src, Vec4 *rot);  /* rotate by three angles */
+extern void Mtx_ScaleDiag(EftAeMtx *dst, EftAeMtx *src, Vec4 *scale); /* scale */
+extern void Vu0Cur_Push(void);                                     /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(EftAeMtx *m);                              /* load the matrix */
+extern void Vu0Cur_Pop(void);                                     /* pop */
+extern s32 Vu0Cur_ProjectPoint(EftAeScr *out, Vec4 *pos);                  /* project to GS screen coordinates */
+extern void Vec4_Mul(Vec4 *dst, Vec4 *a, Vec4 *b);              /* per-component product */
+extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);       /* interpolate a..b */
+extern void Vec3_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t);       /* interpolate b..a */
 extern f32 EftMath_WrapAngle(f32 a);
 extern void EftVram_Upload(EftAeTex *tex, s32 imageBlock, s32 clutBlock);
 
@@ -355,8 +355,8 @@ void EftSprAnim_Draw(EftSprAnim *anim) {
     Mtx_StoreIdentity(&oriented);
     Mtx_StoreIdentity(&billboard);
     ok = EftSprAnim_BuildMatrices(anim, &oriented, &billboard);
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     pack = EftSprPack_Get(anim->pack);
     st = anim->slot->layer;
     for (; i < pack->layerCount; i++) {
@@ -391,7 +391,7 @@ void EftSprAnim_Draw(EftSprAnim *anim) {
             st++;
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/battle/eft_ae", EftSprAnim_Draw);
@@ -559,13 +559,13 @@ s32 EftSprAnim_BuildMatrices(EftSprAnim *anim, EftAeMtx *oriented, EftAeMtx *bil
     Mtx_StoreIdentity(&dirM);
     Mtx_StoreIdentity(&m);
     EftSprAnim_BuildDirMtx(&dirM, &anim->dir);
-    func_00120558(&scaleM, &scaleM, &anim->scale);
-    func_001201B8(&m, &dirM, &scaleM);
+    Mtx_ScaleDiag(&scaleM, &scaleM, &anim->scale);
+    Mtx_Mul(&m, &dirM, &scaleM);
     *oriented = m;
     oriented->m[3][0] = oriented->m[3][1] = oriented->m[3][2] = 0.0f;
-    func_001202A0(billboard, &gBtlCamView->view);
+    Mtx_InverseRT(billboard, &gBtlCamView->view);
     billboard->m[3][0] = billboard->m[3][1] = billboard->m[3][2] = 0.0f;
-    func_001201B8(billboard, billboard, &scaleM);
+    Mtx_Mul(billboard, billboard, &scaleM);
     return 1;
 }
 
@@ -612,9 +612,9 @@ void EftSprAnim_DrawLayerAt(EftAeMtx *m, EftAeMtx *oriented, Vec4 *objPos, EftSp
         return;
     }
     t = EftSprPack_GetKeyT(def, frame, key);
-    func_00122190(&pos, &def->keys[key + 1].pos, &def->keys[key].pos, t);
-    func_00122190(&rot, &def->keys[key + 1].rot, &def->keys[key].rot, t);
-    func_00122190(&scale, &def->keys[key + 1].scale, &def->keys[key].scale, t);
+    Vec3_Lerp(&pos, &def->keys[key + 1].pos, &def->keys[key].pos, t);
+    Vec3_Lerp(&rot, &def->keys[key + 1].rot, &def->keys[key].rot, t);
+    Vec3_Lerp(&scale, &def->keys[key + 1].scale, &def->keys[key].scale, t);
     k = (EftSprKey *)((key << 6) + (u32)def->keys);
     kn = k + 1;
     ca.x = kn->color[0];
@@ -625,8 +625,8 @@ void EftSprAnim_DrawLayerAt(EftAeMtx *m, EftAeMtx *oriented, Vec4 *objPos, EftSp
     cb.y = k[0].color[1];
     cb.z = k[0].color[2];
     cb.w = k[0].color[3];
-    func_00122168(&col, &ca, &cb, t);
-    func_00121F08(&col, &col, color);
+    Vec4_Lerp(&col, &ca, &cb, t);
+    Vec4_Mul(&col, &col, color);
     if (def->flags & (EFT_SPR_LAYER_JITTER_XY | EFT_SPR_LAYER_JITTER_X | EFT_SPR_LAYER_JITTER_Y)) {
         EftSprAnim_Jitter(&scale, def, frame, rand1, rand2);
     }
@@ -637,9 +637,9 @@ void EftSprAnim_DrawLayerAt(EftAeMtx *m, EftAeMtx *oriented, Vec4 *objPos, EftSp
     rot.y = EftMath_WrapAngle(rot.y * 3.14159265f / 180.0f);
     rot.z = EftMath_WrapAngle(rot.z * 3.14159265f / 180.0f);
     Mtx_StoreIdentity(&local);
-    func_00120558(&local, &local, &scale);
-    func_00120508(&local, &local, &rot);
-    func_001201B8(&world, m, &local);
+    Mtx_ScaleDiag(&local, &local, &scale);
+    Mtx_RotateXYZ(&local, &local, &rot);
+    Mtx_Mul(&world, m, &local);
     Mtx_MulVec4(&center, oriented, &pos);
     Vec3_Add(&center, &center, objPos);
     Vec4_Set(&corner[0], -5.0f, -5.0f, 0.0f, 1.0f);
@@ -688,7 +688,7 @@ void EftSprAnim_DrawLayerAt(EftAeMtx *m, EftAeMtx *oriented, Vec4 *objPos, EftSp
             }
         }
     }
-    func_001210D8(&scr, &center);
+    Vu0Cur_ProjectPoint(&scr, &center);
     z = scr.z >> 8;
     if (mode == 2) {
         z = 0xFFF;
@@ -820,7 +820,7 @@ void EftSprAnim_SetGridUv(Vec4 *uv, s32 grid, s32 cell) {
  * same inlined code, read from the disassembly and reproduced by the attempt below except for register
  * allocation and the order of a few constant loads:
  *   - a triangle (three corners with uv and colour) is clipped against the five planes of the view
- *     (EftGfx_UpdateClipPlanes / GetClipPlanes, func_00121A10), projected (func_00121D48) and written as a fan;
+ *     (EftGfx_UpdateClipPlanes / GetClipPlanes, ClipPoly_ClipPlane), projected (ClipPoly_ProjectCur) and written as a fan;
  *   - each fan triangle is skipped when its three alphas are 0 or less; every projected z is capped at 0xFFFFFF;
  *   - the packet (0x90 bytes at gOtCur) is one gouraud textured alpha-blended triangle between CLAMP = 5 (clamp s
  *     and t) and CLAMP = 0: GIF tag of 14 registers PRIM, TEX0, CLAMP, 3 x (RGBAQ, ST, XYZF2), CLAMP, NOP; the
@@ -938,13 +938,13 @@ static inline void EftSprAnim_DrawTriClip(EftAeClipVtx *poly, s32 otLayer, s32 z
     EftGfx_UpdateClipPlanes();
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        n = func_00121A10(poly, plane, n);
+        n = ClipPoly_ClipPlane(poly, plane, n);
         plane++;
     }
     if (n != 0) {
         s8 ctx;
 
-        func_00121D48(scr, stq, poly, n);
+        ClipPoly_ProjectCur(scr, stq, poly, n);
         ctx = otLayer >= 2;
         for (i = 2; i < n; i++) {
             if (scr[0].z > 0xFFFFFF) {
@@ -969,7 +969,7 @@ void EftSprAnim_DrawQuad(u64 tex0, Vec4 *corner, Vec4 *uv, Vec4 *color, s32 otLa
 
     memset(poly, 0, sizeof(poly));
     for (j = 0; j < 2; j++) {
-        func_00121990(poly, &corner[j], &uv[j], &color[j], 3);
+        ClipVtx_SetArray(poly, &corner[j], &uv[j], &color[j], 3);
         EftSprAnim_DrawTriClip(poly, otLayer, z, tex0, mode);
     }
 }
@@ -1021,7 +1021,7 @@ void EftSprAnim_DrawQuadSubdiv(u64 tex0, Vec4 *corner, Vec4 *uv, Vec4 *color, s3
             subUv[k].w = 1.0f;
         }
         for (j = 0; j < 2; j++) {
-            func_00121990(poly, &sub[j], &subUv[j], &color[j], 3);
+            ClipVtx_SetArray(poly, &sub[j], &subUv[j], &color[j], 3);
             EftSprAnim_DrawTriClip(poly, otLayer, z, tex0, mode);
         }
     }

@@ -122,7 +122,7 @@ see netplay_notes.md.
 
 ## Text printer and button icons (`col_c.c`, `col_c_b.c`, 0x239EA0..0x23D1E8; verified unless marked)
 
-122 of 124 functions match per function; not linked yet. The source file really starts at
+122 of 124 functions matched when first reported; linked since (docs/open_questions.md lists what is still assembly). The source file really starts at
 0x239BB0 (five helpers at the end of the neighbouring col_b file). Drawing only: no random
 draws, no pad, camera or sound input.
 
@@ -146,15 +146,15 @@ draws, no pad, camera or sound input.
   `Font_GetCmdCount` / `Font_Flush`; the "unidentified inits" at boot, `func_00239FF0` and
   `func_0023D0E0`, are `Font_Init` and `FontIcon_Init`; `func_0023D160` is `FontIcon_Tick`.
 
-## Confirmation dialog (0x268248..0x269228; src/sys/lib_a.c, not linked yet; names in config/symbols/lib_a.txt)
+## Confirmation dialog (0x268248..0x269228; src/sys/dialog.c, linked; names in config/symbols/dialog.txt)
 
 A two-choice confirmation window ("Yes / No"), one instance, `gDialog` at 0x2FF160 (0x8C bytes
-on heap 2). 18 of 19 functions match; `Dialog_SetCursor` differs in registers only. The
-`Dialog_` prefix is our choice. Proper file name: `src/sys/dialog.c`.
+on heap 2). 18 of 19 functions match; `Dialog_SetCursor` differs in registers only and is
+INCLUDE_ASM. The `Dialog_` prefix is our choice. The file was written as `lib_a.c`.
 
 - (verified) It is a UI animation object with clips `mc_dummy_text_1..4` (text anchors) and
   `mc_menu_plate_1/2` (the two choices), and labels `fl_window_{s,l}_{in,out,open}`,
-  `fl_on_start`, `fl_off_start`, `fl_ok`. Struct layout in include/sys/lib_a.h.
+  `fl_on_start`, `fl_off_start`, `fl_ok`. Struct layout in include/sys/dialog.h.
 - (verified) `Dialog_Input` returns 1 for the first choice, -2 for the second, -1 for cancel,
   0 otherwise. Pad: game-button repeat bits 1 / 2 move the cursor, pressed 0x200 confirms,
   pressed 0x400 cancels. Blocked while `gProgress->flags & 0x100`, while the window is not
@@ -168,10 +168,12 @@ on heap 2). 18 of 19 functions match; `Dialog_SetCursor` differs in registers on
 - Original oddities kept in the matching C: `Dialog_DrawBody` reads its text from the title
   table, not the caller's message table; `Dialog_Term` uses the animation before its NULL
   check.
-- For linking: `gDialog` must be defined as initialised data (it sits in `.sdata` before
-  `"fl_ok"`); `.rodata` at 0x2F35B0, size 0x145; `Snd_PlaySe` must be declared `void` here.
+- Linked layout: `gDialog` is defined in dialog.c as initialised data (`.sdata` 0x2FF160, before
+  `"fl_ok"`); `.rodata` at 0x2F35B0, size 0x145. `"fl_on_start"` (0x2F3640) and `"fl_off_start"`
+  (0x2F36E8) are the named objects `gDialogLabelOnStart` / `gDialogLabelOffStart`, defined where
+  the string pool has them, because the assembly of `Dialog_SetCursor` refers to them by symbol.
 
-## Post-process passes (0x102F28..0x106D60; src/sys/gfxm_a.c, not linked yet; names in config/symbols/gfxm_a.txt)
+## Post-process passes (0x102F28..0x106D60; src/sys/gfxm_a.c, linked; names in config/symbols/gfxm_a.txt)
 
 46 functions, 42 match; `GfxPost_DrawGlow`, `StgPanBlur_DrawView`, `StgPanBlur_UpdateView` and
 `StgDepthTint_Draw` are INCLUDE_ASM with attempts (instruction-level differences only). The
@@ -197,10 +199,12 @@ include/sys/gfxm_a.h. Suggested final name: sys/gfx_post.c (with gfxm_b).
   a, three (x, z) byte pairs of curve keys.
 - No pad, clock or random draw; reads the camera and `Battle_IsSplitScreen`;
   `BATTLE_FLAG_PAUSE` freezes the pan blur update. Nothing feeds back into the simulation.
-- For linking: `GfxPostQuad` duplicates `GfxQuad` of include/sys/gfxm_b.h; stg_c.c / btl_obj.c
-  declare some of these with other argument types (the definitions here are what match).
+- Linked: the file emits no data of its own. `GfxQuad` of include/sys/gfxm_b.h is now an alias of
+  `GfxPostQuad`. The declarations in stg_c.c (`StgGlare_Init`, `StgDepthTint_Init`,
+  `GfxDepthFog_Init` take a `u16` block; `GfxPost_DrawDepthClut`'s alpha is `u64`) were corrected
+  to the definitions; the callers still match.
 
-## Screen passes, texture files, movie data (0x106D60..0x10AD58; src/sys/gfxm_b.c, gfxm_b_b.c, gfxm_b_c.c; not linked yet; names in config/symbols/gfxm_b.txt)
+## Screen passes, texture files, movie data (0x106D60..0x10AD58; src/sys/gfxm_b.c, gfxm_b_b.c, gfxm_b_c.c; linked; names in config/symbols/gfxm_b.txt)
 
 63 functions, 53 match; 10 are INCLUDE_ASM with attempts (`GfxPost_DrawTintRect`,
 `GfxLens_DrawAll`, `GfxLens_PutCapture`, `GfxWater_DrawView`, `GfxWater_Draw`,
@@ -215,7 +219,9 @@ Depth-buffer tricks (verified):
   through a 256-entry CLUT over the screen (16 strips of 32x448).
 - Depth fog (`GfxDepthFog_*`, name inferred): CLUT black with alpha 255 - index, indexed by the
   high depth bits. Alpha key (`GfxAlphaKey_*`, purpose inferred): pixels whose frame alpha is
-  0xF4..0xFE get a wash of one of eleven fixed colours.
+  0xF4..0xFE get a wash of one of eleven fixed colours (table at 0x2EB710, RGB: 3F3FFF, 8000FF,
+  FFFF20, FF0000, 00FF00, 54FDFF, FF00FF, 4000FF, FFFF20, FFFF2A, FFFF34; the first C version had
+  five entries wrong, found only by the image compare).
 - Lenses (`GfxLens_*`, use unknown): 8 slots that distort a captured copy of the screen around
   a world point; nothing in the decompiled code starts one.
 - Underwater wobble (`GfxWater_*`): when the camera is under the stage's water level the view
@@ -227,7 +233,8 @@ Texture files (verified): count at +0, entry-table offset in words at +4, 0x40-b
 (`TexEntry`: pixel / CLUT offsets, sizes, block steps, BITBLTBUF bits, TEX0, pointers);
 `Res_RelocateOffsets(&file, base, hdr)` returns nothing. Uploads queue the 0x30-byte packet at
 0x2C3410 then a DMA REF to the entry's ready packet. `TexFile_UploadOne(file, index, tbp,
-cbp)` (0x10A218; btl_obj.c's older declaration and comment are wrong), `Tex_Upload` (0x10A288;
+cbp)` (0x10A218; btl_obj.c's declaration and comments were corrected: `BtlObjLight_FindRes0 / 1`
+upload textures 0 and 1 of the light's texture file and return nothing), `Tex_Upload` (0x10A288;
 arguments are block pointers, not x / y), `TexFile_UploadAll` (0x10A480), `Tex_Log2Size`
 (0x109F50), `GfxClut_InitPacket` (0x10A5A0: a complete 256-entry CLUT upload packet, CLUT
 bytes at +0x70).

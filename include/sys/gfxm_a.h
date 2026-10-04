@@ -22,9 +22,9 @@
 #define GFXPOST_WORK_TBP 0x2A00 /* the same memory as a texture */
 #define GFXPOST_DEPTH_TBP 0x1C00 /* the depth buffer as a texture */
 
-/* Texture block set up by func_0010A5A0(blk, cbp): a 256-entry CLUT in memory with the packet that uploads it. */
+/* Texture block set up by GfxClut_InitPacket(blk, cbp): a 256-entry CLUT in memory with the packet that uploads it. */
 typedef struct GfxPostClut {
-    /* 0x000 */ u8 packet[0x490]; /* built by func_0010A5A0; holds the CLUT data */
+    /* 0x000 */ u8 packet[0x490]; /* built by GfxClut_InitPacket; holds the CLUT data */
     /* 0x490 */ u8 *clut;         /* the 256 RGBA entries inside the packet (CSM1 order: see GFXPOST_CLUT_INDEX) */
     /* 0x494 */ u8 upload[0x20];  /* Dma_AddData(upload, 0x10) queues the upload */
     /* 0x4B4 */ u16 cbp;          /* GS block of the CLUT */

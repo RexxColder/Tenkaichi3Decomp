@@ -987,8 +987,8 @@ void BtlFacade_SetFlag200(void); /* battle flags |= 0x200 */
 void BtlFacade_ClearFlag200(void); /* battle flags &= ~0x200 */
 void BtlFacade_ClearFixedCamera(void); /* tail call of DemoCam_ClearFixed (camera module) */
 void BtlScript_StartWaitEvents(void); /* script module: reacts to events 0x5A / 0x5B */
-void func_00219690(f32 t); /* five HUD parts (0x21FAF0, 0x21AD40, 0x22F2F0, 0x22E0B0, 0x2240A0), duration t */
-void func_002196D0(f32 t); /* their counterparts (0x21FB18, ...), duration t */
+void Hud_SlideOut(f32 t); /* five HUD parts (0x21FAF0, 0x21AD40, 0x22F2F0, 0x22E0B0, 0x2240A0), duration t */
+void Hud_SlideIn(f32 t); /* their counterparts (0x21FB18, ...), duration t */
 /* Sums the four stat bonuses and ORs the four ability words of the items; stats[4] = AI type. */
 void func_00261130(BattleItemSet *items, s32 *stats, s32 *ability, s32 chara);
 
@@ -1185,12 +1185,12 @@ void BtlEvent_Update(void) {
 void BtlEvent_BeginInterrupt(void) {
     Battle_GetEventWork()->interrupt = 1;
     BtlFacade_SetFlag200();
-    func_00219690(1.0f);
+    Hud_SlideOut(1.0f);
 }
 
 /* Fades the HUD back in over 1.0. */
 void BtlEvent_EndInterrupt(void) {
-    func_002196D0(1.0f);
+    Hud_SlideIn(1.0f);
 }
 
 /* Stores the wait flag: waitFlag = (off == 0). */

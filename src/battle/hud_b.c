@@ -100,17 +100,17 @@ extern void func_002264A8(HudBGroup *node, s32 show);
 extern void *memcpy(void *dst, const void *src, u32 n);
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 powf(f32 x, f32 y);
-extern void func_00224B50(void (*fn)(s32)); /* run a GS state function (begin) */
-extern void func_00224B70(void (*fn)(s32)); /* run a GS state function (end) */
+extern void func_00224B50(void (*fn)(void)); /* run a GS state function (begin) */
+extern void func_00224B70(void (*fn)(void)); /* run a GS state function (end) */
 extern void func_00224BB0(HudBSprite *spr, s32 mirror);
 extern void func_00224E20(HudBSprite *spr, void *res, s32 tex, s32 sub);    /* sprite of a sheet's texture */
 extern void func_002250C8(HudBSprite *spr);
 extern void func_00225A50(HudBSprite *spr, void *res, s32 a, s32 b, s32 c);
 extern void func_00226488(HudBSprite *spr, void *res, s32 flag);            /* draw */
-extern void HudGauge_GsBeginMask(s32);
-extern void HudGauge_GsEndMask(s32);
-extern void HudGauge_GsBeginMask2(s32);
-extern void HudGauge_GsEndMask2(s32);
+extern void HudGauge_GsBeginMask(void);
+extern void HudGauge_GsEndMask(void);
+extern void HudGauge_GsBeginMask2(void);
+extern void HudGauge_GsEndMask2(void);
 extern void HudGauge_UpdateHp(void);
 extern HudBObj *BtlCtrl_GetObj(s32 side);
 extern s32 BtlSide_GetBlastMax(s32 side);

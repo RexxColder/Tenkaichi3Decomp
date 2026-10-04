@@ -35,12 +35,12 @@ extern void Vec3_Add(EftRVec *dst, EftRVec *a, EftRVec *b);
 extern void Vec3_Scale(EftRVec *dst, EftRVec *src, f32 scale);
 extern void Vec3_Normalize(EftRVec *dst, EftRVec *src);
 extern void Mtx_StoreIdentity(EftRMtx *m);
-extern void func_00120140(EftRMtx *m, EftRVec *pos);               /* sets the translation row */
-extern void func_001201B8(EftRMtx *out, EftRMtx *a, EftRMtx *b);   /* matrix product */
-extern void func_00120398(EftRMtx *out, EftRMtx *in, f32 angle);   /* rotation about one axis */
-extern void func_00121FB8(EftRVec *dst, EftRVec *src);             /* copies x, y, z */
-extern void func_00122190(EftRVec *out, EftRVec *a, EftRVec *b, f32 t); /* a + (b - a) * t */
-extern f32 func_00122200(EftRVec *a, EftRVec *b);                  /* distance */
+extern void Mtx_SetTrans(EftRMtx *m, EftRVec *pos);               /* sets the translation row */
+extern void Mtx_Mul(EftRMtx *out, EftRMtx *a, EftRMtx *b);   /* matrix product */
+extern void Mtx_RotateX(EftRMtx *out, EftRMtx *in, f32 angle);   /* rotation about one axis */
+extern void Vec3_Copy(EftRVec *dst, EftRVec *src);             /* copies x, y, z */
+extern void Vec3_Lerp(EftRVec *out, EftRVec *a, EftRVec *b, f32 t); /* a + (b - a) * t */
+extern f32 Vec3_Dist(EftRVec *a, EftRVec *b);                  /* distance */
 extern f32 Rand_FloatRange(f32 a, f32 b);
 
 extern s32 BtlPool_GetCurrent(void);
@@ -173,8 +173,8 @@ f32 EftStruggle_Start(EftRVec *pos, EftRRec *a, EftRRec *b) {
     }
     arg.rec[1].pose.start.w = 1.0f;
     arg.rec[0].pose.start.w = 1.0f;
-    d = func_00122200(&arg.rec[1].pose.start, &arg.rec[0].pose.start);
-    arg.ratio = func_00122200(&arg.rec[0].pose.start, &arg.rec[0].pose.pos) / d;
+    d = Vec3_Dist(&arg.rec[1].pose.start, &arg.rec[0].pose.start);
+    arg.ratio = Vec3_Dist(&arg.rec[0].pose.start, &arg.rec[0].pose.pos) / d;
     BtlTaskList_AddTail(gEftStruggle->list, &gEftStruggleClass, &arg);
     return arg.ratio;
 }
@@ -465,7 +465,7 @@ void EftStruggle_Init(EftRTask *task, EftStruggleArg *arg) {
     if (w->bias > one) {
         w->bias = one;
     }
-    func_00122190(&w->pos, &w->arg.rec[1].pose.start, &w->arg.rec[0].pose.start, w->bias);
+    Vec3_Lerp(&w->pos, &w->arg.rec[1].pose.start, &w->arg.rec[0].pose.start, w->bias);
     memset(&spark, 0, sizeof(EftClashSparkArg));
     Vec4_Copy(&spark.pos, &w->pos);
     Vec3_Normalize(&spark.dir, &w->arg.rec[0].pose.dir);
@@ -553,7 +553,7 @@ void EftStruggle_Step(EftRTask *task) {
     if (w->bias > t) {
         w->bias = t;
     }
-    func_00122190(&w->pos, &r1->pose.start, &r0->pose.start, w->bias);
+    Vec3_Lerp(&w->pos, &r1->pose.start, &r0->pose.start, w->bias);
     w->pos.w = one;
     t = r0->src->def->unk30;
     t = p0 * t * k;
@@ -1062,7 +1062,7 @@ void EftKiBlast_Turn(EftRTask *task, EftKiBlast *w) {
     u16 id;
     s32 life;
 
-    func_00122190(&w->pose.pos, &task->pos, &w->pose.prev, 0.7f);
+    Vec3_Lerp(&w->pose.pos, &task->pos, &w->pose.prev, 0.7f);
     if (task->hit & EFT_R_HIT_DEFLECT) {
         BtlCharApi_GetDeflectDir((s16)(w->arg.objId ^ 1), &dir);
         Vec4_Copy(&w->pose.dir, &dir);
@@ -1243,7 +1243,7 @@ void EftKiBlast_PostUpdate(EftRTask *task) {
         w->life = 0;
         w->flags |= EFT_KIBLAST_ENDING;
         if (!(w->flags & EFT_KIBLAST_STOPPED)) {
-            func_00121FB8(&w->pose.pos, &task->pos);
+            Vec3_Copy(&w->pose.pos, &task->pos);
         }
         EftKiBlast_SpawnParts(arg->srcId, task, w->set, 1);
         if (!(w->flags & EFT_KIBLAST_STOPPED)) {
@@ -1591,7 +1591,7 @@ void EftKiBomb_Launch(EftRTask *task) {
     Mtx_StoreIdentity(&m);
     w->handle = EftObj_Create(w->handleBuf, res->model);
     if (w->handle != -1) {
-        func_00120140(&m, &w->pose.pos);
+        Mtx_SetTrans(&m, &w->pose.pos);
         EftObj_SetMtx(w->handle, &m);
     }
 }
@@ -1882,10 +1882,10 @@ void EftKiBomb_UpdateModel(EftRTask *task) {
         s.row[0].x = w->size * 3.5f;
         s.row[1].y = w->size * 3.5f;
         s.row[2].z = w->size * 3.5f;
-        func_001201B8(&m, &m, &s);
-        func_00120398(&m, &m, EftMath_WrapAngle(-w->angle));
+        Mtx_Mul(&m, &m, &s);
+        Mtx_RotateX(&m, &m, EftMath_WrapAngle(-w->angle));
         Vec4_Set(&pos, w->pose.pos.x, w->pose.pos.y + 1.5f, w->pose.pos.z, 1.0f);
-        func_00120140(&m, &pos);
+        Mtx_SetTrans(&m, &pos);
         EftObj_SetMtx(w->handle, &m);
     }
 }
@@ -1920,7 +1920,7 @@ void EftKiObj_AddHitRecord(EftRTask *task) {
 void EftKiObj_Turn(EftRTask *task, EftKiObj *w) {
     EftRVec dir;
 
-    func_00122190(&w->b.pose.pos, &task->pos, &w->b.pose.prev, 0.7f);
+    Vec3_Lerp(&w->b.pose.pos, &task->pos, &w->b.pose.prev, 0.7f);
     if (task->hit & EFT_R_HIT_DEFLECT) {
         BtlCharApi_GetDeflectDir((s16)(w->b.arg.objId ^ 1), &dir);
         Vec4_Copy(&w->b.pose.dir, &dir);
@@ -1963,7 +1963,7 @@ void EftKiObj_Launch(EftRTask *task) {
     Mtx_StoreIdentity(&m);
     w->b.handle = EftObj_Create(w->b.handleBuf, res->model);
     if (w->b.handle != -1) {
-        func_00120140(&m, &w->b.pose.pos);
+        Mtx_SetTrans(&m, &w->b.pose.pos);
         EftObj_SetMtx(w->b.handle, &m);
     }
     w->tex = (u8 *)res + 8;

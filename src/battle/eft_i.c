@@ -30,11 +30,11 @@ extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_001225D0(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = base + dir * s */
-extern void func_00121E40(Vec4 *dst, f32 x, f32 y, f32 z);          /* set x, y, z */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *base, f32 s); /* dst = base + dir * s */
+extern void Vec3_Set(Vec4 *dst, f32 x, f32 y, f32 z);          /* set x, y, z */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
 
 extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
 extern s32 BtlCharApi_ObjGetParamFlags0(s32 objId);
@@ -270,7 +270,7 @@ void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
 
-    func_001225D0(&p, dir, pos, def->offset * scale);
+    Vec3_ScaleAdd(&p, dir, pos, def->offset * scale);
     p.w = 1.0f;
     if (flags & EFT_SPAWN_START) {
         if (H(n) == NULL) {
@@ -347,7 +347,7 @@ void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
 
-    func_001225D0(&p, dir, pos, def->offset * scale);
+    Vec3_ScaleAdd(&p, dir, pos, def->offset * scale);
     p.w = 1.0f;
     if (flags & EFT_SPAWN_START) {
         if (H(n) == NULL) {
@@ -425,9 +425,9 @@ void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
 
-    func_001225D0(&p, dir, pos, def->offset * scale);
+    Vec3_ScaleAdd(&p, dir, pos, def->offset * scale);
     p.w = 1.0f;
-    func_001225D0(&p2, dir, pos2, def->offset2 * scale);
+    Vec3_ScaleAdd(&p2, dir, pos2, def->offset2 * scale);
     p2.w = 1.0f;
     if (flags & EFT_SPAWN_START) {
         if (H(n) == NULL) {
@@ -504,7 +504,7 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
 
-    func_001225D0(&p, dir, pos, def->offset * scale);
+    Vec3_ScaleAdd(&p, dir, pos, def->offset * scale);
     p.w = 1.0f;
     if (flags & EFT_SPAWN_START) {
         if (H(n) == NULL) {
@@ -714,15 +714,15 @@ have_rate:
                 if (3.14159265f <= angle) {
                     angle -= 6.2831853f;
                 }
-                func_00121E40(&off, 0.0f, spread * (rand() / 2147483647.0f), 0.0f);
+                Vec3_Set(&off, 0.0f, spread * (rand() / 2147483647.0f), 0.0f);
                 Mtx_StoreIdentity(&m);
-                func_00120308(&m, &m, angle);
+                Mtx_RotateZ(&m, &m, angle);
                 Mtx_MulVec4(&off, &m, &off);
                 pitch = asinf(-dir->y);
                 yaw = atan2f(dir->x, dir->z);
                 Mtx_StoreIdentity(&m);
-                func_00120398(&m, &m, pitch);
-                func_00120428(&m, &m, yaw);
+                Mtx_RotateX(&m, &m, pitch);
+                Mtx_RotateY(&m, &m, yaw);
                 Mtx_MulVec4(&off, &m, &off);
                 Vec3_Add(&p, &p, &off);
             }
@@ -1450,12 +1450,12 @@ void EftSweep_Move(EftTask *task) {
     }
     Vec4_Set(cur, 0.0f, 0.0f, w->radius, 1.0f);
     Mtx_StoreIdentity(&m);
-    func_00120428(&m, &m, w->angle);
+    Mtx_RotateY(&m, &m, w->angle);
     Mtx_MulVec4(cur, &m, cur);
     pitch = asinf(-w->dir.y);
     yaw = atan2f(w->dir.x, w->dir.z);
-    func_00120398(&m2, &m, pitch);
-    func_00120428(&m2, &m2, yaw);
+    Mtx_RotateX(&m2, &m, pitch);
+    Mtx_RotateY(&m2, &m2, yaw);
     Mtx_MulVec4(cur, &m2, cur);
     if (!(w->flags & EFT_SWEEP_PREV_VALID)) {
         Vec3_Add(&w->pose.prev, cur, &w->pos);

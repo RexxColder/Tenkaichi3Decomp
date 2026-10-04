@@ -17,9 +17,9 @@
  *   - the action-id tests are switches (slti ladders), not range compares.
  *
  * Callees still named by address: BtlObj_GetNode(obj, node) model node or NULL, BtlObj_FindBound(obj, n),
- * BtlObj_GetNodeVelocity(obj, node, out), BtlObj_AddPush(obj, vec, arg), func_00121E18 / func_00121E20 zero a vector (the
- * first is used for positions, the second for directions and rotations), func_00120230 copies a matrix,
- * func_00122698(out, v, axis, angle) turns v about axis.
+ * BtlObj_GetNodeVelocity(obj, node, out), BtlObj_AddPush(obj, vec, arg), Vec4_SetZeroW1 / Vec4_SetZero zero a vector (the
+ * first is used for positions, the second for directions and rotations), Mtx_Copy copies a matrix,
+ * Vec3_RotateAxis(out, v, axis, angle) turns v about axis.
  */
 
 extern BtlCapiMgr *gBtlChars;
@@ -60,10 +60,10 @@ extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
 extern f32 Vec3_Length(Vec4 *v);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_00121E18(Vec4 *dst);
-extern void func_00121E20(Vec4 *dst);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);
-extern void func_00122698(Vec4 *out, Vec4 *v, Vec4 *axis, f32 angle);
+extern void Vec4_SetZeroW1(Vec4 *dst);
+extern void Vec4_SetZero(Vec4 *dst);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
+extern void Vec3_RotateAxis(Vec4 *out, Vec4 *v, Vec4 *axis, f32 angle);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern f32 Mathf_Sin(f32 angle);
 extern f32 Mathf_Cos(f32 angle);
@@ -361,7 +361,7 @@ void BtlCharApi_GetPos(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &obj->pos);
         return;
     }
-    func_00121E18(out);
+    Vec4_SetZeroW1(out);
 }
 
 /* Position without the display offset. */
@@ -378,7 +378,7 @@ void BtlCharApi_GetBasePos(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &obj->pos);
         return;
     }
-    func_00121E18(out);
+    Vec4_SetZeroW1(out);
 }
 
 /* Rotation: the fighter's model rotation, else the object's +0x960. */
@@ -395,7 +395,7 @@ void BtlCharApi_GetRot(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &obj->rot);
         return;
     }
-    func_00121E20(out);
+    Vec4_SetZero(out);
 }
 
 /* Rotation including the animation: fighter rotation plus root motion rotation, or object rotation plus the Euler
@@ -423,7 +423,7 @@ void BtlCharApi_GetModelRot(s32 objId, Vec4 *out) {
                 BtlUtil_WrapAngles(out, out);
             }
         } else {
-            func_00121E20(out);
+            Vec4_SetZero(out);
         }
     }
 }
@@ -451,7 +451,7 @@ void BtlCharApi_GetVelocity(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &BtlChar_GetPos(chr)->vel);
         return;
     }
-    func_00121E20(out);
+    Vec4_SetZero(out);
 }
 
 /* Pose +0x40: the fighter's whole movement of the previous frame. */
@@ -462,7 +462,7 @@ void BtlCharApi_GetFrameMove(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &BtlChar_GetPos(chr)->move);
         return;
     }
-    func_00121E20(out);
+    Vec4_SetZero(out);
 }
 
 /* Unit direction of travel. */
@@ -473,7 +473,7 @@ void BtlCharApi_GetDir(s32 objId, Vec4 *out) {
         Vec4_Copy(out, &BtlChar_GetPos(chr)->dir);
         return;
     }
-    func_00121E20(out);
+    Vec4_SetZero(out);
 }
 
 /* Speed along the direction of travel, per frame. */
@@ -528,7 +528,7 @@ void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out) {
         Vec4_Copy(out, &obj->pos);
     }
     if (obj == NULL) {
-        func_00121E18(out);
+        Vec4_SetZeroW1(out);
         return;
     }
 }
@@ -547,7 +547,7 @@ void BtlCharApi_GetNodeUnk90(s32 objId, s32 node, Vec4 *out) {
         Vec4_Copy(out, &obj->pos);
     }
     if (obj == NULL) {
-        func_00121E18(out);
+        Vec4_SetZeroW1(out);
         return;
     }
 }
@@ -560,7 +560,7 @@ void BtlCharApi_GetNodeMtx(s32 objId, s32 node, Mtx44 *out) {
     if (obj != NULL) {
         n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
-            func_00120230(out, &n->mtx);
+            Mtx_Copy(out, &n->mtx);
             return;
         }
         Mtx_StoreIdentity(out);
@@ -579,7 +579,7 @@ void BtlCharApi_GetNodeMtx50(s32 objId, s32 node, Mtx44 *out) {
     if (obj != NULL) {
         n = BtlObj_GetNode(obj, node);
         if (n != NULL) {
-            func_00120230(out, &n->unk50);
+            Mtx_Copy(out, &n->unk50);
             return;
         }
         Mtx_StoreIdentity(out);
@@ -598,7 +598,7 @@ void BtlCharApi_GetNodeRot(s32 objId, s32 node, Vec4 *out) {
         BtlObj_GetNodeVelocity(obj, node, out);
         return;
     }
-    func_00121E20(out);
+    Vec4_SetZero(out);
 }
 
 /* Rotation quaternion (+0xA0) of a model node, identity when there is none. No caller. */
@@ -915,7 +915,7 @@ void BtlCharApi_CalcAimDir(s32 objId, s32 node, Vec4 *from, Vec4 *out, f32 minPi
     f32 hi;
 
     if (chr == NULL) {
-        func_00121E20(out);
+        Vec4_SetZero(out);
         return;
     }
     pose = BtlChar_GetPos(chr);
@@ -997,7 +997,7 @@ void BtlCharApi_GetDeflectDir(s32 objId, Vec4 *out) {
     f32 c;
 
     if (chr == NULL) {
-        func_00121E20(out);
+        Vec4_SetZero(out);
         return;
     }
     fwd.x = Mathf_Sin(BtlChar_GetPos(chr)->rot.y);
@@ -1012,21 +1012,21 @@ void BtlCharApi_GetDeflectDir(s32 objId, Vec4 *out) {
     Vec4_Copy(&v, &fwd);
     switch (BtlAnim_GetId(chr)) {
     case 0xF9:
-        func_00122698(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
-        func_00122698(&v, &v, &fwd, -(BtlChar_RandF() * 0.8f + 0.5f));
+        Vec3_RotateAxis(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
+        Vec3_RotateAxis(&v, &v, &fwd, -(BtlChar_RandF() * 0.8f + 0.5f));
         break;
     case 0xFA:
-        func_00122698(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
-        func_00122698(&v, &v, &fwd, BtlChar_RandF() * 0.8f + 0.5f);
+        Vec3_RotateAxis(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
+        Vec3_RotateAxis(&v, &v, &fwd, BtlChar_RandF() * 0.8f + 0.5f);
         break;
     case 0x19:
     case 0xFB:
-        func_00122698(&v, &v, &side, BtlChar_RandF() * 0.5f + 2.5f);
-        func_00122698(&v, &v, &fwd, BtlChar_RandF() * 1.8f - 0.9f);
+        Vec3_RotateAxis(&v, &v, &side, BtlChar_RandF() * 0.5f + 2.5f);
+        Vec3_RotateAxis(&v, &v, &fwd, BtlChar_RandF() * 1.8f - 0.9f);
         break;
     case 0xFC:
-        func_00122698(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
-        func_00122698(&v, &v, &fwd, BtlChar_RandF() * 1.2f - 0.6f);
+        Vec3_RotateAxis(&v, &v, &side, BtlChar_RandF() * 0.3f + 0.3f);
+        Vec3_RotateAxis(&v, &v, &fwd, BtlChar_RandF() * 1.2f - 0.6f);
         break;
     default:
         BtlOpp_GetDelta(chr, &fwd);
@@ -1037,8 +1037,8 @@ void BtlCharApi_GetDeflectDir(s32 objId, Vec4 *out) {
         side.z = -fwd.x;
         Vec3_Normalize(&side, &side);
         Vec4_Copy(&v, &fwd);
-        func_00122698(&v, &v, &side, BtlChar_RandF() * 0.6f - 0.3f);
-        func_00122698(&v, &v, &fwd, BtlChar_RandF() * 6.2831853f - 3.14159265f);
+        Vec3_RotateAxis(&v, &v, &side, BtlChar_RandF() * 0.6f - 0.3f);
+        Vec3_RotateAxis(&v, &v, &fwd, BtlChar_RandF() * 6.2831853f - 3.14159265f);
         break;
     }
     Vec4_Copy(out, &v);

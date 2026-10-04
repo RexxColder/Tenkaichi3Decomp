@@ -20,6 +20,9 @@ typedef struct HudCommonRes {
 
 extern HudCommonRes *gCommonRes;
 
+/* The manager; NULL outside a battle. Defined here: this object's .sdata (0x2FEB3C). */
+Hud *gHud = NULL;
+
 extern void *memset(void *dst, s32 c, u32 n);
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
 extern void Mtx_StoreIdentity(HudMtx m);
@@ -76,23 +79,23 @@ extern s32 BtlCtrl_IsSwitching(s32 side);
 extern s32 BtlCtrl_TestProgressFrameBit(void);
 
 /* Gauge part (0x21C0E0..0x2224C8 and on). */
-extern void func_0021FC10(HudNode **out, HudRes *res); /* init */
+extern void HudGauge_Init(HudNode **out, HudRes *res); /* init */
 extern void func_00222400(void);                       /* term */
 extern void func_002224C8(void);                       /* reset */
-extern void func_0021F648(s32 side);                   /* select the side to update / draw */
+extern void HudGauge_SelectSide(s32 side);                   /* select the side to update / draw */
 extern void func_00225650(void);
-extern void func_0021F700(s32 side, s32 hp);
-extern void func_0021F718(s32 side, s32 ki);
-extern void func_0021FA20(s32 side, s32 value);
-extern void func_0021F8B0(s32 side, s32 mask, s32 up);  /* stat modifier icons: which of 4, and which are raises */
-extern void func_0021F810(s32 side, s32 blast);
-extern void func_0021F7F8(s32 side, s32 maxPower);
-extern void func_0021FAD8(s32 side, void *obj);
-extern void func_0021FA38(s32 side, s32 a, s32 b);
-extern void func_0021FA88(s32 side, s32 a, s32 b);
-extern void func_0021FAF0(f32 seconds);
-extern void func_0021FB18(f32 seconds);
-extern void func_0021FB40(s32 side, s32 switching);
+extern void HudGauge_SetHp(s32 side, s32 hp);
+extern void HudGauge_SetKi(s32 side, s32 ki);
+extern void HudGauge_SetKiReserve(s32 side, s32 value);
+extern void HudGauge_SetStatIcons(s32 side, s32 mask, s32 up);  /* stat modifier icons: which of 4, and which are raises */
+extern void HudGauge_SetBlast(s32 side, s32 blast);
+extern void HudGauge_SetMaxPower(s32 side, s32 maxPower);
+extern void HudGauge_SetFighter(s32 side, void *obj);
+extern void HudGauge_ShakeHp(s32 side, u16 count, u16 amp);
+extern void HudGauge_ShakeKi(s32 side, u16 count, u16 amp);
+extern void HudGauge_SlideOut(f32 seconds);
+extern void HudGauge_SlideIn(f32 seconds);
+extern void HudGauge_SetSwitching(s32 side, s32 switching);
 /* Timer part. */
 extern void func_0022F340(HudNode **out, HudRes *res);
 extern void func_0022F728(void);
@@ -258,7 +261,7 @@ void Hud_Init(void) {
     Res_RelocateOffsets(&gHud->res[2], gHud->res[2], gHud->res[2]);
     gHud->res[4] = (HudRes *)((u8 *)file + ((file[3] >> 2) << 2));
     Res_RelocateOffsets(&gHud->res[4], gHud->res[4], gHud->res[4]);
-    func_0021FC10(&gHud->gauge, gHud->res[0]);
+    HudGauge_Init(&gHud->gauge, gHud->res[0]);
     func_0022F340(&gHud->timer, gHud->res[0]);
     HudTeam_Init(&gHud->team, gHud->res[0]);
     func_0022AF88(&gHud->notice, gHud->res[1]);
@@ -310,13 +313,13 @@ void Hud_PreUpdate(void) {
         s32 up;
         s32 isNew;
 
-        func_0021F700(side, BtlSide_GetHp(side));
-        func_0021F718(side, BtlSide_GetKi(side));
+        HudGauge_SetHp(side, BtlSide_GetHp(side));
+        HudGauge_SetKi(side, BtlSide_GetKi(side));
         v = BtlSide_GetParamUnk2C(side);
         if (BtlSide_TestFlagBE(side)) {
-            func_0021FA20(side, v);
+            HudGauge_SetKiReserve(side, v);
         } else {
-            func_0021FA20(side, 0);
+            HudGauge_SetKiReserve(side, 0);
         }
         mask = 0;
         up = 0;
@@ -344,10 +347,10 @@ void Hud_PreUpdate(void) {
                 }
             }
         }
-        func_0021F8B0(side, mask, up);
-        func_0021F810(side, BtlSide_GetBlast(side));
-        func_0021F7F8(side, BtlSide_GetMaxPower(side));
-        func_0021FAD8(side, BtlCtrl_GetObj(side));
+        HudGauge_SetStatIcons(side, mask, up);
+        HudGauge_SetBlast(side, BtlSide_GetBlast(side));
+        HudGauge_SetMaxPower(side, BtlSide_GetMaxPower(side));
+        HudGauge_SetFighter(side, BtlCtrl_GetObj(side));
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
             isNew = BtlSide_IsComboHitNew(side);
             if (isNew == 1) {
@@ -364,11 +367,11 @@ void Hud_PreUpdate(void) {
                     func_00223DD8(side, v, isNew);
                 }
                 if (v >= 9999) {
-                    func_0021FA38(side == 0, 15, 3);
+                    HudGauge_ShakeHp(side == 0, 15, 3);
                 } else if (v >= 1000) {
-                    func_0021FA38(side == 0, 10, 2);
+                    HudGauge_ShakeHp(side == 0, 10, 2);
                 } else {
-                    func_0021FA38(side == 0, 5, 2);
+                    HudGauge_ShakeHp(side == 0, 5, 2);
                 }
             }
             if (!BtlSide_IsComboShown(side)) {
@@ -382,7 +385,7 @@ void Hud_PreUpdate(void) {
         }
         if (BtlCtrl_IsFlag6Raised(side)) {
             func_00223D98(side, 1);
-            func_0021FA88(side, 8, 2);
+            HudGauge_ShakeKi(side, 8, 2);
         }
         if (BtlCtrl_TestFlag71(side)) {
             func_00223D98(side, 0);
@@ -487,7 +490,7 @@ void Hud_PreUpdate(void) {
             HudTeam_SetTargetHpMax(side, BtlSide_GetSwitchTargetHpMax(side));
             HudTeam_SetTarget(side, BtlSide_GetSwitchTarget(side));
             v = BtlCtrl_IsSwitching(side);
-            func_0021FB40(side, v);
+            HudGauge_SetSwitching(side, v);
             HudTeam_SetSwitching(side, v);
         }
     }
@@ -509,7 +512,7 @@ void Hud_Reset(void) {
 
 /* Moves the gauges, team panel, timer, prompts and combo counter off the screen over `seconds`. */
 void Hud_SlideOut(f32 seconds) {
-    func_0021FAF0(seconds);
+    HudGauge_SlideOut(seconds);
     HudTeam_SlideOut(seconds);
     func_0022F2F0(seconds);
     func_0022E0B0(seconds);
@@ -518,7 +521,7 @@ void Hud_SlideOut(f32 seconds) {
 
 /* Brings them back over `seconds`. */
 void Hud_SlideIn(f32 seconds) {
-    func_0021FB18(seconds);
+    HudGauge_SlideIn(seconds);
     HudTeam_SlideIn(seconds);
     func_0022F318(seconds);
     func_0022E0D8(seconds);
@@ -546,10 +549,10 @@ void Hud_Draw(void) {
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
                     func_00225650();
-                    func_0021F648(0);
+                    HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
                     func_00225650();
-                    func_0021F648(1);
+                    HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                 } else {
                     func_0022AF60(0);
@@ -588,11 +591,11 @@ void Hud_Draw(void) {
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
                     func_00225650();
-                    func_0021F648(0);
+                    HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
                     HudNode_Draw(gHud->gauge, 0);
                     func_00225650();
-                    func_0021F648(1);
+                    HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                     HudNode_Draw(gHud->gauge, 0);
                 } else {
@@ -637,10 +640,10 @@ void Hud_Draw(void) {
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
                     func_00225650();
-                    func_0021F648(0);
+                    HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
                     func_00225650();
-                    func_0021F648(1);
+                    HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                 } else {
                     func_0022AF60(0);
@@ -681,11 +684,11 @@ void Hud_Draw(void) {
         }
         if (gHud->flags & HUD_SHOW_GAUGES) {
             func_00225650();
-            func_0021F648(0);
+            HudGauge_SelectSide(0);
             HudNode_Update(gHud->gauge);
             HudNode_Draw(gHud->gauge, 0);
             func_00225650();
-            func_0021F648(1);
+            HudGauge_SelectSide(1);
             HudNode_Update(gHud->gauge);
             HudNode_Draw(gHud->gauge, 0);
         }

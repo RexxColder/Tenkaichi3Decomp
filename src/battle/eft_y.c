@@ -27,22 +27,22 @@ extern void Vec3_Sub(EftYVec *dst, EftYVec *a, EftYVec *b);
 extern void Vec3_Scale(EftYVec *dst, EftYVec *src, f32 s);
 extern void Vec3_Cross(EftYVec *dst, EftYVec *a, EftYVec *b);
 extern void Vec3_Normalize(EftYVec *dst, EftYVec *src);
-extern void func_00120A98(void);                 /* VU0 current matrix = identity (inferred) */
-extern void func_00120AB0(void);                 /* VU0 matrix stack: push */
-extern void func_00120AC8(void);                 /* pop */
-extern void func_00120C18(EftYVec *v);           /* current matrix: translate */
-extern void func_00120DB0(f32 angle);            /* current matrix: rotate about Z */
-extern void func_00120E20(f32 angle);            /* rotate about X */
-extern void func_00120E90(f32 angle);            /* rotate about Y */
-extern void func_00120F88(f32 scale);            /* scale */
-extern void func_00120FC8(EftYVec *dst, EftYVec *src); /* transform a point by the current matrix */
-extern s32 func_00121140(EftYScr *out, EftYVec *pos, s32 count); /* project; 0 when clipped */
-extern s32 func_00121240(EftYScr *xyz, EftYVec *stq, EftYVec *pos, EftYVec *uv, s32 n); /* project with texture */
-extern void func_00121950(EftYClipVtx *out, EftYVec *pos, EftYVec *st, EftYVec *color);
-extern void func_00121FB8(EftYVec *dst, EftYVec *src); /* copies x, y, z */
-extern void func_001220F0(EftYCol *dst, EftYVec *src); /* float vector to integer vector */
-extern void func_00122118(EftYVec *dst, EftYVec *src, f32 lo, f32 hi); /* clamps each component */
-extern void func_001225D0(EftYVec *dst, EftYVec *dir, EftYVec *base, f32 s); /* dst = base + dir * s */
+extern void Vu0Cur_LoadIdentity(void);                 /* VU0 current matrix = identity (inferred) */
+extern void Vu0Cur_Push(void);                 /* VU0 matrix stack: push */
+extern void Vu0Cur_Pop(void);                 /* pop */
+extern void Vu0Cur_Translate(EftYVec *v);           /* current matrix: translate */
+extern void Vu0Cur_RotateZ(f32 angle);            /* current matrix: rotate about Z */
+extern void Vu0Cur_RotateX(f32 angle);            /* rotate about X */
+extern void Vu0Cur_RotateY(f32 angle);            /* rotate about Y */
+extern void Vu0Cur_ScaleDiagUniform(f32 scale);            /* scale */
+extern void Vu0Cur_MulVec4(EftYVec *dst, EftYVec *src); /* transform a point by the current matrix */
+extern s32 Vu0Cur_ProjectPoints(EftYScr *out, EftYVec *pos, s32 count); /* project; 0 when clipped */
+extern s32 Vu0Cur_ProjectPointsStq(EftYScr *xyz, EftYVec *stq, EftYVec *pos, EftYVec *uv, s32 n); /* project with texture */
+extern void ClipVtx_Set(EftYClipVtx *out, EftYVec *pos, EftYVec *st, EftYVec *color);
+extern void Vec3_Copy(EftYVec *dst, EftYVec *src); /* copies x, y, z */
+extern void Vec4_ToInt(EftYCol *dst, EftYVec *src); /* float vector to integer vector */
+extern void Vec4_Clamp(EftYVec *dst, EftYVec *src, f32 lo, f32 hi); /* clamps each component */
+extern void Vec3_ScaleAdd(EftYVec *dst, EftYVec *dir, EftYVec *base, f32 s); /* dst = base + dir * s */
 extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                   s32 z);
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
@@ -205,7 +205,7 @@ void EftQuad_StepAll(EftQuadWork *w) {
                 }
             }
             q->color.w = q->alphaBase * fade * alpha;
-            func_00122118(&q->color, &q->color, 0.0f, 255.0f);
+            Vec4_Clamp(&q->color, &q->color, 0.0f, 255.0f);
             if (w->flags & EFT_QUADEM_SHEET) {
                 u8 frame = (u32)q->frame;
 
@@ -246,15 +246,15 @@ void EftQuad_StepAll(EftQuadWork *w) {
         if (q->color.w <= 0.0f || q->halfSize <= 0.0f) {
             q->flags &= ~EFT_QUAD_VISIBLE;
         } else {
-            func_00120AB0();
-            func_00120A98();
-            func_00120F88(w->size);
+            Vu0Cur_Push();
+            Vu0Cur_LoadIdentity();
+            Vu0Cur_ScaleDiagUniform(w->size);
             if (w->flags & EFT_QUADEM_OWN_ORIGIN) {
                 EftQuad_BuildCorners(q, w, q->origin, pitch, yaw);
             } else {
                 EftQuad_BuildCorners(q, w, w->pos, pitch, yaw);
             }
-            func_00120AC8();
+            Vu0Cur_Pop();
             q->flags |= EFT_QUAD_VISIBLE;
         }
         if ((q->flags & EFT_QUAD_DEAD) || (w->flags & EFT_QUADEM_KILL)) {
@@ -274,14 +274,14 @@ void EftQuad_BuildCorners(EftQuad *q, EftQuadWork *w, EftYVec pos, f32 pitch, f3
     s32 i;
 
     memset(&p, 0, sizeof(EftYVec));
-    func_00120DB0(q->rot.z);
-    func_00120E20(q->rot.x);
-    func_00120E90(q->rot.y);
+    Vu0Cur_RotateZ(q->rot.z);
+    Vu0Cur_RotateX(q->rot.x);
+    Vu0Cur_RotateY(q->rot.y);
     Vec3_Scale(&p, &q->pos, w->size);
-    func_00120C18(&p);
-    func_00120E20(pitch);
-    func_00120E90(yaw);
-    func_00120C18(&pos);
+    Vu0Cur_Translate(&p);
+    Vu0Cur_RotateX(pitch);
+    Vu0Cur_RotateY(yaw);
+    Vu0Cur_Translate(&pos);
     if (!(def->flags & EFT_QUADDEF_CROSS)) {
         h = q->halfSize;
     } else {
@@ -292,7 +292,7 @@ void EftQuad_BuildCorners(EftQuad *q, EftQuadWork *w, EftYVec pos, f32 pitch, f3
     Vec4_Set(&q->corner[2], -h, h, 0.0f, 1.0f);
     Vec4_Set(&q->corner[3], h, h, 0.0f, 1.0f);
     for (i = 0; i < 4; i++) {
-        func_00120FC8(&q->corner[i], &q->corner[i]);
+        Vu0Cur_MulVec4(&q->corner[i], &q->corner[i]);
     }
 }
 
@@ -322,7 +322,7 @@ void EftQuad_DrawAllFacing(EftQuadWork *w, s32 layer) {
                 for (i = 0; i < 4; i++) {
                     Vec3_Sub(&d, &q->corner[i], &q->corner[3 - i]);
                     for (j = 0; j < 4; j++) {
-                        func_001225D0(&c[j], &d, &q->corner[j], 0.5f);
+                        Vec3_ScaleAdd(&c[j], &d, &q->corner[j], 0.5f);
                     }
                     Vec4_Set(&uv0, q->uv[tbl[i][0]].c[0], q->uv[tbl[i][0]].c[1], q->uv[tbl[i][1]].c[0], q->uv[tbl[i][1]].c[1]);
                     Vec4_Set(&uv1, q->uv[tbl[i][2]].c[0], q->uv[tbl[i][2]].c[1], q->uv[tbl[i][3]].c[0], q->uv[tbl[i][3]].c[1]);
@@ -358,7 +358,7 @@ void EftQuad_DrawAllSprite(EftQuadWork *w, s32 layer) {
                 for (i = 0; i < 4; i++) {
                     Vec3_Sub(&d, &q->corner[i], &q->corner[3 - i]);
                     for (j = 0; j < 4; j++) {
-                        func_001225D0(&c[j], &d, &q->corner[j], 0.5f);
+                        Vec3_ScaleAdd(&c[j], &d, &q->corner[j], 0.5f);
                     }
                     Vec4_Set(&uv0, q->uv[tbl[i][0]].c[0], q->uv[tbl[i][0]].c[1], q->uv[tbl[i][1]].c[0], q->uv[tbl[i][1]].c[1]);
                     Vec4_Set(&uv1, q->uv[tbl[i][2]].c[0], q->uv[tbl[i][2]].c[1], q->uv[tbl[i][3]].c[0], q->uv[tbl[i][3]].c[1]);
@@ -627,7 +627,7 @@ void EftQuad_DrawSprite(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color
     Vec4_Set(&st[1], uv0.z, uv0.w, 1.0f, 1.0f);
     Vec4_Set(&st[2], uv1.x, uv1.y, 1.0f, 1.0f);
     Vec4_Set(&st[3], uv1.z, uv1.w, 1.0f, 1.0f);
-    if (func_00121240(scr, stq, corner, st, 4)) {
+    if (Vu0Cur_ProjectPointsStq(scr, stq, corner, st, 4)) {
         p = (EftYStripPkt *)gOtCur;
         gOtCur = (u32 *)(p + 1);
         if (p != NULL) {
@@ -643,7 +643,7 @@ void EftQuad_DrawSprite(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color
             if (flip) {
                 scr[3].z = scr[2].z = scr[1].z = scr[0].z = 0xFFFFFF;
             }
-            func_001220F0(&col, &color);
+            Vec4_ToInt(&col, &color);
             p->v[0].rgbaq.r = col.r;
             p->v[0].rgbaq.g = col.g;
             p->v[0].rgbaq.b = col.b;
@@ -724,13 +724,13 @@ void EftQuad_DrawFacing(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color
     Vec4_Copy(&c[1], &corner[1]);
     Vec4_Copy(&c[2], &corner[2]);
     Vec4_Copy(&c[3], &corner[3]);
-    func_00121950(&v[0], &c[0], &st[0], &color);
-    func_00121950(&v[1], &c[1], &st[1], &color);
-    func_00121950(&v[2], &c[2], &st[2], &color);
+    ClipVtx_Set(&v[0], &c[0], &st[0], &color);
+    ClipVtx_Set(&v[1], &c[1], &st[1], &color);
+    ClipVtx_Set(&v[2], &c[2], &st[2], &color);
     EftGfx_DrawPolyScaledZ(v, layer, 1, 0, flip, 0, tex->e[texIdx].tex0, 2.0f);
-    func_00121950(&v[0], &c[1], &st[1], &color);
-    func_00121950(&v[1], &c[2], &st[2], &color);
-    func_00121950(&v[2], &c[3], &st[3], &color);
+    ClipVtx_Set(&v[0], &c[1], &st[1], &color);
+    ClipVtx_Set(&v[1], &c[2], &st[2], &color);
+    ClipVtx_Set(&v[2], &c[3], &st[3], &color);
     EftGfx_DrawPolyScaledZ(v, layer, 1, 0, flip, 0, tex->e[texIdx].tex0, 2.0f);
 }
 
@@ -956,8 +956,8 @@ void EftQuad_SetPosDir(EftYTask *task, EftYVec pos, EftYVec dir) {
         return;
     }
     if (w->flags & EFT_QUADEM_ALIVE) {
-        func_00121FB8(&w->pos, &pos);
-        func_00121FB8(&w->dir, &dir);
+        Vec3_Copy(&w->pos, &pos);
+        Vec3_Copy(&w->dir, &dir);
         Vec3_Normalize(&w->dir, &w->dir);
     }
 }
@@ -996,7 +996,7 @@ void EftQuad_SetPos(EftYTask *task, EftYVec pos) {
         return;
     }
     if (w->flags & EFT_QUADEM_ALIVE) {
-        func_00121FB8(&w->pos, &pos);
+        Vec3_Copy(&w->pos, &pos);
     }
 }
 
@@ -1020,18 +1020,18 @@ void EftQuad_Warp(EftYTask *task, EftYVec pos) {
     if (w->flags & EFT_QUADEM_ALIVE) {
         pitch = EftMath_WrapAngle(Mathf_Asin(-w->dir.y));
         yaw = EftMath_WrapAngle(atan2f(w->dir.x, w->dir.z));
-        func_00121FB8(&w->pos, &pos);
-        func_00120AB0();
+        Vec3_Copy(&w->pos, &pos);
+        Vu0Cur_Push();
         for (q = w->head; q != NULL; q = q->next) {
-            func_00120A98();
-            func_00120F88(w->size);
+            Vu0Cur_LoadIdentity();
+            Vu0Cur_ScaleDiagUniform(w->size);
             if (w->flags & EFT_QUADEM_OWN_ORIGIN) {
                 EftQuad_BuildCorners(q, w, q->origin, pitch, yaw);
             } else {
                 EftQuad_BuildCorners(q, w, w->pos, pitch, yaw);
             }
         }
-        func_00120AC8();
+        Vu0Cur_Pop();
     }
 }
 
@@ -1050,7 +1050,7 @@ void EftQuad_SetDir(EftYTask *task, EftYVec dir) {
         return;
     }
     if (w->flags & EFT_QUADEM_ALIVE) {
-        func_00121FB8(&w->dir, &dir);
+        Vec3_Copy(&w->dir, &dir);
         Vec3_Normalize(&w->dir, &w->dir);
     }
 }

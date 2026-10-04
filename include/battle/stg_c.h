@@ -55,7 +55,7 @@ typedef struct StgCurve {
 
 /* Depth haze of one view. gStgHaze points at two of them (0x2B00 bytes). */
 typedef struct StgHaze {
-    /* 0x0000 */ u8 packet[0x490];  /* GS packet template built by func_0010A5A0 (not in this range) */
+    /* 0x0000 */ u8 packet[0x490];  /* GS packet template built by GfxClut_InitPacket (not in this range) */
     /* 0x0490 */ u8 *clut;          /* 256 RGBA entries inside the template: depth byte -> alpha */
     /* 0x0494 */ u8 upload[0x20];   /* start of the part sent with Dma_AddData(.., 0x10) */
     /* 0x04B4 */ u16 clutBase;      /* GS block of the CLUT (argument of StgHaze_Create) */

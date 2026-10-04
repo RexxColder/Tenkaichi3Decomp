@@ -100,8 +100,8 @@ extern FontCommonRes *gCommonRes;
 extern void *Heap_Alloc(s32 size, u32 align, s32 fromTail, s32 heap);
 extern void Heap_Free(void *ptr);
 extern void *memset(void *dst, s32 value, u32 size);
-extern void func_0010A288(FontTex *tex, u32 tbp, s32 cbp); /* uploads a texture and its CLUT */
-extern void func_0010A480(void *res, void *tex, void *tex2);
+extern void Tex_Upload(FontTex *tex, u32 tbp, s32 cbp); /* uploads a texture and its CLUT */
+extern void TexFile_UploadAll(void *res, void *tex, void *tex2);
 
 /* 0x239BB0..0x239EA0, defined above with the first part's types. */
 #define Font_IsInClip ((s32 (*)(FontCmd *cmd, s32 x0, s32 y0, s32 x1, s32 y1))Font_IsInClip) /* 1 when the box touches the command's clip box */
@@ -191,7 +191,7 @@ u64 Font_MakeTex0(FontSlot *slot, s32 clut) {
 
 /* Uploads a font's texture to its VRAM blocks. */
 void Font_UploadTexture(FontSlot *slot) {
-    func_0010A288(slot->data->tex, slot->tbp, slot->cbp);
+    Tex_Upload(slot->data->tex, slot->tbp, slot->cbp);
 }
 
 /* Boot-time init with room for 120 commands. */

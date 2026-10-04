@@ -48,13 +48,13 @@ extern void Vec3_Cross(EftDetVec *dst, EftDetVec *a, EftDetVec *b);
 extern f32 Vec3_Dot(EftDetVec *a, EftDetVec *b);
 extern void Mtx_StoreIdentity(EftDetMtx *m);
 extern void Mtx_MulVec4(EftDetVec *dst, EftDetMtx *m, EftDetVec *src);
-extern void func_00120398(EftDetMtx *dst, EftDetMtx *src, f32 angle);          /* rotate about X */
-extern void func_00120428(EftDetMtx *dst, EftDetMtx *src, f32 angle);          /* rotate about Y */
-extern void func_00121FB8(void *dst, EftDetVec *src);                          /* copies x, y, z */
-extern void func_00122140(EftDetVec *dst, EftDetVec *src, f32 lo, f32 hi);     /* clamp x, y, z */
-extern f32 func_001221E0(EftDetVec *v);                                        /* squared length */
-extern f32 func_00122200(void *a, EftDetVec *b);                               /* distance between two points */
-extern void func_00122698(EftDetVec *out, EftDetVec *v, EftDetVec *axis, f32 angle); /* rotate about an axis */
+extern void Mtx_RotateX(EftDetMtx *dst, EftDetMtx *src, f32 angle);          /* rotate about X */
+extern void Mtx_RotateY(EftDetMtx *dst, EftDetMtx *src, f32 angle);          /* rotate about Y */
+extern void Vec3_Copy(void *dst, EftDetVec *src);                          /* copies x, y, z */
+extern void Vec3_Clamp(EftDetVec *dst, EftDetVec *src, f32 lo, f32 hi);     /* clamp x, y, z */
+extern f32 Vec3_LengthSq(EftDetVec *v);                                        /* squared length */
+extern f32 Vec3_Dist(void *a, EftDetVec *b);                               /* distance between two points */
+extern void Vec3_RotateAxis(EftDetVec *out, EftDetVec *v, EftDetVec *axis, f32 angle); /* rotate about an axis */
 extern f32 Mathf_SinFast(f32 angle);
 extern f32 Mathf_CosFast(f32 angle);
 extern f32 Mathf_Asin(f32 x);
@@ -488,14 +488,14 @@ s32 EftVolleyAim_Spread(s32 objId, EftDetVec *dir, s32 kind, s32 lockedOn, s32 s
         f32 rx;
         f32 ry;
 
-        func_00122140(dir, dir, -1.0f, 1.0f);
+        Vec3_Clamp(dir, dir, -1.0f, 1.0f);
         rx = Mathf_Asin(-dir->y);
         ry = atan2f(dir->x, dir->z);
         rx = EftMath_WrapAngle(rx + pitch);
         ry = EftMath_WrapAngle(ry + yaw);
         Mtx_StoreIdentity(&m);
-        func_00120398(&m, &m, rx);
-        func_00120428(&m, &m, ry);
+        Mtx_RotateX(&m, &m, rx);
+        Mtx_RotateY(&m, &m, ry);
         Mtx_MulVec4(dir, &m, &fwd);
     }
     return script;
@@ -547,7 +547,7 @@ void EftVolleyAim_Steer(EftVolleyAimShot *shot, s32 objId, EftDetVec *offset, s3
         }
         Vec3_Cross(&axis, &shot->dir, &d);
         Vec3_Normalize(&axis, &axis);
-        func_00122698(&shot->dir, &shot->dir, &axis, t);
+        Vec3_RotateAxis(&shot->dir, &shot->dir, &axis, t);
         Vec3_Normalize(&shot->dir, &shot->dir);
     }
     Vec4_Scale(&step, &shot->dir, shot->speed);
@@ -603,7 +603,7 @@ void EftVolleyAim_Update(s32 objId, EftVolleyAimShot *shot, EftDetVec *offset, s
                         r = (f32)p->v0 * 0.4f;
                     } else {
                         EftVolleyAim_GetToOpponent(objId, offset);
-                        lenSq = func_001221E0(offset);
+                        lenSq = Vec3_LengthSq(offset);
                         scale = (lenSq < (f32)(p->v0 * p->v0) ? sqrtf(lenSq) : (f32)p->v0) * -0.5f;
                         Vec3_Normalize(offset, offset);
                         Vec3_Scale(offset, offset, scale);
@@ -810,7 +810,7 @@ s32 EftDet_SpheresVsFighter(EftDetObj *obj, EftDetShape *shape) {
         }
     }
     if (hits != 0) {
-        shape->dist = func_00122200(b, &shape->hitPos);
+        shape->dist = Vec3_Dist(b, &shape->hitPos);
         return 1;
     }
     return 0;
@@ -857,7 +857,7 @@ s32 EftDet_CapsuleVsFighter(EftDetObj *obj, EftDetShape *shape) {
         }
     }
     if (hits != 0) {
-        shape->dist = func_00122200(a, &shape->hitPos);
+        shape->dist = Vec3_Dist(a, &shape->hitPos);
         return 1;
     }
     return 0;
@@ -1298,10 +1298,10 @@ s32 EftDet_TestStage(EftDetShape *shape, s32 isBlast, s32 objectsOnly) {
     shape->hitFlags |= EFT_DET_HIT_STAGE;
     switch (shape->type) {
     case 0:
-        shape->stageDist = func_00122200(shape->b, &shape->hitPos);
+        shape->stageDist = Vec3_Dist(shape->b, &shape->hitPos);
         break;
     case 1:
-        shape->stageDist = func_00122200(shape->a, &shape->hitPos);
+        shape->stageDist = Vec3_Dist(shape->a, &shape->hitPos);
         break;
     case 2:
         break;
@@ -1456,7 +1456,7 @@ void StgGround_UpdateFighter(EftDetObj *obj) {
     Vec4_Copy(&pos, &obj->pos);
     pos.y = body->y;
     ColBox_SetCenterHalf(&box, &pos, &extent);
-    func_00121FB8(&work->ground, &obj->pos);
+    Vec3_Copy(&work->ground, &obj->pos);
     StgGround_Probe(*(s32 *)(blk + 0xD4), &box, &work->ground, body->y);
     if (gStgGroundResult.obj != 0) {
         if (work->ground.y < BtlObj_GetNode(obj, 0)->mtx[3][1]) {

@@ -31,7 +31,7 @@ extern f32 Mathf_Asin(f32 x);
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);            /* copies x, y, z */
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
@@ -41,19 +41,19 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern void func_001220F0(s32 *dst, Vec4 *src);              /* float vector to integer vector */
-extern void func_00122118(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
-extern void func_00122140(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps x, y, z */
-extern void func_00122610(Vec4 *dst, Vec4 *a, Vec4 *b, Vec4 *c, Vec4 *d); /* a + b + c + d */
+extern void Vec4_ToInt(s32 *dst, Vec4 *src);              /* float vector to integer vector */
+extern void Vec4_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps each component */
+extern void Vec3_Clamp(Vec4 *dst, Vec4 *src, f32 lo, f32 hi); /* clamps x, y, z */
+extern void Vec3_Add4(Vec4 *dst, Vec4 *a, Vec4 *b, Vec4 *c, Vec4 *d); /* a + b + c + d */
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_00120140(Mtx44 *m, Vec4 *pos);             /* sets the translation row */
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);  /* matrix product */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
-extern s32 func_00121140(void *out, Vec4 *pos, s32 count);  /* project count points; 0 when clipped */
-extern void func_00121950(void *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col);
+extern void Mtx_SetTrans(Mtx44 *m, Vec4 *pos);             /* sets the translation row */
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);  /* matrix product */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
+extern s32 Vu0Cur_ProjectPoints(void *out, Vec4 *pos, s32 count);  /* project count points; 0 when clipped */
+extern void ClipVtx_Set(void *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col);
 extern void EftGfx_DrawPolyScaledZ(void *verts, s32 layer, s32 a2, s32 a3, s32 front, s32 flip, u64 tex0,
                                    f32 zScale);
 /* The same callee as in eft_m.c; this argument order (registers are assigned per class, so it is the same call)
@@ -192,7 +192,7 @@ void EftKiObj_PostUpdate(EftTask *task) {
         if (task->result & 0x3F) {
             w->life = 0;
             if (!(w->flags & EFT_KIPROP_BROKEN)) {
-                func_00121FB8(V(&w->pos), V(&task->hitPos));
+                Vec3_Copy(V(&w->pos), V(&task->hitPos));
                 EftKiObj_Break(task, &w->pos);
                 w->flags |= EFT_KIPROP_BROKEN;
                 w->flags &= ~EFT_KIPROP_SHOWN;
@@ -224,10 +224,10 @@ void EftKiObj_Draw(EftTask *task) {
         s.m[0][0] = w->scale;
         s.m[1][1] = w->scale;
         s.m[2][2] = w->scale;
-        func_001201B8(&m, &m, &s);
-        func_00120398(&m, &m, EftMath_WrapAngle(-w->spin));
+        Mtx_Mul(&m, &m, &s);
+        Mtx_RotateX(&m, &m, EftMath_WrapAngle(-w->spin));
         Vec4_Set(V(&pos), w->pos.x, w->pos.y, w->pos.z, 1.0f);
-        func_00120140(&m, V(&pos));
+        Mtx_SetTrans(&m, V(&pos));
         EftObj_SetMtx(w->modelObj, &m);
         if (!BtlScene_IsEffectHidden(w->arg.objId, 0)) {
             EftKiObj_DrawFrags(task);
@@ -615,9 +615,9 @@ void EftChain_InitStrand(EftTask *task, EftArcChain *ch) {
         n = *link;
         n->flags |= 1;
         Vec4_Set(V(&dir), 0.0f, 0.0f, 1.0f, 1.0f);
-        func_00120398(&m, &base, ch->rotX);
-        func_00120428(&m, &m, ch->rotY);
-        func_00120308(&m, &m, ch->rotZ);
+        Mtx_RotateX(&m, &base, ch->rotX);
+        Mtx_RotateY(&m, &m, ch->rotY);
+        Mtx_RotateZ(&m, &m, ch->rotZ);
         Mtx_MulVec4(V(&dir), &m, V(&dir));
         if (w->flags & EFT_ARC_ORIENTED) {
             Mtx_MulVec4(V(&dir), &w->mtx, V(&dir));
@@ -653,7 +653,7 @@ void EftChain_InitStrand(EftTask *task, EftArcChain *ch) {
         ch->rotY = EftMath_WrapAngle(ch->rotY);
         link = &n->next;
     }
-    func_00121FB8(V(&ch->drift), V(&d));
+    Vec3_Copy(V(&ch->drift), V(&d));
 }
 
 /* One frame of a chain's nodes: shows the first `shown` nodes; once the chain is fully grown, kind 1 crawls
@@ -693,8 +693,8 @@ void EftChain_UpdateStrand(EftTask *task, EftArcChain *ch) {
                     Vec4_Copy(V(&old), V(&n->pos));
                     Vec4_Set(V(&dir), 0.0f, 0.0f, 1.0f, 1.0f);
                     Mtx_StoreIdentity(&m);
-                    func_00120398(&m, &m, ch->rotX);
-                    func_00120428(&m, &m, ch->rotY);
+                    Mtx_RotateX(&m, &m, ch->rotX);
+                    Mtx_RotateY(&m, &m, ch->rotY);
                     Mtx_MulVec4(V(&dir), &m, V(&dir));
                     Vec3_Scale(V(&n->pos), V(&dir), n->radius);
                     n->pos.w = 1.0f;
@@ -717,7 +717,7 @@ void EftChain_UpdateStrand(EftTask *task, EftArcChain *ch) {
                 n->jit.w = 1.0f;
             }
         }
-        func_00122610(V(&n->world), V(&w->arg.pos), V(&ch->pos), V(&n->pos), V(&n->jit));
+        Vec3_Add4(V(&n->world), V(&w->arg.pos), V(&ch->pos), V(&n->pos), V(&n->jit));
         n->world.w = 1.0f;
         Vec4_Copy(V(&n->color), V(&ch->color));
         n->color.w *= ch->alpha;
@@ -736,7 +736,7 @@ void EftChain_UpdateStrand(EftTask *task, EftArcChain *ch) {
     }
 }
 
-/* A GS screen position as func_00121140 writes it. */
+/* A GS screen position as Vu0Cur_ProjectPoints writes it. */
 typedef struct EftSScr {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -800,7 +800,7 @@ static inline void EftChain_OtAdd(OtPrim *p, s32 z, s32 layer) {
 
 /* Draws a chain as a ribbon facing the camera: one textured quad per pair of shown nodes, widened across the
    segment by the nodes' widths, queued by its average depth. A clipped quad is skipped. */
-#if 0 /* 29 of 433 instructions, two causes: (1) the branch after func_00121140 is `beqzl` with a copy of the loop-step load in its delay slot in the original, here a plain `beqz` with the gOtCur load pulled into the slot (which shifts the following 24 instructions by one); (2) the original loads 1.0f into f20 before clearing j, here after. Everything else is identical. */
+#if 0 /* 29 of 433 instructions, two causes: (1) the branch after Vu0Cur_ProjectPoints is `beqzl` with a copy of the loop-step load in its delay slot in the original, here a plain `beqz` with the gOtCur load pulled into the slot (which shifts the following 24 instructions by one); (2) the original loads 1.0f into f20 before clearing j, here after. Everything else is identical. */
 void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
     EftVec uv[4] = { { { 0.0f, 0.0f, 1.0f, 0.0f } }, { { 0.0f, 1.0f, 1.0f, 0.0f } }, { { 1.0f, 0.0f, 1.0f, 0.0f } }, { { 1.0f, 1.0f, 1.0f, 0.0f } } };
     EftVec quad[4];
@@ -840,17 +840,17 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
                 Vec3_Add(V(&quad[0]), V(&n->world), V(&offA));
                 Vec3_Sub(V(&quad[1]), V(&n->world), V(&offB));
             } else {
-                func_00121FB8(V(&quad[0]), V(&prevEnd[0]));
-                func_00121FB8(V(&quad[1]), V(&prevEnd[1]));
+                Vec3_Copy(V(&quad[0]), V(&prevEnd[0]));
+                Vec3_Copy(V(&quad[1]), V(&prevEnd[1]));
             }
             first = 0;
             Vec3_Scale(V(&offA), V(&side), next->widthA * ch->width);
             Vec3_Scale(V(&offB), V(&side), next->widthB * ch->width);
             Vec3_Add(V(&quad[2]), V(&next->world), V(&offA));
             Vec3_Sub(V(&quad[3]), V(&next->world), V(&offB));
-            func_00121FB8(V(&prevEnd[0]), V(&quad[2]));
-            func_00121FB8(V(&prevEnd[1]), V(&quad[3]));
-            if (func_00121140(scr, V(quad), 4) != 0) {
+            Vec3_Copy(V(&prevEnd[0]), V(&quad[2]));
+            Vec3_Copy(V(&prevEnd[1]), V(&quad[3]));
+            if (Vu0Cur_ProjectPoints(scr, V(quad), 4) != 0) {
                 pkt = (EftArcPkt *)gOtCur;
                 gOtCur = (u32 *)(pkt + 1);
                 if (pkt == NULL) {
@@ -877,8 +877,8 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
 
                     Vec3_Scale(V(&st[j]), V(&uv[j]), q);
                 }
-                func_001220F0(colA, V(&n->color));
-                func_001220F0(colB, V(&next->color));
+                Vec4_ToInt(colA, V(&n->color));
+                Vec4_ToInt(colB, V(&next->color));
                 z = (scr[0].z + scr[2].z + (scr[3].z + scr[1].z)) >> 10;
                 if (w2->flags & EFT_ARC_WHITE) {
                     for (j = 3; j >= 0; j--) {
@@ -976,24 +976,24 @@ void EftChain_DrawStrandClipped(EftArc *w, EftArc *w2, EftArcChain *ch) {
                 Vec3_Add(V(&quad[0]), V(&n->world), V(&offA));
                 Vec3_Sub(V(&quad[1]), V(&n->world), V(&offB));
             } else {
-                func_00121FB8(V(&quad[0]), V(&prevEnd[0]));
-                func_00121FB8(V(&quad[1]), V(&prevEnd[1]));
+                Vec3_Copy(V(&quad[0]), V(&prevEnd[0]));
+                Vec3_Copy(V(&quad[1]), V(&prevEnd[1]));
             }
             first = 0;
             Vec3_Scale(V(&offA), V(&side), next->widthA * ch->width);
             Vec3_Scale(V(&offB), V(&side), next->widthB * ch->width);
             Vec3_Add(V(&quad[2]), V(&next->world), V(&offA));
             Vec3_Sub(V(&quad[3]), V(&next->world), V(&offB));
-            func_00121FB8(V(&prevEnd[0]), V(&quad[2]));
-            func_00121FB8(V(&prevEnd[1]), V(&quad[3]));
+            Vec3_Copy(V(&prevEnd[0]), V(&quad[2]));
+            Vec3_Copy(V(&prevEnd[1]), V(&quad[3]));
             Vec4_Copy(V(&col[0]), V(&n->color));
             Vec4_Copy(V(&col[1]), V(&n->color));
             Vec4_Copy(V(&col[2]), V(&next->color));
             Vec4_Copy(V(&col[3]), V(&next->color));
             for (j = 0; j < 2; j++) {
-                func_00121950(&poly[0], V(&quad[j]), V(&uv[j]), V(&col[j]));
-                func_00121950(&poly[1], V(&quad[j + 1]), V(&uv[j + 1]), V(&col[j + 1]));
-                func_00121950(&poly[2], V(&quad[j + 2]), V(&uv[j + 2]), V(&col[j + 2]));
+                ClipVtx_Set(&poly[0], V(&quad[j]), V(&uv[j]), V(&col[j]));
+                ClipVtx_Set(&poly[1], V(&quad[j + 1]), V(&uv[j + 1]), V(&col[j + 1]));
+                ClipVtx_Set(&poly[2], V(&quad[j + 2]), V(&uv[j + 2]), V(&col[j + 2]));
                 EftGfx_DrawPolyScaledZ(poly, p->layer, 0, 0, (w2->flags >> 4) & 1, 0, w2->tex0, 1.0f);
             }
         }
@@ -1193,7 +1193,7 @@ void EftChain_UpdateStrands(EftTask *task) {
                 } else {
                     Vec4_Copy(V(&ch->color), V(&ch->colA));
                 }
-                func_00122118(V(&ch->color), V(&ch->color), 0.0f, 255.0f);
+                Vec4_Clamp(V(&ch->color), V(&ch->color), 0.0f, 255.0f);
                 if (!(ch->flags & EFT_ARCCH_FADED_IN)) {
                     u = ch->fadeInT / ch->fadeIn;
                     ch->fadeInT += 1.0f;
@@ -1357,12 +1357,12 @@ void EftChain_Init(EftTask *task, EftArcArg *arg) {
         w->time = 0.0f;
         w->life = life * 30.0f;
     }
-    func_00122140(V(&arg->dir), V(&arg->dir), -1.0f, 1.0f);
+    Vec3_Clamp(V(&arg->dir), V(&arg->dir), -1.0f, 1.0f);
     w->pitch = Mathf_Asin(-arg->dir.y);
     w->yaw = atan2f(arg->dir.x, arg->dir.z);
     Mtx_StoreIdentity(&w->mtx);
-    func_00120398(&w->mtx, &w->mtx, w->pitch);
-    func_00120428(&w->mtx, &w->mtx, w->yaw);
+    Mtx_RotateX(&w->mtx, &w->mtx, w->pitch);
+    Mtx_RotateY(&w->mtx, &w->mtx, w->yaw);
     w->rotX[0] = 0.0f;
     w->rotY[0] = 0.0f;
     w->rotX[1] = 3.14159265f;
@@ -1499,22 +1499,22 @@ extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b);    /* matrix product */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);            /* inverse of a rotation + translation matrix */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
-extern void func_00120AB0(void);                              /* saves the VU0 matrix state */
-extern void func_00120AC8(void);                              /* restores it */
-extern void func_00120B80(Mtx44 *m);                          /* loads a matrix into VU0 */
-extern void func_00121990(EftTClipVtx *out, Vec4 *pos, Vec4 *st, Vec4 *col, s32 n); /* n clip vertices */
-extern s32 func_00121A10(EftTClipVtx *poly, EftTVec *plane, s32 count); /* clips in place, new count */
-extern void func_00121D48(EftTIVec *scr, EftTVec *st, EftTClipVtx *poly, s32 count); /* projects */
-extern void func_00121F88(Vec4 *dst, Vec4 *src, f32 div);     /* dst = src / div */
-extern void func_00121FB8(Vec4 *dst, Vec4 *src);              /* copies x, y, z */
-#define func_001220F0 ((void (*)(EftTIVec *dst, Vec4 *src))func_001220F0)          /* float vector to integer vector */
-extern s32 func_00122350(EftTIVec *out, Mtx44 *m, Vec4 *pos); /* projects one point */
-#define func_00122610 ((void (*)(Vec4 *dst, Vec4 *a, Mtx44 *m, Vec4 *b, Vec4 *c))func_00122610)
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b);    /* matrix product */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);            /* inverse of a rotation + translation matrix */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
+extern void Vu0Cur_Push(void);                              /* saves the VU0 matrix state */
+extern void Vu0Cur_Pop(void);                              /* restores it */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                          /* loads a matrix into VU0 */
+extern void ClipVtx_SetArray(EftTClipVtx *out, Vec4 *pos, Vec4 *st, Vec4 *col, s32 n); /* n clip vertices */
+extern s32 ClipPoly_ClipPlane(EftTClipVtx *poly, EftTVec *plane, s32 count); /* clips in place, new count */
+extern void ClipPoly_ProjectCur(EftTIVec *scr, EftTVec *st, EftTClipVtx *poly, s32 count); /* projects */
+extern void Vec3_Div(Vec4 *dst, Vec4 *src, f32 div);     /* dst = src / div */
+extern void Vec3_Copy(Vec4 *dst, Vec4 *src);              /* copies x, y, z */
+#define Vec4_ToInt ((void (*)(EftTIVec *dst, Vec4 *src))Vec4_ToInt)          /* float vector to integer vector */
+extern s32 Mtx_ProjectPoint(EftTIVec *out, Mtx44 *m, Vec4 *pos); /* projects one point */
+#define Vec3_Add4 ((void (*)(Vec4 *dst, Vec4 *a, Mtx44 *m, Vec4 *b, Vec4 *c))Vec3_Add4)
 
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -1588,10 +1588,10 @@ void EftChain_Draw(EftTTask *task) {
             return;
         }
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     EftChain_DrawStrands(task);
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Init callback of the manager class 0x2C3E30: the link buffer and a list of 10 tasks. */
@@ -1703,7 +1703,7 @@ s32 EftChain_SetPos(EftTTask *task, Vec4 *pos) {
     if (!(w->flags & EFT_CHAIN_ALIVE)) {
         return 0;
     }
-    func_00121FB8((Vec4 *)&w->arg.pos, pos);
+    Vec3_Copy((Vec4 *)&w->arg.pos, pos);
     return 1;
 }
 
@@ -1723,7 +1723,7 @@ s32 EftChain_Warp(EftTTask *task, Vec4 *pos) {
     if (!(w->flags & EFT_CHAIN_ALIVE)) {
         return 0;
     }
-    func_00121FB8((Vec4 *)&w->arg.pos, pos);
+    Vec3_Copy((Vec4 *)&w->arg.pos, pos);
     st = (EftChainStrand *)w;
     for (i = 0; i < 16; i++, st++) {
         Mtx44 *m = &EFT_CHAIN_STRAND(st)->mtx;
@@ -1734,7 +1734,7 @@ s32 EftChain_Warp(EftTTask *task, Vec4 *pos) {
 
             while (*pp != NULL) {
                 link = *pp;
-                func_00122610(&link->pos, (Vec4 *)&w->arg.pos, m, &link->unk0, &link->unk10);
+                Vec3_Add4(&link->pos, (Vec4 *)&w->arg.pos, m, &link->unk0, &link->unk10);
                 link->pos.w = 1.0f;
                 pp = &link->next;
             }
@@ -1757,12 +1757,12 @@ s32 EftChain_SetDir(EftTTask *task, Vec4 *dir) {
     if (!(w->flags & EFT_CHAIN_ALIVE)) {
         return 0;
     }
-    func_00121FB8((Vec4 *)&w->arg.dir, dir);
+    Vec3_Copy((Vec4 *)&w->arg.dir, dir);
     w->pitch = Mathf_Asin(-w->arg.dir.y);
     w->yaw = atan2f(w->arg.dir.x, w->arg.dir.z);
     Mtx_StoreIdentity(&w->rot);
-    func_00120398(&w->rot, &w->rot, w->pitch);
-    func_00120428(&w->rot, &w->rot, w->yaw);
+    Mtx_RotateX(&w->rot, &w->rot, w->pitch);
+    Mtx_RotateY(&w->rot, &w->rot, w->yaw);
     return 1;
 }
 
@@ -2300,18 +2300,18 @@ void EftRay_DrawRays(EftRayWork *w) {
         case 0:
             Mtx_StoreIdentity(&m);
             Mtx_StoreIdentity(&w->mtx);
-            func_001202A0(&m, &gBtlCamView->view);
+            Mtx_InverseRT(&m, &gBtlCamView->view);
             m.m[3][0] = 0.0f;
             m.m[3][1] = 0.0f;
             m.m[3][2] = 0.0f;
             m.m[3][3] = 1.0f;
-            func_001201B8(&w->mtx, &w->mtx, &m);
+            Mtx_Mul(&w->mtx, &w->mtx, &m);
             Vec4_Copy((Vec4 *)w->mtx.m[3], (Vec4 *)&w->pos);
             break;
         case 1:
             if (w->mode == EFT_RAY_MODE_TECH || w->mode == EFT_RAY_MODE_CUT) {
                 BtlCharApi_GetNodePos(BtlCharApi_GetOpponentObjId(w->objId), 3, &node);
-                func_00122350(&scr, &gBtlCamView->screen, &node);
+                Mtx_ProjectPoint(&scr, &gBtlCamView->screen, &node);
                 if (scr.z < 0) {
                     return;
                 }
@@ -2324,8 +2324,8 @@ void EftRay_DrawRays(EftRayWork *w) {
             Vec4_Copy((Vec4 *)w->mtx.m[3], (Vec4 *)&w->pos);
             break;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     ray = w->ray;
     for (i = 0; i < w->count; i++, ray++) {
         c = corner;
@@ -2337,7 +2337,7 @@ void EftRay_DrawRays(EftRayWork *w) {
             Vec4_Set(&off, 0.0f, -(w->inner + ray->offset), 0.0f, 0.0f);
             Vec4_Add(&v, &v, &off);
             Mtx_StoreIdentity(&m);
-            func_00120308(&m, &m, ray->angle);
+            Mtx_RotateZ(&m, &m, ray->angle);
             Mtx_MulVec4(&v2, &m, &v);
             Mtx_MulVec4(c, &w->mtx, &v2);
         }
@@ -2349,7 +2349,7 @@ void EftRay_DrawRays(EftRayWork *w) {
                               (u32)(ray->a * w->alpha), w->blend, gEftRay->tex, 4.0f);
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 INCLUDE_RODATA("asm/nonmatchings/battle/eft_s", D_002ECDE0); /* the four corner factors (base[] below) */
@@ -2371,9 +2371,9 @@ void EftRay_DrawQuad3D(Vec4 *corner, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u8 g1, u
     Vec4_Set(&col[1], r0, g0, b0, a0);
     Vec4_Set(&col[2], r1, g1, b1, a1);
     Vec4_Set(&col[3], r1, g1, b1, a1);
-    func_00121990(poly, &corner[0], &st[0], &col[0], 3);
+    ClipVtx_SetArray(poly, &corner[0], &st[0], &col[0], 3);
     EftRay_DrawClipped(poly, blend, tex->tex0);
-    func_00121990(poly, &corner[1], &st[1], &col[1], 3);
+    ClipVtx_SetArray(poly, &corner[1], &st[1], &col[1], 3);
     EftRay_DrawClipped(poly, blend, tex->tex0);
 }
 
@@ -2420,8 +2420,8 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
 
     Vec4_Sub(&d[0], &corner[2], &corner[0]);
     Vec4_Sub(&d[1], &corner[3], &corner[1]);
-    func_00121F88(&d[0], &d[0], segs);
-    func_00121F88(&d[1], &d[1], segs);
+    Vec3_Div(&d[0], &d[0], segs);
+    Vec3_Div(&d[1], &d[1], segs);
     Vec4_Copy(&p[0], &corner[0]);
     Vec4_Copy(&p[1], &corner[1]);
     aStep = (f32)(a1 - a0) / segs;
@@ -2439,10 +2439,10 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
         aNext += aStep;
         tv[2].y = tv[0].y + vStep0;
         tv[3].y = tv[1].y + vStep1;
-        func_001220F0(&scr[0], &p[0]);
-        func_001220F0(&scr[1], &p[1]);
-        func_001220F0(&scr[2], &p[2]);
-        func_001220F0(&scr[3], &p[3]);
+        Vec4_ToInt(&scr[0], &p[0]);
+        Vec4_ToInt(&scr[1], &p[1]);
+        Vec4_ToInt(&scr[2], &p[2]);
+        Vec4_ToInt(&scr[3], &p[3]);
         q = (EftTQuadPkt *)gOtCur;
         gOtCur = (u32 *)(q + 1);
         q->tag = 0x20000008;
@@ -2522,11 +2522,11 @@ void EftRay_DrawClipped(EftTClipVtx *poly, s32 blend, u64 tex0) {
 
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
-        n = func_00121A10(poly, plane, n);
+        n = ClipPoly_ClipPlane(poly, plane, n);
         plane++;
     }
     if (n != 0) {
-        func_00121D48(scr, st, poly, n);
+        ClipPoly_ProjectCur(scr, st, poly, n);
         for (i = 2; i < n; i++) {
             z = (scr[0].z + scr[i - 1].z + scr[i].z) / 3;
             scr[0].z = 0xFFFFFF;

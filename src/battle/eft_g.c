@@ -10,14 +10,14 @@
  * every `#if 0` into `#if 1` and dropping the INCLUDE_ASM lines gives a file that fdiff can compile.
  *
  * Callees that have no name yet, from a first read of how they are used here:
- *   func_00122168(out,a,b,t) linear interpolation of two vectors
- *   func_001202A0(out, m)    inverse of a view matrix: gives the camera's world matrix (row 3 = position)
+ *   Vec4_Lerp(out,a,b,t) linear interpolation of two vectors
+ *   Mtx_InverseRT(out, m)    inverse of a view matrix: gives the camera's world matrix (row 3 = position)
  *   EftTexSet_Load32(set, pack) loads a texture set; EftTexSet_Load8(tex, pack) loads a single texture
  *   EftTexSet_Keep32(set, 1, 0) advances every texture of a set; EftVram_AddTex(entry, 1, 0) advances one, returns TEX0
- *   func_00120AB0() / func_00120AC8()   begin / end of a block of projections; func_00120B80(m) sets the matrix
- *   func_001210D8(out, pos)  projects a point to GS screen coordinates; func_00121140(out, pos, n) projects n
+ *   Vu0Cur_Push() / Vu0Cur_Pop()   begin / end of a block of projections; Vu0Cur_LoadMtx(m) sets the matrix
+ *   Vu0Cur_ProjectPoint(out, pos)  projects a point to GS screen coordinates; Vu0Cur_ProjectPoints(out, pos, n) projects n
  *                            points and returns 0 when they are rejected
- *   func_00121950(out, pos, st, col)   builds one clip-space vertex (0x30 bytes) for EftGfx_DrawPolyScaledZ
+ *   ClipVtx_Set(out, pos, st, col)   builds one clip-space vertex (0x30 bytes) for EftGfx_DrawPolyScaledZ
  *   EftSpr_DrawFlat(...)       queues a camera-facing sprite
  *   BtlTaskList_KillAll(list)      destroys a task list; BtlTask_SetDead(task) kills a task
  * Named by the neighbouring effect and stage files (config/symbols/eft_c.txt, eft_e.txt, eft_h.txt, eft_j.txt,
@@ -81,8 +81,8 @@ extern void *Battle_GetWork(void);
 extern s32 Battle_IsSplitScreen(void);
 
 extern void EftWater_GetSurfaceY(f32 *y);
-extern void func_00122168(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
-extern void func_001202A0(Mtx44 *out, Mtx44 *m);
+extern void Vec4_Lerp(Vec4 *out, Vec4 *a, Vec4 *b, f32 t);
+extern void Mtx_InverseRT(Mtx44 *out, Mtx44 *m);
 extern void BtlStage_GetWaterLevel(f32 *y);
 extern void EftTexSet_Load32(void *set, void *pack);
 extern void EftTexSet_Load8(void *tex, void *pack);
@@ -90,11 +90,11 @@ extern void EftTexSet_Keep32(void *set, s32 a, s32 b);
 extern u64 EftVram_AddTex(void *entry, s32 a, s32 b);
 extern f32 EftStage_GetTintScale(void);
 extern s32 EftStage_IsDrawOn(void);
-extern void func_00120AB0(void);
-extern void func_00120AC8(void);
-extern void func_00120B80(Mtx44 *m);
-extern void func_001210D8(EftScrXyz *out, Vec4 *pos);
-extern s32 func_00121140(EftScrXyz *out, Vec4 *pos, s32 count);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_Pop(void);
+extern void Vu0Cur_LoadMtx(Mtx44 *m);
+extern void Vu0Cur_ProjectPoint(EftScrXyz *out, Vec4 *pos);
+extern s32 Vu0Cur_ProjectPoints(EftScrXyz *out, Vec4 *pos, s32 count);
 extern void BtlStage_GetLightVecB(Vec4 *dir);
 extern f32 EftMath_WrapAngle(f32 angle);
 extern f32 BtlStage_GetInnerRadius(void);
@@ -148,7 +148,7 @@ typedef struct EftClipVtx {
     /* 0x20 */ f32 col[4];
 } EftClipVtx; /* 0x30 */
 
-extern void func_00121950(EftClipVtx *out, EftVecArg *pos, EftVecArg *st, EftVecArg *col);
+extern void ClipVtx_Set(EftClipVtx *out, EftVecArg *pos, EftVecArg *st, EftVecArg *col);
 extern void EftGfx_DrawPolyScaledZ(f32 unk, EftClipVtx *v, s32 otZ, s32 a3, s32 a4, s32 a5, s32 a6, u64 tex0);
 extern void EftSpr_DrawFlat(f32 u0, f32 v0, f32 u1, f32 v1, s32 r, s32 g, s32 b, s32 a, Vec4 *pos, u32 w, u32 h,
                           s32 unk, s32 unkS0, void *tex);
@@ -358,7 +358,7 @@ void EftUtil_ClipSegToWater(Vec4 *out, Vec4 *a, Vec4 *b) {
     Vec4_Sub(&dir, a, b);
     da = Vec3_Dot(&plane, a);
     dd = Vec3_Dot(&plane, &dir);
-    func_00122168(out, a, b, 1.0f - (da + plane.w) / dd);
+    Vec4_Lerp(out, a, b, 1.0f - (da + plane.w) / dd);
     out->w = 1.0f;
 }
 
@@ -368,7 +368,7 @@ s32 EftUtil_IsCamUnderWater(void) {
     f32 y;
 
     y = 0.0f;
-    func_001202A0(&m, &gBtlCamView->view);
+    Mtx_InverseRT(&m, &gBtlCamView->view);
     BtlStage_GetWaterLevel(&y);
     return m.m[3][1] >= y;
 }
@@ -562,7 +562,7 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
     Vec4_Scale(&corner[3], &corner[3], 150.0f);
     Mtx_StoreIdentity(&cam);
     if (gBtlCamView != NULL) {
-        func_001202A0(&cam, &gBtlCamView->view);
+        Mtx_InverseRT(&cam, &gBtlCamView->view);
     }
     hdr[0] = 0x20000000;
     Mtx_MulVec4(&corner[0], &cam, &corner[0]);
@@ -570,10 +570,10 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
     Mtx_MulVec4(&corner[1], &cam, &corner[1]);
     Mtx_MulVec4(&corner[2], &cam, &corner[2]);
     Mtx_MulVec4(&corner[3], &cam, &corner[3]);
-    func_00120AB0();
+    Vu0Cur_Push();
     hdr[0] |= 7;
     hdr[1] |= 7;
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     for (i = 3; i >= 0; i--, bolt++) {
         if (bolt->life == 0 || bolt->wait != 0) {
             continue;
@@ -581,7 +581,7 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
         for (j = 0; j < 4; j++) {
             bolt->pos.w = 1.0f;
             Vec4_Add(&world[j], &corner[j], &bolt->pos);
-            func_001210D8(&xyz[j], &world[j]);
+            Vu0Cur_ProjectPoint(&xyz[j], &world[j]);
             if (!EftScr_IsValid(&xyz[j])) {
                 break;
             }
@@ -594,7 +594,7 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
         }
         EftStorm_DrawSprite(bolt, &xyz[2], &xyz[3], work->tex.entry[bolt->texB].tex0, col, hdr);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftStorm_DrawBolts);
@@ -712,7 +712,7 @@ void EftStorm_DrawRainLines(EftStormDrop *drop, s32 count, Vec4 *streak) {
     for (i = 0; i < count; i++, drop++) {
         Vec4_Copy(&pos[0], &drop->pos);
         Vec4_Add(&pos[1], &drop->pos, streak);
-        if (func_00121140(xyz, pos, 2) != 0 && EftScr_IsValid(&xyz[0]) && EftScr_IsValid(&xyz[1])) {
+        if (Vu0Cur_ProjectPoints(xyz, pos, 2) != 0 && EftScr_IsValid(&xyz[0]) && EftScr_IsValid(&xyz[1])) {
         p = EftOt_Alloc(sizeof(EftLinePkt));
         p->prim = 0x41;
         p->tag = 0x20000003;
@@ -785,15 +785,15 @@ void EftStorm_DrawRain(void) {
 
     Vec4_Set(&center, 0.0f, 0.0f, 150.0f, 1.0f);
     Vec4_Set(&streak, 0.0f, 100.0f, 0.0f, 0.0f);
-    func_001202A0(&cam, &gBtlCamView->view);
+    Mtx_InverseRT(&cam, &gBtlCamView->view);
     Mtx_MulVec4(&center, &cam, &center);
     Vec4_Sub(&delta, &gEftStorm->prevCam[view], (Vec4 *)cam.m[3]);
     Vec4_Add(&streak, &streak, &delta);
     Vec3_Normalize(&streak, &streak);
     Vec4_Scale(&streak, &streak, 20.0f);
     Vec4_Copy(&gEftStorm->prevCam[view], (Vec4 *)cam.m[3]);
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     if (!Battle_IsSplitScreen()) {
         EftStorm_WrapRain(&center, gEftStorm->drop, EFT_STORM_DROPS);
         EftStorm_DrawRainLines(gEftStorm->drop, EFT_STORM_DROPS, &streak);
@@ -804,7 +804,7 @@ void EftStorm_DrawRain(void) {
         EftStorm_WrapRain(&center, &gEftStorm->drop[EFT_STORM_DROPS / 2], EFT_STORM_DROPS / 2);
         EftStorm_DrawRainLines(&gEftStorm->drop[EFT_STORM_DROPS / 2], EFT_STORM_DROPS / 2, &streak);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Creates a smoke emitter task. Returns the task, NULL when the manager does not exist. */
@@ -1014,8 +1014,8 @@ void EftSmoke_Draw(EftTask *task) {
     }
     part = work->part;
     bright = EftStage_GetTintScale();
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     hi = 1.0f;
     lo = 0.0f;
     BtlStage_GetLightVecB(&light);
@@ -1058,7 +1058,7 @@ void EftSmoke_Draw(EftTask *task) {
                           work->arg.size * 128.0f, work->arg.size * 128.0f, 0, 0, tex);
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftSmoke_Draw);
@@ -1225,9 +1225,9 @@ void EftBound_DrawTri(EftMtxArg m, EftVecArg p0, EftVecArg p1, EftVecArg p2, Eft
     f32 ft;
 
     memset(v, 0, sizeof(v));
-    func_00121950(&v[0], &p0, &st0, &c0);
-    func_00121950(&v[1], &p1, &st1, &c1);
-    func_00121950(&v[2], &p2, &st2, &c2);
+    ClipVtx_Set(&v[0], &p0, &st0, &c0);
+    ClipVtx_Set(&v[1], &p1, &st1, &c1);
+    ClipVtx_Set(&v[2], &p2, &st2, &c2);
     fs = (s32)st0.v[0];
     ft = (s32)st0.v[1];
     v[0].st[0] -= fs;
@@ -1251,8 +1251,8 @@ void EftBound_DrawMeshCulled(EftBoundMesh *mesh) {
     s32 i;
 
     Vec4_Copy(&cam, &gBtlCamView->pos);
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     for (i = 0; i < mesh->quadCount; i++) {
         m = (EftBoundMesh *)((u8 *)mesh + i * sizeof(EftBoundQuad));
         idx = m->quad[0].idx;
@@ -1267,7 +1267,7 @@ void EftBound_DrawMeshCulled(EftBoundMesh *mesh) {
                              vtx[idx.i[2]].col, vtx[idx.i[1]].col, vtx[idx.i[3]].col, param->otZ, tex->tex0);
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Draws every quad of a mesh, two triangles each. */
@@ -1278,8 +1278,8 @@ void EftBound_DrawMesh(EftBoundMesh *mesh) {
     EftBoundVtx *vtx = mesh->vtx;
     s32 i;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->screen);
     for (i = 0; i < mesh->quadCount; i++) {
         idx = mesh->quad[i].idx;
         EftBound_DrawTri(*(EftMtxArg *)&gBtlCamView->screen, vtx[idx.i[0]].pos, vtx[idx.i[1]].pos,
@@ -1289,7 +1289,7 @@ void EftBound_DrawMesh(EftBoundMesh *mesh) {
                          vtx[idx.i[3]].pos, vtx[idx.i[2]].st, vtx[idx.i[1]].st, vtx[idx.i[3]].st,
                          vtx[idx.i[2]].col, vtx[idx.i[1]].col, vtx[idx.i[3]].col, param->otZ, tex->tex0);
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Per-fighter init callback: reads the fighter's size and the stage's radius and heights. */

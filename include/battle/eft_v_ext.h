@@ -39,18 +39,18 @@ extern void Vec3_Normalize(EftVVec *dst, EftVVec *src);
 extern f32 Vec3_Length(EftVVec *v);
 extern void Mtx_StoreIdentity(EftVMtx *m);
 extern void Mtx_MulVec4(EftVVec *dst, EftVMtx *m, EftVVec *src);
-extern void func_00120230(EftVMtx *dst, EftVMtx *src);              /* matrix copy */
-extern void func_00120398(EftVMtx *dst, EftVMtx *src, f32 angle);   /* rotate about X */
-extern void func_00120428(EftVMtx *dst, EftVMtx *src, f32 angle);   /* rotate about Y */
-extern void func_00120AB0(void);                                    /* VU0 matrix stack: push */
-extern void func_00120AC8(void);                                    /* VU0 matrix stack: pop */
-extern void func_00120B80(EftVMtx *m);                              /* VU0 current matrix = m */
-extern s32 func_00121140(EftVIVec *out, EftVVec *pos, s32 count);   /* project count points; 0 when clipped */
-extern void func_00121950(EftVVert *out, EftVVec *pos, EftVVec *uv, EftVVec *color);
-extern void func_00121FB8(EftVVec *dst, EftVVec *src);              /* copies x, y, z */
-extern void func_001220F0(EftVIVec *dst, EftVVec *src);             /* float vector to integer vector */
-extern void func_00122140(EftVVec *dst, EftVVec *src, f32 lo, f32 hi); /* clamp x, y, z */
-extern void func_001225D0(EftVVec *dst, EftVVec *dir, EftVVec *base, f32 s); /* dst = base + dir * s */
+extern void Mtx_Copy(EftVMtx *dst, EftVMtx *src);              /* matrix copy */
+extern void Mtx_RotateX(EftVMtx *dst, EftVMtx *src, f32 angle);   /* rotate about X */
+extern void Mtx_RotateY(EftVMtx *dst, EftVMtx *src, f32 angle);   /* rotate about Y */
+extern void Vu0Cur_Push(void);                                    /* VU0 matrix stack: push */
+extern void Vu0Cur_Pop(void);                                    /* VU0 matrix stack: pop */
+extern void Vu0Cur_LoadMtx(EftVMtx *m);                              /* VU0 current matrix = m */
+extern s32 Vu0Cur_ProjectPoints(EftVIVec *out, EftVVec *pos, s32 count);   /* project count points; 0 when clipped */
+extern void ClipVtx_Set(EftVVert *out, EftVVec *pos, EftVVec *uv, EftVVec *color);
+extern void Vec3_Copy(EftVVec *dst, EftVVec *src);              /* copies x, y, z */
+extern void Vec4_ToInt(EftVIVec *dst, EftVVec *src);             /* float vector to integer vector */
+extern void Vec3_Clamp(EftVVec *dst, EftVVec *src, f32 lo, f32 hi); /* clamp x, y, z */
+extern void Vec3_ScaleAdd(EftVVec *dst, EftVVec *dir, EftVVec *base, f32 s); /* dst = base + dir * s */
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftPrim_DrawQuadDepth(EftVVec *pos, EftVVec *color, s32 layer, s32 front, u64 tex0, f32 w, f32 h, f32 u0,
                                   f32 v0, f32 u1, f32 v1, f32 rot);

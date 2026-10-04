@@ -39,7 +39,7 @@ extern void Vec4_Add(StgColVec *out, StgColVec *a, StgColVec *b);
 extern void Vec3_Sub(StgColVec *out, StgColVec *a, StgColVec *b);
 extern void Vec3_Scale(StgColVec *out, StgColVec *v, f32 s);
 extern f32 Vec3_Dot(StgColVec *a, StgColVec *b);
-extern f32 func_00122200(StgColVec *a, StgColVec *b);          /* distance */
+extern f32 Vec3_Dist(StgColVec *a, StgColVec *b);          /* distance */
 
 /* Collision mesh (0x230EC0..0x231768). */
 extern s32 ColMesh_WalkBox(void *mesh, StgColBox *box, void *ctx, StgColCb cb); /* walk: cb per candidate node */
@@ -536,7 +536,7 @@ void StgCol_InitSegCtx(StgColCtx *ctx, StgColSeg *seg) {
     memset(ctx, 0, sizeof(StgColCtx));
     ctx->seg = *seg;
     ColBounds_OfSeg(&ctx->box, seg);
-    ctx->dist = func_00122200(&seg->a, &seg->b);
+    ctx->dist = Vec3_Dist(&seg->a, &seg->b);
     ColRay_FromSeg(&ctx->ray, seg);
     far = gStgColFar[0];
     ctx->obj = -1;

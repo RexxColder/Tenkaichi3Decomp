@@ -50,7 +50,7 @@ typedef struct EftVMtx {
     EftVVec row[4];
 } EftVMtx; /* size 0x40 */
 
-/* A projected point (GS 12.4 fixed point) as func_00121140 writes it, or a colour as func_001220F0 writes it. */
+/* A projected point (GS 12.4 fixed point) as Vu0Cur_ProjectPoints writes it, or a colour as Vec4_ToInt writes it. */
 typedef struct EftVIVec {
     /* 0x00 */ s32 x;
     /* 0x04 */ s32 y;
@@ -123,7 +123,7 @@ typedef struct EftVStripPkt {
     /* 0x88 */ EftVXyzf xyz3;
 } EftVStripPkt; /* size 0x90 */
 
-/* A vertex of the clipped polygon drawing (EftGfx_DrawPoly*), filled by func_00121950. */
+/* A vertex of the clipped polygon drawing (EftGfx_DrawPoly*), filled by ClipVtx_Set. */
 typedef struct EftVVert {
     /* 0x00 */ EftVVec pos;
     /* 0x10 */ EftVVec uv;

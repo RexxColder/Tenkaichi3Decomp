@@ -32,11 +32,11 @@ extern void Vec4_Scale(Vec4 *out, Vec4 *v, f32 scale);
 extern f32 Vec3_Length(Vec4 *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *out, Mtx44 *m, Vec4 *v);
-extern void func_00120308(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about z */
-extern void func_00120398(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about x */
-extern void func_00120428(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about y */
-extern void func_00121E18(Vec4 *v);
-extern void func_00121E20(Vec4 *v);
+extern void Mtx_RotateZ(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about z */
+extern void Mtx_RotateX(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about x */
+extern void Mtx_RotateY(Mtx44 *out, Mtx44 *in, f32 angle); /* rotate about y */
+extern void Vec4_SetZeroW1(Vec4 *v);
+extern void Vec4_SetZero(Vec4 *v);
 
 extern BtlCtlRoster *gBtlChars;
 extern Vec4 D_002EC2A0; /* (0, 0, 0, 0) */
@@ -85,8 +85,8 @@ void BtlChar_ObjToPose(BtlCtlChr *chr) {
         Vec4_Copy((Vec4 *)&q, (Vec4 *)&node->rot);
         Quat_ToEuler(&pose->rootRot, &q);
     } else {
-        func_00121E18(&pose->rootPos);
-        func_00121E20(&pose->rootRot);
+        Vec4_SetZeroW1(&pose->rootPos);
+        Vec4_SetZero(&pose->rootRot);
     }
 }
 
@@ -113,10 +113,10 @@ void BtlChar_PoseToObj(BtlCtlChr *chr, s32 keepRoot) {
     }
     if (apply) {
         Mtx_StoreIdentity(&m);
-        func_00120428(&m, &m, 3.14159265f);
-        func_00120428(&m, &m, obj->rot.y);
-        func_00120398(&m, &m, obj->rot.x);
-        func_00120308(&m, &m, obj->rot.z);
+        Mtx_RotateY(&m, &m, 3.14159265f);
+        Mtx_RotateY(&m, &m, obj->rot.y);
+        Mtx_RotateX(&m, &m, obj->rot.x);
+        Mtx_RotateZ(&m, &m, obj->rot.z);
         Mtx_MulVec4(&v, &m, &pose->rootPos);
         Vec4_Scale(&v, &v, obj->scale);
         Vec4_Sub(&obj->pos, &obj->pos, &v);

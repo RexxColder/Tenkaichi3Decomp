@@ -133,6 +133,15 @@ options:
     - config/symbols/bobj_a.txt
     - config/symbols/bobj_b.txt
     - config/symbols/btl_ai_seq_a.txt
+    - config/symbols/vu0_a.txt
+    - config/symbols/vu0_b.txt
+    - config/symbols/dialog.txt
+    - config/symbols/cri_adxf.txt
+    - config/symbols/hud_a.txt
+    - config/symbols/hud_b.txt
+    - config/symbols/gfxm_a.txt
+    - config/symbols/gfxm_b.txt
+    - config/symbols/view_a.txt
     - config/symbol_addrs_dbzp.txt
   reloc_addrs_path:
     - config/reloc_addrs_dbzp.txt

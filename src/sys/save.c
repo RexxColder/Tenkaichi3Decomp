@@ -6,7 +6,7 @@
 
 extern void *memset(void *dst, s32 value, u32 size);
 
-extern void func_0025DF30(void); /* clears the per-session parts of gProgress */
+extern void Progress_ClearSession(void); /* clears the per-session parts of gProgress */
 
 /* Debug (no callers): unlocks every character, stage, list entry and item, marks about half the items new, and gives 4,850,000 money. */
 void Save_UnlockAll(SaveData *opt) {
@@ -60,7 +60,7 @@ void Save_SetDefaults(SaveData *opt) {
     ItemInfo *info;
 
     info = (ItemInfo *)((u8 *)gCommonRes->data[2] + ((ItemFile *)gCommonRes->data[2])->itemOffset / 4 * 4);
-    func_0025DF30();
+    Progress_ClearSession();
     memset(opt, 0, SAVE_SIZE);
     opt->slot[0].flags |= 3;
     opt->slot[0].val[0] |= 1;

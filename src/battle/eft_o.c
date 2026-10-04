@@ -38,15 +38,15 @@ extern void Vec4_Set(void *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Add(void *dst, void *a, void *b);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(void *dst, Mtx44 *m, void *src);
-extern void func_001201B8(Mtx44 *dst, Mtx44 *a, Mtx44 *b); /* matrix product */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);         /* inverse of a rotation + translation matrix */
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00120558(Mtx44 *dst, Mtx44 *src, void *scale); /* scale by a vector */
-extern void func_00120AB0(void);                            /* VU0 matrix stack: push */
-extern void func_00120AC8(void);                            /* VU0 matrix stack: pop */
-extern void func_00120B80(Mtx44 *m);                        /* VU0 current matrix = m */
-extern s32 func_00121140(void *out, void *pos, s32 count);  /* project to screen */
-extern void func_00121950(void *vtx, void *pos, void *uv, void *col); /* fills one polygon vertex */
+extern void Mtx_Mul(Mtx44 *dst, Mtx44 *a, Mtx44 *b); /* matrix product */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);         /* inverse of a rotation + translation matrix */
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Mtx_ScaleDiag(Mtx44 *dst, Mtx44 *src, void *scale); /* scale by a vector */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack: push */
+extern void Vu0Cur_Pop(void);                            /* VU0 matrix stack: pop */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* VU0 current matrix = m */
+extern s32 Vu0Cur_ProjectPoints(void *out, void *pos, s32 count);  /* project to screen */
+extern void ClipVtx_Set(void *vtx, void *pos, void *uv, void *col); /* fills one polygon vertex */
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftGfx_DrawPolyAvgZFront(void *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                      s32 zOfs);
@@ -516,14 +516,14 @@ void EftRays_Draw(EftOTask *task) {
 
     if (!BtlScene_IsEffectHidden(arg->chr, arg->type)) {
         ray = (EftRay *)List_GetHead(&w->list);
-        func_00120AB0();
-        func_00120B80(&gBtlCamView->screenMtx);
+        Vu0Cur_Push();
+        Vu0Cur_LoadMtx(&gBtlCamView->screenMtx);
         for (; ray != NULL; ray = (EftRay *)List_GetNext(&ray->node)) {
             if (ray->flags & 1) {
                 EftRays_DrawRay(w, ray);
             }
         }
-        func_00120AC8();
+        Vu0Cur_Pop();
     }
 }
 
@@ -566,11 +566,11 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     Mtx_StoreIdentity(&m);
     Mtx_StoreIdentity(&cam);
     pos = &w->pos;
-    func_001202A0(&m, &gBtlCamView->camMtx);
+    Mtx_InverseRT(&m, &gBtlCamView->camMtx);
     m.m[3][0] = 0.0f;
     m.m[3][1] = 0.0f;
     m.m[3][2] = 0.0f;
-    func_001201B8(&cam, &cam, &m);
+    Mtx_Mul(&cam, &cam, &m);
     ratio = rect->height / rect->ref;
     cam.m[3][2] = 0.0f;
     cam.m[3][1] = 0.0f;
@@ -582,8 +582,8 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
         scale.y = (rect->height + grow) * w->size;
         scale.z = ratio * -10.0f * w->size;
         scale.w = 1.0f;
-        func_00120558(&m, &m, &scale);
-        func_00120308(&m, &m, ray->rot);
+        Mtx_ScaleDiag(&m, &m, &scale);
+        Mtx_RotateZ(&m, &m, ray->rot);
         Mtx_MulVec4(&q, &m, &p);
         Mtx_MulVec4(&out[i], &cam, &q);
         Vec4_Add(&out[i], &out[i], pos);
@@ -597,11 +597,11 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     color.y = EFT_RAYS_CLAMP(color.y, 0.0f, 255.0f);
     color.z = EFT_RAYS_CLAMP(color.z, 0.0f, 255.0f);
     color.w = EFT_RAYS_CLAMP(color.w, 0.0f, 255.0f);
-    func_00121140(scr, out, 4);
+    Vu0Cur_ProjectPoints(scr, out, 4);
     for (i = 0; i < 2; i++) {
-        func_00121950(verts[0], &out[i], &uv[i], &color);
-        func_00121950(verts[1], &out[i + 1], &uv[i + 1], &color);
-        func_00121950(verts[2], &out[i + 2], &uv[i + 2], &color);
+        ClipVtx_Set(verts[0], &out[i], &uv[i], &color);
+        ClipVtx_Set(verts[1], &out[i + 1], &uv[i + 1], &color);
+        ClipVtx_Set(verts[2], &out[i + 2], &uv[i + 2], &color);
         EftGfx_DrawPolyAvgZFront(verts, def->ray[ray->idx].blend, 0, 0, 0, 0, w->tex0, 0);
     }
 }

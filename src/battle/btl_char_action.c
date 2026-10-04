@@ -23,7 +23,7 @@ extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec4_Add(Vec4 *out, Vec4 *a, Vec4 *b);
 extern void Vec4_Sub(Vec4 *out, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *out, Vec4 *in, f32 scale);
-extern void func_00121E20(Vec4 *v); /* zeroes a vector */
+extern void Vec4_SetZero(Vec4 *v); /* zeroes a vector */
 
 extern s32 Battle_GetMode(void);
 extern s32 BattleSide_GetUnk200(s32 side);
@@ -1355,7 +1355,7 @@ s32 BtlAct_Action04(BtlActChr *chr, s32 phase) {
                 BtlAnim_AdvanceLoop(chr, 0);
                 break;
         }
-        func_00121E20(&BtlChar_GetPos(chr)->unk70);
+        Vec4_SetZero(&BtlChar_GetPos(chr)->unk70);
         chr->holdAction = 1;
         BtlChar_SetFlag(chr, 0x3F);
         BtlChar_SetFlag(chr, 0x128);

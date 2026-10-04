@@ -1,7 +1,7 @@
 # Input
 
 Sources: `src/sys/pad.c`, `src/sys/game_pad.c`. Layouts and bit definitions:
-`include/sys/pad.h`, `include/sys/game_pad.h`. The battle input path is not linked yet; see the
+`include/sys/pad.h`, `include/sys/game_pad.h`. The battle input path (`src/battle/btl_input.c`) is linked; see the
 note at the end.
 
 ## Pad state (verified)

@@ -1,7 +1,7 @@
 #include "common.h"
 #include "sys/heap.h"
 #include "sys/pad.h"
-#include "sys/lib_a.h"
+#include "sys/dialog.h"
 
 typedef struct DialogProgress {
     /* 0x00 */ u8 unk0[0x14];
@@ -18,6 +18,11 @@ typedef struct DialogResHdr {
 } DialogResHdr;
 
 extern DialogProgress *gProgress;
+extern const char gDialogLabelOnStart[];
+extern const char gDialogLabelOffStart[];
+
+/* The one window; NULL while none exists. Defined here: it is this object's .sdata (0x2FF160). */
+Dialog *gDialog = NULL;
 
 extern void *memset(void *dst, s32 value, u32 size);
 extern s32 sprintf(char *dst, const char *fmt, ...);
@@ -30,7 +35,7 @@ extern void func_0010D6F0(DialogFlash *obj);                               /* pe
 extern void func_0010D750(DialogFlash *obj);                               /* per frame: draw */
 extern void func_0010D810(DialogFlash *obj, s32 a);
 extern void func_0010D878(DialogFlash *obj, char *label, s32 a);           /* play a root label */
-extern void func_0010D918(DialogFlash *obj, DialogFlashRef *clip, char *label); /* play a clip's label */
+extern void func_0010D918(DialogFlash *obj, DialogFlashRef *clip, const char *label); /* play a clip's label */
 extern void func_0010D9D8(DialogFlash *obj, DialogFlashRef *clip, s32 a, s32 visible);
 extern void func_0010DCA0(DialogFlash *obj, DialogFlashRef *clip, DialogRect *rect);
 extern void func_0010DCD0(DialogFlash *obj, DialogFlashRef *clip, s32 *x, s32 *y);
@@ -220,7 +225,7 @@ void Dialog_DrawBody(void) {
 }
 
 /* Plays `label` on the plate of the highlighted choice (clip mc_menu_plate_<cursor + 1>). */
-void Dialog_PlayCursorPlate(s32 flash, char *label) {
+void Dialog_PlayCursorPlate(s32 flash, const char *label) {
     DialogFlashRef ref;
     char name[64];
     DialogFlash *obj = &gDialog->flash[flash];
@@ -271,6 +276,10 @@ void Dialog_Term(void) {
     }
 }
 
+/* The two cursor-plate labels are named objects, defined where the original's string pool has them (first use), only
+ * because Dialog_SetCursor is still assembly and refers to them by symbol. Once it matches they can be literals again. */
+const char gDialogLabelOnStart[] __attribute__((aligned(8))) = "fl_on_start";
+
 /* Per frame: advances the animation, shows / hides the choice plates, prints the texts and draws the window. */
 void Dialog_Draw(s32 visible) {
     DialogFlashRef ref;
@@ -285,7 +294,7 @@ void Dialog_Draw(s32 visible) {
         gDialog->flags |= DIALOG_FLAG_CLOSED;
     }
     if (!(gDialog->flags & DIALOG_FLAG_CURSOR_ON) && (gDialog->flash[0].flags & 2)) {
-        Dialog_PlayCursorPlate(0, "fl_on_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
         gDialog->flags |= DIALOG_FLAG_CURSOR_ON;
     }
     flash = gDialog->flash;
@@ -371,6 +380,8 @@ void Dialog_Start(s32 cmd) {
     }
 }
 
+const char gDialogLabelOffStart[] __attribute__((aligned(8))) = "fl_off_start";
+
 /*
  * Reads the operating controller: game-button repeat bits 1 / 2 move the cursor (wrapping, SE 0),
  * pressed bit 0x200 confirms (SE 1; returns 1 for choice 0, -2 for choice 1), pressed bit 0x400
@@ -389,20 +400,20 @@ s32 Dialog_Input(s32 allowCancel) {
         return 0;
     }
     if (gPad[gDialog->port].gameRepeat & 1) {
-        Dialog_PlayCursorPlate(0, "fl_off_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
         gDialog->cursor--;
         if (gDialog->cursor < 0) {
             gDialog->cursor = 1;
         }
-        Dialog_PlayCursorPlate(0, "fl_on_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
         Snd_PlaySe(1, 0);
     } else if (gPad[gDialog->port].gameRepeat & 2) {
-        Dialog_PlayCursorPlate(0, "fl_off_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
         gDialog->cursor++;
         if (gDialog->cursor >= 2) {
             gDialog->cursor = 0;
         }
-        Dialog_PlayCursorPlate(0, "fl_on_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
         Snd_PlaySe(1, 0);
     } else if (gPad[gDialog->port].gamePressed & 0x200) {
         switch (gDialog->cursor) {
@@ -419,7 +430,7 @@ s32 Dialog_Input(s32 allowCancel) {
         Snd_PlaySe(1, 1);
     } else if (gPad[gDialog->port].gamePressed & 0x400) {
         if (allowCancel != 0) {
-            Dialog_PlayCursorPlate(0, "fl_off_start");
+            Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
             result = DIALOG_RESULT_CANCEL;
             Snd_PlaySe(1, 2);
         }
@@ -471,13 +482,13 @@ void Dialog_SetTitle(s32 idx) {
 #if 0
 void Dialog_SetCursor(s32 choice) {
     if (gDialog->cursor == (choice ^ 1)) {
-        Dialog_PlayCursorPlate(0, "fl_off_start");
+        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
     }
     gDialog->cursor = gDialog->defCursor = choice;
-    Dialog_PlayCursorPlate(0, "fl_on_start");
+    Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
 }
 #endif
-INCLUDE_ASM("asm/nonmatchings/sys/lib_a", Dialog_SetCursor);
+INCLUDE_ASM("asm/nonmatchings/sys/dialog", Dialog_SetCursor);
 
 /* 1 once the close animation has finished. */
 s32 Dialog_IsClosed(void) {

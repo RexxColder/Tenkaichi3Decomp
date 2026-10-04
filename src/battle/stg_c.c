@@ -46,37 +46,37 @@ extern s32 BtlStage_HasFeature(s32 feature);   /* 1 when the stage file turns th
 extern f32 BtlStage_GetTop(void);        /* stage word +4 of the stage block's +0x40 table (see stg_a) */
 
 /* Other members of the group (0x102F28..0x10A5A0, 0x2446B0..0x245F58). */
-extern void func_00102F28(s32 base);
-extern void func_00103070(void);
-extern void func_00103258(void);
-extern void func_00105F30(void);
-extern void func_00106100(void);
-extern void func_00106130(s32 base);
-extern void func_00106180(void);
-extern void func_00106188(void);
-extern void func_001062A0(void);
-extern void func_001065A8(void);
-extern void func_001065F8(s32 base);
-extern void func_00106668(void);
-extern void func_00106670(void);
-extern void func_00106778(void);
-extern void func_00106C60(void);
-extern void func_00106C68(void);
-extern void func_00106D60(s32 mode, s32 base, s32 clutBase, s32 arg3);
-extern void func_00107508(u64 alpha, Vec4 *color); /* blended full-screen rectangle */
-extern void func_00107730(void);
-extern void func_00107758(void);
-extern void func_00107760(void);
-extern void func_001085C0(void);
-extern void func_00108838(void);
-extern void func_00108878(void);
-extern void func_001088A8(void);
-extern void func_00109320(void);
-extern void func_001097F8(s32 base);
-extern void func_00109848(void);
-extern void func_0010A5A0(StgHaze *haze, u16 clutBase);
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);
-extern void func_001200C0(Mtx44 *m);
+extern void StgPanBlur_Init(s32 base);
+extern void StgPanBlur_Draw(void);
+extern void StgPanBlur_Term(void);
+extern void StgGlare_Update(void);
+extern void StgGlare_Reset(void);
+extern void StgGlare_Init(u16 base);
+extern void StgGlare_Term(void);
+extern void StgGlare_Draw(void);
+extern void StgGlare_LoadParams(void);
+extern void StgDepthTint_Rebuild(void);
+extern void StgDepthTint_Init(u16 base);
+extern void StgDepthTint_Term(void);
+extern void StgDepthTint_Draw(void);
+extern void StgDepthTint_LoadParams(void);
+extern void GfxPost_InitNop(void);
+extern void GfxPost_TermNop(void);
+extern void GfxPost_DrawDepthClut(s32 mode, s32 base, s32 clutBase, u64 alpha);
+extern void GfxPost_DrawTintRect(u64 alpha, Vec4 *color); /* blended full-screen rectangle */
+extern void GfxLens_Init(void);
+extern void GfxLens_Stub107758(void);
+extern void GfxLens_Clear(void);
+extern void GfxLens_DrawFull(void);
+extern void GfxWater_Init(void);
+extern void GfxWater_Term(void);
+extern void GfxWater_LoadStageColor(void);
+extern void GfxWater_Draw(void);
+extern void GfxDepthFog_Init(u16 base);
+extern void GfxDepthFog_Draw(void);
+extern void GfxClut_InitPacket(StgHaze *haze, u16 clutBase);
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);
+extern void Mtx_ClearTrans(Mtx44 *m);
 extern void ScrXfade_Init(void);
 extern void ScrXfade_Term(void);
 extern void ScrXfade_Reset(void);
@@ -211,7 +211,7 @@ void StgHaze_BeginDraw(StgHazeDraw *d, StgHaze *haze, s32 x0, s32 x1, s32 width,
     Dma_AddTexFlush();
     Dma_AddFrame((gGfx.frame & 1) ? 0 : 0x70, 8, 0xFFFFFF);
     Dma_AddZbuf(0xE0, 1);
-    func_00106D60(0, 0x1C00, haze->clutBase, 0x44);
+    GfxPost_DrawDepthClut(0, 0x1C00, haze->clutBase, 0x44);
     Dma_AddZbuf(0xE0, 0);
     d->p = (GsQword *)Dma_BeginDirect();
     Gfx_PutDefaultEnv(&d->p);
@@ -288,7 +288,7 @@ void StgHaze_PutVertex(StgHazeDraw *d, s32 u, s32 v, s32 x, s32 y) {
 
 /* Builds the packet template of one haze view. */
 void StgHaze_Create(StgHaze *haze, u16 clutBase) {
-    func_0010A5A0(haze, clutBase);
+    GfxClut_InitPacket(haze, clutBase);
 }
 
 /* Fills the look-up: entry i (in CLUT storage order) = black with alpha curve(i) * 128 * scale. */
@@ -597,33 +597,33 @@ void StgFx_Reset(void) {
     ScrXfade_Reset();
     StgFog_ResetColor();
     ScrWarp_Reset();
-    func_001065A8();
-    func_00106100();
-    func_00107760();
+    StgDepthTint_Rebuild();
+    StgGlare_Reset();
+    GfxLens_Clear();
     StgTint_Reset();
     StgHaze_SetParams(BtlStage_GetListA0());
     StgFog_SetParams(BtlStage_GetList50());
-    func_00106778();
-    func_001088A8();
-    func_001062A0();
+    StgDepthTint_LoadParams();
+    GfxWater_LoadStageColor();
+    StgGlare_LoadParams();
 }
 
 /* Creates the group. The arguments are GS texture blocks reserved for each member. */
 void StgFx_Init(void) {
     gStgFx = Heap_Alloc(4, 0x20, 0, 2);
     *gStgFx = 0;
-    func_00106C60();
+    GfxPost_InitNop();
     StgHaze_Init(0x3E9C);
     StgBlur_Init();
     ScrXfade_Init();
     StgFog_Init(0x3E84);
     ScrWarp_Init();
-    func_00108838();
-    func_001097F8(0x3E80);
-    func_001065F8(0x3E60);
-    func_00106130(0x3E88);
-    func_00107730();
-    func_00102F28(0x3E98);
+    GfxWater_Init();
+    GfxDepthFog_Init(0x3E80);
+    StgDepthTint_Init(0x3E60);
+    StgGlare_Init(0x3E88);
+    GfxLens_Init();
+    StgPanBlur_Init(0x3E98);
     StgTint_Init();
     StgFx_Reset();
 }
@@ -635,12 +635,12 @@ void StgFx_Term(void) {
     ScrXfade_Term();
     StgFog_Term();
     ScrWarp_Term();
-    func_00108878();
-    func_00106668();
-    func_00106180();
-    func_00107758();
-    func_00103258();
-    func_00106C68();
+    GfxWater_Term();
+    StgDepthTint_Term();
+    StgGlare_Term();
+    GfxLens_Stub107758();
+    StgPanBlur_Term();
+    GfxPost_TermNop();
     Heap_Free(gStgFx);
     gStgFx = NULL;
 }
@@ -649,17 +649,17 @@ void StgFx_Term(void) {
 void StgFx_DrawPre(void) {
     if (*gStgFx == 0) {
         StgTint_Update();
-        func_00109848();
-        func_00106670();
+        GfxDepthFog_Draw();
+        StgDepthTint_Draw();
         if (!(Battle_GetWork()->flags & 0x400000000000000)) {
-            func_00105F30();
-            func_00106188();
+            StgGlare_Update();
+            StgGlare_Draw();
         }
         if (BtlStage_HasFeature(3) && !(Battle_GetWork()->flags & 0x400000000000000)) {
             StgFog_Draw();
         }
         if (BtlStage_HasFeature(0xD)) {
-            func_00103070();
+            StgPanBlur_Draw();
         }
         if (BtlStage_HasFeature(9)) {
             StgHaze_DrawAll();
@@ -679,9 +679,9 @@ void StgFx_DrawNop(void) {
 void StgFx_DrawPost(void) {
     Fade_DrawSlot2();
     if (*gStgFx == 0) {
-        func_00109320();
+        GfxWater_Draw();
         StgBlur_DrawAll();
-        func_001085C0();
+        GfxLens_DrawFull();
         ScrWarp_Update();
     }
 }
@@ -700,10 +700,10 @@ void StgFx_DrawOverlay(void) {
 void StgFx_DrawPreNoCheck(void) {
     if (*gStgFx == 0) {
         StgTint_Update();
-        func_00109848();
-        func_00106670();
-        func_00105F30();
-        func_00106188();
+        GfxDepthFog_Draw();
+        StgDepthTint_Draw();
+        StgGlare_Update();
+        StgGlare_Draw();
         StgFog_Draw();
     }
 }
@@ -777,7 +777,7 @@ void StgTint_DrawBack(void) {
 
     if (tint->flags & STG_TINT_ON) {
         StgTint_CalcColor(tint);
-        func_00107508(0x44, &tint->color);
+        GfxPost_DrawTintRect(0x44, &tint->color);
         gStgTintColor0[0] = tint->color.x;
         gStgTintColor0[1] = tint->color.y;
         gStgTintColor0[2] = tint->color.z;
@@ -791,7 +791,7 @@ void StgTint_DrawBack(void) {
     tint = &gStgTint.slot[1];
     if (tint->flags & STG_TINT_ON) {
         StgTint_CalcColor(tint);
-        func_00107508(0x44, &tint->color);
+        GfxPost_DrawTintRect(0x44, &tint->color);
     }
 }
 
@@ -805,12 +805,12 @@ void StgTint_DrawFront(void) {
 
     StgTint_CalcColor(tint);
     if (tint->color.w > 0.001f) {
-        func_00107508(0x44, &tint->color);
+        GfxPost_DrawTintRect(0x44, &tint->color);
     }
     tint--;
     StgTint_CalcColor(tint);
     if (tint->color.w > 0.001f) {
-        func_00107508(0x44, &tint->color);
+        GfxPost_DrawTintRect(0x44, &tint->color);
     }
 }
 

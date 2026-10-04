@@ -16,21 +16,21 @@ extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec4_Add(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec4_Scale(Vec4 *dst, Vec4 *src, f32 scale);
-extern void func_00121E18(Vec4 *dst);               /* dst = 0 */
-extern void func_00121E20(Vec4 *dst);               /* dst = 0 */
-extern f32 func_00122230(Vec4 *a, Vec4 *b);         /* distance */
+extern void Vec4_SetZeroW1(Vec4 *dst);               /* dst = 0 */
+extern void Vec4_SetZero(Vec4 *dst);               /* dst = 0 */
+extern f32 Vec3_DistSq(Vec4 *a, Vec4 *b);         /* distance */
 extern void Mtx_StoreIdentity(Mtx44 *dst);
-extern void func_001201B8(Mtx44 *a, Mtx44 *b, Mtx44 *dst); /* matrix product */
-extern void func_00120230(Mtx44 *dst, Mtx44 *src);      /* copy */
-extern void func_001202A0(Mtx44 *dst, Mtx44 *src);      /* gives the camera axes as rows 0..2 */
-extern void func_001213A0(Mtx44 *a, Mtx44 *b);          /* product into VU0 registers ... */
-extern void func_00121388(Mtx44 *dst);                /* ... stored here */
-extern void func_00121308(Mtx44 *a, Mtx44 *b);
-extern void func_001212F0(Mtx44 *dst);
-extern void func_00121370(Mtx44 *src);                /* loads the world-to-screen matrix into VU0 registers */
-extern void func_001212D8(Mtx44 *src);                /* loads the world-to-clip matrix into VU0 registers */
-extern void func_001214A0(Vec4 *rot, Vec4 *trans);  /* rotation + translation matrix into VU0 registers ... */
-extern void func_00121420(Mtx44 *dst);                /* ... stored here */
+extern void Mtx_Mul(Mtx44 *a, Mtx44 *b, Mtx44 *dst); /* matrix product */
+extern void Mtx_Copy(Mtx44 *dst, Mtx44 *src);      /* copy */
+extern void Mtx_InverseRT(Mtx44 *dst, Mtx44 *src);      /* gives the camera axes as rows 0..2 */
+extern void Vu0Screen_SetMulMtx(Mtx44 *a, Mtx44 *b);          /* product into VU0 registers ... */
+extern void Vu0Screen_StoreMtx(Mtx44 *dst);                /* ... stored here */
+extern void Vu0Clip_SetMulMtx(Mtx44 *a, Mtx44 *b);
+extern void Vu0Clip_StoreMtx(Mtx44 *dst);
+extern void Vu0Screen_LoadMtx(Mtx44 *src);                /* loads the world-to-screen matrix into VU0 registers */
+extern void Vu0Clip_LoadMtx(Mtx44 *src);                /* loads the world-to-clip matrix into VU0 registers */
+extern void Vu0View_SetRotTrans(Vec4 *rot, Vec4 *trans);  /* rotation + translation matrix into VU0 registers ... */
+extern void Vu0View_StoreMtx(Mtx44 *dst);                /* ... stored here */
 
 /* Battle side. */
 extern s32 BattleSide_GetObjId(s32 side);                 /* id of the side's fighter object */
@@ -82,7 +82,7 @@ void View_BuildProjection(View *view) {
     tmp.m[3][0] = view->centerX;
     tmp.m[3][1] = view->centerY;
     tmp.m[3][2] = zOfs;
-    func_001201B8(&view->view2screen, &tmp, &view->view2screen);
+    Mtx_Mul(&view->view2screen, &tmp, &view->view2screen);
 
     s = view->nearZ / view->screenDist;
     l = (-256.0f - (view->centerX - 2048.0f)) / view->aspectX * s;
@@ -119,7 +119,7 @@ void View_BuildProjection(View *view) {
     Mtx_StoreIdentity(&tmp);
     tmp.m[3][0] = ox;
     tmp.m[3][1] = oy;
-    func_001201B8(&view->view2clip, &tmp, &view->view2clip);
+    Mtx_Mul(&view->view2clip, &tmp, &view->view2clip);
 
     Mtx_StoreIdentity(&view->unk100);
     view->unk100.m[0][0] = view->screenDist * view->aspectX * hw / view->nearZ;
@@ -160,10 +160,10 @@ void View_SetProjection(View *view, Vec4 *screenSize, f32 screenDist, f32 aspect
 
 /* Combines the projections with the view matrix, records the camera position and makes the view current. */
 void View_UpdateMatrices(View *view, Vec4 *pos) {
-    func_001213A0(&view->view2screen, &view->world2view2);
-    func_00121388(&view->world2screen);
-    func_00121308(&view->view2clip, &view->world2view2);
-    func_001212F0(&view->world2clip);
+    Vu0Screen_SetMulMtx(&view->view2screen, &view->world2view2);
+    Vu0Screen_StoreMtx(&view->world2screen);
+    Vu0Clip_SetMulMtx(&view->view2clip, &view->world2view2);
+    Vu0Clip_StoreMtx(&view->world2clip);
     Vec4_Copy(&view->pos, pos);
     gBtlCamView = view;
 }
@@ -178,16 +178,16 @@ void View_SetTransform(Mtx44 *dst0, Mtx44 *dst1, Vec4 *pos, Vec4 *rot) {
     trans.z = -pos->z;
     trans.w = 1.0f;
     rot->w = 1.0f;
-    func_001214A0(rot, &trans);
-    func_00121420(&m);
-    func_00120230(dst0, &m);
-    func_00120230(dst1, &m);
+    Vu0View_SetRotTrans(rot, &trans);
+    Vu0View_StoreMtx(&m);
+    Mtx_Copy(dst0, &m);
+    Mtx_Copy(dst1, &m);
 }
 
 /* Loads the view's combined matrices for drawing, optionally sets its scissor, and makes it current. */
 void View_Apply(View *view, s32 scissor) {
-    func_00121370(&view->world2screen);
-    func_001212D8(&view->world2clip);
+    Vu0Screen_LoadMtx(&view->world2screen);
+    Vu0Clip_LoadMtx(&view->world2clip);
     if (scissor != 0) {
         View_ApplyScissor((ViewScissor *)view);
     }
@@ -201,7 +201,7 @@ f32 View_GetDistXZ(Vec4 *pos) {
 
     Vec4_Set(&a, pos->x, 0.0f, pos->z, 1.0f);
     Vec4_Set(&b, gBtlCamView->pos.x, 0.0f, gBtlCamView->pos.z, 1.0f);
-    return func_00122230(&a, &b);
+    return Vec3_DistSq(&a, &b);
 }
 
 /* Gives a view the projection and scissor of a screen layout (full, left half, right half). */
@@ -546,7 +546,7 @@ void DbgCam_Update(View *view, Vec4 *pos, Vec4 *rot, s32 pad, f32 speed) {
     }
     memset(&move, 0, sizeof(Vec4));
     memset(&tmp, 0, sizeof(Vec4));
-    func_001202A0(&axes, &view->world2view2);
+    Mtx_InverseRT(&axes, &view->world2view2);
     if (pan) {
         Vec4_Scale(&tmp, (Vec4 *)axes.m[0], x * speed);
         Vec4_Add(&move, &move, &tmp);
@@ -624,8 +624,8 @@ void CamShake_Calc(CamShake *shake, Vec4 *posOfs, Vec4 *rotOfs) {
             strength = shake->strength[i];
         }
     }
-    func_00121E18(posOfs);
-    func_00121E20(rotOfs);
+    Vec4_SetZeroW1(posOfs);
+    Vec4_SetZero(rotOfs);
     if (strength > 0.0f) {
         amp = time * 0.05f * strength;
         if (amp > 0.1f) {

@@ -43,7 +43,7 @@ typedef struct EftNTask {
     /* 0x38 */ void *work;
 } EftNTask;
 
-/* A GS screen position as func_001210D8 writes it. */
+/* A GS screen position as Vu0Cur_ProjectPoint writes it. */
 typedef struct EftNScr {
     /* 0x0 */ u32 x;
     /* 0x4 */ u32 y;
@@ -101,17 +101,17 @@ extern void Vec3_Scale(Vec4 *dst, Vec4 *src, f32 s);
 extern f32 Vec3_Dot(Vec4 *a, Vec4 *b);
 extern void Vec3_Cross(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Vec3_Normalize(Vec4 *dst, Vec4 *src);
-extern f32 func_001221E0(Vec4 *v);                          /* squared length */
+extern f32 Vec3_LengthSq(Vec4 *v);                          /* squared length */
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *src);
-extern void func_00120308(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
-extern void func_00120398(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
-extern void func_00120428(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
-extern void func_00120AB0(void);                            /* VU0 matrix stack push */
-extern void func_00120B80(Mtx44 *m);                        /* load the matrix */
-extern void func_00120AC8(void);                            /* pop */
-extern void func_001210D8(EftNScr *out, Vec4 *pos);         /* project to GS screen coordinates */
-extern void func_0011FA40(s32 *out, s32 x, s32 y, s32 z, s32 w);
+extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Z */
+extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about X */
+extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
+extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
+extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
+extern void Vu0Cur_Pop(void);                            /* pop */
+extern void Vu0Cur_ProjectPoint(EftNScr *out, Vec4 *pos);         /* project to GS screen coordinates */
+extern void IVec4_Set(s32 *out, s32 x, s32 y, s32 z, s32 w);
 extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
                           s32 t0, s32 t1, s32 w, s32 h, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
 extern void BtlTask_SetDead(EftNTask *task);                  /* kills the task */
@@ -160,9 +160,9 @@ f32 EftAura_GetNodeFade(s32 objId, Vec4 *pos, Vec4 *nodes, f32 scale) {
     for (i = 0; i < 7; i++) {
         Vec4_Sub(&d, pos, &nodes[i]);
         if (i == 0) {
-            dist = func_001221E0(&d);
+            dist = Vec3_LengthSq(&d);
         } else {
-            f32 t = func_001221E0(&d);
+            f32 t = Vec3_LengthSq(&d);
             if (t < dist) {
                 dist = t;
             }
@@ -287,7 +287,7 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
                 c.z *= f->end;
             }
             Mtx_MulVec4(&p, &mtx, &c);
-            func_001210D8(&scr[i], &p);
+            Vu0Cur_ProjectPoint(&scr[i], &p);
             if (scr[i].x > 0xFFF0) {
                 clipped = 1;
                 break;
@@ -669,10 +669,10 @@ void EftAuraTask_Draw(EftNTask *task) {
     if (aura->flags & 0x20) {
         return;
     }
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     EftAura_DrawFlames(aura, *objId, alpha);
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Manager init: the pool header, 50 flames and 18 sparks per character, the task table, the two texture sets
@@ -1500,7 +1500,7 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
         uv[3].z = 1.0f;
         uv[3].w = 0.0f;
         for (i = 0; i < 4; i++) {
-            func_001210D8(&scr[i], &quad[i]);
+            Vu0Cur_ProjectPoint(&scr[i], &quad[i]);
             Vec4_Scale(&st[i], &uv[i], 1.0f / (f32)scr[i].w);
             if (scr[i].x > 0xFFF0) {
                 clipped = 1;
@@ -1528,8 +1528,8 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
             pkt->gif0 = 0xE400000000008001;
             pkt->gif1 = 0x42142142142160;
             pkt->next = NULL;
-            func_0011FA40(col0, seg->r * 255.0f, seg->g * 255.0f, seg->b * 255.0f, seg->alpha * 255.0f * alpha);
-            func_0011FA40(col1, next->r * 255.0f, next->g * 255.0f, next->b * 255.0f,
+            IVec4_Set(col0, seg->r * 255.0f, seg->g * 255.0f, seg->b * 255.0f, seg->alpha * 255.0f * alpha);
+            IVec4_Set(col1, next->r * 255.0f, next->g * 255.0f, next->b * 255.0f,
                           next->alpha * 255.0f * alpha);
             pkt->v[0].r = col0[0];
             pkt->v[0].g = col0[1];
@@ -1723,15 +1723,15 @@ void EftBolt_DrawAll(EftBoltWork *work, f32 alpha) {
     EftBolt *bolt;
     s32 i;
 
-    func_00120AB0();
-    func_00120B80(&gBtlCamView->world2screen);
+    Vu0Cur_Push();
+    Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     bolt = work->bolt;
     for (i = 0; i < EFT_BOLT_COUNT; i++, bolt++) {
         if (bolt->flags & 1) {
             EftBolt_Draw(work, bolt, alpha);
         }
     }
-    func_00120AC8();
+    Vu0Cur_Pop();
 }
 
 /* Starts a flash sprite between two model nodes. Kind 0 is the violet flash at a bolt's root (6 frames); other
@@ -1966,7 +1966,7 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
         } else if (ang <= -3.14159265f) {
             ang += 6.2831853f;
         }
-        func_00120308(&m, &m, ang);
+        Mtx_RotateZ(&m, &m, ang);
         Mtx_MulVec4(&dirA, &m, &a);
         b.x = 0.0f;
         b.y = 1.0f;
@@ -1984,7 +1984,7 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
         } else if (ang <= -3.14159265f) {
             ang += 6.2831853f;
         }
-        func_00120308(&m, &m, ang);
+        Mtx_RotateZ(&m, &m, ang);
         Mtx_MulVec4(&dirB, &m, &b);
         BtlCharApi_GetNodePos(objId, nodeA, &posA);
         BtlCharApi_GetNodePos(objId, nodeB, &posB);
@@ -1992,12 +1992,12 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
         Vec3_Normalize(&d, &d);
         Mtx_StoreIdentity(&m);
         rot.x = asinf(d.y);
-        func_00120398(&m, &m, rot.x);
+        Mtx_RotateX(&m, &m, rot.x);
         rot.y = atan2f(d.x, d.z) + 3.14159265f;
         if (rot.y >= 3.14159265f) {
             rot.y -= 6.2831853f;
         }
-        func_00120428(&m, &m, rot.y);
+        Mtx_RotateY(&m, &m, rot.y);
         Mtx_MulVec4(&dirA, &m, &dirA);
         Vec3_Normalize(&dirA, &dirA);
         Mtx_MulVec4(&dirB, &m, &dirB);

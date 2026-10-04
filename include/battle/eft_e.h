@@ -219,7 +219,7 @@ typedef struct EftWater {
     /* 0x64 */ void *mistList[2];       /* swirls (EftWater_AddBurst only) */
     /* 0x6C */ u8 blastWait[2];         /* per character: splashes its technique records of kind 3 / 4 still skip */
     /* 0x6E */ u8 unk6E[2];
-    /* 0x70 */ Mtx44 camMtx;            /* func_001202A0 of the view matrix with the translation zeroed */
+    /* 0x70 */ Mtx44 camMtx;            /* Mtx_InverseRT of the view matrix with the translation zeroed */
     /* 0xB0 */ u8 tex[0x210];           /* texture set built by EftTexSet_Load32 from stage pack entry 0x12 */
 } EftWater; /* size 0x2C0 */
 
