@@ -247,3 +247,43 @@ significant bit first; `Flash_ReadMtx` reads the SWF MATRIX record with an expli
 
 No pad, clock or random draw anywhere in the range; the lens and water passes read the camera
 and the split-screen mode. Nothing feeds back into the simulation.
+
+## Movie clip setters and the battle object renderer (0x10EC18..0x112A30; src/sys/gfxm_d.c, gfxm_d_b.c, gfxm_d_c.c, not linked yet; names in config/symbols/gfxm_d.txt)
+
+All 38 C functions match; `ObjSeam_TransformVtx` (0x10FFD0..0x1101D0) is hand-written VU0 code
+and stays an assembly chunk between gfxm_d_b.c and gfxm_d_c.c. Final names: gfxm_d.c merges
+into sys/flash.c (same object as gfxm_c.c: its wrappers tail-call into this file);
+gfxm_d_b.c + VU0 chunk + gfxm_d_c.c = battle/btl_obj_draw.c. Layouts in
+include/sys/gfxm_d.h, gfxm_d_c.h.
+
+Movie clip setters (0x10EC18..0x10FB40, verified): each `Flash_Clip*` wrapper tail-calls a
+`FlashClipList_*` function that acts on clip `ref->index` and on the following clips of the
+same name. Overrides sit at clip +0x48: flag 1 texture index, 2 position offset, 4 texture
+rectangle, 8 alpha factor (0..1), 0x10 scale, 0x20 colour factor. Alpha 1.0 corresponds to
+128. (inferred) +0xB4 / +0xB8 / +0xC4 are pre-draw / post-draw / draw-over callbacks.
+
+Battle object renderer (0x10FB40..0x112A30, verified unless marked):
+- `BtlObjDraw_Draw` (0x10FF40; `Battle_Draw` and the character viewer) is the models' whole
+  draw pass (the older battle.c comment "a full-screen pass" is wrong): clear the frame's
+  alpha, draw every object of every view's list, `BtlObj_BeginDraw` (post passes), the fade
+  layer (view flag 8), the shadows (flat or rendered), restore the environment.
+- Colour effects on a model are done on its PALETTE: `ObjDraw_AddClutPass` points FRAME_1 at
+  the model's CLUT block and blends 64x64 sprites over it for dimming, distance fade (colour
+  0x006644FF, strength fade x 70), tint and hit flash (`BtlObjFlash_GetColor`). A port's
+  renderer needs an equivalent (palette or shader tint).
+- A model's textures are re-uploaded every frame; the face entry is replaced by
+  `BtlObj_GetFaceTexture`. Parts are drawn with VU1 program 0 (lit), 1 (fade texture) or
+  2 (flat, shadows); the head (node 0x33) is drawn last between two frame-mask packets;
+  node 0x30 can swap its chain by `BtlObj_GetSubState`.
+- Light direction per view is chosen by the colour flags and stored at the view record +0x10
+  (render state only); rim light = normalize(normalize(camPos - node3Pos) + 0.7 * camRight)
+  with an original slip (y is replaced by camRight.y, not added).
+- "Seams" (name inferred): a model section of two-bone vertices skinned on the CPU by the VU0
+  routine and drawn as GS triangles twice (base texture, then a shading ramp with
+  u = 0.5 + 0.5 * N.L). Model header fields: +0x4C..+0x53 texture index bytes, +0x58 tbp,
+  +0x5C cbp, +0x60 / +0x64 / +0x68 further blocks, +0x70 seam section offset.
+- Corrections for btl_obj.h: part record +0xC is a `u16` flags word (bit 0 = fade pass),
+  +0x10 / +0x20 the two bind offsets, +0x60 the VIF chain; view record +0x10 is `Vec4
+  lightDir`; flag 0x100000 masks all context-1 writes; 0x200000 selects the dim sprite.
+- Original quirk: the CLUT range is uploaded `clutCount` times per frame.
+- No pad, clock or random draw; nothing feeds back into the simulation.
