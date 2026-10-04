@@ -68,6 +68,22 @@ pad reads; original bugs; object-boundary evidence for the integrator.
   middle of the `ModeMenu` object (src/menu/menu_a_d.c is its head). Expect the same at your
   edges and say what you find.
 
+## More from chunks 2 and 3
+
+- `.rodata` is per source file (only aligned, not padded to 16); the `.data` work pointers are
+  grouped per group of modules. A string that exists twice marks a file boundary; a shared
+  string means one file.
+- The save is `{ s32 sum[2]; struct {...} body; }`: use `MSave` / `MSAVE` from
+  include/menu/menu_c.h (`MSAVE->slot[n].flags |= x` then matches plainly; no local pointer
+  workaround).
+- Big script switches match only with the case labels grouped exactly as the jump table
+  groups them (`case 253: case 261:` sharing one body): generate the skeleton from the jump
+  table. Case order in the source matters.
+- A callee defined in the same original file can change a caller's branch (`bne` / `bnel`):
+  if a neighbour chunk owns the callee, carry a copy between ASM_STUB_BEGIN() / ASM_STUB_END().
+- docs/systems/menu_overlay.md now documents the story mode (chunks 2 and 3) as a worked
+  example of a mode's flow and its battle hand-off.
+
 ## Chunks (function-boundary cuts; end exclusive)
 
 | # | Range | Functions | Stem |

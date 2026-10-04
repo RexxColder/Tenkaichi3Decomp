@@ -97,3 +97,33 @@ visit when `unlockFlags & 0x80`. All random draws are `Rand_Range`; pad 0 only.
 Correction to the note above: the overlay's `.rodata` is per source file, but its `.data`
 (the work pointers) is grouped per group of modules (0x3B12F0..0x3B1310 holds the six story
 work pointers; 0x3B0E80 those of MainMenu / Title and the archive pointers).
+
+## Story mode continued (chunk 3, 0x33E108..0x342588; src/menu/menu_c*.c; all 29 functions match)
+
+Files: menu_c.c = tail of `HistSel` (same object as menu_b_d.c: merge them and delete the
+stub copy of `HistSel_PlayVoice`), menu_c_b.c = `HistGuide` (the saga-select guide scripts: a
+switch with 363 case labels), menu_c_c.c = `HistResult` (mode 8), menu_c_d.c = `HistSave`
+(mode 10), menu_c_e.c = head of the `CharSel` object (continues in chunk 4). menu_c.h's
+`HistSel` (full layout) replaces the head-only view in menu_b.h.
+
+Verified by matching C:
+- Saga select (`HistSel`, mode 6): Goku guides; a two-item menu (saga list / level); leaving
+  with a saga writes `gProgress->subMenu` and `gProgress + 0x3C` = the save's level (inferred:
+  difficulty). Nothing here touches the battle setup.
+- Result screen (`HistResult`, mode 8): win = `BattleResult_GetFlags() & 1`; a win sets the
+  episode's cleared bit. Points = `gProgress->reward.points[level]`, doubled while item 0x88
+  is owned, paid with `Save_AddMoney` 33 a frame. `gProgress + 0x40` reward block:
+  `points[3]`, `item[3]` (+0x4C), `chara[3]` (+0x58), `stage[3]` (+0x64), `episode[3]` (+0x70),
+  -1 = none (filled by the battle script). Rewards go into the save at once (`Save_AddItem`,
+  `charaBits`, `stageBits`, new saga / episode bits, dragon ball from `BattleResult.unk44`).
+- Save screen (`HistSave`, mode 10): `McFlow_Start(0)` on a black screen.
+- `SaveSlot.flags`: 1 listed, 2 new, 4 outro seen, 8 guide introduced, 0x20 event done,
+  0x40 new episode; `unlockFlags` 0x80 first-visit explanation seen, 0x100 100 % speech,
+  0x200 new saga.
+- **Save layout**: `SaveData` is `{ s32 sum[2]; struct { s32 unlockFlags; s32 level;
+  SaveSlot slot[9]; ... } body; }`: the nested body reproduces the original address
+  arithmetic (`MSave` / `MSAVE` in include/menu/menu_c.h; should move to include/sys/save.h).
+- Random draws: `Rand_Range` only (greeting line, ambient timer, result picture
+  0x3FE + `Rand_Range(3)`).
+- (inferred) The mode is "Dragon History"; `GetWin_IsAnimating` may really mean "animation
+  finished".
