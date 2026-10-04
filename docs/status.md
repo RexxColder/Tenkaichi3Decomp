@@ -466,3 +466,9 @@ Open port questions recorded so far (not to be worked on until the user says): m
 ("random") passed unresolved to the battle by sim / course / mission / survival hand-offs;
 Disc Fusion needs a replacement on PC; pause, pause-menu result and CPU-level writes reach
 the simulation outside the pad stream; menus and HUD advance shared random generators.
+
+## HOLD (user, 2026-10-04): "dont add more agents till session resets"
+
+Launch NO new agents (no integrator, no cleanup) until the user says the session / usage has
+reset. The eight overlay agents already running (chunks 20..27) may finish; process their
+reports as usual (re-diff, document, commit) and then wait.
