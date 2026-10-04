@@ -113,6 +113,8 @@ and the stage update at 0x243568).
 | 0x190DA8..0x191D28 | eft_x_c.c | quad emitter `EftQuad*`, first half (part kind 9; 200 quads) | no | VU0: 28 per quad; libc `rand()`: up to 5 | 11/11 |
 | 0x191D28..0x195038 | eft_y.c | quad emitter `EftQuad_*`, second half (part kind 9) | no | none in this half | (eft_y 38/41) |
 | 0x195038..0x195EE8 | eft_y.c | camera-facing strip `EftLine_*` helpers (part kind 16; rest in eft_z) | no | none | |
+| 0x195EE8..0x196E40 | eft_z.c | camera-facing sprite, part kind 16 (same module as eft_y's `EftLine_*` helpers; named `EftBill_*` here) | no | libc `rand()`: 2 per sprite | (eft_z.c 55/57) |
+| 0x196E40..0x199F28 | eft_z.c, eft_z_b.c, eft_z_c.c | ground dust `EftGndDust*`: six kinds (debris puff, slide, dash, burst, landing ring, **ground impact 0x1975A8**) | **no** (verified for the ground impact) | VU0: 8 per debris particle; libc `rand()`: 39 per landing ring, 13 per ground impact | 4/5, 8/9 |
 | 0x199F28..0x19E0C0 | eft_aa.c | ground dust helpers; delayed sounds `EftDelaySe*`; per-fighter effect slots; weapon trail `EftBlade*` (eight character ids); **blinding overlay `EftBlind*`**; part kind 14 `EftAnimPart*` | no | VU0 and libc `rand()` in dust; 6 libc `rand()` at every scene init | 73/79 |
 | 0x1A62C8..0x1A7018 | eft_ad.c | part kind 12 handle entries `EftZap_*` (module starts in eft_ac); fighter request 6 `EftShock_*` | no | VU0 through one shock wave (20) | 29/29 |
 | 0x1A7608..0x1A9D90 | eft_ad_b.c | effect mesh renderer `EftMesh_*`; **effect model objects `EftObj_*` (wrappers of `BtlObj_Create`)** | no (draw state of battle objects) | none | 32/36 |
@@ -575,3 +577,11 @@ with a world matrix, shown or hidden with one flag, and can play model animation
   which writes through the table entry before the first one. One technique type can ask for 14
   models against 10 free ids. A port must guard it.
 - `btl_pool.c` (linked, 0x1A7018..0x1A7608) sits inside this address range.
+- (verified, eft_z) The ground impact a projectile starts (0x1975A8) is visual only: one dust
+  task, two particles. With the impact effect (eft_v_b) this settles that nothing a projectile
+  spawns on impact affects the fight.
+- (naming, to unify at integration) Part kind 16 is called `EftLine_*` in eft_y and `EftBill_*`
+  in eft_z; it is one module (and one source file: `EftBill_SetTexture` needs 0x195038 in its
+  file).
+- (verified hazard, eft_z) The dust module's per-fighter emitter slots are indexed by object id
+  without a range check and hold two entries each.
