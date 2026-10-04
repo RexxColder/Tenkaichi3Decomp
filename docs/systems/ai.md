@@ -141,3 +141,39 @@ Everything is `Rand_Range` (the shared Mersenne Twister). The evaluator draws ei
 time it enters a new rule group, before testing anything; some conditions draw one more whether
 or not they pass; the attack actions draw one to four per decision. Draws per frame therefore
 depend on the situation, on rule order in the data, and on where each rule fails.
+
+## Generic action scripts (`btl_ai_seq_a.c`, 0x1B4140..0x1B6008; verified unless marked)
+
+37 of 38 functions match per function (`BtlAiStep_GuardUntilSafe` is two instructions off); not
+linked yet (to be merged into the head of btl_ai_seq.c). Names implying game meaning are
+guesses.
+
+- **A generic action is a script in the AI data**: per action id a first-step index, a step
+  count, a pick function (0..15), a timeout in seconds and a flag word; per step (0x14 bytes) a
+  handler (0..23), a group, the hold / press / once button bits, a "special", and the fighter
+  state class reached when the input works. One step per group is played, group after group.
+- **Three function tables**: phases (0x2C46B8: init, start, run, end), 16 pick functions
+  (0x2C46C8), 24 step handlers (0x2C4708; 0..13 here, 14..23 in btl_ai_seq.c).
+- **Run phase, per frame**: note whether the input took effect; run the step handler (a
+  finished step costs one frame with no input); interrupt test; while the input has not taken
+  effect count frames and give up after timeout x 30 (not counted while any fighter has flag
+  0x128); a per-action stage test; then send the step's buttons through `BtlAiPad_Set`.
+  Generic actions never move the stick. Before and after an action the CPU presses DASH to
+  stop a dash.
+- **Pick functions** choose among a group's alternatives and set the step's parameter: random,
+  by the rule's argument, seconds or frames from the argument, ki target, skill charge, a
+  level-scaled reaction delay (22..44 frames at levels 0..5 down to 0 at levels 24..29), a
+  level-weighted combo branch, fusion / transformation slot, member switch (score = health% x
+  0.7 + ki% x 0.3; best first with 60/40, 50/35/15 or 40/30/30), the prompted button, guard
+  mode, a movement direction weighted away from the stage edge.
+- **The CPU answers button prompts without error or delay** (it reads the prompt's button).
+- **Step handlers 0..13**: reach a state class, charge ki to a percentage, until blocked,
+  countdown, charged, not being hit, guard until safe, face the opponent, switch queued, etc.
+- **Random draws**: 10 direct `Rand_Range` sites in 7 pick functions (several draw even when the
+  value is unused), none in the phases or step handlers 0..13.
+- No pad, clock, camera or pause read. Timers stand still while any fighter has flag 0x128.
+- Corrections: `PickFusionSlot` / `PickTransformSlot` and several other by-id accessors listed
+  as "no caller" in btl_capi_b are called from here; in btl_ai_seq.c the local named `busy`
+  (from step handler 0) is inverted: it is 1 when the class is reached.
+- Not available yet: the per-action button scripts themselves are data (common file 2, member
+  4); dumping them with this layout gives the full "action id -> buttons" table.

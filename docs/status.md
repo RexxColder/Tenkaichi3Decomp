@@ -5,9 +5,10 @@ Update or delete when it goes stale.
 
 ## Verified state
 
-- Last build verified byte-identical: the commit "Link the first effects wave and the stage"
-  (47.79% of the main executable's game code in C; 110 C files linked; 3855 functions diff clean).
-  uncommitted by the integrator: commit after checking.
+- Last build verified byte-identical: the working tree after the second effects wave was linked
+  (64.03% of the main executable's game code in C; 146 C files linked; 5034 functions diff clean).
+  Uncommitted by the integrator: commit after checking. The commit before it is "Link the first effects
+  wave and the stage" (47.79%).
 - Check at any time: `.venv/bin/python configure.py && ninja`, then
   `cmp build/SLUS_216.78.rom disc/SLUS_216.78.rom` and `cmp build/DBZP.BIN disc/BIN/DBZP.BIN`,
   then `python3 scripts/progress.py`.
@@ -33,7 +34,7 @@ Files as linked (src/battle/), with the merges made at integration:
 | File | Range | Notes |
 |---|---|---|
 | btl_char_member.c | 0x1CDCA8..0x1CF578 | lost its tail (the effect request bits) to btl_char_fx.c |
-| btl_char_fx.c | 0x1CF578..0x1D1EC8 | the tail of btl_char_member.c + btl_char_fx.c + btl_char_fx_b.c: `BtlFx_UpdateGroundFx` needs `BtlChar_IsFxBitNew` defined in its file and now matches in C. `BtlFx_SpawnSpeedLines` (four LIT4_WORD) and `BtlFx_SpawnDamageSparks` (last function, RODATA_ALIGN16; its constants 0x2FD200..0x2FD214 are the assembly chunk `cod/1FD200`) stay INCLUDE_ASM |
+| btl_char_fx.c | 0x1CF578..0x1D1EC8 | the tail of btl_char_member.c + btl_char_fx.c + btl_char_fx_b.c: `BtlFx_UpdateGroundFx` needs `BtlChar_IsFxBitNew` defined in its file and now matches in C. `BtlFx_SpawnSpeedLines` (four LIT4_WORD) and `BtlFx_FireKiBlast` (formerly `BtlFx_SpawnDamageSparks`; last function, RODATA_ALIGN16; its constants 0x2FD200..0x2FD214 are the assembly chunk `cod/1FD200`) stay INCLUDE_ASM |
 | btl_char_fx_c.c | 0x1D1EC8..0x1D3B40 | unchanged |
 | btl_act_a.c | 0x1E3158..0x1EA5F8 | btl_act_a.c + btl_act_b.c: `BtlAct_AttackDashHandler` now matches in C. `BtlActB_TickMemberChange` stays INCLUDE_ASM. Emits the 8 bytes of `.sdata` at 0x2FEB20. Not merged into btl_char_action.c (nothing needs it; it would be a third fighter view in one file) |
 | btl_act_c.c, _d.c, _e.c | 0x1EA5F8.., 0x1EE058.., 0x1F1930..0x1F5460 | as written; `BtlAct_GuardHandler` INCLUDE_ASM |
@@ -130,14 +131,14 @@ stg_a..stg_c, and nineteen decomp agents:
 | eft_ac | 0x1A21A8..0x1A62C8 |
 
 ALL nineteen relaunched effect / detection / stage agents and eft_ad have reported; every file
-was re-diffed and is documented in docs/systems/effects_stage.md (not linked): stg_d (2 files),
+was re-diffed and is documented in docs/systems/effects_stage.md (linked since, see "Second wave" below): stg_d (2 files),
 eft_det_a, eft_det_b (3), eft_n, eft_o (3), eft_p (2), eft_q, eft_r, eft_s, eft_t (3),
 eft_u (2), eft_v (3), eft_w, eft_x (3), eft_y, eft_z (3), eft_aa, eft_ab (3), eft_ac, eft_ad (3),
 col_a.
 
 col_c (2 files: the text printer, 0x239EA0..0x23D1E8) has reported: 122/124; merge col_b_b.c
-(0x239BB0..0x239EA0) into the top of col_c.c so `Font_Flush` matches. An integrator is linking
-the wave listed above (eft_n..eft_ad, eft_det_*, stg_d, col_a).
+(0x239BB0..0x239EA0) into the top of col_c.c so `Font_Flush` matches. The wave listed above
+(eft_n..eft_ad, eft_det_*, stg_d, col_a) is linked (see "Second wave" below).
 
 bobj_b (2 files, 0x24F1F0..0x2527B0) has reported: 43/49; merge bobj_b.c behind bobj_a's tail
 (`BtlObj_UpdateFace`, `BtlObj_IsJawActive` need 0x24E9C8 / 0x24EB70 in the same file).
@@ -155,26 +156,75 @@ Still running:
 btl_ai_seq_a (0x1B4140..0x1B6008, new file to merge into btl_ai_seq.c).
 The user asked (2026-10-04) for at most 10 subagents at a time.
 
-Merge evidence for the next integration: eft_m + eft_n (+ eft_o.c: aura, lightning);
-eft_o_c + eft_p.c (disc); eft_p_b + eft_q head (glow); eft_s (chain) + eft_t.c head
-(`EftChain_SetRes` needs 0x1793A8); eft_t_c + eft_u.c (teleport lines; eft_u needs eft_t's
-tables non-const); eft_u_b + eft_v.c (particle emitter; `EftPtcl_SetTexture`); eft_v_c +
-eft_w head (sprite chain; `EftLink_SetTex`); eft_w tail + eft_x.c (part kind 10); eft_x_c +
-eft_y head (quads); eft_y tail + eft_z.c head (`EftBill_SetTexture` needs 0x195038; unify the
-EftLine / EftBill names); eft_ab_c + eft_ac (ribbon: four functions); eft_ac tail + eft_ad.c
-(zap); eft_ae + eft_det_a head (`func_001AE140`); stg_d may extend back to 0x22FC40; col_a
-probably starts at 0x230B10. Renames to apply: `BtlFx_SpawnDamageSparks` -> ki blast launcher
-name; the eft_a.h task flag names (see effects_stage.md "Projectile hit detection").
-Also check files with repeated identical constant initialisers for merged rodata (eft_e,
-eft_l_d, eft_z, eft_aa, eft_u): compare each object's .rodata size with the original.
+Second wave: LINKED, build byte-identical. Effects 0x1637A0..0x1AA7E8 (around the already linked
+btl_pool.c), 0x1AE2A8..0x1B4140, the stage rigid bodies 0x22FD10..0x230B38 with 0x115170..0x115478, and
+the collision primitives 0x230B38..0x236190. The gap 0x1AA7E8..0x1AE2A8 (eft_ae, not linked yet) is the
+assembly chunk `cod/0AA7E8`. Files as linked (src/battle/), with what changed at integration:
+
+| File | Range | Notes |
+|---|---|---|
+| eft_n.c | 0x1637A0..0x167E68 | 5 INCLUDE_ASM. `EftAura_ChangeType` now matches in C: it needs a definition of `EftAura_SetType` above it, which stays INCLUDE_ASM, so that function's attempt is compiled inside `ASM_STUB_BEGIN` / `ASM_STUB_END` (see decomp_guide.md). `EftAuraMgr_Init` stored `gEftAuraCfg` / `gEftAuraPrm` in the wrong order (invisible to fdiff; fixed). `.rodata` 0x2ECC30, `.lit4` 0x2FC97C..0x2FCAAC, `.sdata` 0x2FEA10..0x2FEA18 |
+| eft_o.c, eft_o_b.c, eft_o_c.c | 0x167E68.., 0x1699D0.., 0x16AE78..0x16C2E0 | as written; 4, 2 and 1 INCLUDE_ASM |
+| eft_p.c, eft_p_b.c | 0x16C2E0.., 0x16DCA0..0x170A50 | as written; 1 and 4 INCLUDE_ASM |
+| eft_q.c | 0x170A50..0x174A70 | 1 INCLUDE_ASM. `EftGlowMgr_Init` stored `gEftGlowCfg` / `gEftGlowCfg2` in the wrong order (fixed) |
+| eft_r.c | 0x174A70..0x178AB0 | as written; 1 INCLUDE_ASM |
+| eft_s.c | 0x178AB0..0x17EE68 | eft_s.c + eft_t.c: `EftChain_SetRes` now matches in C (needs `EftChain_SetTex`, 0x1793A8, above it). 6 INCLUDE_ASM |
+| eft_t_b.c | 0x17EE68..0x1809C0 | as written; 3 INCLUDE_ASM |
+| eft_t_c.c | 0x1809C0..0x182CE8 | eft_t_c.c + eft_u.c (teleport lines): one object by its `.rodata` (the two tables 0x2ECEC0 / 0x2ED0E8, emitted with INCLUDE_RODATA at the top of the file, then the jump table 0x2ED180, then the second part's constants). 1 INCLUDE_ASM (`EftShotFx_IsOnScreen`) |
+| eft_u_b.c | 0x182CE8..0x1871A8 | eft_u_b.c + eft_v.c (particle emitter): `EftPtcl_SetTexture` now matches in C (needs `EftPtcl_PickTexture` above it). 1 INCLUDE_ASM |
+| eft_v_b.c, eft_v_c.c | 0x1871A8.., 0x187C50..0x1895E8 | as written; 0 and 2 INCLUDE_ASM |
+| eft_w.c, eft_x.c, eft_x_b.c, eft_x_c.c | 0x1895E8.., 0x18D618.., 0x190CC8.., 0x190DA8..0x191D28 | as written; 5, 5, 0, 0 INCLUDE_ASM. `EftLink_SetTex` and `EftLink_SelectTex` are both in eft_w.c already: no merge with eft_v_c.c was needed |
+| eft_y.c | 0x191D28..0x195038 | lost its tail (the `EftLine_*` helpers) to eft_z.c; 2 INCLUDE_ASM |
+| eft_z.c | 0x195038..0x198BC0 | the tail of eft_y.c (with a copy of its preamble) + eft_z.c: `EftBill_SetTexture` now matches in C (needs `EftLine_SetTex`, 0x195038, above it). 2 INCLUDE_ASM. The module is still named `EftLine_*` in the first part and `EftBill_*` in the second |
+| eft_z_b.c, eft_z_c.c | 0x198BC0.., 0x199500..0x199F28 | as written; 1 INCLUDE_ASM each, whose constants are the assembly chunks `cod/1FCDCC` and `cod/1FCE28` |
+| eft_aa.c, eft_ab.c, eft_ab_b.c | 0x199F28.., 0x19E0C0.., 0x1A0020..0x1A0E58 | as written; 6, 3, 0 INCLUDE_ASM |
+| eft_ab_c.c | 0x1A0E58..0x1A62C8 | eft_ab_c.c + eft_ac.c (ribbon, zap): `EftRibbon_Update`, `EftRibbon_Draw`, `EftRibbon_SetEnd`, `EftRibbon_SetTexFrame` match only in this unit; three of them need definitions of functions that are still INCLUDE_ASM (`EftRibbon_PlaceStrip`, `EftRibbon_DrawStrip`, `EftRibbon_DrawKind1`), whose attempts are compiled inside `ASM_STUB_BEGIN` / `ASM_STUB_END`. 9 INCLUDE_ASM. `gEftZapMgr` (0x2FEAD0) had no symbol: added to eft_ac.txt |
+| eft_ad.c | 0x1A62C8..0x1A7018 | as written, no INCLUDE_ASM |
+| eft_ad_b.c, eft_ad_c.c | 0x1A7608.., 0x1A9D90..0x1AA7E8 | as written; 4 and 2 INCLUDE_ASM (constants in the chunk `cod/1FCEEC`, which also holds eft_ae's) |
+| eft_det_a.c | 0x1AE2A8..0x1B16F0 | as written, no INCLUDE_ASM; `func_001AE140` keeps its `const` stand-in declaration until eft_ae is linked |
+| eft_det_b.c, eft_det_b_b.c, eft_det_b_c.c | 0x1B16F0.., 0x1B3510.., 0x1B3F78..0x1B4140 | as written; 3, 2, 1 INCLUDE_ASM (constants in the chunk `cod/1FCFDC`) |
+| stg_d_b.c | 0x115170..0x115478 | as written |
+| stg_d.c | 0x22FD10..0x230B38 | as written; `.lit4` 0x2FE3CC |
+| col_a.c | 0x230B38..0x236190 | as written; 1 INCLUDE_ASM (`ColObb_Contact`, owns the jump table 0x2F2170); `.lit4` 0x2FE3F4 |
+
+79 functions of this wave stay INCLUDE_ASM (docs/open_questions.md).
+
+Names: the symbol files `eft_n.txt` .. `eft_z.txt`, `eft_aa.txt` .. `eft_ad.txt`, `eft_det_a.txt`,
+`eft_det_b.txt`, `stg_d.txt`, `col_a.txt` are listed in both yamls (no duplicate names or addresses). The
+name pass replaced the placeholders in the linked files, `StgRigid_*` in stg_a.c / stg_a_b.c included.
+Files of the wave called functions by names that exist only in the unlisted `eft_ae.txt` / `bobj_a.txt`
+(`BtlTask_SetDead`, `BtlTask_SetOwnerTag`, `BtlTask_GetParent`, `EftVram_AddImage / AddClut / AddTex`,
+`EftTexSet_Load32`, `BtlObjXf_Update / SetMtx`, `BtlObjAnim_PlayModel / GetMode`): they are back to
+`func_XXXXXXXX` in eft_n.c, eft_q.c, eft_q.h and eft_ad_b.c until those files are listed. The linked files
+carry about 190 placeholders whose names are in the symbol files not listed yet (eft_ae, col_b, col_c,
+bobj_a, bobj_b, btl_ai_seq_a): the name pass at their integration replaces them.
+
+Renames applied: `BtlFx_SpawnDamageSparks` -> `BtlFx_FireKiBlast`; eft_a.h task flags `EFT_TASK_HIT_2` ->
+`GUARDED`, `HIT_4` -> `HIT_STAGE`, `HIT_8` -> `LOST_CLASH`, `HIT_20` -> `ABSORBED`, `DEAD` -> `DEFLECTED`,
+`HIT_100` -> `STRUGGLE`, `FORCE_1` -> `MULTI_CONTACT`, and `EFT_TASK_REFLECTED` (0x80) added.
+
+Merges not made (nothing needs them: no INCLUDE_ASM function of these files shows the branch-likely /
+delay-slot symptom, and compiling every attempt as a stub definition fixed nothing but
+`EftAura_ChangeType`): eft_m + eft_n, eft_o_c + eft_p, eft_p_b + eft_q, eft_w + eft_x, eft_x_c + eft_y,
+eft_ab_c + eft_ad. A whole-file merge of eft_y + eft_z is wrong for the data: eft_y's tables are at
+0x2ED2D8..0x2ED308 and the jump table that starts eft_z's data is at 0x2ED310 (16-byte aligned), but in a
+merged object, which starts at 0x2ED2D8, it lands on 0x2ED308. So eft_y.c was cut at 0x195038 instead (its
+read-only data belongs to the quad emitter in front of that address) and only the tail was merged. By the
+same data, eft_v_b.c .. eft_y.c (0x1871A8..0x195038) may be one object (docs/open_questions.md).
+
+For the next integration: eft_ae + the head of eft_det_a.c (`func_001AE140`); eft_det_b_c.c is the head of
+the AI sequence object (btl_ai_seq_a); stg_d may extend back to 0x22FC40; col_a probably starts at 0x230B10.
 
 NOT launched yet: 0x22FC40..0x22FD10 (two stage rigid list helpers plus one function of
 another module).
 
 ## Known follow-ups
 
-- stg_a.c / stg_a_b.c call the stage rigid bodies by placeholder (`func_002302F0` ..); the name pass
-  restores `StgRigid_*` once stg_d.txt is listed.
+- docs/systems/ still uses the old names of the function and task flags renamed at the second effects
+  integration (`BtlFx_SpawnDamageSparks`, `EFT_TASK_HIT_2` ..).
+- eft_y.c / the head of eft_z.c (`EftLine_*`) and the rest of eft_z.c (`EftBill_*`) are one module (part
+  kind 16) under two prefixes: unify.
+- `EftShotFx_IsOnScreen` (eft_t_c.c): its `#if 0` attempt does not compile when enabled (parse error).
 - `EftBlast_Init` (eft_j.c) matches when compiled with `-fno-gcse` (agent's note): look for a source
   form that defeats gcse there.
 - Stage rigid bodies / destructibles at 0x22FDA0..0x230AA0 have no owner yet: add to the next wave.
@@ -191,7 +241,6 @@ another module).
   The "ratio" comments in btl_facade.c (the value is a percentage) are not fixed.
 - Comments in docs/systems/ still use the old names of the functions renamed here.
 - `btl_char_hit.h` describes the attack table as inline at object +0x920; it is a pointer.
-- Check whether `BtlFx_SpawnDamageSparks` is really the ki blast launcher (it draws `BtlChar_RandF`).
 - The previous action (fighter +0x950) has no writer anywhere (searched the whole executable);
   see combat.md. Fix the comment-level claims in handlers that assume it works.
 - One unified fighter header: every battle file has its own partial view of the 0x1600-byte
@@ -201,7 +250,7 @@ another module).
 - `Snd_SendFighters` sends sound handles, not fighter ids; `ADXF_Tell` in
   config/symbol_addrs.txt may be the inner unlocked function. Neither is fixed yet.
 - Functions in linked files that are still INCLUDE_ASM are listed in docs/open_questions.md (seven added
-  by the action-handler batch, 62 by the first effect / stage wave).
+  by the action-handler batch, 62 by the first effect / stage wave, 79 by the second).
 - `BtlAi_GetPairRate` / `BtlAi_GetQuadRate` (btl_ai_cond.c): the switch shape that matched
   `AiThink_GetSubRate` may fix them.
 
