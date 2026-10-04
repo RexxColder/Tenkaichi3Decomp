@@ -116,3 +116,31 @@ over Sony libmc: each call makes one library call or one `sceMcSync` poll; state
   in the source header), from their arguments.
 - For linking: define `s32 gMcCardStep = 0; s32 gMcCardCmd = 0;` first in the file; `.rodata`
   at 0x2EBA80, `.sdata` from 0x2FE918.
+
+## Character password codec (0x252F68..0x254A20; src/sys/misc_a.c, misc_a_b.c, not linked yet; names in config/symbols/misc_a.txt)
+
+All 35 functions match. Two builds of one codec, called only by the menu overlay: `OldPass_*`
+(0x252F68, 32- and 20-character texts) and `ChrPass_*` (0x253ED8, the 34-character text).
+Final names menu/pass_old.c, menu/pass.c. Most of the range is dead code (old encoders, the
+20-character format, random test fillers, "No Debug\n" getters).
+
+Verified by matching C:
+- A password is a 32-byte bit buffer, least significant bit first, 6 bits per character
+  through a 64-character table (current table
+  `QRST2VWX1JKLMN5P0BCD3FGHYZ4bcd9fwxyz!#$%6pqrst8vgh7jklmn&@-+*()?`; characters not in the
+  table are silently skipped on decode).
+- Bits 0..31 are a seed in clear. Bytes from 4 on are XORed with the low bytes of tempered
+  MT19937 state words. The state comes from `init_by_array({s, 2s, 3s, 4s})` (without the
+  reference code's final `state[0] = 0x80000000`), is read from index 1 and is never twisted.
+- Current format (34 characters): charId at bit 0x20 (8 bits), item[8] from bit 0x28 (9 bits
+  each), extraSlots at 0x70 (4 bits), one more bit at 0x74; a bit-count checksum at 0x77, an
+  XOR parity block (bytes 16..23 = bytes 0..7 ^ bytes 8..15), a second bit count at 0xC4.
+  The old 32-character layout has 7 items of 10 bits.
+- Each codec owns its state (0x31C7E0 / 0x31D1F0, index at 0x2FEC50 / 0x2FEE58), reseeded on
+  every call: independent of `gRandState` and of the simulation. **But `ChrPass_Encode` draws
+  libc `rand()` twice** to make the seed (menu only).
+- Original bugs: the last checksum nibble test in `ChrPass_Decode` can never fail; the old
+  decoder does not clear the bit buffer first.
+
+Inferred: "Old" = the previous game's password format (the overlay still accepts and converts
+it); item ids valid up to 350, character ids 0..160 (from overlay disassembly).

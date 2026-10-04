@@ -214,3 +214,10 @@ draws from libc `rand()` every unpaused frame: at least 30 draws per side for th
 plus 2 per shaking node. It runs from `Hud_Draw`. Since libc `rand()` also reaches simulation
 code, the HUD is one more visual consumer that shifts a simulation stream; see
 docs/systems/hud.md.
+
+## Correction (2026-10-04): the "second MT19937 at 0x252F68"
+
+It is not a generator: there are two instances (0x252F68 and 0x253ED8), each the key stream of
+the character password codec (docs/systems/save_data.md). The state is seeded per call, read
+and never twisted, and touches nothing shared. The only live draw in that range is
+`ChrPass_Encode`, which takes two libc `rand()` values (menu only).
