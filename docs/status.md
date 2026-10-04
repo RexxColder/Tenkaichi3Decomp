@@ -444,3 +444,25 @@ Left as it is: stale chunks of earlier splits under asm/ (more of them now; asse
 linked; progress.py's "functions still in assembly" counts their labels). include/sys/lib_a.h
 (the forwarding header) has no user left and can be deleted. The menu overlay is untouched
 (nothing under src/menu/, include/menu/ or config/symbols/menu_*.txt was read into the build).
+
+## State 2026-10-04 (tenth step linked; all overlay chunks launched)
+
+Main executable: 86.91% linked and verified here (commit ee4fe98); 174 INCLUDE_ASM in linked
+files (rows in docs/open_questions.md). A stray compiler dump `t.c.09.loop` sits untracked in
+the repo root (an agent's; safe to delete).
+Overlay: chunks 1..19 reported and committed, UNLINKED (menu_a .. menu_s): 449 functions, 446
+match as delivered (`CharSel_Input` 3 instructions off; `Train_BuildLists`; `Train_Update` /
+`Train_Input` match only merged with menu_h_d.c). Running: chunks 20..27 (menu_t .. menu_za).
+No more chunks to launch. When they have all reported: ONE overlay integrator (DBZP.yaml
+`src_path` is src/dbzp but sources are in src/menu; per-file `.rodata`, grouped `.data` work
+pointers that need `= NULL` definitions; the many merges listed per chunk in
+docs/systems/menu_overlay.md and in each file's header comment; unify the duplicated views
+(TeamSel, HistSel, Train, SimDay, MisSel, UbScore, save views flat vs nested); `Snd_PlaySe`
+returns s32 (menu_a.h is wrong); 0x31EA80..0x31EAA4 overlap; overlay symbols referenced from
+late_a*.c via config/linker_script_extra.ld). Consider two integrators in sequence (first
+half / second half of the overlay) to keep each one's context manageable.
+After that: near-miss cleanup rounds on the remaining INCLUDE_ASM functions of both binaries.
+Open port questions recorded so far (not to be worked on until the user says): music id 0x18
+("random") passed unresolved to the battle by sim / course / mission / survival hand-offs;
+Disc Fusion needs a replacement on PC; pause, pause-menu result and CPU-level writes reach
+the simulation outside the pad stream; menus and HUD advance shared random generators.
