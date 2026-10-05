@@ -83,7 +83,11 @@ void TextBox_SetSpacing(TextBox *box, s32 x, s32 y) {
    differences. A `u8` result local in a macro is promoted to a full register and has its zero hoisted in front
    of the branch (204 instructions). So the original copy is most likely a plain copy between two int
    registers that the allocator could not merge (the next statement's `lbu` already sits in v0 at the join),
-   in a shape where the compiler does not hoist the `= 0` arm; not found (15 more shapes tried here). */
+   in a shape where the compiler does not hoist the `= 0` arm; not found (15 more shapes tried here).
+   Cleanup 4: twelve more shapes (nested ternaries on an `s32` temporary, `r = 0xFF; if (t < 0x100) r = t;` in
+   a block or in an `s32` inline helper, min / max macros, a helper taking `u8 *`): 62 to 130 differences, all
+   because the `< 0` test then becomes straight-line code or the zero is hoisted. The `u8` helper below stays
+   the closest form. */
 #if 0
 /* Clamps a colour component to a byte. */
 static inline u8 TextBox_ClampByte(s32 c) {

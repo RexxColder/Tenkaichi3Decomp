@@ -5,7 +5,7 @@
  * Technique effects, second part: 0x14B108..0x14F230. See include/battle/eft_h.h for the layouts.
  * Everything called outside the file is declared here with this file's own view types.
  *
- * Six functions are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
+ * Two functions (EftShot_BuildParam, EftEmit_SpawnType0) are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
  * every `#if 0` into `#if 1` and dropping the INCLUDE_ASM lines gives a file that fdiff can compile.
  */
 
@@ -128,7 +128,7 @@ static inline s32 EftShot_TypeRow(s32 type) {
 
 /* Fills the parameter block of technique slot `slot` of character `chr`: defaults when `blank`, otherwise a
    flat copy of the fields the effects use out of the character's skill (slots 0, 1) or technique data. */
-#if 0 /* not matched (499 instructions against 502). The defaults branch is identical except for the order of six stores; the skill and technique branches read the same fields into the same places, but the original keeps a copy of the slot index (move t8,t9 / addiu t8,t9,-2) and shares the address arithmetic of the structure-of-arrays fields differently (it spills 34 intermediate addresses to the stack, this C 30). Behaviour verified: both versions were run in an interpreter for every slot 0..4, blank 0 / 1 and 40 random source tables; the parameter block and the memory around it come out byte-identical (build/scratch_cleanup_eft/emu_buildparam.py; a deliberately wrong field is caught). */
+#if 0 /* not matched (499 instructions against 502). The defaults branch is identical except for the order of six stores; the skill and technique branches read the same fields into the same places, but the original keeps a copy of the slot index (move t8,t9 / addiu t8,t9,-2) and shares the address arithmetic of the structure-of-arrays fields differently (it spills 34 intermediate addresses to the stack, this C 30). Behaviour verified: both versions were run in an interpreter for every slot 0..4, blank 0 / 1 and 40 random source tables; the parameter block and the memory around it come out byte-identical (build/scratch_cleanup_eft/emu_buildparam.py; a deliberately wrong field is caught). Cleanup X2: making the slot index ONE function-scope variable set in both branches (`n = slot;` / `n = slot - 2;`, in front of or behind the data call), or reusing `i` for it, does not give the original's `move t8,t9` and is worse (355 to 384 instructions differ after alignment, against 317 for this form). Not tried: the element-alignment lesson (the original computes `d + n` once per access and spills each copy, the pattern that f32 [16][4] solved in EftOrbTail_DrawStreaks); the views of EftSkillSrc / EftSuperSrc are the place to look. */
 void EftShot_BuildParam(s32 chr, s32 slot, EftShotParam *p, s32 blank) {
     s32 i;
 
@@ -1450,12 +1450,30 @@ extern void EftRay_Kill(void *obj);
 extern void EftRay_SetType(void *obj, s32 type);
 
 /* Type 0: a light of kind EftSetDef.unk4 (0 or 1) at the node. */
-#if 0 /* not matched (same length, 223 instructions): the four saved arguments land in different callee-saved registers (flags / handles / chr / type are s5 / s6 / s7 / fp in the original) and the original shares the tail of the two cases (EftRay_SetType + EftEmit_TagTask) by a jump. The values built are identical. */
+#if 0 /* not matched: 218 instructions in the original, 219 here; 50 differ after alignment (the form stored before: 223
+instructions, 67). What is known (cleanup X2, allocation dumps):
+- The original shares `jal EftRay_SetType` and the whole EftEmit_TagTask call between the two cases (case 0 ends
+  in a jump into case 1). The form with both calls written out in both cases is NOT merged by the compiler: after
+  the first jump pass a `(use (const_int 0))` insn follows the last call of case 1 (a call directly in front of a
+  label), so the cross-jump pass finds no common tail. It also gives chr / type five references each and puts
+  them in s5 / s6, in front of flags / handles.
+- The original's registers (flags s5, handles s6, chr s7, type fp) need chr and type to have FOUR references:
+  EftRay_SetType written in both cases, EftEmit_TagTask written once; and handles must not be referenced by the
+  shared call, so the address of the handle slot is one value set in both cases (`h` below). With that the four
+  saved arguments, the frame and the shared tail come out right.
+- Still different: `n` and the address of case 1's block exchange s3 / s4 (the original gives `n` the higher
+  priority); 0xC0 / 0x70 exchange v0 / v1 in case 0 and the alpha store comes first there; EftRay_SetType's jal is
+  not shared (here the store through `h` is scheduled in front of it in both cases, in the original only in
+  case 0); `scale` is copied to f20 in front of the switch instead of behind it. The goto is a stand-in for
+  whatever structured form shares the tag call; a `created` flag is not threaded (li v1,1 / beqz v1 remains),
+  an if / else chain on `kind` merges the two argument blocks into one frame slot (frame 304 instead of 416).
+  The values built and the calls made are the same as in the form stored before. */
 void EftEmit_SpawnType0(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                         f32 size, f32 scale, f32 rate) {
     s32 n = set->group[0].firstPart + idx;
     EftSetDef *part = &set->parts[n];
     s32 kind = part->unk4;
+    void **h;
 
     switch (kind) {
     case 0:
@@ -1480,9 +1498,10 @@ void EftEmit_SpawnType0(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
                 arg.unk50 = 1;
             }
             Vec4_Copy((Vec4 *)&arg.pos, pos);
-            H(n) = EftRay_Create(&arg);
-            EftRay_SetType(H(n), type);
-            EftEmit_TagTask(H(n), chr, type);
+            h = &H(n);
+            *h = EftRay_Create(&arg);
+            EftRay_SetType(*h, type);
+            goto tag;
         }
         break;
     case 1:
@@ -1504,9 +1523,11 @@ void EftEmit_SpawnType0(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
                                     1 };
 
             Vec4_Copy((Vec4 *)&arg.pos, pos);
-            H(n) = EftRay_CreateByValue(&arg);
-            EftRay_SetType(H(n), type);
-            EftEmit_TagTask(H(n), chr, type);
+            h = &H(n);
+            *h = EftRay_CreateByValue(&arg);
+            EftRay_SetType(*h, type);
+        tag:
+            EftEmit_TagTask(*h, chr, type);
         }
         break;
     default:
@@ -1588,16 +1609,13 @@ extern s32 EftBill_SetFront(void *obj);
 extern s32 EftBill_SetType(void *obj, s32 type);
 
 /* Type 16. */
-#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores).
-Everything else is identical. Second retry (local-alloc dump): res, texA and texB are block-local quantities that
-take s0, s1, s2 in order of priority = refs / life, ties going to the one born first. Declared A then B, both live 14
-insns (A is loaded first and stored first) and A wins the tie; declared B then A, B is loaded first but stored
-last (the initialiser stores in field order), lives 15 against 13 and loses. The original gives B the first pick,
-so there B's life is the shorter one: an instruction sits between the two loads after the first scheduling pass
-(or B's store comes first). EftEmit_SpawnType18, the same statements with Vec4_Copy(&arg.dir) moved in front of
-the if / else, matches with A in s1. Tried without effect: the six orders of res / texA / texB (res in the middle
-changes the memset set-up as well, 13 instructions), a shared index or pair pointer, address temporaries,
-the pair read inside the initialiser (75), five spellings of the index sum. */
+/* Matching note (EftEmit_SpawnType16): the resource pointer is built in two statements with texA read in between
+   (index first, then texA, `res += ...`, texB). The single-expression form of EftEmit_SpawnType17 / 18 gives the
+   same instructions with texA / texB in s1 / s2 exchanged: res, texA and texB are block-local values allocated in
+   order of refs / life, and the original's texB lives one instruction less than texA, which needs the first
+   scheduling pass to emit "load texA, res add, load texB". That happens only when the add has one dying operand
+   (`res += x`, not `res = base + x`), stands behind texA in the source, and g->catFirst is read before
+   g->firstPair. */
 void EftEmit_SpawnType16(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                          Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[16];
@@ -1609,25 +1627,31 @@ void EftEmit_SpawnType16(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
-            u8 *res = set->array[1] + (g->catFirst + part->res) * 0x108;
-            s32 *texB = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].b;
+            u8 *res = set->array[1];
+            s32 ri = g->catFirst + part->res;
             s32 *texA = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].a;
-            EftEmitArgA arg = { ZERO_VEC, ZERO_VEC, chr, part->unk2, rate, size, res, texA, texB };
+            s32 *texB;
 
-            if (part->flags & 0x40) {
-                Vec4_Copy((Vec4 *)&arg.pos, pos);
-            } else {
-                Vec4_Copy((Vec4 *)&arg.pos, &p);
+            res += ri * 0x108;
+            texB = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].b;
+            {
+                EftEmitArgA arg = { ZERO_VEC, ZERO_VEC, chr, part->unk2, rate, size, res, texA, texB };
+
+                if (part->flags & 0x40) {
+                    Vec4_Copy((Vec4 *)&arg.pos, pos);
+                } else {
+                    Vec4_Copy((Vec4 *)&arg.pos, &p);
+                }
+                Vec4_Copy((Vec4 *)&arg.dir, dir);
+                H(n) = EftBill_Create(&arg);
+                EftBill_SetDelay(H(n), part->unk5);
+                EftBill_SetEndDelay(H(n), part->unk6);
+                if (part->flags & 0x20) {
+                    EftBill_SetFront(H(n));
+                }
+                EftBill_SetType(H(n), type);
+                EftEmit_TagTask(H(n), chr, type);
             }
-            Vec4_Copy((Vec4 *)&arg.dir, dir);
-            H(n) = EftBill_Create(&arg);
-            EftBill_SetDelay(H(n), part->unk5);
-            EftBill_SetEndDelay(H(n), part->unk6);
-            if (part->flags & 0x20) {
-                EftBill_SetFront(H(n));
-            }
-            EftBill_SetType(H(n), type);
-            EftEmit_TagTask(H(n), chr, type);
         }
     }
     if (H(n) != NULL) {
@@ -1651,8 +1675,6 @@ void EftEmit_SpawnType16(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftEmit_SpawnType16);
 
 extern void *EftRibbon_Create(EftEmitArg17 *arg);
 extern s32 EftRibbon_Stop(void *obj);
@@ -1822,14 +1844,8 @@ extern s32 EftAnimPart_SetHold(void *obj, f32 v);
 extern s32 EftAnimPart_SetFade(void *obj, f32 v);
 
 /* Type 14. */
-#if 0 /* 16 instructions, all register choices in the block that computes the resource address: the original holds
-EftSetDef.res in a2 and the sum in v1 (product in a3), this C the other way round. Second retry (local-alloc dump):
-the quantities are {catFirst, sum} (5 refs over 9 insns), {res} (2 refs) and the product {x << 6, + x, << 3} (6 refs
-over 10 insns); the product outranks the sum by a hair (1.20 against 1.11), takes v1 and pushes the sum to a2. In
-the original the sum is allocated first, so the product lives one instruction longer there (11 gives 1.09): the
-first shift is scheduled in front of the pair index add (`sll a3,v1,6` before `addu v0,v0,s7`, the other way
-round here). Declaration order, a named index, operand order, the base added first or last, an unsigned or
-64-bit index and split multiplications all compile to the same 16 differences. */
+/* Matching note: the resource pointer is built in two statements (`res = base; res += index * size;`), as in
+   EftEmit_SpawnType16. Written as one expression the sum and the product exchange v1 / a2 (16 instructions). */
 void EftEmit_SpawnType14(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                          Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[14];
@@ -1841,22 +1857,27 @@ void EftEmit_SpawnType14(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
-            u8 *res = set->array[0] + (g->catFirst + part->res) * 0x208;
-            s32 *tex = set->pair[g->firstPair + idx].a;
-            EftEmitArg14 arg = { chr, part->unk4, rate, ZERO_VEC, ZERO_VEC, size, tex, res };
+            u8 *res = set->array[0];
+            s32 *tex;
 
-            if (part->flags & 0x40) {
-                Vec4_Copy((Vec4 *)&arg.pos, pos);
-            } else {
-                Vec4_Copy((Vec4 *)&arg.pos, &p);
+            res += (g->catFirst + part->res) * 0x208;
+            tex = set->pair[g->firstPair + idx].a;
+            {
+                EftEmitArg14 arg = { chr, part->unk4, rate, ZERO_VEC, ZERO_VEC, size, tex, res };
+
+                if (part->flags & 0x40) {
+                    Vec4_Copy((Vec4 *)&arg.pos, pos);
+                } else {
+                    Vec4_Copy((Vec4 *)&arg.pos, &p);
+                }
+                Vec4_Copy((Vec4 *)&arg.dir, dir);
+                H(n) = EftAnimPart_Create(&arg);
+                EftAnimPart_SetDelay(H(n), part->unk5);
+                EftAnimPart_SetHold(H(n), part->unk6);
+                EftAnimPart_SetFade(H(n), part->unk7);
+                EftAnimPart_SetType(H(n), type);
+                EftEmit_TagTask(H(n), chr, type);
             }
-            Vec4_Copy((Vec4 *)&arg.dir, dir);
-            H(n) = EftAnimPart_Create(&arg);
-            EftAnimPart_SetDelay(H(n), part->unk5);
-            EftAnimPart_SetHold(H(n), part->unk6);
-            EftAnimPart_SetFade(H(n), part->unk7);
-            EftAnimPart_SetType(H(n), type);
-            EftEmit_TagTask(H(n), chr, type);
         }
     }
     if (H(n) != NULL) {
@@ -1880,8 +1901,6 @@ void EftEmit_SpawnType14(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftEmit_SpawnType14);
 
 extern void *EftPtcl_Create(EftEmitArgA *arg);
 extern s32 EftPtcl_Stop(void *obj);
@@ -1898,16 +1917,7 @@ extern s32 EftPtcl_SetFlag40(void *obj, s32 v);
 extern s32 EftPtcl_SetType(void *obj, s32 type);
 
 /* Type 5. */
-#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores).
-Everything else is identical. Second retry (local-alloc dump): res, texA and texB are block-local quantities that
-take s0, s1, s2 in order of priority = refs / life, ties going to the one born first. Declared A then B, both live 14
-insns (A is loaded first and stored first) and A wins the tie; declared B then A, B is loaded first but stored
-last (the initialiser stores in field order), lives 15 against 13 and loses. The original gives B the first pick,
-so there B's life is the shorter one: an instruction sits between the two loads after the first scheduling pass
-(or B's store comes first). EftEmit_SpawnType18, the same statements with Vec4_Copy(&arg.dir) moved in front of
-the if / else, matches with A in s1. Tried without effect: the six orders of res / texA / texB (res in the middle
-changes the memset set-up as well, 13 instructions), a shared index or pair pointer, address temporaries,
-the pair read inside the initialiser (75), five spellings of the index sum. */
+/* Matching note: see EftEmit_SpawnType16 (same two-step resource pointer). */
 void EftEmit_SpawnType5(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                         Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[5];
@@ -1919,29 +1929,35 @@ void EftEmit_SpawnType5(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
     p.w = 1.0f;
     if (flags & EFT_CMD_START) {
         if (H(n) == NULL) {
-            u8 *res = set->array[1] + (g->catFirst + part->res) * 0x108;
+            u8 *res = set->array[1];
+            s32 ri = g->catFirst + part->res;
             s32 *texA = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].a;
-            s32 *texB = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].b;
-            EftEmitArgA arg = { ZERO_VEC, ZERO_VEC, chr, part->unk2, rate, size, res, texA, texB };
+            s32 *texB;
 
-            if (part->flags & 0x40) {
-                Vec4_Copy((Vec4 *)&arg.pos, pos);
-            } else {
-                Vec4_Copy((Vec4 *)&arg.pos, &p);
+            res += ri * 0x108;
+            texB = set->pairAt[EFT_SET_PAIR + g->firstPair + idx].b;
+            {
+                EftEmitArgA arg = { ZERO_VEC, ZERO_VEC, chr, part->unk2, rate, size, res, texA, texB };
+
+                if (part->flags & 0x40) {
+                    Vec4_Copy((Vec4 *)&arg.pos, pos);
+                } else {
+                    Vec4_Copy((Vec4 *)&arg.pos, &p);
+                }
+                Vec4_Copy((Vec4 *)&arg.dir, dir);
+                H(n) = EftPtcl_Create(&arg);
+                EftPtcl_SetStartDelay(H(n), part->unk5);
+                EftPtcl_SetStopDelay(H(n), part->unk6);
+                EftPtcl_SetLinger(H(n), part->unk7);
+                if (part->flags & 0x20) {
+                    EftPtcl_SetFront(H(n));
+                }
+                if (part->unk34 & 8) {
+                    EftPtcl_SetFlag40(H(n), 1);
+                }
+                EftPtcl_SetType(H(n), type);
+                EftEmit_TagTask(H(n), chr, type);
             }
-            Vec4_Copy((Vec4 *)&arg.dir, dir);
-            H(n) = EftPtcl_Create(&arg);
-            EftPtcl_SetStartDelay(H(n), part->unk5);
-            EftPtcl_SetStopDelay(H(n), part->unk6);
-            EftPtcl_SetLinger(H(n), part->unk7);
-            if (part->flags & 0x20) {
-                EftPtcl_SetFront(H(n));
-            }
-            if (part->unk34 & 8) {
-                EftPtcl_SetFlag40(H(n), 1);
-            }
-            EftPtcl_SetType(H(n), type);
-            EftEmit_TagTask(H(n), chr, type);
         }
     }
     if (H(n) != NULL) {
@@ -1969,5 +1985,3 @@ void EftEmit_SpawnType5(EftSet *set, EftSetHandles *handles, s32 flags, s32 type
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftEmit_SpawnType5);

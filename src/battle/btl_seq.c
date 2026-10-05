@@ -372,19 +372,15 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
     BtlText_PutScissor(pkt, 0, 0, 0x1FF, 0x1BF);
 }
 
-/* Draws the scroll bar of the current page: the frame, and the thumb when there are more than 7 entries. */
-#if 0
-/* Not matching: 29 of 102 instructions differ, all from one register swap. The original keeps `half` in s2 and
- * `y1` in s3, this C gets them the other way round (and so schedules two instructions and the epilogue restores
- * in another order). Writing the last argument as `half += 0x1B; ... -half` gives the right registers but then
- * the add is done in place (`addiu s2,s2,27` instead of `addiu t0,s2,27`). */
-/* Second cleanup pass (allocator dump): the two are ordered by floor_log2(refs) * refs / live length. `y1` has 9
- * references over 60 instructions (0.45), `half` 6 over 42 (0.29); the original order needs `half` at 8
- * references (which is what `half += 0x1B` adds) or `y1` at 6 or 7, with the same code. Tried without effect:
- * `half` / `h` declared or assigned in other orders, a block-local `h` or `half` in the `over` arm, the last
- * argument through another variable, `y1` (and `x`, `y0`) continued in new locals after the frame (33 to 56
- * differences), the last call in both arms (not merged: 120 instructions), `do { } while (0)` around either
- * half (the loop depth weights the references: 32 to 78 differences). */
+/* Draws the scroll bar of the current page: the frame, then the thumb (always drawn; with more than 7 entries it
+ * is shortened and moved, otherwise it fills the frame).
+ * Matched in cleanup 4. Two things were needed. (1) A BEHAVIOURAL FIX: the earlier attempt drew the thumb's upper
+ * part only inside `if (over)`; the original's `beqz` skips only the two coordinate updates (the wrong branch
+ * target was hidden among 29 "register swap" lines). (2) `len` is computed in front of the `if`, and the height
+ * behind it goes through `h = y0; h = y1 - h;`: written `h = y1 - y0;` gcse sees the same expression as `len`,
+ * calls it partially redundant and adds a copy (`subu v0 / move t0,v0`). The two-step form came from the
+ * permuter and may be a stand-in for what the source really had (`half = y0; half = (y1 - half) / 2;` works
+ * too): what matters is that the subtraction's operand is a variable set twice. */
 void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
     s32 visible = 7;
     BtlTextWork *work = BtlMenu_GetWork();
@@ -394,6 +390,7 @@ void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
     s32 count = list->count[list->page];
     s32 scroll = list->cursor[list->page];
     s32 over;
+    s32 len;
 
     BtlText_DrawPart(pkt, x, y0, 9, h - half, 5);
     BtlText_DrawPart(pkt, x, y1, 9, -half, 5);
@@ -405,20 +402,19 @@ void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
     if (count < 0) {
         count = 0;
     }
+    len = y1 - y0;
     if (over) {
-        f32 unit = (f32)(y1 - y0) / (f32)(count + 7);
+        f32 unit = (f32)len / (f32)(count + 7);
 
         y0 += (s32)((f32)scroll * unit);
         y1 = y0 + (s32)(unit * (f32)visible);
-        h = y1 - y0;
-        half = h / 2;
-        BtlText_DrawPart(pkt, x, y0 - 0x1B, 5, h - half + 0x1B, 6);
     }
+    h = y0;
+    h = y1 - h;
+    half = h / 2;
+    BtlText_DrawPart(pkt, x, y0 - 0x1B, 5, h - half + 0x1B, 6);
     BtlText_DrawPart(pkt, x, y1 + 0x1B, 5, -(half + 0x1B), 6);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/btl_seq", BtlText_DrawScrollBar);
-#endif
 
 /* Counts the pages and the entries of each page of the current side's list. */
 void BtlText_CountEntries(void) {

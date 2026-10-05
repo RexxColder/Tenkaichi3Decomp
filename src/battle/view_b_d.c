@@ -127,6 +127,20 @@ ShenScene *gShenScene = NULL;
    instructions around 0x2620D8 are ordered differently because of it, everything else is identical. The
    read-only data the attempt emits (the two blur centres, the camera poses, the jump table) and its two
    .lit4 constants (pi 0x2FE7AC, 3.8f 0x2FE7B0) have the original values and order. */
+/* Cleanup 4 (dumps). What the original shows is `lo` NOT living in a saved register: its 0.0 is put in $f0 at
+   the conversion and used three times there (compare, trunc, sub), just as `hi`'s 1.0 is loaded next to its
+   one use (`hi * 128.0f`; a pseudo set once to a constant and used once has its load moved to the use by
+   local-alloc, which is why `hi` already matches). Facts measured:
+   - `lo = 0.0f; hi = 1.0f;` must stand in front of the BtlObj_SetUnkB30 call: that call's own float-to-
+     unsigned conversion has a branch and a join, and behind the join cse no longer knows the constants. Moved
+     behind the call (or into the `if`), cse folds both conversions away (592 instructions).
+   - gcse cannot put a constant into the conversion's instructions (compare / fix), so `lo` keeps its three
+     uses and gets $f20. Any plain copy of it (`f32 a = lo;`) is found by gcse's constant propagation and
+     the conversion is then folded by cse2 (610 instructions); an inline helper with float parameters gives
+     the same code as passing `(u32)lo` (cse forwards the parameter copy).
+   So the source must make ONE use of the 0.0 variable that is neither a foldable copy nor the conversion
+   itself, or leave the pseudo without a hard register (reload then loads the constant once and inherits it).
+   Not found. */
 #if 0
 /* A sound of bank mask 2, queued twice. */
 static inline void ShenScene_PlaySe(s32 id, s32 volume) {

@@ -4,22 +4,28 @@
 
 /*
  * Ground dust, kind 4 (landing ring), 0x198BC0..0x199500. Continues eft_z.c; see include/battle/eft_z.h.
- * A separate file only because EftGndDustLand_Init is INCLUDE_ASM and owns float constants: placed first, its
- * constants (0x2FCDCC..0x2FCE20) stay in the assembly .lit4 chunk in front of this file's (0x2FCE20, 0x2FCE24).
- * With the attempt enabled this file's .lit4 is 0x2FCDCC..0x2FCE28, identical to the original except that
- * 0x2FCDF4 and 0x2FCDF8 come out swapped.
+ * It was split off while EftGndDustLand_Init was INCLUDE_ASM; every function is C now and the file's .lit4 is
+ * 0x2FCDCC..0x2FCE28 (EftGndDustLand_Init's 21 constants, then 0x2FCE20 and 0x2FCE24).
  */
 
-/* Kind 4 init: a ring of three low puffs, eight particles thrown outwards and one in the middle. */
-#if 0
-/* NON-MATCHING: the logic is the original's (checked instruction by instruction against the disassembly), the register
-   allocation is not: the original keeps &arg->colA / &arg->colB in s1 / s0 until the two colour copies are made and
-   spills fresh copies (sp+0x84 / sp+0x88) for the second loop; here one stack slot holds each pointer from the
-   start, and the saved float registers are assigned differently. About 300 of 394 instructions differ. */
-void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
+/* EftGndDust_SpawnPieceEx with its real parameter order (the definition in src/battle/eft_aa.c: the eight
+   register floats in front of life / fade / tex). eft_z.h declares the three integers first: the registers are the
+   same, but the caller then loads them in another order. */
+extern EftGndDustPart *EftGndDust_SpawnPieceX(EftGndDustEmit *w, Vec4 *pos, Vec4 *dir, u8 *colA, u8 *colB, f32 sizeX,
+                                             f32 sizeY, f32 growX, f32 growY, f32 speed, f32 drag, f32 rot, f32 spin,
+                                             s16 life, s16 fade, s16 tex, f32 unkB8, f32 gravity, s32 flags)
+    __asm__("EftGndDust_SpawnPieceEx");
+
+/* Kind 4 init: a ring of three low puffs, eight particles thrown outwards and one in the middle.
+   Matching notes: the callback's argument is copied into a typed local declared BEHIND `w` (see
+   EftGndDustImpact_Init in eft_z_c.c: without the copy one stack slot holds each colour pointer from the start);
+   `ang` is a function-scope variable and `s` a local of each loop body (a block-local value is allocated before
+   the function-wide ones: s gets f20, ang f21); the random spin is written inside the argument list (as a
+   function-scope variable its division cannot move behind the next rand() call); life / fade are integers
+   converted at the call, and the last call reuses the values of the eighth iteration. */
+void EftGndDustLand_Init(EftZTask *task, void *param) {
     EftGndDustEmit *w = task->work;
-    u8 *srcA = arg->colA;
-    u8 *srcB = arg->colB;
+    EftGndDustArg *arg = param;
     Vec4 pos;
     Vec4 dir;
     Vec4 v;
@@ -27,24 +33,22 @@ void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
     EftZCol colA __attribute__((aligned(16)));
     EftZCol colB __attribute__((aligned(16)));
     s32 i;
-    s16 life;
-    s16 fade;
+    s32 life;
+    s32 fade;
     f32 start;
     f32 step = 2.0943951f;
     f32 ang;
-    f32 s;
-    f32 spin;
 
     memset(w, 0, sizeof(EftGndDustEmit));
     List_Init(&w->parts);
     w->free = EftGndDust_GetFreeList(arg->pool);
-    EftGndDust_GetLightColors(srcA, srcB);
+    EftGndDust_GetLightColors(arg->colA, arg->colB);
     Vec4_Set(V(&arg->accel), 0.0f, -1.0f, 0.0f, 1.0f);
     arg->pool = 1;
     arg->tex = 2;
+    arg->size = 10;
     arg->life = 30;
     arg->fade = 10;
-    arg->size = 10;
     arg->grow = 0.1f;
     arg->blend = 0;
     arg->rMin = 0;
@@ -55,9 +59,11 @@ void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
     arg->drag = 1.0f;
     arg->unk5C = 0.0f;
     start = RANDF() * 6.2831853f;
-    colA = *(EftZCol *)srcA;
-    colB = *(EftZCol *)srcB;
+    colA = *(EftZCol *)arg->colA;
+    colB = *(EftZCol *)arg->colB;
     for (i = 0; i < 3; i++) {
+        f32 s;
+
         ang = EftMath_WrapAngle(start + step * i);
         s = Mathf_SinFast(ang);
         Vec4_Set(&dir, s, 0.0f, Mathf_CosFast(ang), 1.0f);
@@ -65,12 +71,14 @@ void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
         Vec4_Scale(&off, &dir, 2.0f);
         Vec4_Add(&pos, V(&arg->pos), &off);
         Vec3_Lerp(&v, V(&arg->dir), &dir, RANDF() * 0.2f + 0.6f);
-        EftGndDust_SpawnPieceEx(w, &pos, &v, colA.c, colB.c, (f32)arg->life, (f32)arg->fade, 10, 5.0f, 6.0f, 0.0f, 1.0f, 0.0f,
-                      1.0f, 0.0f, 0.0f, 0.7f, 0.0f, EFT_GDUST_PART_FAR);
+        EftGndDust_SpawnPieceX(w, &pos, &v, colA.c, colB.c, 5.0f, 6.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                               (f32)arg->life, (f32)arg->fade, 10, 0.7f, 0.0f, EFT_GDUST_PART_FAR);
     }
     start = RANDF() * 6.2831853f;
     step = 0.78539816f;
     for (i = 0; i < 8; i++) {
+        f32 s;
+
         ang = EftMath_WrapAngle(start + step * i);
         s = Mathf_SinFast(ang);
         Vec4_Set(&dir, s, 0.0f, Mathf_CosFast(ang), 1.0f);
@@ -78,20 +86,17 @@ void EftGndDustLand_Init(EftZTask *task, EftGndDustArg *arg) {
         Vec4_Scale(&off, &dir, 2.0f);
         Vec4_Add(&pos, V(&arg->pos), &off);
         pos.y -= 3.0f;
-        life = (f32)(arg->life + rand() % 10);
-        fade = (f32)(arg->fade + rand() % 5);
-        spin = RANDF() * 6.2831853f;
-        EftGndDust_SpawnPieceEx(w, &pos, &dir, arg->colA, arg->colB, life, fade, 350, 1.0f, 1.0f, 0.0f, 0.0f,
-                      arg->scale * 7.8f, 0.8f, spin, 0.3f, arg->scale * 0.7f,
-                      (RANDF() * 0.01f + 0.07f) * arg->scale, 0);
+        life = arg->life + rand() % 10;
+        fade = arg->fade + rand() % 5;
+        EftGndDust_SpawnPieceX(w, &pos, &dir, arg->colA, arg->colB, 1.0f, 1.0f, 0.0f, 0.0f, arg->scale * 7.8f, 0.8f,
+                               RANDF() * 6.2831853f, 0.3f, (f32)life, (f32)fade, 350, arg->scale * 0.7f,
+                               (RANDF() * 0.01f + 0.07f) * arg->scale, 0);
     }
-    spin = RANDF() * 6.2831853f;
-    EftGndDust_SpawnPieceEx(w, V(&arg->pos), V(&arg->dir), arg->colA, arg->colB, life, fade, 350, 1.0f, 1.0f, 0.0f, 0.0f,
-                  arg->scale * 0.8f, 0.8f, spin, 0.3f, arg->scale * 0.7f, (RANDF() * 0.01f + 0.03f) * arg->scale, 0);
+    EftGndDust_SpawnPieceX(w, V(&arg->pos), V(&arg->dir), arg->colA, arg->colB, 1.0f, 1.0f, 0.0f, 0.0f,
+                           arg->scale * 0.8f, 0.8f, RANDF() * 6.2831853f, 0.3f, (f32)life, (f32)fade, 350,
+                           arg->scale * 0.7f, (RANDF() * 0.01f + 0.03f) * arg->scale, 0);
     w->arg = *arg;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_z_b", EftGndDustLand_Init);
 
 /* Kind 4 term. */
 void EftGndDustLand_Term(EftZTask *task) {

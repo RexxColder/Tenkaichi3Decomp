@@ -6,8 +6,9 @@
 /*
  * Effect code, 0x147050..0x14B108. See include/battle/eft_g.h for the five pieces and their layouts.
  *
- * Three functions (EftStorm_DrawBolts, EftSmoke_Draw, EftBound_BuildWall) are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
- * every `#if 0` into `#if 1` and dropping the INCLUDE_ASM lines gives a file that fdiff can compile.
+ * One function (EftStorm_DrawBolts) is INCLUDE_ASM with the C attempt in `#if 0` above it and a note on what differs;
+ * turning the `#if 0` into `#if 1` and dropping the INCLUDE_ASM line gives a file that fdiff can compile.
+ * EftSmoke_Draw and EftBound_BuildWall match since cleanup W1 (EftSmoke_Draw emits a 4-byte .sdata constant, 0x2FE9EC).
  *
  * Callees that have no name yet, from a first read of how they are used here:
  *   Vec4_Lerp(out,a,b,t) linear interpolation of two vectors
@@ -93,7 +94,7 @@ extern s32 EftStage_IsDrawOn(void);
 extern void Vu0Cur_Push(void);
 extern void Vu0Cur_Pop(void);
 extern void Vu0Cur_LoadMtx(Mtx44 *m);
-extern void Vu0Cur_ProjectPoint(EftScrXyz *out, Vec4 *pos);
+extern s32 Vu0Cur_ProjectPoint(EftScrXyz *out, Vec4 *pos); /* returns a value (see EftAura_DrawFlames, eft_n.c) */
 extern s32 Vu0Cur_ProjectPoints(EftScrXyz *out, Vec4 *pos, s32 count);
 extern void BtlStage_GetLightVecB(Vec4 *dir);
 extern f32 EftMath_WrapAngle(f32 angle);
@@ -132,7 +133,6 @@ extern void *gEftBoundClass[6];
 extern void *gEftShotCharClass[6];
 extern void *gEftTechEvtClass[6];   /* class of the first task of the shot layer (next file) */
 extern f32 D_002FE9E4[];      /* -0.0f, small data reached without $gp */
-extern s32 gEftSmokeFadeFrames[]; /* 50, same */
 
 typedef struct EftStageView {
     /* 0x00 */ s32 unk0[2];
@@ -150,7 +150,7 @@ typedef struct EftClipVtx {
 
 extern void ClipVtx_Set(EftClipVtx *out, EftVecArg *pos, EftVecArg *st, EftVecArg *col);
 extern void EftGfx_DrawPolyScaledZ(f32 unk, EftClipVtx *v, s32 otZ, s32 a3, s32 a4, s32 a5, s32 a6, u64 tex0);
-extern void EftSpr_DrawFlat(f32 u0, f32 v0, f32 u1, f32 v1, s32 r, s32 g, s32 b, s32 a, Vec4 *pos, u32 w, u32 h,
+extern void EftSpr_DrawFlat(s32 r, s32 g, s32 b, s32 a, Vec4 *pos, f32 u0, f32 v0, f32 u1, f32 v1, u32 w, u32 h,
                           s32 unk, s32 unkS0, void *tex);
 
 /* GS XYZF2 register value. */
@@ -500,7 +500,12 @@ this C uses a1 (first Vec4_Scale: `addiu a2,sp,64 / move a0,a2 / move a1,a2`; th
 header constants alternate a2 / v0), the on-screen test keeps 0xFFFF in a0 and the result in a1 (here a1 / a0), and
 the original loads 0x80000000 (t0) before Vu0Cur_LoadMtx and saves it with sq / lq around that call, while
 `tag |= 7`, `vif |= 7` and `i = 3` stay in source order (here the scheduler moves them up across the calls).
-Putting the four locals in a struct (memory) keeps them in place but then they are no longer reloaded into a2. */
+Putting the four locals in a struct (memory) keeps them in place but then they are no longer reloaded into a2.
+Cleanup W1: Vu0Cur_ProjectPoint is now declared with its return value (that alone fixed the same "x / limit /
+reload register" permutation in EftAura_DrawFlames, eft_n.c); here it changes nothing (121 instructions out of
+place with registers, 87 register-masked). Not tried yet with what EftTrail_Draw (eft_q.c) and EftBound_BuildWall
+taught: constants as variables assigned in front of each use (not loop invariants), int constants that are
+converted to float through a spilled variable, and pointer variables assigned twice (unknown alias base). */
 /* Fills and queues one lightning sprite: a triangle strip between two projected corners, white scaled by the
    layer brightness, alpha 128 * life / lifeMax, in the second chain of the depth slot of its z. */
 #define EFT_STORM_SPRITE(bolt, a, b, texv, col, tagv, vifv) \
@@ -984,14 +989,17 @@ void EftSmoke_Update(EftTask *task) {
 
 /* Emitter draw callback: one camera-facing sprite per live particle, lit by the stage light direction (ambient
    + diffuse * max(0, n.l), n pointing from 50 above the emitter to the particle), fading over its last 50 frames. */
-#if 0 /* not matched (25 instructions when aligned, 214 against 215). The original holds 1.0 in f21 and 0.0 in f20 for
-the Vec4_Set calls in front of the loop and makes copies of them (mov.s f23,f21 / mov.s f24,f20) that the loop uses for
-part->pos.w and for the four texture coordinates of the sprite call; 128.0 is f25 and the alpha reuses f20. Assigning
-hi / lo at the top of the loop body reproduces the copies (the loop pass hoists the two sets and the second cse pass
-turns them into copies of the constants already in registers), but gcse's constant propagation then still puts the
-constants straight into f12..f15 at the call (mtc1 zero,$f12 / li.s $f14) and cse lets the three `< 0.0f` clamps use
-lo instead of a fresh 0.0. Assigning them once in front of the loop (first attempt) loses the copies altogether; any
-place later in the loop body, literal arguments, or helper variables one / zero are all further away. */
+/* Matched (cleanup W1). Three things did it:
+   - EftSpr_DrawFlat's parameter order: the position comes BEFORE the four texture coordinates (r, g, b, a, pos, u0,
+     v0, u1, v1, w, h, ...); float and integer arguments use separate registers, so only the order in which the
+     argument registers are loaded shows it (`move t0,s2` in front of the four `mov.s`).
+   - the 50 of the fade is an int variable that gets no register: reload replaces it by its constant, and the
+     int-to-float conversion then reads it from a constant-pool word in .sdata (0x2FE9EC, the former
+     "gEftSmokeFadeFrames").
+   - STAND-IN (possibly a fake match): the copies of 1.0 / 0.0 that the loop uses (f23 / f24, made from f21 / f20 in
+     front of the loop) survive only when gcse cannot see `hi = one` / `lo = zero` as available inside the loop, i.e.
+     when `one` and `zero` are assigned again in the loop. The two dead assignments below do that (flow deletes
+     them); what the original had in their place is unknown. */
 void EftSmoke_Draw(EftTask *task) {
     Vec4 base;
     Vec4 light;
@@ -1006,10 +1014,10 @@ void EftSmoke_Draw(EftTask *task) {
     f32 alpha;
     f32 one;
     f32 zero;
-    f32 k;
     f32 hi;
     f32 lo;
     s32 life;
+    s32 fade = 50;
     s32 i;
 
     tex = (u8 *)work->tex + 0x20;
@@ -1021,21 +1029,23 @@ void EftSmoke_Draw(EftTask *task) {
     }
     part = work->part;
     bright = EftStage_GetTintScale();
+    one = 1.0f;
+    zero = 0.0f;
     Vu0Cur_Push();
     Vu0Cur_LoadMtx(&gBtlCamView->screen);
     BtlStage_GetLightVecB(&light);
     Vec3_Normalize(&light, &light);
-    Vec4_Set(&base, work->arg.pos.x, work->arg.pos.y - 50.0f, work->arg.pos.z, 1.0f);
-    Vec4_Set(&ambient, work->arg.ambient.x, work->arg.ambient.y, work->arg.ambient.z, 0.0f);
-    Vec4_Set(&diffuse, work->arg.diffuse.x, work->arg.diffuse.y, work->arg.diffuse.z, 0.0f);
+    Vec4_Set(&base, work->arg.pos.x, work->arg.pos.y - 50.0f, work->arg.pos.z, one);
+    Vec4_Set(&ambient, work->arg.ambient.x, work->arg.ambient.y, work->arg.ambient.z, zero);
+    Vec4_Set(&diffuse, work->arg.diffuse.x, work->arg.diffuse.y, work->arg.diffuse.z, zero);
+    hi = one;
+    lo = zero;
     for (i = 0; i < EFT_SMOKE_PARTS; i++, part++) {
-        hi = 1.0f;
-        lo = 0.0f;
         if (part->life != 0) {
             life = part->life;
             alpha = work->arg.alpha;
-            if (life < 50) {
-                alpha = alpha * (f32)life / (f32)gEftSmokeFadeFrames[0];
+            if (life < fade) {
+                alpha = alpha * (f32)life / (f32)fade;
             }
             Vec3_Sub(&d, &part->pos, &base);
             d.y *= 0.8f;
@@ -1061,16 +1071,14 @@ void EftSmoke_Draw(EftTask *task) {
                 col.z = 255.0f;
             }
             part->pos.w = hi;
-            EftSpr_DrawFlat(lo, lo, hi, hi, col.x * bright, col.y * bright, col.z * bright, alpha, &part->pos,
+            one = alpha; /* stand-in, see above */
+            zero = alpha;
+            EftSpr_DrawFlat(col.x * bright, col.y * bright, col.z * bright, alpha, &part->pos, lo, lo, hi, hi,
                           work->arg.size * 128.0f, work->arg.size * 128.0f, 0, 0, tex);
         }
     }
     Vu0Cur_Pop();
 }
-#else
-LIT4_WORD(D_002FC718, 0x3F4CCCCC); /* 0.8f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftSmoke_Draw);
-#endif
 
 static inline void EftVec3_SubInl(Vec4 *out, Vec4 *a, Vec4 *b) {
     out->x = a->x - b->x;
@@ -1092,39 +1100,60 @@ void EftBound_UpdateAngle(EftBoundChar *work, EftBoundChar *src) {
    with the distance of each vertex from the point of the cylinder nearest to the fighter. The mesh is off
    while the fighter is in a technique or has a rush connected. Texture scroll and the pulse phase advance
    only while time is not stopped. */
-#if 0 /* the saved registers are numbered differently (param s0, vertex s1, mesh s2 in the original) and the per-vertex distance is computed with reloads of the vertex position; same operations. */
+/* Matched in cleanup W1 (it was "saved registers numbered differently", 53 instructions out of place). Causes:
+   - the vertex pointer of the build loop and the `vtx` of the normal loop are ONE variable: two assignments give
+     the pseudo an unknown alias base, so the stores to the local `d` force the reloads of vtx->pos;
+   - the texture coordinates are computed into two temporaries before the st stores; param is declared before color;
+   - the quad loop has a walking variable of its own (`m2`: sharing `m` with the normal loop makes its induction
+     variable "not replaceable" and the loop pass will not reduce it);
+   - the four vertex numbers are stored through the int pointer that the inner loop also walks (`pi`, assigned
+     twice: unknown alias base again). The one store whose address stays a register (`pi[0]`) then invalidates
+     everything cse knows about memory, which is what makes the original convert mesh->cols a second time and
+     re-read mesh->quadCount (`lh`) for the loop's entry test, while gcse's PRE and reload's cse still pass the
+     count to the entry test of the NORMAL loop as `move v1,a0`;
+   STAND-INS (the natural source form is not known, marked in the code):
+   - `pi` starts at element 1 (`&loc.idx.i[1]`, stores at -1, 0, 1, 2), and `d` / `idx` are one local object, so
+     that no register holds the address of element 0 in front of the quad loop (with `pi = idx.i` the first store
+     keeps `addiu a2,sp,16` alive and the loop's own `addiu t1,sp,16` disappears);
+   - the quad pointer `q` has a dead `= NULL` initialiser: it must not be "replaceable" for the loop pass, which
+     keeps `addiu v0,a2,0x640` in the loop instead of a second walking pointer. */
 void EftBound_BuildWall(EftBoundChar *work, EftBoundChar *src) {
-    Vec4 d;
-    EftBoundIdx idx;
+    struct {
+        Vec4 d;
+        EftBoundIdx idx;
+    } loc; /* one object: see the note above */
     Vec4 e1;
     Vec4 e2;
     EftBoundIdx tri;
-    f32 *color = gEftBound->color;
     EftBoundParam *param = gEftBound->param;
+    f32 *color = gEftBound->color;
     EftBoundMesh *mesh = &work->wall;
-    EftBoundVtx *v;
     EftBoundVtx *vtx;
     f32 alpha;
     EftBoundMesh *m;
+    EftBoundMesh *m2;
+    EftBoundQuad *q = NULL;
     f32 one = 1.0f;
     f32 fade;
     f32 y0;
     f32 pulse;
     f32 a;
     f32 t;
+    f32 u;
     f32 k;
     f32 len;
     s32 i;
     s32 j;
     s32 n;
     s32 col;
+    s32 *pi;
 
     mesh->center.x = sinf(work->angle) * work->radius;
     mesh->center.y = work->pos.y;
     mesh->center.z = cosf(work->angle) * work->radius;
     mesh->center.w = one;
-    Vec3_Sub(&d, &work->wall.center, &work->pos);
-    mesh->dist = sqrtf(d.x * d.x + d.z * d.z);
+    Vec3_Sub(&loc.d, &work->wall.center, &work->pos);
+    mesh->dist = sqrtf(loc.d.x * loc.d.x + loc.d.z * loc.d.z);
     mesh->dist -= work->charRadius;
     if (mesh->dist < 0.0f) {
         mesh->dist = 0.0f;
@@ -1160,53 +1189,57 @@ void EftBound_BuildWall(EftBoundChar *work, EftBoundChar *src) {
     pulse = fabsf(cosf(mesh->phase));
     for (j = 0; j < (s32)mesh->rows; j++) {
         for (i = 0; i < (s32)mesh->cols; i++) {
-            v = &mesh->vtx[j * (s32)mesh->cols + i];
+            vtx = &mesh->vtx[j * (s32)mesh->cols + i];
             a = work->angle - mesh->arc * 0.5f + mesh->arc * ((f32)i / (mesh->cols - 1.0f));
-            v->pos.v[0] = sinf(a) * work->radius;
-            v->pos.v[2] = cosf(a) * work->radius;
-            v->pos.v[1] = y0 + (f32)j / (mesh->rows - 1.0f) * param->height;
-            v->pos.v[3] = 1.0f;
-            v->st.v[0] = mesh->scrollS + a / param->texArc;
-            v->st.v[1] = mesh->scrollT + v->pos.v[1] / param->texHeight;
-            v->st.v[2] = 1.0f;
-            v->st.v[3] = 0.0f;
-            d.x = v->pos.v[0] - mesh->center.x;
-            d.y = v->pos.v[1] - mesh->center.y;
-            d.z = v->pos.v[2] - mesh->center.z;
-            len = sqrtf(d.x * d.x + d.y * d.y + d.z * d.z);
+            vtx->pos.v[0] = sinf(a) * work->radius;
+            vtx->pos.v[2] = cosf(a) * work->radius;
+            vtx->pos.v[1] = y0 + (f32)j / (mesh->rows - 1.0f) * param->height;
+            vtx->pos.v[3] = 1.0f;
+            u = mesh->scrollS + a / param->texArc;
+            t = mesh->scrollT + vtx->pos.v[1] / param->texHeight;
+            vtx->st.v[0] = u;
+            vtx->st.v[1] = t;
+            vtx->st.v[2] = 1.0f;
+            vtx->st.v[3] = 0.0f;
+            loc.d.x = vtx->pos.v[0] - mesh->center.x;
+            loc.d.y = vtx->pos.v[1] - mesh->center.y;
+            loc.d.z = vtx->pos.v[2] - mesh->center.z;
+            len = sqrtf(loc.d.x * loc.d.x + loc.d.y * loc.d.y + loc.d.z * loc.d.z);
             k = (param->fadeDist - len) / param->fadeDist;
             if (k < 0.0f) {
                 k = 0.0f;
             } else if (k > 1.0f) {
                 k = 1.0f;
             }
-            v->col.v[0] = color[0];
-            v->col.v[1] = color[1];
-            v->col.v[2] = color[2];
+            vtx->col.v[0] = color[0];
+            vtx->col.v[1] = color[1];
+            vtx->col.v[2] = color[2];
             alpha = param->alpha * fade * k;
             alpha = alpha + alpha * pulse;
-            v->col.v[3] = alpha;
+            vtx->col.v[3] = alpha;
             if (alpha > 255.0f) {
-                v->col.v[3] = 255.0f;
+                vtx->col.v[3] = 255.0f;
             }
         }
     }
-    n = ((s32)mesh->cols - 1) * ((s32)mesh->rows - 1);
-    idx.i[1] = 1;
-    idx.i[0] = 0;
+    mesh->quadCount = ((s32)mesh->cols - 1) * ((s32)mesh->rows - 1);
+    pi = &loc.idx.i[1];
+    pi[-1] = 0;
+    pi[0] = 1;
+    pi[1] = (s32)mesh->cols;
+    pi[2] = (s32)mesh->cols + 1;
     col = 0;
-    idx.i[3] = (s32)mesh->cols + 1;
-    idx.i[2] = (s32)mesh->cols;
-    mesh->quadCount = n;
     for (n = 0; n < mesh->quadCount; n++) {
-        m = (EftBoundMesh *)((u8 *)mesh + n * sizeof(EftBoundQuad));
-        m->quad[0].idx = idx;
+        m2 = (EftBoundMesh *)((u8 *)mesh + n * sizeof(EftBoundQuad));
+        q = &m2->quad[0];
+        q->idx = loc.idx;
         col = (col + 1) % ((s32)mesh->cols - 1);
-        for (j = 0; j < 4; j++) {
+        pi = loc.idx.i;
+        for (j = 0; j < 4; j++, pi++) {
             if (col == 0) {
-                idx.i[j] += 2;
+                *pi += 2;
             } else {
-                idx.i[j] += 1;
+                *pi += 1;
             }
         }
     }
@@ -1220,10 +1253,6 @@ void EftBound_BuildWall(EftBoundChar *work, EftBoundChar *src) {
         Vec3_Normalize(&m->quad[0].normal, &m->quad[0].normal);
     }
 }
-#else
-LIT4_WORD(D_002FC71C, 0x40C90FDA); /* 6.2831853f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftBound_BuildWall);
-#endif
 
 /* Queues one triangle of the wall: builds three clip vertices, takes the whole texture repeats off the
    coordinates and hands them to the shared clipper (EftGfx_DrawPolyScaledZ). The matrix argument is not used. */

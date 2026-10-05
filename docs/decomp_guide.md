@@ -749,3 +749,56 @@ at the time):
 - Leads it turned up: `ChrCam_CalcCut` (btl_char_cam_cut.c) drops from 248 to 17 differing
   with `-fssa` (which renumbers pseudos: a declaration / statement ORDER clue, not a flag);
   `Sprite_DrawPicture` improves with `-fforce-addr` (an address-through-a-variable clue).
+
+## Lessons from cleanup round 3 (2026-10-05, agents X2, W2, X1, W1)
+
+Wrong declarations (each of these was behind a "registers / load order only" near-miss):
+- CHECK EVERY CALLEE'S RETURN TYPE AND PARAMETER ORDER against its definition.
+  `Vu0Cur_ProjectPoint` returns a value (declared `void`, the three off-screen tests come
+  out with x / limit / reload register permuted). A local prototype listing ints before
+  floats when the definition has floats first (or the reverse) changes only the ORDER the
+  argument registers are loaded (`EftGndDust_SpawnPieceEx`, `EftSpr_DrawFlat`,
+  `EftPrim_DrawQuadDepthScaled`).
+- Check branch TARGETS before believing "registers only": `BtlText_DrawScrollBar` hid a
+  behavioural error (a thumb part drawn only conditionally) among 29 register lines for
+  three rounds. An aligned diff normalises targets away; fdiff's raw output shows them.
+
+Source forms:
+- Typed copy of a callback argument (`T *arg = param;`) must stand BEHIND another initialised
+  declaration (`w = task->work` is enough); first in the list it is folded away. This is the
+  natural form of the "surviving copy" (ground-dust inits). The orb-tail members were
+  element alignment instead (`f32 uv[16][4]`, not 16-aligned vectors).
+- Exact local-alloc ties: an insn in which more registers die than are born is scheduled
+  first, so `res = base + x` (two deaths) always precedes a pending load while `res += x`
+  (one death) does not. Building a pointer in two statements with another read in between
+  solved `EftEmit_SpawnType16 / 5 / 14`.
+- A value masked or biased before two uses: write the expression INLINE at each use when the
+  original keeps the unmasked value in its own register (`node & MASK` in `ChrCam_CalcCut`:
+  248 differing down to 0). A `-fssa` improvement can mean "one more pseudo is needed".
+- Int-to-float through a spilled variable: a lone 4-byte `.sdata` word used by one function
+  (`lui / addiu / lwc1 / cvt.s.w`) is `s32 k = N;` ... `(f32)k`.
+- "Each call loads its own copy of a constant while other constants are shared": a variable
+  assigned before each call (`sz = 9.45943f;` three times).
+- A pointer variable assigned twice has an unknown alias base: stores through it force
+  reloads. One walking variable shared by two loops makes its giv "not replaceable"; give
+  each loop its own.
+- List walk `lw v0,next(sN) / bnez v0 / move sN,v0`:
+  `for (link = &head; *link != NULL; link = &f->next) { f = *link; ...`.
+- Inline predicates `if (x & bit) return 1; return 0;` versus `return (x & bit) != 0;` give
+  different branch prediction at the call site; both lengthen the loop for the hoisting
+  threshold. A four-term sum `a + b + c + d` compiles to `(a + d) + (c + b)`: do not copy the
+  asm pairing into the source.
+- A store behind an if / else in front of a loop may belong inside BOTH arms (each packet
+  header arm is complete, including `next = NULL`).
+- `x = a - b` behind an `if` that duplicates one in front of it gets a gcse copy; routing an
+  operand through a variable set twice (`h = y0; h = y1 - h;`) stops it (possibly a stand-in).
+- local-alloc doubles the live length of any register whose first set is `reg = constant`,
+  even if it is set again: a variable initialised to 0 at the top competes at half priority.
+- Block-scoped locals are allocated before function-scope ones live at the same time.
+- Tool caution: build/scratch_cleanup3_V/sdiff.py reads the object of the last SUCCESSFUL
+  compile; after a compile error it silently reports the previous result.
+FAKE MATCHES added this round (marked in the sources): `EftPtcl_DrawAxisQuads` (volatile
+alias of gOtCur), `StgPanBlur_UpdateView` (a pointer to a local plus `do { } while (0)`),
+`EftSmoke_Draw` (two dead assignments in the loop), `EftBound_BuildWall` (index pointer
+starting at element 1, merged local struct, dead initialiser), `BtlText_DrawScrollBar`
+(two-step height, possibly).

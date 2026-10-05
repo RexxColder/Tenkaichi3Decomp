@@ -42,7 +42,6 @@ EftStorm_DrawRain = 0x00148C10; // type:func // guess
 gEftSmokeMgrClass = 0x002C3670; // size:0x18 // guess
 gEftSmokeClass = 0x002C3688; // size:0x18 // guess
 gEftSmokeMgr = 0x002FE9E8; // size:0x4 // guess
-gEftSmokeFadeFrames = 0x002FE9EC; // size:0x4 // guess
 EftSmoke_Create = 0x00148DF8; // type:func // guess
 EftSmoke_Stop = 0x00148E38; // type:func // guess
 EftSmoke_GetPos = 0x00148E88; // type:func // guess

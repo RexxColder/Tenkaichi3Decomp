@@ -11,8 +11,9 @@
  * Full-screen post effects, 0x102F28..0x106D60. See include/sys/gfxm_a.h for the overview.
  * Everything here is drawing: nothing reads a pad, the clock or a random generator.
  *
- * Two functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
- * StgPanBlur_UpdateView (13 instructions off: two saved registers exchanged) and StgDepthTint_Draw.
+ * One function is INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above it: StgDepthTint_Draw.
+ * StgPanBlur_UpdateView matches since cleanup 4 (with two stand-in constructs, see its note) and emits the
+ * file's .lit4 (0x2FC280..0x2FC290).
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -187,7 +188,8 @@ void StgPanBlur_BuildClut(u8 *clut) {
 
 /* Follows the camera of one view: strength from its horizontal speed, the two layers from that. Returns 0 when
    the strength has run out. */
-/* NOT MATCHING, 13 of 197 instructions (was 60 of 191): the layer loop now matches. What remains is in the
+/* History (it matches now, see the last note). Third cleanup: 13 of 197 instructions (was 60 of 191): the
+   layer loop now matches. What remains is in the
    straight-line part in front of it: two callee-saved registers are exchanged (the original keeps
    `view->prev.m[3]` in s3 and `&move` in s4, this has them the other way round), and with that the
    `addiu s1,sp,48` / `li a2,16` pair of the fourth clear is in the other order. Same behaviour.
@@ -206,7 +208,16 @@ void StgPanBlur_BuildClut(u8 *clut) {
    (three references each, born where the scheduler puts them, in front of Mtx_Copy) and the three
    `sp + N` addresses compete for s1..s5, and the original ranks `view + 0x70` between `&dirCur` and
    `&move` while this ranks both row addresses last. */
-#if 0
+/* MATCHED in cleanup 4, with two constructs whose original form is not known (treat as stand-ins):
+   - `side.y` is read through a pointer variable declared right behind `side` (`Vec4 *sp = &side;`). The pointer
+     itself disappears (it is sp + 0), but its one RTL instruction in the first block changes where the
+     scheduler puts the two row addresses, and s3 / s4 come out as in the original (13 -> 2 differing). It
+     must be declared directly behind `side` or `move`; a pointer to another vector, a later assignment, an
+     inline reader, or `dist` / `cam` initialised among the vectors do not do it.
+   - `do { dist = Vec3_Length(&move); } while (0);` (found by the permuter): without it one pair of argument
+     loads of the second memset is swapped (`move a0,s4 / move a1,zero`). A plain block does not do it; the
+     loop notes are what matters (they bound the first scheduling region). Reads like a statement macro.
+   The function emits the file's whole .lit4: 0.1f, 0.15f, 0.1f, 0.15f (0x2FC280..0x2FC28C, bits compared). */
 typedef struct StgPanBlurViewF {
     u8 pad[0xB0];
     f32 layer[24];
@@ -214,6 +225,7 @@ typedef struct StgPanBlurViewF {
 #define L(i, k) ((StgPanBlurViewF *)view)->layer[(i) * 12 + (k)]
 s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
     Vec4 side = { 0.0f, 0.0f, 0.0f, 1.0f };
+    Vec4 *sp = &side;
     Vec4 move = { 0.0f, 0.0f, 0.0f, 1.0f };
     Vec4 dirCur = { 0.0f, 0.0f, 0.0f, 1.0f };
     Vec4 dirPrev = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -231,7 +243,9 @@ s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
     Vec3_Normalize(&dirPrev, (Vec4 *)view->prev.m[3]);
     Vec3_Cross(&side, &dirPrev, &dirCur);
     Vec4_Sub(&move, (Vec4 *)view->prev.m[3], (Vec4 *)view->cur.m[3]);
-    dist = Vec3_Length(&move);
+    do {
+        dist = Vec3_Length(&move);
+    } while (0);
     if (dist >= 1.0f) {
         if (dist < 2.5f) {
             view->strength += 0.1f;
@@ -252,7 +266,7 @@ s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
         view->strength = 0.0f;
         return 0;
     }
-    view->side = side.y * 100.0f;
+    view->side = sp->y * 100.0f;
     if (view->side > 1.0f) {
         view->side = 1.0f;
     }
@@ -277,8 +291,6 @@ s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
     return 1;
 }
 
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_a", StgPanBlur_UpdateView);
 
 /* Copies the frame, halved, to the 256x256 work page. */
 void StgPanBlur_CopyScreen(void) {

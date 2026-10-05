@@ -395,7 +395,18 @@ void EftChain_SetKey(EftArcKey *out, EftArc *w, s32 key) {
 /* Blends the current parameters between two keys by the key timer (keys 0..1 up to keyMid, then 1..2).
    As in the original: rows 2, 4 and 6 use the delta of the row before them, and the step / crawl angle rows
    are not scaled by pi here (EftChain_SetKey scales them). */
-#if 0 /* not matched: same operations, but register allocation differs through the whole 600-instruction block after the loop (the original keeps `out` in s6 and has a 0x180 frame; this C gets a 0x1A0 frame with `out` in t9 saved around the calls). The part up to the end of the pair loop is the same instruction sequence. */
+#if 0 /* not matched: same operations, but register allocation differs through the whole 600-instruction block after the loop (the original keeps `out` in s6 and has a 0x180 frame; this C gets a 0x1A0 frame with `out` in t9 saved around the calls). The part up to the end of the pair loop is the same instruction sequence.
+Cleanup W1 (analysis only, no new form found): the 0x20 of frame is the caller-save slot of `out` plus spill slots. In
+the original the long block behind the loop keeps only SEVEN block-local address temporaries in saved registers
+(s0-s4, s7, s8), so global allocation still finds s5 for `p` and s6 for `out`; about fifty other address temporaries
+(set once, used once, long-lived) go to stack slots 0x40..0x110(sp). In this attempt local-alloc gives EIGHT of those
+long-lived temporaries a saved register (s0-s5, s7, s8: lengths 170..270 instructions, 2 or 3 references each), which
+leaves one saved register for `p` and pushes `out` into t9. So the cause is one more address temporary alive across
+the block than in the original, not the struct view: the rows are already separate members, and the original's
+address shapes agree with that (bases p+4 / p+8 / p+12, i.e. row offset modulo 16, plus k * 4 + a multiple of 16).
+Worth trying next: the original forms the k1 side of a row as `off16(k1*4 + (p + rest))` with the sum SHARED between
+the rows of equal rest (t7 = k1*4 + p + 4 serves 0x14, 0x44, ...), and the k0 side as a fresh `(p + rest) + (k0*4 +
+off16)` per row; here both sides come out in the per-row form, which is where the extra temporaries come from. */
 void EftChain_BlendKeys(EftArc *w) {
     EftVec d;
     EftVec a;

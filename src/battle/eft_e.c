@@ -2870,36 +2870,102 @@ void EftWater_UpdateTextures(s32 a0, s32 a1) {
 
 /* Clips a triangle (three EftWaterClipVtx) against the five planes of the view, projects what is left and queues
    it as a fan of textured triangles. A triangle whose three corners are all unusable is dropped. */
-#if 0 /* equivalent in structure and length (426 instructions, including the 128-bit saves around EftUtil_IsCamUnderWater) but not tuned: registers differ almost everywhere */
-/* Second pass (cleanup 2), leads only, the attempt is unchanged:
-   - the original addresses the depths as (sp + 8) + i * 16 and (sp + 8) + (i * 16 - 16), recomputed from
-     `sll s2,s5,4` in every iteration: that is the form of an array of 4-ALIGNED structs (`scr[i].z`), while the
-     8-aligned EftWaterIVec used here gives walking pointers. With a plain `struct { s32 x, y, z, w; } scr[9]`
-     (stq left 8-aligned) the count drops to 348 of 431, five instructions long.
-   - the original keeps `poly` in memory (sw a0,288(sp), reloaded for every ClipPoly_ClipPlane call and for
-     ClipPoly_ProjectCur), keeps n in s8, hoists only 0xFFFFFF (s7), the vif0 constant (s3), the XYZF2 mask (t7),
-     -1 (t9), poly + 96 (s6) and sp + 160 (t6), and saves three temporaries (t6, t7, t9) with sq / lq around the
-     EftUtil_IsCamUnderWater call where this saves five.
-   - the packet stores should be retried in plain field order with build/scratch_cleanup2_A/search.py once the
-     loop has the right shape (that fixed EftWater_DrawBillboard and EftWater_DrawSprayQuad). */
+#if 0 /* NON-MATCHING: 429 instructions against 426 */
+/* A register-masked structural diff (build/scratch_cleanup3_V/sdiff.py) leaves 23 lines (142 before round 4). */
+/* Round 4 (scratch build/scratch_cleanup4_W2/cf*.c). The function is the water twin of EftMesh_DrawTriClip +
+   EftMesh_QueueTri (eft_ad_b.c, matched): rewritten after them it has the original's blocks, frame (0x1B0), stack
+   slots (poly / layer / tex0 at sp+288 / 292 / 296, the three sq / lq saves around EftUtil_IsCamUnderWater) and
+   every instruction of the depth, cap, clip-test and packet code. What made the difference:
+   - the triangle writer is a `static inline` taking the nine corner pointers (EftWater_QueueTri), header stores
+     in the order prim, tag, vif0, vif1, gif0, gif1, next, pad;
+   - scr is an array of 4-ALIGNED structs indexed at every use (`scr[i - 1].z`): that gives the original's
+     `sll s2,s5,4 / addiu a0,sp,8 / addiu v1,s2,-16 / addu s0,a0,v1 / addu s1,a0,s2` exactly (the 8-aligned
+     EftWaterIVec and the `zp` pointer form of the mesh twin both give walking pointers here);
+   - the screen test is `clipped = 1; if (z > 0 && x <= 0xFFEF && x > 0) { if (y <= 0xFFEF) clipped = y <= 0; }`
+     through a POINTER parameter (movz on the two y tests; the by-value form of EftMesh_IsOffScreen copies the
+     16 bytes here and costs 26 instructions).
+   What still differs (all one cause, the loop pass's choice of induction pointers):
+   - the original does not strength-reduce &scr[i - 1]: it recomputes it where it is used
+     (`addu v1,sp,s2 / addiu v1,v1,-16` for the clip test, `addiu t4,t2,-16` for the writer) and keeps only
+     &stq[i - 1] (t6, +16) and &poly[i] (s6, +48) as walking pointers; here &scr[i - 1] becomes a third walking
+     pointer (s8). With one saved register gone, n lands in t6 (saved / restored with sq / lq around
+     ClipPoly_ProjectCur) instead of s8, and the XYZF2 mask 0xFF000000FFFFFFFF is rebuilt in the loop instead of
+     being hoisted into t7. `&scr[i] - 1` and `scr + i - 1` compile to the same thing.
+   - to try next: the giv is "not worth while" for the loop pass when lifetime * threshold * benefit < the loop's
+     insn count (-dL, `giv at N combined with ...`): look for a form in which the clip test's and the writer's
+     uses of &scr[i - 1] do not combine into one giv (in the original the two addresses are computed in
+     different blocks from sp + (i << 4)). */
+typedef struct EftWaterScr4 {
+    s32 x, y, z, w;
+} EftWaterScr4;
+
 /* 1 when a projected vertex cannot be drawn (behind the camera or outside the GS coordinate range). */
-static inline s32 EftWater_IsClipped(EftWaterIVec *v) {
+static inline s32 EftWater_IsClipped(EftWaterScr4 *v) {
     s32 clipped = 1;
 
     if (v->z > 0 && v->x <= 0xFFEF && v->x > 0) {
-        clipped = v->y <= 0;
-        if (v->y > 0xFFEF) {
-            clipped = 1;
+        if (v->y <= 0xFFEF) {
+            clipped = v->y <= 0;
         }
     }
     return clipped;
 }
 
+static inline void EftWater_QueueTri(EftWaterScr4 *p0, EftWaterScr4 *p1, EftWaterScr4 *p2, EftWaterVec *c0,
+                                     EftWaterVec *c1, EftWaterVec *c2, EftWaterVec *t0, EftWaterVec *t1,
+                                     EftWaterVec *t2, s32 layer, s32 z, u64 tex0) {
+    EftWaterTriPkt *p = (EftWaterTriPkt *)gOtCur;
+
+    gOtCur = (u32 *)(p + 1);
+    p->prim = 0x5B;
+    p->h.tag = 0x20000007;
+    p->h.vif0 = 0x10000000;
+    p->h.vif1 = 0x50000007;
+    p->h.gif0 = 0xC400000000008001;
+    p->h.gif1 = 0xF42142142160;
+    p->h.next = 0;
+    p->pad = 0;
+    p->v[0].rgba[0] = (u32)c0->x;
+    p->v[0].rgba[1] = (u32)c0->y;
+    p->v[0].rgba[2] = (u32)c0->z;
+    p->v[0].rgba[3] = (u32)c0->w;
+    p->v[0].q = t0->z;
+    p->v[1].rgba[0] = (u32)c1->x;
+    p->v[1].rgba[1] = (u32)c1->y;
+    p->v[1].rgba[2] = (u32)c1->z;
+    p->v[1].rgba[3] = (u32)c1->w;
+    p->v[1].q = t1->z;
+    p->v[2].rgba[0] = (u32)c2->x;
+    p->v[2].rgba[1] = (u32)c2->y;
+    p->v[2].rgba[2] = (u32)c2->z;
+    p->v[2].rgba[3] = (u32)c2->w;
+    p->v[2].q = t2->z;
+    p->tex0 = tex0;
+    p->v[0].s = t0->x;
+    p->v[0].t = t0->y;
+    p->v[1].s = t1->x;
+    p->v[1].t = t1->y;
+    p->v[2].s = t2->x;
+    p->v[2].t = t2->y;
+    p->v[0].xyz.x = p0->x;
+    p->v[0].xyz.y = p0->y;
+    p->v[0].xyz.z = p0->z;
+    p->v[0].xyz.f = 0xFF;
+    p->v[1].xyz.x = p1->x;
+    p->v[1].xyz.y = p1->y;
+    p->v[1].xyz.z = p1->z;
+    p->v[1].xyz.f = 0xFF;
+    p->v[2].xyz.x = p2->x;
+    p->v[2].xyz.y = p2->y;
+    p->v[2].xyz.z = p2->z;
+    p->v[2].xyz.f = 0xFF;
+    EftWaterOt_Add((OtPrim *)p, z, layer);
+}
+
 void EftWater_DrawClippedFan(EftWaterClipVtx *poly, s32 layer, u64 tex0) {
-    EftWaterIVec scr[9];
+    EftWaterScr4 scr[9];
     EftWaterVec stq[9];
     EftWaterVec *plane;
-    EftWaterTriPkt *p;
     s32 n;
     s32 i;
     s32 z;
@@ -2907,75 +2973,34 @@ void EftWater_DrawClippedFan(EftWaterClipVtx *poly, s32 layer, u64 tex0) {
     plane = EftGfx_GetClipPlanes();
     n = 3;
     for (i = 0; i < 5; i++) {
-        n = ClipPoly_ClipPlane(poly, &plane[i], n);
+        n = ClipPoly_ClipPlane(poly, plane, n);
+        plane++;
     }
-    if (n != 0) {
-        ClipPoly_ProjectCur(scr, stq, poly, n);
-        for (i = 2; i < n; i++) {
-            z = (scr[0].z + scr[i - 1].z + scr[i].z) / 3 >> 8;
-            if (EftUtil_IsCamUnderWater()) {
-                z -= 500;
-            } else {
-                z += 500;
-            }
-            if (scr[0].z > 0xFFFFFF) {
-                scr[0].z = 0xFFFFFF;
-            }
-            if (scr[i - 1].z > 0xFFFFFF) {
-                scr[i - 1].z = 0xFFFFFF;
-            }
-            if (scr[i].z > 0xFFFFFF) {
-                scr[i].z = 0xFFFFFF;
-            }
-            if (EftWater_IsClipped(&scr[0]) && EftWater_IsClipped(&scr[i - 1]) && EftWater_IsClipped(&scr[i])) {
-                continue;
-            }
-            p = (EftWaterTriPkt *)gOtCur;
-            gOtCur = (u32 *)(p + 1);
-            p->h.tag = 0x20000007;
-            p->h.vif1 = 0x50000007;
-            p->prim = 0x5B;
-            p->h.vif0 = 0x10000000;
-            p->h.gif0 = 0xC400000000008001;
-            p->h.gif1 = 0xF42142142160;
-            p->h.next = 0;
-            p->pad = 0;
-            p->v[0].rgba[0] = (u32)poly[0].color.x;
-            p->v[0].rgba[1] = (u32)poly[0].color.y;
-            p->v[0].rgba[2] = (u32)poly[0].color.z;
-            p->v[0].rgba[3] = (u32)poly[0].color.w;
-            p->v[0].q = stq[0].z;
-            p->v[1].rgba[0] = (u32)poly[i - 1].color.x;
-            p->v[1].rgba[1] = (u32)poly[i - 1].color.y;
-            p->v[1].rgba[2] = (u32)poly[i - 1].color.z;
-            p->v[1].rgba[3] = (u32)poly[i - 1].color.w;
-            p->v[1].q = stq[i - 1].z;
-            p->v[2].rgba[0] = (u32)poly[i].color.x;
-            p->v[2].rgba[1] = (u32)poly[i].color.y;
-            p->v[2].rgba[2] = (u32)poly[i].color.z;
-            p->v[2].rgba[3] = (u32)poly[i].color.w;
-            p->v[2].q = stq[i].z;
-            p->tex0 = tex0;
-            p->v[0].s = stq[0].x;
-            p->v[0].t = stq[0].y;
-            p->v[1].s = stq[i - 1].x;
-            p->v[1].t = stq[i - 1].y;
-            p->v[2].s = stq[i].x;
-            p->v[2].t = stq[i].y;
-            p->v[0].xyz.x = scr[0].x;
-            p->v[0].xyz.y = scr[0].y;
-            p->v[0].xyz.z = scr[0].z;
-            p->v[0].xyz.f = 0xFF;
-            p->v[1].xyz.x = scr[i - 1].x;
-            p->v[1].xyz.y = scr[i - 1].y;
-            p->v[1].xyz.z = scr[i - 1].z;
-            p->v[1].xyz.f = 0xFF;
-            p->v[2].xyz.x = scr[i].x;
-            p->v[2].xyz.y = scr[i].y;
-            p->v[2].xyz.z = scr[i].z;
-            p->v[2].xyz.f = 0xFF;
-            EftWaterOt_Add((OtPrim *)p, z, layer);
+    if (n == 0) {
+        return;
+    }
+    ClipPoly_ProjectCur((EftWaterIVec *)scr, stq, poly, n);
+    for (i = 2; i < n; i++) {
+        z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
+        if (EftUtil_IsCamUnderWater()) {
+            z -= 500;
+        } else {
+            z += 500;
         }
+        if (scr[0].z > 0xFFFFFF) {
+            scr[0].z = 0xFFFFFF;
+        }
+        if (scr[i - 1].z > 0xFFFFFF) {
+            scr[i - 1].z = 0xFFFFFF;
+        }
+        if (scr[i].z > 0xFFFFFF) {
+            scr[i].z = 0xFFFFFF;
+        }
+        if (EftWater_IsClipped(&scr[0]) && EftWater_IsClipped(&scr[i - 1]) && EftWater_IsClipped(&scr[i])) {
+            continue;
+        }
+        EftWater_QueueTri(&scr[0], &scr[i - 1], &scr[i], &poly[0].color, &poly[i - 1].color, &poly[i].color,
+                          &stq[0], &stq[i - 1], &stq[i], layer, z, tex0);
     }
 }
 #endif

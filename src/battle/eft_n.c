@@ -5,8 +5,8 @@
 /*
  * Effect tasks, 0x1637A0..0x167E68. See include/battle/eft_n.h.
  *
- * 44 of 47 functions are C. Three are INCLUDE_ASM with the attempt in `#if 0` above them: EftAura_DrawFlames,
- * EftBolt_Shape and EftBolt_Draw. Their float constants are emitted in place with LIT4_WORD, so the file's .lit4
+ * 45 of 47 functions are C. Two are INCLUDE_ASM with the attempt in `#if 0` above them: EftBolt_Shape and
+ * EftBolt_Draw (EftAura_DrawFlames matches since cleanup W1). Their float constants are emitted in place with LIT4_WORD, so the file's .lit4
  * is the whole of 0x2FC97C..0x2FCAAC whichever way they are built.
  *
  * Nothing here is simulation: no hit record, fighter, battle object or battle event is written. The fighter is
@@ -107,7 +107,7 @@ extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle); /* rotate about Y */
 extern void Vu0Cur_Push(void);                            /* VU0 matrix stack push */
 extern void Vu0Cur_LoadMtx(Mtx44 *m);                        /* load the matrix */
 extern void Vu0Cur_Pop(void);                            /* pop */
-extern void Vu0Cur_ProjectPoint(EftNScr *out, Vec4 *pos);         /* project to GS screen coordinates */
+extern s32 Vu0Cur_ProjectPoint(EftNScr *out, Vec4 *pos);          /* project to GS screen coordinates; returns a value */
 extern void IVec4_Set(s32 *out, s32 x, s32 y, s32 z, s32 w);
 extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
                           s32 t0, s32 t1, s32 w, s32 h, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
@@ -197,17 +197,49 @@ f32 EftAura_GetNodeFade(s32 objId, Vec4 *pos, Vec4 *nodes, f32 scale) {
    (EftAura_BuildFlameMtx), its two far corners stretched by the flame's end ratio. Corner alpha falls off near the
    body (EftAura_GetNodeFade), and the two near corners get a tenth of it. Flames with flag 0x800 are skipped.
    The quad goes into the order table slot of its average depth, in the layer given by the flame's `alt`.
-   Not matching (128 instructions out of place after alignment; it was 137 before the absolute value became
-   __builtin_fabsf, which is the original's `abs.s`). What is left, from the aligned diff: (1) the flame pointer
-   and the loop counters are in s1 / s2 in the original, here s2 / s1; the original loads `f->next` into v0 at
-   each of the three `continue` points and copies it at the loop end (here `lw s2,192(s2)`), the form
-   `for (link = &head; *link != NULL; link = &f->next) { f = *link; ...` (see EftChain_DrawStrand) changes the
-   loads but not the registers; (2) the 0.5f of the lean is loaded where it is used in the original (f4), here it
-   is kept in f25 for the whole loop (one more saved register); (3) the three off-screen tests have the same
-   register difference as EftGlow_DrawParts (eft_p_b.c): x in v1, limit in a1, the two copies of the record
-   address in v0 / a2; (4) `pkt = gOtCur` after the flag 0x800 test wants the volatile read used in eft_s.c
-   (`bnel` + a copy of the loop step in the delay slot). */
-#if 0
+   Matched in cleanup W1. What it took: Vu0Cur_ProjectPoint returns a value (declared `void`, the three off-screen
+   tests came out with x / limit / reload register permuted); the order-table insert is the usual inline helper
+   called with layer 1 or `f->alt` (it reads gOtZ in every arm); the loop is
+   `for (link = &head; *link != NULL; link = &f->next) { f = *link; ...` (the test loads through `link`, the body
+   assigns `f` from it again: gcse's PRE makes that a register copy, which gives `lw v0 / bnez v0 / move s1,v0`;
+   with `f = f->next` or `(f = *link) != NULL` cse folds load and assignment into one `lw s1`); the depth is the plain sum of the
+   four z; header stores in the order prim, tag, vif0, vif1, gif0, gif1, next; `sparkTex` is assigned after the
+   camera vector; and the three flag tests inside the loop go through inline predicates written
+   `if (flags & bit) return 1; return 0;`: their extra RTL instructions make the flame loop 449 instructions long
+   in the second loop pass, one more than the 448 at which the 0.5f of the lean would be hoisted (it must stay in
+   the loop: f4), and that form keeps the texture test's branch prediction. */
+static inline s32 EftAura_FlameFlagInl(EftAuraFlame *f, u32 bit) {
+    if (f->flags & bit) {
+        return 1;
+    }
+    return 0;
+}
+
+static inline s32 EftAura_WorkFlagInl(EftAuraWork *aura, u32 bit) {
+    if (aura->flags & bit) {
+        return 1;
+    }
+    return 0;
+}
+
+/* Links a packet into the chain of a depth slot (clamped to 0..0xFFF); the same helper as EftOt_Add (eft_g.c). */
+static inline void EftAura_OtAdd(OtPrim *p, s32 z, s32 layer) {
+    OtEntry *e;
+
+    if (layer >= 2) {
+        layer -= 2;
+    }
+    if (z < 0) {
+        e = &gOtZ[0].layer[layer];
+    } else if (z >= 0x1000) {
+        e = &gOtZ[0xFFF].layer[layer];
+    } else {
+        e = &gOtZ[z].layer[layer];
+    }
+    e->tail->next = p;
+    e->tail = p;
+}
+
 void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
     Mtx44 mtx;
     Vec4 *corner[2];
@@ -227,22 +259,20 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
     EftNTexSet *sparkTex;
     s32 clipped;
     EftAuraFlame *f;
+    EftAuraFlame **link;
     EftNQuadPkt *pkt;
-    OtEntry *ot;
-    OtEntry *e;
     s32 i;
     s32 z;
-    s32 layer;
     f32 a;
     f32 w;
     f32 h;
     f32 d;
 
-    sparkTex = &gPool->grp[1].set;
     camFwd.x = gBtlCamView->world2view2.m[0][2];
     camFwd.y = gBtlCamView->world2view2.m[1][2];
     camFwd.z = gBtlCamView->world2view2.m[2][2];
     camFwd.w = 1.0f;
+    sparkTex = &gPool->grp[1].set;
     if (aura->flags & 0x80) {
         corner[0] = gData->cornerB[0];
         corner[1] = gData->cornerB[1];
@@ -259,7 +289,8 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
     }
     a = aura->alpha * aura->unk50 * alpha;
     Dbg_ProfMark(gBattleProf);
-    for (f = gPool->flameUsed; f != NULL; f = f->next) {
+    for (link = &gPool->flameUsed; *link != NULL; link = &f->next) {
+        f = *link;
         if (f->objId != objId) {
             continue;
         }
@@ -311,14 +342,14 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
         if (clipped) {
             continue;
         }
-        z = (scr[0].z + scr[3].z + (scr[2].z + scr[1].z)) >> 10;
+        z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
         rgb[0] = (u32)(f->color.x * 255.0f);
         rgb[1] = (u32)(f->color.y * 255.0f);
         rgb[2] = (u32)(f->color.z * 255.0f);
         for (i = 0; i < 4; i++) {
             al[i] = (u32)(fade[i] * (f->color.w * 255.0f * a));
         }
-        if (f->flags & 0x800) {
+        if (EftAura_FlameFlagInl(f, 0x800)) {
             continue;
         }
         pkt = (EftNQuadPkt *)gOtCur;
@@ -327,8 +358,8 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
             return;
         }
         pkt->prim = 0x5C;
-        pkt->vif0 = 0x10000000;
         pkt->tag = 0x20000008;
+        pkt->vif0 = 0x10000000;
         pkt->vif1 = 0x50000008;
         pkt->gif0 = 0xE400000000008001;
         pkt->gif1 = 0x42142142142160;
@@ -377,44 +408,21 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
         pkt->v[3].y = scr[3].y;
         pkt->v[3].z = scr[3].z;
         pkt->v[3].f = 0xFF;
-        if (f->flags & 0x800) {
+        if (EftAura_FlameFlagInl(f, 0x800)) {
             pkt->tex0 = sparkTex->entry[0].tex0;
-        } else if (aura->flags & 0x80) {
+        } else if (EftAura_WorkFlagInl(aura, 0x80)) {
             pkt->tex0 = aura->tex[f->tex + 1];
         } else {
             pkt->tex0 = aura->tex[0];
         }
-        ot = (OtEntry *)gOtZ;
         if (BtlScene_IsStageFlagOn()) {
-            if (z < 0) {
-                e = &ot[1];
-            } else if (z >= 0x1000) {
-                e = &ot[0x1FFF];
-            } else {
-                e = &ot[z * 2 + 1];
-            }
+            EftAura_OtAdd((OtPrim *)pkt, z, 1);
         } else {
-            layer = f->alt;
-            if (layer >= 2) {
-                layer -= 2;
-            }
-            if (z < 0) {
-                e = &ot[layer];
-            } else if (z >= 0x1000) {
-                e = &ot[0x1FFE + layer];
-            } else {
-                e = &ot[z * 2 + layer];
-            }
+            EftAura_OtAdd((OtPrim *)pkt, z, f->alt);
         }
-        e->tail->next = (OtPrim *)pkt;
-        e->tail = (OtPrim *)pkt;
     }
     Dbg_ProfColor(gBattleProf, 0x8000FFFF);
 }
-#else
-LIT4_WORD(D_002FC97C, 0x3DCCCCCC);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_n", EftAura_DrawFlames);
-#endif
 
 /* GS TEX0 values for this frame: the aura's flame sheet(s), and once per frame every entry of the spark set. */
 void EftAura_UpdateTextures(EftAuraWork *aura) {
@@ -1398,14 +1406,20 @@ s32 EftBolt_Step(EftBolt *bolt, f32 scale) {
 
 /* Draws a bolt: for each shown joint that has a successor, a camera-facing quad from this joint's width to the
    next one's, coloured per joint, sharing its far edge with the next quad.
-   Not matching (142 instructions out of place after alignment): same statements and frame (0x230 bytes), different
-   register allocation. Leads from the second cleanup: in the corner loop the original walks TWO reduced
-   pointers, s1 = &scr[i] (the call argument, .w at 12(s1), .x at 0(s1): everything in front of the first
-   `break`) and s2 = &scr[i].z (.y at -4(s2); the reads behind a `break`), while quad / st / uv stay indexed by
-   i * 16; this attempt indexes scr as well (a local `ps = &scr[i]` gives 137, `ps++` in the loop header is
-   worse). The original also recomputes &prev[0] (sp + 64) at each use and sets &prev[1] (s8 = sp + 80) in both
-   arms of `if (first)`, where this attempt keeps both in saved registers. The `bnel` in front of
-   `pkt = gOtCur` is the volatile read described in eft_s.c (no change in the count by itself). */
+   Not matching: 479 instructions against 481, 42 out of place after a register-masked alignment (61 before cleanup
+   W1). Now in the attempt, all taken from the matched EftAura_DrawFlames: Vu0Cur_ProjectPoint returns a value; the
+   order-table insert is the inline helper with layer 1; the loop is `for (link = &head; *link != NULL; link =
+   &seg->next) { seg = *link; ...` with `continue` (gives the `lw v0,0x30(s6) / bnez v0 / move s6,v0` step); the
+   depth is the plain sum `scr[0].z + scr[1].z + scr[2].z + scr[2].w` (the last term is the original's typo for
+   scr[3].z); the uv stores are in plain field order.
+   What still differs: (1) the corner loop. The original walks TWO reduced pointers, s1 = &scr[i] (the call
+   argument, .w at 12(s1), .x at 0(s1), advanced right behind the x test) and s2 = &scr[i].z (.y at -4(s2), .z at
+   0(s2), advanced behind the z test), increments i at the TOP of the loop (`addiu s4,s4,1` first, with i * 16
+   already in s0 for quad / st / uv) and computes `i < 4` in front of the three tests (`slti v1,s4,4` before the
+   x read): the increment is in front of the tests in the source. This attempt indexes scr and increments at the
+   bottom; `ps = scr; ... ps++` in the loop header is far worse (115). (2) &prev[0] (sp + 64) is recomputed at each
+   use in the original and &prev[1] (s8 = sp + 80) is set in both arms of `if (first)`; here both are hoisted into
+   saved registers, which also swaps s5 / s6 between `seg` and &side. (3) the `bnel` in front of `pkt = gOtCur`. */
 #if 0
 void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
     Vec4 quad[4];
@@ -1429,8 +1443,6 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
     EftBoltSeg *next;
     EftBoltSeg **link;
     EftNQuadPkt *pkt;
-    OtEntry *ot;
-    OtEntry *e;
     s32 i;
     s32 z;
 
@@ -1438,15 +1450,14 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
     Vec4_Add(&org, &bolt->pos, &bolt->start);
     first = 1;
     n = 0;
-    link = &bolt->head;
-    while (*link != NULL) {
+    for (link = &bolt->head; *link != NULL; link = &seg->next) {
         seg = *link;
         next = seg->next;
         if (next == NULL) {
-            goto skip;
+            continue;
         }
         if (!(seg->flags & 2)) {
-            goto skip;
+            continue;
         }
         Vec4_Sub(&side, &next->pos, &seg->pos);
         clipped = 0;
@@ -1476,20 +1487,20 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
         quad[3].w = 1.0f;
         Vec4_Copy(&prev[0], &quad[2]);
         Vec4_Copy(&prev[1], &quad[3]);
+        uv[0].x = n % 2;
+        uv[0].y = n1 % 2;
         uv[0].z = 1.0f;
         uv[0].w = 0.0f;
-        uv[1].z = 1.0f;
-        uv[1].w = 0.0f;
-        uv[2].z = 1.0f;
-        uv[2].w = 0.0f;
-        uv[3].y = n % 2;
-        uv[0].x = n % 2;
-        uv[3].x = n1 % 2;
-        uv[0].y = n1 % 2;
         uv[1].x = n % 2;
         uv[1].y = n % 2;
+        uv[1].z = 1.0f;
+        uv[1].w = 0.0f;
         uv[2].x = n1 % 2;
         uv[2].y = n1 % 2;
+        uv[2].z = 1.0f;
+        uv[2].w = 0.0f;
+        uv[3].x = n1 % 2;
+        uv[3].y = n % 2;
         uv[3].z = 1.0f;
         uv[3].w = 0.0f;
         for (i = 0; i < 4; i++) {
@@ -1570,21 +1581,10 @@ void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
             pkt->v[3].f = 0xFF;
             pkt->tex0 = work->tex0;
             /* the fourth term is scr[2].w, not scr[3].z: a typo in the original */
-            z = (scr[0].z + scr[2].w + (scr[2].z + scr[1].z)) >> 10;
-            ot = (OtEntry *)gOtZ;
-            if (z < 0) {
-                e = &ot[1];
-            } else if (z >= 0x1000) {
-                e = &ot[0x1FFF];
-            } else {
-                e = &ot[z * 2 + 1];
-            }
-            e->tail->next = (OtPrim *)pkt;
-            e->tail = (OtPrim *)pkt;
+            z = (scr[0].z + scr[1].z + scr[2].z + scr[2].w) >> 10;
+            EftAura_OtAdd((OtPrim *)pkt, z, 1);
         }
         n = n1;
-    skip:
-        link = &seg->next;
     }
 }
 #else

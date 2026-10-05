@@ -238,7 +238,22 @@ void HudGauge_UpdateHpTrail(void) {
  * loop is entered by a jump (351 instructions against 349). Written as `retry: n = Rand_IntRange(0, 9);
  * if (same) goto retry;` the order is the original's, but n * 8 is kept in $a2 (i * 8 in $s1, the sprite in
  * $s0) where the original has one register $s0 for both offsets and the sprite in $s1; `for (;;)` with one
- * compound `if (differs) break;` gives that too. No form tried gave both. */
+ * compound `if (differs) break;` gives that too. No form tried gave both.
+ * Cleanup 4 (RTL dumps; 50 more loop forms, all in one of the two families above: 19 or 41 to 45 differing):
+ * - The rotation is made when the loop is expanded (expand_end_loop "roll a loop exit at the top to the end"):
+ *   it scans from the loop top for conditional jumps to the loop's exit label and stops 30 RTL instructions
+ *   after the top once it has one. The `&&` chain's first two tests (13 instructions each) are inside that
+ *   window, so everything behind the second test is moved in front of the loop. `break` statements count as
+ *   exits too (`if (a) break; if (b) break; ...` rotates the same way); one compound `if (a || b || c || d)
+ *   break;`, `continue` forms, a ternary chain, a flag variable or `goto retry` do not rotate.
+ * - In every unrotated form the registers go wrong for ONE reason: gcse (PRE) makes `n * 8` behind the `if`
+ *   partially redundant and puts `n8 = i8` on the edge "paused -> join". In the rotated form the if-conversion
+ *   pass (15.ce) moves that copy in front of the paused test, so i8 lives in one block, local-alloc gives it
+ *   s0 and n8 follows by preference (the original's registers). Unrotated, the copy stays in its own block
+ *   behind the loop, i8 becomes a global pseudo crossing the call, n8 (no call crossed) takes a2 first, the
+ *   sprite gets s0 and i8 s1. So the original needs: no qualified exit in the first 30 instructions AND the
+ *   copy hoisted (or `i * 8` and `n * 8` one pseudo from the start). Not found: `spr[53 + n]` after `n = i`,
+ *   `n = i` in front of / behind `spr`, a `same` flag, nested do-while (0). */
 void HudGauge_UpdateAura(void);
 #if 0
 void HudGauge_UpdateAura(void) {

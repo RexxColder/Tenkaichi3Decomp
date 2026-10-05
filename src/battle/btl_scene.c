@@ -473,7 +473,23 @@ s32 BtlScene_IsEffectStopped(s32 objId, s32 kind) {
  * tails from being cross-jumped is not found. Tried: all 24 orders of the four case groups with two forms of
  * each test, eight statement forms per case (if / break-first / ternary / ++ / |= / else forms), a goto to a
  * shared label. The default case no longer needs the `one` variable: two plain ifs give the original's
- * `li s0,1` (in the delay slot of the first call) and `sltu` / `movz`. Behaviour is the same as the original. */
+ * `li s0,1` (in the delay slot of the first call) and `sltu` / `movz`. Behaviour is the same as the original.
+ * Cleanup 4 (reorg / jump behaviour worked out from dumps, 130 more forms):
+ * - The rewrite in cases 0 and 1 is reorg's optimize_skip: `beqz v0,END / li s2,1 / b END` (a branch around ONE
+ *   unlabelled instruction that is followed by a jump to the branch's own target) becomes `bnezl v0,END /
+ *   li s2,1`. So before reorg both cases had their own unlabelled `result = 1` and cases 3 / 6 a third copy
+ *   (label X; both dispatch branches then take X's `li s2,1` into a delay slot or find it redundant, and X
+ *   is deleted as unreachable). The dispatch ends `beq kind,6,X / b default`, so X did not directly follow it.
+ * - Cross-jumping needs two matching instructions, or one when the copy it starts from is entered through a
+ *   label. Cases 0 / 1 are entered by falling out of a conditional branch (no merge between them); the copy
+ *   of cases 3 / 6 IS entered through a label, so it always merges into another copy, whose `li` then gets
+ *   the label that blocks optimize_skip. That is the whole difference, and nothing tried keeps X apart.
+ * - `if (!AnyFrozen()) break; goto hide;` with `hide:` in cases 3 / 6 placed FIRST gives case 0 exactly
+ *   (`bnez X / b END` filled from X's thread), 7 differ; case 1's `beqz` is predicted not taken, takes the
+ *   `li v0,4` of the following jump instead, and the dispatch falls into X (`bne kind,6,default`).
+ * - Cases 3 / 6 last (behind `default`): the default's second `if` is no longer converted to a conditional
+ *   move by the first jump pass (it must fall into the switch end for that) and merges with X: 51 to 114.
+ * - An inline helper for the first switch (five shapes): 39 to 50. */
 s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
     s32 result = 0;
 

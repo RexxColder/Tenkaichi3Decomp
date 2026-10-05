@@ -4,34 +4,30 @@
 
 /*
  * Ground dust, kind 5 (impact) and the particle helpers, 0x199500..0x199F28. Continues eft_z_b.c; see
- * include/battle/eft_z.h. A separate file only because EftGndDustImpact_Init is INCLUDE_ASM and owns float
- * constants: placed first, its constants (0x2FCE28..0x2FCE50) stay in the assembly .lit4 chunk in front of this
- * file's one constant (0x2FCE50). With the attempt enabled this file's .lit4 is 0x2FCE28..0x2FCE54, identical to
- * the original.
+ * include/battle/eft_z.h. It was split off while EftGndDustImpact_Init was INCLUDE_ASM; every function is C now
+ * and the file's .lit4 is 0x2FCE28..0x2FCE54 (EftGndDustImpact_Init's ten constants, then 0x2FCE50).
  */
 
-/* Kind 5 init: two particles thrown outwards from the point. */
-#if 0
-/* NON-MATCHING: 28 of 250 instructions (20 aligned), all between the Vec4_Set call and the loop plus three argument
-   loads in the loop; registers, prologue and the rest are identical. The original computes &arg->colA / &arg->colB
-   once into s0 / s1 (for EftGndDust_GetLightColors) and later copies them to sp+0x50 / sp+0x54, which the loop
-   reads back. What is known (cleanup E):
-   - With plain locals `colA = arg->colA` (anywhere, also inside the loop, or copied from two earlier locals) gcse and
-     then the loop pass replace the copy by the first computation, and that single pseudo is spilled from the start
-     (the old attempt, 66 instructions).
-   - A two-element array (below) keeps the early s0 / s1 and gives the right stores, but as real memory stores they
-     rank below the stores through `arg` in the scheduler (the call depends on a frame store only as an
-     anti-dependence): `sw s1,0x54(sp)` goes last instead of third, and the 2.0943951f load moves behind rand().
-     In the original the copies behave like register copies of a spilled variable.
-   - Holding the two pointers in `fade` / `life` (variables set again in the loop, so nothing can propagate the copy)
-     reproduces the original store order exactly but allocates arg / colA / colB to s0 / s1 / s2 instead of
-     s2 / s0 / s1. So the original has two extra pseudos that survive copy propagation; how is not found. */
-void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
+/* EftGndDust_SpawnPieceEx with its real parameter order (the definition in src/battle/eft_aa.c: the eight
+   register floats in front of life / fade / tex). eft_z.h declares the three integers first: the registers are the
+   same, but the caller then loads them in another order. */
+extern EftGndDustPart *EftGndDust_SpawnPieceX(EftGndDustEmit *w, Vec4 *pos, Vec4 *dir, u8 *colA, u8 *colB, f32 sizeX,
+                                             f32 sizeY, f32 growX, f32 growY, f32 speed, f32 drag, f32 rot, f32 spin,
+                                             s16 life, s16 fade, s16 tex, f32 unkB8, f32 gravity, s32 flags)
+    __asm__("EftGndDust_SpawnPieceEx");
+
+/* Kind 5 init: two particles thrown outwards from the point.
+   Matching notes: the callback's argument is copied into a typed local declared BEHIND `w` (declared first, or
+   with the parameter used directly, gcse merges the `arg + 0x30` / `arg + 0x34` of the first call with those of
+   the loop and spills one pointer from the start; with the copy the loop's addresses are hoisted on their own and
+   become register copies of s0 / s1, as in the original). `arg->unk5C = 0.0f` is the LAST of the 0.0 stores: the
+   first scheduling pass emits the store in which the constant's register dies first. */
+void EftGndDustImpact_Init(EftZTask *task, void *param) {
     EftGndDustEmit *w = task->work;
+    EftGndDustArg *arg = param;
     Vec4 pos;
     Vec4 dir;
     Vec4 off;
-    u8 *col[2];
     s32 i;
     s32 life;
     s32 fade;
@@ -50,16 +46,13 @@ void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
     if (arg->scale < 0.8f) {
         arg->scale = 0.8f;
     }
-    col[0] = arg->colA;
     Vec4_Set(V(&arg->accel), 0.0f, -1.0f, 0.0f, 1.0f);
     arg->pool = 1;
     arg->tex = 2;
-    col[1] = arg->colB;
     arg->grow = 0.1f;
     arg->size = 10;
     arg->life = 15;
     arg->fade = 5;
-    arg->unk5C = 0.0f;
     arg->blend = 0;
     arg->rMin = 0;
     arg->rMax = 0;
@@ -67,6 +60,7 @@ void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
     arg->speed = 0.0f;
     arg->unk54 = 0.0f;
     arg->drag = 1.0f;
+    arg->unk5C = 0.0f;
     step = 2.0943951f;
     start = RANDF() * 6.2831853f;
     for (i = 0; i < 2; i++) {
@@ -81,13 +75,11 @@ void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
         fade = arg->fade + rand() % 5;
         spin = RANDF() * 6.2831853f;
         grow = (RANDF() * 0.005f + 0.005f) * arg->scale;
-        EftGndDust_SpawnPieceEx(w, &pos, &dir, col[0], col[1], (f32)life, (f32)fade, rand() % 10 + 25, 1.0f, 1.0f, 0.05f,
-                      0.05f, arg->scale * 0.3f, 0.8f, spin, 0.3f, 1.0f, grow, 0);
+        EftGndDust_SpawnPieceX(w, &pos, &dir, arg->colA, arg->colB, 1.0f, 1.0f, 0.05f, 0.05f, arg->scale * 0.3f, 0.8f,
+                               spin, 0.3f, (f32)life, (f32)fade, rand() % 10 + 25, 1.0f, grow, 0);
     }
     w->arg = *arg;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_z_c", EftGndDustImpact_Init);
 
 /* Kind 5 term. */
 void EftGndDustImpact_Term(EftZTask *task) {

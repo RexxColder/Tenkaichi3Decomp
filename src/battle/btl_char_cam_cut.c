@@ -1,16 +1,14 @@
 #include "common.h"
 #include "battle/btl_char_cam_int.h"
 
-/* The fighter camera's cut evaluator, 0x1C4F68-0x1C5840: the middle of btl_char_cam.c, on its own until it
- * matches (see the note at the top of btl_char_cam.c). Its two float constants (0x2FD08C, 0x2FD090) stay in the
- * assembly data. */
+/* The fighter camera's cut evaluator, 0x1C4F68-0x1C5840: the middle of btl_char_cam.c, still a file of its own (see the
+ * note at the top of btl_char_cam.c; the three can be merged now that it matches). It emits two .lit4 words, both 0.001f
+ * (0x2FD08C, 0x2FD090). */
 
-/* NOT MATCHING (248 of 565 instructions differ): the control flow, calls, stack layout and float code are the same as
-   the original; the differences are register allocation in the four "resolve a node" blocks. The original keeps
-   the node id in s1 and the masked id in s0 (computed after BtlChar_Get(0) returns) and re-materialises &tmp0
-   with addiu in v0 / v1; this C puts the node id and the masked id both in s0 (computed before the call) and
-   keeps &tmp0 in s1. */
-#if 0
+/* Evaluates the running camera cut: refreshes the node positions, interpolates eye / target / look-at and the
+   three angles by the cut's progress, derives the rotation, raises the cut's flags and counts its timer down.
+   The masked node id is written out at each of the two calls (`node & CHRCUT_NODE_MASK`): a variable for it
+   shares the node's register and frees one for a hoisted &tmp0, which the original does not have. */
 void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     Vec4 look;
     Vec4 dir;
@@ -60,9 +58,8 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             id = chr->objId;
         }
         if (id < 0) {
-            node &= CHRCUT_NODE_MASK;
-            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
-            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
+            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node & CHRCUT_NODE_MASK, &tmp0);
+            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node & CHRCUT_NODE_MASK, &tmp1);
             Vec4_Lerp(&cut->vecA, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
             BtlCharApi_GetNodePos(id, cut->unk88 & CHRCUT_NODE_MASK, &cut->vecA);
@@ -87,9 +84,8 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
                 id = chr->objId;
             }
             if (id < 0) {
-                node &= CHRCUT_NODE_MASK;
-                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp2);
-                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp3);
+                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node & CHRCUT_NODE_MASK, &tmp2);
+                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node & CHRCUT_NODE_MASK, &tmp3);
                 Vec4_Lerp(&tmp0, &tmp2, &tmp3, 0.5f);
             } else if (frozen == 0 || other == 0) {
                 BtlCharApi_GetNodePos(id, cut->unk8C & CHRCUT_NODE_MASK, &tmp0);
@@ -111,9 +107,8 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
             id = chr->objId;
         }
         if (id < 0) {
-            node &= CHRCUT_NODE_MASK;
-            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp0);
-            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp1);
+            BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node & CHRCUT_NODE_MASK, &tmp0);
+            BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node & CHRCUT_NODE_MASK, &tmp1);
             Vec4_Lerp(&cut->vecC, &tmp0, &tmp1, 0.5f);
         } else if (frozen == 0 || other == 0) {
             BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &cut->vecC);
@@ -135,9 +130,8 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
                 id = chr->objId;
             }
             if (id < 0) {
-                node &= CHRCUT_NODE_MASK;
-                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node, &tmp1);
-                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node, &tmp2);
+                BtlCharApi_GetNodePos(BtlChar_Get(0)->objId, node & CHRCUT_NODE_MASK, &tmp1);
+                BtlCharApi_GetNodePos(BtlChar_Get(1)->objId, node & CHRCUT_NODE_MASK, &tmp2);
                 Vec4_Lerp(&tmp0, &tmp1, &tmp2, 0.5f);
             } else if (frozen == 0 || other == 0) {
                 BtlCharApi_GetNodePos(id, node & CHRCUT_NODE_MASK, &tmp0);
@@ -215,6 +209,3 @@ void ChrCam_CalcCut(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     }
     BtlChar_SetFlag(chr, 0xD4);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/btl_char_cam_cut", ChrCam_CalcCut);
-#endif

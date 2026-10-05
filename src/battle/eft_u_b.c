@@ -895,17 +895,20 @@ void EftPtcl_DrawSprites(EftPtclWork *w, EftPtclWork *w2) {
 }
 
 /* Draws the particles as quads that lie along each particle's axis and face the camera, one packet each. */
-/* NOT MATCHING: two places, everything else identical (same length). (1) After the projection call the original
-   has `beqzl v0, <loop end>` with the load of p->next in its delay slot; this C gives `beqz` with the first
-   instruction of the fall-through (the load of gOtCur) in the slot. (2) Before the texture coordinate loop the
-   original loads the constant 1.0 and then clears i; this C clears i first.
-   Cleanup round 2: (1) is decided in the delay-slot pass. Here the label behind the projection `if` is found in
-   the block table, the load of gOtCur is known not to disturb the loop end and is taken as a plain slot. The
-   original must have had no liveness for that label (it then falls back to the annulled copy of the target's
-   first instruction), while its flag test at the top of the loop, which jumps to the same place, did. Tried
-   without effect: `for` / `while` forms with and without `link`, `continue`, the list link duplicated in every
-   arm, a variable for the 1.0. */
-#if 0
+/* The header arms each end in their own `pkt->next = NULL` (with one common store behind the if / else the
+   store shares a basic block with `i = 0` and the hoisted 1.0 of the texture loop, and the second scheduling pass
+   then issues `i = 0` in front of the 1.0).
+   FAKE MATCH: the packet pointer is read through a volatile alias of gOtCur (as in eft_s.c). The original has
+   `beqzl v0, <loop end + 4>` with the load of p->next in the slot after the projection call; a plain read gives
+   `beqz` with the load of gOtCur in the slot. Analysis (cleanup round 4): the branch is predicted 40 %, so the
+   delay-slot pass first tries the fall-through instruction, which it may take only when s0 is dead at the loop
+   end. In the original the pass had no block for that label (the label behind the last barrier in front of it,
+   the start of the `gOtZ[z]` arm, was not a block head any more: something the last jump pass rewrote), assumed
+   every register live there and fell back to the annulled copy of the target's first instruction. The flag test
+   at the top of the loop is consistent with that (its slot instruction sets v0, which the loop end sets first).
+   No natural source form that makes the last jump pass replace that label was found (tried: `continue` forms,
+   the link assignment in every arm, the chain tail in every arm, unsigned compares of the result). */
+extern u32 *volatile gOtCurRead __asm__("gOtCur");
 void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
     EftVVec quad[4];
     EftVVec cam;
@@ -969,7 +972,7 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
                 }
             }
             if (Vu0Cur_ProjectPoints(scr, quad, 4)) {
-                pkt = (EftVStripPkt *)gOtCur;
+                pkt = (EftVStripPkt *)gOtCurRead;
                 gOtCur = (u32 *)(pkt + 1);
                 if (pkt == NULL) {
                     return;
@@ -981,6 +984,7 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
                     pkt->vif1 = 0x50000008;
                     pkt->gifTag = 0xE400000000008001;
                     pkt->regs = 0x42142142142160;
+                    pkt->next = NULL;
                 } else {
                     pkt->prim = 0x25C;
                     pkt->dmaTag = 0x20000008;
@@ -988,8 +992,8 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
                     pkt->vif1 = 0x50000008;
                     pkt->gifTag = 0xE400000000008001;
                     pkt->regs = 0x42142142142170;
+                    pkt->next = NULL;
                 }
-                pkt->next = NULL;
                 for (i = 0; i < 4; i++) {
                     s32 o = i * sizeof(EftVVec);
                     f32 q = 1.0f / *(s32 *)((u8 *)&scr[0].w + o);
@@ -1070,8 +1074,6 @@ void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
         link = &p->next;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_u_b", EftPtcl_DrawAxisQuads);
 
 /* Same quads through the clipped polygon drawing: two triangles per particle. */
 void EftPtcl_DrawAxisPolys(EftPtclWork *w, EftPtclWork *w2) {

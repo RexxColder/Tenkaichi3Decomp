@@ -131,7 +131,6 @@ EftTrail_UpdateTextures = 0x00173C50; // type:func // guess
 EftTrail_SetTextures = 0x00173D68; // type:func // guess
 EftTrail_DrawSprite = 0x00173DA0; // type:func // guess
 gEftTrail = 0x002FEA50; // size:0x4 // guess
-gEftTrailGlowBias = 0x002FEA54; // size:0x4 // guess
 gEftTrailMgrClass = 0x002C3C70; // size:0x18 // guess
 gEftTrailClass = 0x002C3C88; // size:0x18 // guess
 gEftTrailOrigin = 0x002C3CA0; // size:0x10 // guess

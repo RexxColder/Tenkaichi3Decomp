@@ -26,6 +26,11 @@
  * "(table + i)->field" (index * size + base in the address); the status entry points need one "return 0" per
  * test (that is what puts "v0 = 0" in front of the first test); the chain walk in EftOrbTail_UpdateStreaks is a
  * for (;;) whose first exit sits more than 30 instructions before the second (the compiler rolls the loop there).
+ * The frame rectangles (EftOrbTail.uv) are NOT that aligned type but plain floats, f32 [16][4]: only with a
+ * 4-aligned element does the compiler add each component's offset to the base before the index, which gives the
+ * four separate `w + f * 16` (three of them register copies after reload) of EftOrbTail_DrawStreaks and
+ * EftOrbTail_InitFrames. In EftOrbTail_InitFrames `row` is initialised at its declaration (its `move t1,zero`
+ * sits in front of the range test).
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -67,8 +72,10 @@ extern s32 BtlCharApi_IsInRushSequence(s32 objId);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftAbVec *out);
 
 extern f32 EftMath_WrapAngle(f32 angle);
-extern void EftPrim_DrawQuadDepthScaled(EftAbVec *pos, EftAbVec *color, s32 arg2, s32 arg3, u64 tex0, f32 w, f32 h, f32 u0,
-                                        f32 v0, f32 u1, f32 v1, f32 roll, f32 depthScale);
+/* The definition's parameter order (src/battle/eft_b.c): with the integers declared in front of the floats the
+   registers are the same but the caller loads them in another order. */
+extern void EftPrim_DrawQuadDepthScaled(EftAbVec *pos, EftAbVec *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1,
+                                        f32 roll, s32 arg2, s32 arg3, u64 tex0, f32 depthScale);
 
 /* The emitters of the 0x186B50 module (eft_h.h EftEmitArgA). */
 typedef struct EftOrbBurstArg {
@@ -595,18 +602,6 @@ void EftOrbTail_UpdateStreaks(EftOrbTail *w) {
 }
 
 /* Draws every visible streak as a camera-facing quad. */
-#if 0
-/* NON-MATCHING: 43 of 87 instructions differ (this attempt is 3 short). The original keeps four copies of the frame's address
-   (addu a1,v0,s1 / move v1,a1 / move a0,v1 / move v0,a0), one per component load, where this loads all four from one
-   register, and it sets the draw call's integer arguments in a different order. The clamp, the load order (w, x, y, z)
-   and the rest are identical. */
-static inline void EftOrbTail_SetVec(EftAbVec *v, f32 x, f32 y, f32 z, f32 w) {
-    v->x = x;
-    v->y = y;
-    v->z = z;
-    v->w = w;
-}
-
 void EftOrbTail_DrawStreaks(EftOrbTail *w) {
     EftAbTex *tex = w->tex;
     EftOrbTailParam *prm = w->arg.param;
@@ -625,21 +620,21 @@ void EftOrbTail_DrawStreaks(EftOrbTail *w) {
                 } else {
                     f = p->frame;
                 }
-                EftOrbTail_SetVec(&uv, ((f32 *)(w->uv + f))[0], ((f32 *)(w->uv + f))[1], ((f32 *)(w->uv + f))[2],
-                                  ((f32 *)(w->uv + f))[3]);
+                uv.x = w->uv[f][0];
+                uv.y = w->uv[f][1];
+                uv.z = w->uv[f][2];
+                uv.w = w->uv[f][3];
             } else {
                 uv.x = 0.0f;
                 uv.y = 0.0f;
                 uv.z = 1.0f;
                 uv.w = 1.0f;
             }
-            EftPrim_DrawQuadDepthScaled(&p->pos, &p->color, prm->otZ, 0, tex->entry[w->texIdx].tex0, p->size, p->size,
-                                        uv.x, uv.y, uv.z, uv.w, p->roll, 2.0f);
+            EftPrim_DrawQuadDepthScaled(&p->pos, &p->color, p->size, p->size, uv.x, uv.y, uv.z, uv.w, p->roll, prm->otZ,
+                                        0, tex->entry[w->texIdx].tex0, 2.0f);
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab", EftOrbTail_DrawStreaks);
 
 /* Returns a free streak of the pool, searching round-robin from where the last search ended. */
 EftOrbTailStreak *EftOrbTail_AllocStreak(void) {
@@ -723,35 +718,29 @@ void EftOrbTail_StopBurst(EftOrbTail *w) {
 }
 
 /* Builds the texture rectangle of each animation frame (a texCols x texRows grid, at most 16 frames). */
-#if 0
-/* NON-MATCHING: 76 of 86 instructions differ. Same cause as EftOrbTail_DrawStreaks, on the store side: the original computes
-   the entry's address once per component (a2, then copies a0 / a1 / v0) and keeps the row / column loops as written; this
-   attempt strength-reduces them to walking pointers. */
 void EftOrbTail_InitFrames(EftOrbTail *w) {
     EftOrbTailParam *prm = w->arg.param;
     f32 step[2] = { 0.0f, 0.0f };
     u8 n = 0;
-    s32 row;
+    s32 row = 0;
     s32 col;
 
     w->texFrames = prm->texCols * prm->texRows;
     if (w->texFrames > 1.0f && w->texFrames <= 16.0f) {
         step[0] = 1.0f / prm->texCols;
         step[1] = 1.0f / prm->texRows;
-        for (row = 0; row < prm->texRows; row++) {
+        for (; row < prm->texRows; row++) {
             for (col = 0; col < prm->texCols; col++) {
-                (w->uv + n)->x = step[0] * col;
-                (w->uv + n)->y = step[1] * row;
-                (w->uv + n)->z = step[0] * col + step[0];
-                (w->uv + n)->w = step[1] * row + step[1];
+                w->uv[n][0] = step[0] * col;
+                w->uv[n][1] = step[1] * row;
+                w->uv[n][2] = step[0] * col + step[0];
+                w->uv[n][3] = step[1] * row + step[1];
                 n++;
             }
         }
         w->flags |= EFT_ORB_ANIM;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab", EftOrbTail_InitFrames);
 
 /* Binds the task to a texture table: which entries are its image and palette, and where its TEX0 goes. */
 void EftOrbTail_SetTex(EftOrbTail *w, EftAbTex *tex, s32 image, s32 palette) {

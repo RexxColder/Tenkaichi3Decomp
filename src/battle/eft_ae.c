@@ -860,7 +860,24 @@ void EftSprAnim_SetGridUv(Vec4 *uv, s32 grid, s32 cell) {
          which the int has the two uses the original shows (64-bit shift pair on it, and << 4 / << 8) and is
          still left alone by the rerun. The z caps, the header store order (emitted: vif1, tag, vif0, gif0,
          clamp, next, prim, pad, gif1, clampEnd) and the t7 / s0 swap of the stq pointers were not settled
-         either (best order tried: prim, tag, vif1, vif0, gif0, clamp, next, pad, gif1, clampEnd). */
+         either (best order tried: prim, tag, vif1, vif0, gif0, clamp, next, pad, gif1, clampEnd).
+         Round 4 (no better attempt; a register-masked structural diff of this one is 37 lines, 35 with the
+         header order prim, tag, vif0, vif1, gif0, gif1, clamp, next): what the dumps add to the above.
+         (a) `slti` is not moved by the loop pass at all: gcse's PRE inserts `r = otLayer < 2` on the entry edge
+         of the fan loop (behind the `i < n` test, where the original has it), so only the `xori` and what hangs
+         on it are the loop pass's business. (b) A chain is moved as a whole only through "forces": a register
+         used exactly once, by the next movable, hands its savings and lifetime to that one. The fan loop's
+         first run therefore moves the xori only when its result lives 6 insns or more inside the fan loop
+         (64 * 1 * lifetime >= 338), i.e. the context bit is computed EARLY in the loop body with code that is
+         not moved between it and its uses; once hoisted the uses stand right behind it and the j loop's rerun
+         sees a short lifetime. (c) In the rerun the slti (now inside the j loop, result used once) forces the
+         xori, so the test is 64 * 2 * (1 + lifetime) against 364: lifetime 1 stays (256), lifetime 2 goes
+         (384, 20 over). The original's xori result has two RTL uses at most two insns away (a sign extension
+         to 64 bits for << 4 and << 8, which is a plain move, and the 8-bit sign extension for << 9 and << 48),
+         so its j loop was at least 21 RTL insns longer than this attempt's at that point, or the slti did not
+         force (its result used a second time). Neither was reproduced. (d) `li s1,2` sits in the delay slot of
+         the ClipPoly_ProjectCur call in the original (here behind it), and the fan's entry test has the j
+         reload `lw a0,748(sp)` as a dead slot instruction taken from the loop end. */
 /* Queues one triangle (see above). ctx: 1 for the second GS context. */
 static inline void EftSprAnim_QueueTri(EftAeScr *v0, EftAeScr *v1, EftAeScr *v2, Vec4 *c0, Vec4 *c1, Vec4 *c2,
                                        Vec4 *uv0, Vec4 *uv1, Vec4 *uv2, s32 otLayer, s32 z, u64 tex0, s32 mode, s8 ctx) {

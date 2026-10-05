@@ -176,7 +176,8 @@ typedef struct EftOrbTail {
     /* 0x0A4 */ f32 chainLen;      /* sum of the node lengths */
     /* 0x0A8 */ f32 frame;
     /* 0x0AC */ f32 texFrames;     /* texCols * texRows */
-    /* 0x0B0 */ EftAbVec uv[16];       /* u0, v0, u1, v1 of each animation frame */
+    /* 0x0B0 */ f32 uv[16][4];     /* u0, v0, u1, v1 of each animation frame; plain floats (4-aligned): the
+                                      code adds each component's offset to the base before the index */
     /* 0x1B0 */ u8 nodeCount;
     /* 0x1B1 */ u8 nodeMax;
     /* 0x1B2 */ u8 texIdx;         /* entry of tex this task's TEX0 goes to */

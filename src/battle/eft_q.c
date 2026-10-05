@@ -1483,33 +1483,24 @@ void EftTrail_Update(EftQTask *task) {
  * two segments below 0.82) and the points are more than 0.8 apart, three glow sprites cover the joint and the
  * segment starts transparent.
  *
- * NOT MATCHING: 507 instructions as the original; what differs is the order of about 40 of them (the argument
- * set-up of the three sprite calls, the entry block) and the address of gEftTrailGlowBias, which the original
- * builds with lui / addiu and this builds with lui / %lo in the load. Structure, registers and stack layout are
- * the same. Notes on what it took to get this far:
+ * Matched in cleanup W1. What it took:
  *   - the next point is `p + 1` / `p[1]` everywhere, not a variable;
- *   - the sprite call goes through an inline function that owns the 9.45943 constants, and that inline must not
- *     leave its parameters untouched (the `if (0)` below stands in for whatever the original did), otherwise the
- *     0.0 / 1.0 arguments are not shared between the three calls;
- *   - the colour bytes come first in the sprite's parameter list. */
-#if 0
-extern s32 gEftTrailGlowBias[];      /* 0x2FEA54: -7, added to the colour of the glow sprites */
-
-/* A glow sprite of the trail: 9.45943 / 16 units times the scale. Each call site of the original loads its own copy
- * of that constant while the other constant arguments are shared, which an inline function reproduces. */
-static inline void EftTrail_DrawGlow(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 scale,
-                                     f32 rot, s32 layer, u64 tex0) {
-    if (0) {
-        rot = 0.0f;
-    }
-    EftTrail_DrawSprite(r, g, b, a, x, y, z, 9.45943f, 9.45943f, u0, v0, u1, v1, scale, rot, layer, tex0);
-}
-
+ *   - the three glow sprites are plain calls (no inline wrapper: the scale `w->width` is loaded during the
+ *     argument set-up, behind the store of the stack argument in front of it), each preceded by `sz = 9.45943f;`:
+ *     a variable assigned three times is not a loop invariant, so every call loads its own copy of the constant
+ *     (three .lit4 words) while the 0.0 / 1.0 literals are hoisted and shared;
+ *   - the -7 added to the glow colour is an int variable that gets no register: reload replaces it by its
+ *     constant and the int-to-float conversion reads it from a constant-pool word in .sdata (0x2FEA54, the former
+ *     "gEftTrailGlowBias"; the same thing as the 50 in EftSmoke_Draw, eft_g.c);
+ *   - declaration order `i`, `first`, `limit`, the bias, `w`, `width` (spill slots of i / first, and the order of
+ *     the entry block). */
 void EftTrail_Draw(EftQTask *task) {
-    f32 limit = 0.82f;
-    EftTrail *w = task->work;
     s32 i;
     s32 first = 1;
+    f32 limit = 0.82f;
+    s32 ibias = -7;
+    EftTrail *w = task->work;
+    f32 width = w->width;
     EftQVert v[9];
     Vec4 side;
     Vec4 prevSide;
@@ -1522,7 +1513,6 @@ void EftTrail_Draw(EftQTask *task) {
     EftQScr scr[4];
     EftQVec uv[4] = { { 1.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },
                       { 0.0f, 1.0f, 1.0f, 1.0f } };
-    f32 width = w->width;
     Vec4 *p;
     s32 j;
     s32 seg;
@@ -1563,17 +1553,18 @@ void EftTrail_Draw(EftQTask *task) {
                     color.w = w->color.w;
                 }
                 if (Vec3_Dist(p, p + 1) > 0.8f) {
-                    f32 bias = gEftTrailGlowBias[0];
+                    f32 bias = ibias;
+                    f32 sz;
 
                     mid.x = (p->x + p[1].x) * 0.5f;
                     mid.y = (p->y + p[1].y) * 0.5f;
                     mid.z = (p->z + p[1].z) * 0.5f;
-                    EftTrail_DrawGlow(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, p->x, p->y, p->z,
-                                      0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
-                    EftTrail_DrawGlow(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, mid.x, mid.y, mid.z,
-                                      0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
-                    EftTrail_DrawGlow(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, p[1].x, p[1].y, p[1].z,
-                                      0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
+                    sz = 9.45943f;
+                    EftTrail_DrawSprite(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, p->x, p->y, p->z, sz, sz, 0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
+                    sz = 9.45943f;
+                    EftTrail_DrawSprite(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, mid.x, mid.y, mid.z, sz, sz, 0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
+                    sz = 9.45943f;
+                    EftTrail_DrawSprite(w->color.x + bias, w->color.y + bias, w->color.z + bias, w->color.w * 0.8f, p[1].x, p[1].y, p[1].z, sz, sz, 0.0f, 0.0f, 1.0f, 1.0f, w->width, 0.0f, 1, w->tex0[3]);
                 }
             }
             Vec4_Copy(&quad[0], &prev[0]);
@@ -1600,15 +1591,6 @@ void EftTrail_Draw(EftQTask *task) {
     }
     Vu0Cur_Pop();
 }
-#else
-LIT4_WORD(D_002FCBE8, 0x3F51EB85); /* 0.82f */
-LIT4_WORD(D_002FCBEC, 0x3F4CCCCC); /* 0.8f */
-LIT4_WORD(D_002FCBF0, 0x411759D3); /* 9.45943f */
-LIT4_WORD(D_002FCBF4, 0x411759D3); /* 9.45943f */
-LIT4_WORD(D_002FCBF8, 0x411759D3); /* 9.45943f */
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_q", D_002ECD00); /* the strip's four texture coordinates */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_q", EftTrail_Draw);
-#endif
 
 /* Fetches this frame's GS texture words: the first trail that uses a part of the shared table renews it, the
  * others copy from the table. */
