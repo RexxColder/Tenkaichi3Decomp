@@ -92,7 +92,10 @@ static struct { uint32_t hash, last; SDL_GPUTexture *tex; } sCluts[MAX_CLUTS];
 /* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F5 while running): 1 outline, 2 see-through tint,
    4 depth tint, 8 glare and object glow, 16 blur of distant things. */
 static unsigned sFxOff;
-static int sGlowPercent = 100; /* strength of glare and glow (BT3_GLOW=<percent>; F6 / F7 change it by 10) */
+/* Strength of glare and glow in percent of what the game's passes give (BT3_GLOW=<percent>; F6 / F7 change it by
+   10). Default 60: the user's choice on 2026-10-06 (100 looked too strong at the glare's peaks). */
+#define GLOW_DEFAULT 60
+static int sGlowPercent = GLOW_DEFAULT;
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -275,7 +278,7 @@ int GsGpu_Init(void) {
         sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
     }
     sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
-    sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : 100;
+    sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : GLOW_DEFAULT;
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     pipelines_preload();
     return 1;

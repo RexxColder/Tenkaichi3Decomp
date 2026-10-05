@@ -721,3 +721,7 @@ with a third of the interpreter's work gone.
 - `BT3_SHOT_VBLANK=<n>`: a screenshot at a vertical blank, to compare with a console save state's tick. At the
   slot 7 tick, region averages (grass, trees, hill) are within a few units of the console screenshot.
 - The direct replay mode starts no music: the menus that start it are skipped.
+- Glare and glow strength: `BT3_GLOW=<percent>`, F6 / F7 in steps of 10; default 60 (the user's choice; 100 is what
+  the game's passes give, and the GPU and software pictures agree on that level, but it was not compared with a
+  console at a peak of the glare). The half-pixel rule is applied to the texture coordinates of sprites textured
+  from a render target (moving the sprite left the first row and column undrawn).
