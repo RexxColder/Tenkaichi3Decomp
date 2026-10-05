@@ -139,6 +139,9 @@ int Port_IsWide(void) {
     return Port_AspectMilli() > 1340;
 }
 /* The picture's width over the console's 4:3 width (1 = not wide). */
+/* In the menus it is 1: their pages are composed for 4:3 (backdrops, scrolling scenery, 2D and 3D placed against
+   each other), so they are shown as they are, stretched to the picture's width (the user's choice). */
+extern int gPortMenuMode; /* headless.c */
 float Port_WideFactor(void) {
-    return Port_IsWide() ? (float)Port_AspectMilli() * 3.0f / 4000.0f : 1.0f;
+    return Port_IsWide() && !gPortMenuMode ? (float)Port_AspectMilli() * 3.0f / 4000.0f : 1.0f;
 }

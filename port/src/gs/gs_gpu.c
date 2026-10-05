@@ -958,10 +958,10 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             }
         }
     }
-    if (Port_IsWide() && !d.tex_is_target && (type == 6 || fst) && sTargets[d.target].fbp == (uint32_t)gGsMainFbp) {
+    if (Port_IsWide() && !gPortMenuMode && !d.tex_is_target && (type == 6 || fst) && sTargets[d.target].fbp == (uint32_t)gGsMainFbp) {
         /* Widescreen. The 3D scene is projected for a 16:9 picture by the game itself; 2D art is laid out for
            4:3 and would come out a third too wide. Each 2D piece is narrowed to 3/4 about a fixed point:
-             - in the menus, the middle of the screen (the whole page stays together, with the scene around it);
+             (not in the menus: their pages are shown whole, stretched to the width; see Port_WideFactor)
              - in a fight, the left edge, the right edge or the middle for the HUD's left panel, right panel and
                centre parts (markers from the HUD code), so the panels sit at the screen's edges;
              - any other sprite, its own middle (it stays where the game put it, e.g. over a fighter).
@@ -979,8 +979,6 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         }
         if (type == 6 && !d.mode[0] && y1 - y0 >= 400.0f) {
             pivot = -1.0f;
-        } else if (gPortMenuMode) {
-            pivot = 256.0f;
         } else if (sAnchor != 0) {
             pivot = sAnchor == 1 ? 0.0f : sAnchor == 2 ? 512.0f : 256.0f;
             if (sAnchor == 4) { /* a part without a fixed side (captions: technique names): the side it is on */
