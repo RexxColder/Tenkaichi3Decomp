@@ -477,3 +477,25 @@ Tools
   The `-da` dumps (`.lreg` "Register N used X times across Y insns", `.greg`) give the exact
   numbers: compute how many references must change before trying forms.
 - `move rX,rY` is also what an int-to-long sign extension compiles to (`(s64)u0 << 4`).
+- Check for a matched twin first: mask the immediates and search for the same instruction
+  sequence in an already matched function (build/scratch_cleanup2_D/twin.py). The GS packet
+  header is `K + (ctx << 4)` (int shift, constant first), not `((u64)ctx << 4) + K`.
+- List unlink with a copy into a0: ONE variable for both `*head` and `p->next`
+  (`a = *head; if (a == NULL) return; ... b = a; a = prev; b->prev = a; a->next = b;`).
+- A switch of range checks whose "return 1" is reached by a branch-likely into the shared
+  exit: every in-switch exit is `return 0`, each case ends `break`, the function ends
+  `return 1`.
+- A constant subtraction done at run time with one hoisted 1.0: compare the clamp bound
+  through the variable (`a = 1.0f; if (!(a < x)) a = x;`).
+- Two saved registers swapped between equal-looking variables: look for a PRIORITY TIE in the
+  `-dg` dump (build/scratch_cleanup2_D/lr.py FILE FUNC prints refs, length, priority per
+  pseudo); a dead initialiser (`f32 r = 0.0f;`) or one more instruction in the live range
+  flips it.
+- `!(a & X) && !(a & Y)` compiles to one mask test; the original's `andi / sltiu / movn` is a
+  variable set in steps (`f = w->flags & X; f = f == 0; if (w->flags & Y) f = 0;`), which
+  also changes spills elsewhere.
+- `lhu` on an s32 screen coordinate: `(u16)scr[i].x * 16 + 0x7000`. `addiu sN,sN,48` on a
+  parameter: the parameter itself was advanced.
+- FAKE MATCHES: `EftLink_DrawBillboard` (eft_w.c) matches only with an empty `__asm__("");`
+  that adds one RTL instruction to break an allocator tie. Kept, marked in the source; the
+  natural source form is unknown. List such cases in docs/open_questions.md.
