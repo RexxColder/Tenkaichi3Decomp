@@ -74,8 +74,9 @@ is weakly supported ("effects").
 
 ## VU1 packet layer (verified code, guessed names)
 
-Nine VU1 microprograms sit right after the code (0x2BF6B0..0x2C3380), numbered 0..8 by address;
-what each draws is not known. `Vu1Pkt_LoadProgN` uploads a microprogram and its constant block;
+Nine VU1 microprograms sit right after the code (0x2BF6B0..0x2C3380): programs 0, 1, 2a, 2b, 4, 5, 6, 7, 8
+(there is no program 3). They are assembly listings in `src/vu1/` and are described in
+[vu1/README.md](vu1/README.md). `Vu1Pkt_LoadProgN` uploads a microprogram and its constant block;
 `Vu1Pkt_CallProgN` builds the call packet in front of an object's vertex chain. `Vu1Node_*`
 walk a model node list. Callers are the 3D renderer at 0x111358..0x115DE0 (not decompiled).
 
@@ -84,7 +85,7 @@ walk a model node list. Callers are the 3D renderer at 0x111358..0x115DE0 (not d
 A renderer needs: 512x448 internal resolution, a greater-or-equal depth test with larger Z
 nearer, bilinear filtering by default, four blend modes selected by ordering-table layer, and
 painter's-order drawing through the table. The flicker filter and the field handling can be
-dropped. The model, texture and microprogram formats are not understood yet.
+dropped. The model and texture formats are not understood yet; the microprograms are (see vu1/README.md).
 
 ## Movies (`src/sys/movie.c`; verified unless marked)
 

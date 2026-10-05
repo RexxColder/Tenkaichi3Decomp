@@ -78,6 +78,14 @@ TARGETS = [
 SUBDIRS = {t[k] for t in TARGETS for k in ("subdir", "src_subdir") if t[k]}
 
 
+# The VU1 microprogram block (.vutext): listings in address order, the wrapper that includes the assembled block,
+# and the splat-generated file whose object it replaces in the link.
+VU1_LISTINGS = [f"src/vu1/prog{n}.vsm" for n in ("0", "1", "2a", "2b", "4", "5", "6", "7", "8")]
+VU1_BIN = "build/vu1/vutext.bin"
+VU1_ASM = "src/vu1/vutext.s"
+VU1_SPLAT_ASM = "asm/data/cod/1BF6B0.s"
+
+
 def run(cmd, **kwargs):
     print("$", " ".join(shlex.quote(str(c)) for c in cmd))
     subprocess.run(cmd, check=True, cwd=ROOT, **kwargs)
@@ -174,6 +182,15 @@ def write_ninja():
         "  description = CHECK $in",
         "",
     ]
+    # The VU1 microprograms are assembled from listings; the object replaces the one splat cuts from the image.
+    out += [
+        "rule vuasm",
+        f"  command = {sys.executable} scripts/vuasm.py -o $out $in",
+        "  description = VUASM $out",
+        "",
+        f"build {VU1_BIN}: vuasm {' '.join(VU1_LISTINGS)} | scripts/vuasm.py",
+        "",
+    ]
     headers = " ".join(str(p.relative_to(ROOT)) for p in sorted((ROOT / "include").rglob("*.h")))
     for target in TARGETS:
         asm = sources("asm", ".s", target["subdir"])
@@ -186,6 +203,9 @@ def write_ninja():
         ok = f"build/{target['name']}.ok"
 
         for src, obj in zip(asm, objs):
+            if str(src) == VU1_SPLAT_ASM:
+                out.append(f"build {obj}: as {VU1_ASM} | {VU1_BIN} include/macro.inc include/labels.inc")
+                continue
             out.append(f"build {obj}: as {src} | include/macro.inc include/labels.inc")
         for src, obj in zip(srcs, objs[len(asm):]):
             gflag = next((g for d, g in G_FLAGS.items() if str(src).startswith(d)), G_DEFAULT)
