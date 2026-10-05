@@ -188,3 +188,6 @@
 #define Ref_Vu0View_SetMulMtx Vu0View_SetMulMtx
 #define Ref_Vu0View_SetRotTrans Vu0View_SetRotTrans
 #define Ref_Vu0View_StoreMtx Vu0View_StoreMtx
+#define Ref_StgVu_RotateX StgVu_RotateX
+#define Ref_StgVu_RotateY StgVu_RotateY
+#define Ref_StgVu_RotateZ StgVu_RotateZ
