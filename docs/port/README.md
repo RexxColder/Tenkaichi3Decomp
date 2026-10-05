@@ -61,6 +61,24 @@ referenced only by library data tables that the PC build can drop).
 NOT verified: that every vector-library reference has the same parameter list as the game's
 callers expect (the callers declare these functions locally); the maths harness will show it.
 
+## Update 2026-10-05 (late): every game source builds
+
+All 204 game sources of the main executable build to 32-bit objects. mathf.c / randf.c: their
+five assembly functions (Mathf_WrapAngle, Mathf_SinFast, Mathf_Sqrt, Rand_SeedFloat,
+Rand_Float01) are guarded by `#ifndef PORT` and supplied by port/src/mathf_pc.c, operation
+by operation on the PS2 float model; the VU0 random register is `gPortVu0R` (simulation
+state: it must be saved and restored with the rest for netplay). Sanity-checked only
+(sine within 0.002 of libm, square roots, value range of the generator), not against a console.
+Game routines still missing: StgVu_RotateX / Y / Z, ObjSeam_TransformVtx (hand-written VU0
+assembly outside the vector library) and the entry point.
+
+Open points for bit-exact simulation, none solved yet:
+- The game's ordinary C float arithmetic is compiled natively here (IEEE, round to nearest);
+  the PS2 truncates and has no denormals / infinities. Decide: software float for simulation
+  code, or prove where it matters.
+- libm (sinf, tanf, asinf, acosf, atanf, atan2f) and libc rand() are the SDK's newlib
+  versions on the PS2; the host's give different bits. The PC build needs its own exact copies.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

@@ -28,6 +28,17 @@ def main():
         print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l), "")[:150])
     objs = [str(o) for o, _, _ in res if o]
     objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
+    # PC-only code: the vector-library references under the game's names, and port/src.
+    for f in [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"] + sorted((ROOT / "port/src").glob("*.c")):
+        o = OBJ / ("pc_" + f.stem + ".o")
+        names = ["-include", "vu0_names.h"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
+        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O1", "-fno-strict-aliasing", "-ffp-contract=off", "-w",
+                            "-Iinclude", "-Iport/include", "-Iport/src"] + names + [str(f), "-o", str(o)],
+                           cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            print("FAILED", f.name, r.stderr.splitlines()[0][:150])
+        else:
+            objs.append(str(o))
     defined, undef = set(), collections.Counter()
     out = subprocess.run(["nm", "-A"] + objs, capture_output=True, text=True).stdout
     for l in out.splitlines():
