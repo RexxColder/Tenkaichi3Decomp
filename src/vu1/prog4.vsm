@@ -1,0 +1,548 @@
+; prog4
+
+.vif 0x00000000
+.mpg 0
+    nop                                | lq.xyzw vf1, 0(vi0)
+L001:
+    nop                                | lq.xyzw vf2, 1(vi0)
+    nop                                | lq.xyzw vf3, 2(vi0)
+L003:
+    nop                                | lq.xyzw vf4, 3(vi0)
+    nop                                | lq.xyzw vf5, 4(vi0)
+L005:
+    nop                                | lq.xyzw vf6, 5(vi0)
+    nop                                | lq.xyzw vf7, 6(vi0)
+L007:
+    nop                                | lq.xyzw vf8, 7(vi0)
+    nop                                | lq.xyzw vf9, 8(vi0)
+L009:
+    nop                                | lq.xyzw vf10, 9(vi0)
+    nop                                | lq.xyzw vf11, 10(vi0)
+L011:
+    nop                                | lq.xyzw vf12, 11(vi0)
+    nop                                | iaddiu vi14, vi0, 0x400
+L013:
+    nop                                | nop [E]
+    nop                                | nop
+L015:
+    nop                                | xtop vi1
+    mulx.xyzw vf31, vf31, vf0x         | lq.xyzw vf30, 0(vi1)
+L017:
+    nop                                | sq.xyzw vf30, 30(vi0)
+    nop                                | nop
+L019:
+    nop                                | nop [E]
+    nop                                | nop
+L021:
+    nop                                | xtop vi1
+    nop                                | lq.xyzw vf17, 0(vi1)
+L023:
+    nop                                | lq.xyzw vf18, 1(vi1)
+    nop                                | iaddiu vi1, vi1, 0x2
+L025:
+    nop                                | iaddiu vi3, vi1, 0x1
+    nop                                | lq.xyzw vf20, 0(vi3)
+L027:
+    nop                                | iaddiu vi11, vi0, 0x7fff
+    nop                                | iaddi vi13, vi11, 1
+    nop                                | ilwr.x vi10, (vi1)
+    nop                                | iand vi10, vi10, vi11
+    mulax.xyzw acc, vf1, vf20x         | lq.xyzw vf19, 0(vi1)
+L032:
+    madday.xyzw acc, vf2, vf20y        | iaddiu vi2, vi3, 0xda
+    maddaz.xyzw acc, vf3, vf20z        | iaddi vi4, vi0, -2
+    maddw.xyzw vf25, vf4, vf20w        | iaddi vi5, vi0, -2
+    nop                                | iaddi vi6, vi0, -2
+    nop                                | div q, vf0w, vf25w
+    nop                                | sq.xyzw vf17, 0(vi2)
+L038:
+    nop                                | sq.xyzw vf18, 1(vi2)
+    nop                                | sq.xyzw vf19, 2(vi2)
+L040:
+    nop                                | iaddiu vi7, vi2, 0x4
+    nop                                | move.xyzw vf22, vf0
+L042:
+    nop                                | move.xyzw vf23, vf0
+    nop                                | move.xyzw vf24, vf0
+    nop                                | xgkick vi2
+L045:
+    nop                                | iaddiu vi2, vi2, 0x2
+L046:
+    mulax.xyzw acc, vf5, vf20x         | move.xyzw vf22, vf23
+    madday.xyzw acc, vf6, vf20y        | move.xyzw vf23, vf24
+L048:
+    maddaz.xyzw acc, vf7, vf20z        | lq.xyzw vf19, 2(vi3)
+    maddw.xyzw vf24, vf8, vf20w        | lq.xyzw vf21, 1(vi3)
+    clip.xyz vf22, vf22                | lq.xyzw vf20, 3(vi3)
+L051:
+    clip.xyz vf23, vf23                | iadd vi4, vi0, vi5
+    mulq.xyzw vf25, vf25               | iadd vi5, vi0, vi6
+    mulq.xyz vf28, vf19                | iaddiu vi3, vi3, 0x3
+L054:
+    clip.xyz vf24, vf24                | iaddiu vi7, vi7, 0x3
+    mulax.xyzw acc, vf1, vf20x         | iaddi vi10, vi10, -1
+    ftoi4.xyzw vf27, vf25              | iadd vi4, vi4, vi5
+L057:
+    madday.xyzw acc, vf2, vf20y        | sq.xyzw vf28, -4(vi7)
+L058:
+    ftoi0.xyzw vf26, vf21              | fcand vi1, 0x3f
+    maddaz.xyzw acc, vf3, vf20z        | iadd vi6, vi0, vi1
+L060:
+    maddw.xyzw vf25, vf4, vf20w        | iadd vi4, vi4, vi6
+L061:
+    nop                                | sq.xyzw vf27, -2(vi7)
+    nop                                | ibgtz vi4, L071
+    nop                                | sq.xyzw vf26, -3(vi7)
+L064:
+    nop                                | ibne vi10, vi0, L046
+    nop                                | div q, vf0w, vf25w
+    nop                                | xgkick vi2
+    nop                                | nop [E]
+    nop                                | nop
+    nop                                | b L021
+    nop                                | nop
+L071:
+    nop                                | fcor vi1, 0xff7df7
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    nop                                | fcor vi1, 0xffbefb
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    nop                                | fcor vi1, 0xffdf7d
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    nop                                | fcor vi1, 0xffefbe
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    nop                                | fcor vi1, 0xfdf7df
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    nop                                | fcor vi1, 0xfefbef
+    nop                                | ibne vi1, vi0, L117
+    nop                                | nop
+    adda.xyzw acc, vf22, vf23          | loi 0x3F800000 [I]   ; 1
+    maddi.xyzw vf28, vf24              | loi 0x3EAAAAAA [I]   ; 0.333333313
+    nop                                | sqd.xyzw vf20, (--vi14)
+    nop                                | sqd.xyzw vf23, (--vi14)
+    nop                                | sqd.xyzw vf24, (--vi14)
+    muli.xyzw vf28, vf28               | sqd.xyzw vf25, (--vi14)
+    nop                                | isubiu vi14, vi14, 0x1
+    nop                                | iswr.x vi2, (vi14)
+L097:
+    nop                                | iswr.y vi3, (vi14)
+    sub.xyzw vf25, vf22, vf28          | iswr.z vi5, (vi14)
+    sub.xyzw vf26, vf23, vf28          | isubiu vi14, vi14, 0x1
+    sub.xyzw vf27, vf24, vf28          | iswr.x vi6, (vi14)
+L101:
+    nop                                | iswr.y vi7, (vi14)
+    nop                                | iswr.z vi10, (vi14)
+    nop                                | bal vi15, L120
+    nop                                | nop
+    nop                                | ilwr.x vi6, (vi14)
+    nop                                | ilwr.y vi7, (vi14)
+    nop                                | ilwr.z vi10, (vi14)
+    nop                                | iaddiu vi14, vi14, 0x1
+    nop                                | ilwr.x vi2, (vi14)
+L110:
+    nop                                | ilwr.y vi3, (vi14)
+    nop                                | ilwr.z vi5, (vi14)
+    nop                                | iaddiu vi14, vi14, 0x1
+    mulx.xyzw vf31, vf31, vf0x         | lqi.xyzw vf25, (vi14++)
+L114:
+    nop                                | lqi.xyzw vf24, (vi14++)
+    nop                                | lqi.xyzw vf23, (vi14++)
+L116:
+    nop                                | lqi.xyzw vf20, (vi14++)
+L117:
+    nop                                | isw.w vi13, -2(vi7)
+    nop                                | b L064
+    nop                                | nop
+L120:
+    mulaw.xyzw acc, vf28, vf0w         | loi 0x3F80A3D7 [I]   ; 1.005
+    maddi.xyzw vf22, vf25              | iaddiu vi8, vi0, 0x3d
+L122:
+    mulaw.xyzw acc, vf28, vf0w         | iaddiu vi9, vi0, 0x65
+    maddi.xyzw vf23, vf26              | nop
+    mulaw.xyzw acc, vf28, vf0w         | nop
+L125:
+    maddi.xyzw vf24, vf27              | nop
+    nop                                | nop
+    nop                                | sq.xyzw vf22, 0(vi8)
+L128:
+    nop                                | sq.xyzw vf23, 3(vi8)
+L129:
+    nop                                | sq.xyzw vf24, 6(vi8)
+L130:
+    nop                                | sq.xyzw vf22, 9(vi8)
+    nop                                | lq.xyzw vf22, -7(vi3)
+L132:
+    nop                                | lq.xyzw vf23, -4(vi3)
+L133:
+    nop                                | lq.xyzw vf24, -1(vi3)
+L134:
+    nop                                | sq.xyzw vf22, 2(vi8)
+    nop                                | sq.xyzw vf23, 5(vi8)
+L136:
+    nop                                | sq.xyzw vf24, 8(vi8)
+L137:
+    nop                                | sq.xyzw vf22, 11(vi8)
+L138:
+    nop                                | lq.xyzw vf22, -9(vi7)
+    nop                                | lq.xyzw vf23, -6(vi7)
+L140:
+    nop                                | lq.xyzw vf24, -3(vi7)
+L141:
+    itof0.xyzw vf22, vf22              | nop
+    itof0.xyzw vf23, vf23              | nop
+L143:
+    itof0.xyzw vf24, vf24              | nop
+    nop                                | sq.xyzw vf22, 1(vi8)
+L145:
+    nop                                | sq.xyzw vf23, 4(vi8)
+L146:
+    nop                                | sq.xyzw vf24, 7(vi8)
+    nop                                | sq.xyzw vf22, 10(vi8)
+    nop                                | iaddiu vi5, vi0, 0x800
+L149:
+    nop                                | iaddiu vi6, vi0, 0x20
+L150:
+    nop                                | iaddiu vi7, vi0, 0x2
+    nop                                | iaddiu vi8, vi0, 0x3d
+    nop                                | iaddiu vi9, vi0, 0x65
+L153:
+    nop                                | iaddiu vi10, vi0, 0x3
+L154:
+    subw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L155:
+    nop                                | lqi.xyzw vf21, (vi8++)
+    nop                                | lqi.xyzw vf22, (vi8++)
+L157:
+    nop                                | lqi.xyzw vf23, (vi8++)
+L158:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L160:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L158
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x65
+    nop                                | bal vi2, L276
+    nop                                | nop
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi5, vi0, 0x400
+    nop                                | iaddiu vi6, vi0, 0x10
+    nop                                | iaddiu vi7, vi0, 0x2
+    nop                                | iaddiu vi8, vi0, 0x65
+    nop                                | iaddiu vi9, vi0, 0x3d
+L173:
+    nop                                | iadd vi10, vi0, vi11
+    addw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L175:
+    nop                                | lqi.xyzw vf21, (vi8++)
+    nop                                | lqi.xyzw vf22, (vi8++)
+    nop                                | lqi.xyzw vf23, (vi8++)
+L178:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L180:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L178
+L182:
+    nop                                | nop
+L183:
+    nop                                | iaddiu vi8, vi0, 0x3d
+    nop                                | bal vi2, L276
+    nop                                | nop
+L186:
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi5, vi0, 0x80
+    nop                                | iaddiu vi6, vi0, 0x2
+    nop                                | iaddiu vi7, vi0, 0x0
+L191:
+    nop                                | iaddiu vi8, vi0, 0x3d
+L192:
+    nop                                | iaddiu vi9, vi0, 0x65
+    nop                                | iadd vi10, vi0, vi11
+    subw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L195:
+    nop                                | lqi.xyzw vf21, (vi8++)
+    nop                                | lqi.xyzw vf22, (vi8++)
+    nop                                | lqi.xyzw vf23, (vi8++)
+L198:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L200:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L198
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x65
+    nop                                | bal vi2, L276
+    nop                                | nop
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi5, vi0, 0x40
+    nop                                | iaddiu vi6, vi0, 0x1
+    nop                                | iaddiu vi7, vi0, 0x0
+L211:
+    nop                                | iaddiu vi8, vi0, 0x65
+    nop                                | iaddiu vi9, vi0, 0x3d
+L213:
+    nop                                | iadd vi10, vi0, vi11
+    addw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L215:
+    nop                                | lqi.xyzw vf21, (vi8++)
+    nop                                | lqi.xyzw vf22, (vi8++)
+    nop                                | lqi.xyzw vf23, (vi8++)
+L218:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L220:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L218
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x3d
+L224:
+    nop                                | bal vi2, L276
+    nop                                | nop
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi5, vi0, 0x200
+    nop                                | iaddiu vi6, vi0, 0x8
+    nop                                | iaddiu vi7, vi0, 0x1
+    nop                                | iaddiu vi8, vi0, 0x3d
+L232:
+    nop                                | iaddiu vi9, vi0, 0x65
+    nop                                | iadd vi10, vi0, vi11
+L234:
+    subw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L235:
+    nop                                | lqi.xyzw vf21, (vi8++)
+    nop                                | lqi.xyzw vf22, (vi8++)
+    nop                                | lqi.xyzw vf23, (vi8++)
+L238:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L240:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L238
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x65
+    nop                                | bal vi2, L276
+L245:
+    nop                                | nop
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi5, vi0, 0x100
+    nop                                | iaddiu vi6, vi0, 0x4
+    nop                                | iaddiu vi7, vi0, 0x1
+L251:
+    nop                                | iaddiu vi8, vi0, 0x65
+L252:
+    nop                                | iaddiu vi9, vi0, 0x3d
+L253:
+    nop                                | iadd vi10, vi0, vi11
+L254:
+    addw.x vf30, vf0, vf0w             | iaddiu vi11, vi0, 0x0
+L255:
+    nop                                | lqi.xyzw vf21, (vi8++)
+.vif 0x00000000
+.mpg 256
+    nop                                | lqi.xyzw vf22, (vi8++)
+    nop                                | lqi.xyzw vf23, (vi8++)
+L258:
+    nop                                | isubiu vi10, vi10, 0x1
+    nop                                | bal vi2, L284
+L260:
+    nop                                | nop
+    nop                                | ibne vi10, vi0, L258
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x3d
+    nop                                | bal vi2, L276
+L265:
+    nop                                | nop
+    nop                                | ibeq vi11, vi0, L274
+    nop                                | nop
+    nop                                | iaddiu vi8, vi0, 0x3d
+    nop                                | iaddiu vi9, vi0, 0x65
+    nop                                | iadd vi10, vi0, vi11
+    nop                                | iaddiu vi11, vi0, 0x0
+L272:
+    nop                                | bal vi1, L365
+L273:
+    nop                                | nop
+L274:
+    nop                                | jr vi15
+L275:
+    nop                                | nop
+L276:
+    nop                                | lq.xyzw vf21, 0(vi8)
+L277:
+    nop                                | lq.xyzw vf22, 1(vi8)
+    nop                                | lq.xyzw vf23, 2(vi8)
+L279:
+    nop                                | sqi.xyzw vf21, (vi9++)
+    nop                                | sqi.xyzw vf22, (vi9++)
+L281:
+    nop                                | sqi.xyzw vf23, (vi9++)
+    nop                                | jr vi2
+L283:
+    nop                                | nop
+L284:
+    add.xyzw vf17, vf31, vf21          | lqi.xyzw vf21, (vi8++)
+L285:
+    add.xyzw vf18, vf31, vf22          | lqi.xyzw vf22, (vi8++)
+    add.xyzw vf19, vf31, vf23          | lqi.xyzw vf23, (vi8++)
+    nop                                | nop
+    clip.xyz vf17, vf17                | nop
+    clip.xyz vf21, vf21                | nop
+    nop                                | nop
+    nop                                | nop
+    nop                                | nop
+L293:
+    nop                                | fcget vi1
+L294:
+    nop                                | iand vi4, vi1, vi5
+    nop                                | nop
+    nop                                | ibeq vi4, vi0, L312
+    nop                                | nop
+    nop                                | iand vi4, vi1, vi6
+    nop                                | nop
+    nop                                | ibeq vi4, vi0, L304
+    nop                                | nop
+    nop                                | b L331
+    nop                                | nop
+L304:
+    nop                                | bal vi1, L333
+L305:
+    nop                                | nop
+    nop                                | sqi.xyzw vf25, (vi9++)
+    nop                                | sqi.xyzw vf26, (vi9++)
+    nop                                | sqi.xyzw vf27, (vi9++)
+    nop                                | iaddiu vi11, vi11, 0x1
+    nop                                | b L331
+L311:
+    nop                                | nop
+L312:
+    nop                                | iand vi4, vi1, vi6
+L313:
+    nop                                | nop
+L314:
+    nop                                | ibeq vi4, vi0, L327
+    nop                                | nop
+    nop                                | bal vi1, L333
+L317:
+    nop                                | nop
+    nop                                | sqi.xyzw vf17, (vi9++)
+    nop                                | sqi.xyzw vf18, (vi9++)
+    nop                                | sqi.xyzw vf19, (vi9++)
+    nop                                | sqi.xyzw vf25, (vi9++)
+    nop                                | sqi.xyzw vf26, (vi9++)
+    nop                                | sqi.xyzw vf27, (vi9++)
+    nop                                | iaddiu vi11, vi11, 0x2
+L325:
+    nop                                | b L331
+    nop                                | nop
+L327:
+    nop                                | sqi.xyzw vf17, (vi9++)
+    nop                                | sqi.xyzw vf18, (vi9++)
+    nop                                | sqi.xyzw vf19, (vi9++)
+L330:
+    nop                                | iaddiu vi11, vi11, 0x1
+L331:
+    nop                                | jr vi2
+L332:
+    nop                                | nop
+L333:
+    mulx.w vf25, vf17, vf30x           | nop
+L334:
+    mulx.w vf26, vf21, vf30x           | nop
+    nop                                | iadd vi12, vi0, vi7
+    subw.xyzw vf25, vf17, vf25w        | nop
+    subw.xyzw vf26, vf21, vf26w        | nop
+    nop                                | nop
+L339:
+    nop                                | ibeq vi12, vi0, L346
+    nop                                | nop
+    nop                                | mr32.xyzw vf25, vf25
+    nop                                | mr32.xyzw vf26, vf26
+    nop                                | isubiu vi12, vi12, 0x1
+    nop                                | b L339
+L345:
+    nop                                | nop
+L346:
+    sub.xyz vf27, vf26, vf25           | nop
+    nop                                | nop
+    nop                                | nop
+    nop                                | nop
+    nop                                | div q, vf25x, vf27x
+    nop                                | waitq
+    addq.x vf29, vf0                   | nop
+L353:
+    abs.x vf29, vf29                   | nop
+    sub.xyzw vf25, vf21, vf17          | nop
+    sub.xyzw vf26, vf22, vf18          | nop
+L356:
+    sub.xyzw vf27, vf23, vf19          | nop
+    mulx.xyzw vf25, vf25, vf29x        | nop
+    mulx.xyzw vf26, vf26, vf29x        | nop
+    mulx.xyzw vf27, vf27, vf29x        | nop
+    add.xyzw vf25, vf25, vf17          | nop
+L361:
+    add.xyzw vf26, vf26, vf18          | nop
+    add.xyzw vf27, vf27, vf19          | nop
+    nop                                | jr vi1
+L364:
+    nop                                | nop
+L365:
+    nop                                | lq.xyzw vf20, 0(vi8)
+L366:
+    nop                                | iadd vi3, vi0, vi8
+    nop                                | nop
+    nop                                | iaddiu vi2, vi0, 0x1e
+    mulax.xyzw acc, vf9, vf20x         | nop
+    madday.xyzw acc, vf10, vf20y       | nop
+L371:
+    maddaz.xyzw acc, vf11, vf20z       | isw.x vi13, 0(vi2)
+L372:
+    maddw.xyzw vf25, vf12, vf20w       | iaddiu vi7, vi2, 0x2
+    nop                                | iadd vi11, vi10, vi13
+L374:
+    nop                                | nop
+L375:
+    nop                                | xgkick vi2
+    nop                                | div q, vf0w, vf25w
+    nop                                | isw.x vi11, 0(vi2)
+L378:
+    nop                                | lq.xyzw vf22, 1(vi3)
+    nop                                | lq.xyzw vf20, 3(vi3)
+L380:
+    nop                                | lq.xyzw vf21, 2(vi3)
+    nop                                | iaddiu vi7, vi7, 0x3
+    ftoi0.xyzw vf29, vf22              | iaddiu vi3, vi3, 0x3
+L383:
+    mulax.xyzw acc, vf9, vf20x         | nop
+L384:
+    mulq.xyzw vf26, vf25               | nop
+L385:
+    madday.xyzw acc, vf10, vf20y       | nop
+L386:
+    maddaz.xyzw acc, vf11, vf20z       | sq.xyzw vf29, -3(vi7)
+    mulq.xyz vf28, vf21                | iaddi vi10, vi10, -1
+L388:
+    ftoi4.xyzw vf26, vf26              | nop
+    maddw.xyzw vf25, vf12, vf20w       | nop
+    nop                                | nop
+L391:
+    nop                                | sq.xyzw vf28, -4(vi7)
+    nop                                | sq.xyzw vf26, -2(vi7)
+    nop                                | ibne vi10, vi0, L378
+    nop                                | div q, vf0w, vf25w
+    nop                                | xgkick vi2
+    nop                                | nop
+    nop                                | jr vi1
+L398:
+    nop                                | nop
+.vif 0x00000000
+.vif 0x00000000
