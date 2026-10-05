@@ -40,7 +40,8 @@ static void movie_start(void) {
 
     sStarted = 1;
     sEnd = 1;
-    if (!GsGpu_Enabled() || gPortMoviePath[0] == '\0' || strchr(gPortMoviePath, '\'') != NULL || getenv("BT3_NOMOVIE") != NULL) {
+    /* without a window too when recorded input is played back: the movie has to take the same number of frames */
+    if ((!GsGpu_Enabled() && getenv("BT3_PAD_PLAY") == NULL) || gPortMoviePath[0] == '\0' || strchr(gPortMoviePath, '\'') != NULL || getenv("BT3_NOMOVIE") != NULL) {
         return;
     }
     snprintf(cmd, sizeof(cmd), "ffmpeg -v error -i '%s' -f rawvideo -pix_fmt rgba -s %dx%d - 2>/dev/null", gPortMoviePath, MOVIE_W, MOVIE_H);

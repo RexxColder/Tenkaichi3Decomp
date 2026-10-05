@@ -762,3 +762,22 @@ with a third of the interpreter's work gone.
   unchanged at 4:3, 16:9, 21:9, 32:9. The window opens at the picture's shape and keeps it on resize.
 - Captions (technique names; the replay mark) are anchored to the side they are drawn on (marker 0x14).
 - 2D layout in widescreen cannot be checked from the replay (it hides the HUD): only the user has seen it.
+
+## 2026-10-06: recorded input; the strip behind READY / FIGHT
+
+- **Recorded controller input** (`BT3_PAD_REC=<file>` / `BT3_PAD_PLAY=<file>`, plat_stub.c): every pad read of a
+  session, 18 bytes each. Playback reproduces the user's menus and fight exactly, with or without a window, given
+  the same save folder to start from (record with an empty `BT3_SAVES` folder). The movie has to run during
+  playback even without a window (its loop reads the pad every frame). `gamedata`-like file, not committed:
+  `port/build/session1.pad` (title screen to a duel through READY / FIGHT; READY at vertical blank 1909).
+  This is the way to see the HUD in test runs: replays and the demo fight do not show it.
+- **Strip of different-looking scenery where an announcement's band was.** Some of the stage's own layers are
+  drawn with the destination alpha test (TEST 0x54000: 2,479 triangles at the start of the frame). The copy of the
+  alpha bytes that test reads was only refreshed for primitives recorded through `GsGpu_Draw`, not for the
+  vertex-program shader paths, so those layers tested against the copy the HUD had made the frame before: the
+  band's outline. `date_snapshot` is now called from every draw entry point. Found by: the user's video, then a
+  playback of their recording, a difference picture between two frames, and listing the frame's draws that use
+  the test. Wrong guesses on the way: post effects (the strip stayed with them off), the band or the word drawing
+  colour (their write masks and corners were right).
+- Test aids: `BT3_GPU_TAIL=<frame>` prints the frame's last draws as recorded (pipeline key, modes, corners).
+- Seen and not handled: the software reference has no destination alpha test (its READY shows at once).

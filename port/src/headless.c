@@ -21,6 +21,7 @@ extern void Demo_SetupBattle(void);
 #define REPLAY_BLOCK 0x1ABA8
 
 static int sBattles;
+static int sFromMenu;
 
 /* Linked with --wrap=Progress_Main: the game's call in Game_Main comes here. BT3_REPLAY or BT3_DEMO: the battle is
    set up without menus (below); otherwise the real menus run (the overlay's Progress_Main, src/menu/menu_a_b.c). */
@@ -36,6 +37,7 @@ int __wrap_Progress_Main(int arg) {
             gPortMenuMode = 1; /* the renderer treats all 2D as one centred 4:3 page while the menus run */
             r = __real_Progress_Main(arg);
             gPortMenuMode = 0;
+            sFromMenu = 1; /* a battle set up by the real menus follows: the traces apply to it too */
             return r;
         }
     }
@@ -93,7 +95,7 @@ void Port_Trace(unsigned vblanks) {
     }
     /* BT3_AT=<tick>[,<tick>...]: when the battle clock first shows one of these tick counts, print the fight state
        and write the heap to port/build/heap_<tick>.bin (to compare with console save states made at those ticks). */
-    if (sBattles != 0 && gBtlSeq != NULL && gBtlSeq->state >= 2 && getenv("BT3_AT") != NULL) {
+    if ((sBattles != 0 || sFromMenu) && gBtlSeq != NULL && gBtlSeq->state >= 2 && getenv("BT3_AT") != NULL) {
         static unsigned last = 0xFFFFFFFFu;
         unsigned now = (unsigned)BtlSeq_GetClock()[0];
 
@@ -133,7 +135,7 @@ void Port_Trace(unsigned vblanks) {
     }
     /* BT3_DUMP=<file>: 600 vertical blanks after the battle sequence reaches its last state, write the game heap
        (PS2 addresses 0x3BE730..0x1EFB014) to the file and stop: to be compared with a console memory dump. */
-    if (sBattles != 0 && gBtlSeq != NULL && gBtlSeq->state == 6 && getenv("BT3_DUMP") != NULL) {
+    if ((sBattles != 0 || sFromMenu) && gBtlSeq != NULL && gBtlSeq->state == 6 && getenv("BT3_DUMP") != NULL) {
         static unsigned since;
 
         if (since == 0) {
@@ -149,7 +151,7 @@ void Port_Trace(unsigned vblanks) {
             exit(0);
         }
     }
-    if (sBattles != 0 && gBtlSeq != NULL && getenv("BT3_TRACE_SEQ") != NULL) { /* when the battle sequence changes state */
+    if ((sBattles != 0 || sFromMenu) && gBtlSeq != NULL && getenv("BT3_TRACE_SEQ") != NULL) { /* when the battle sequence changes state */
         static int last = -1;
         if (gBtlSeq->state != last) {
             printf("seq: state %d begins at vertical blank %u\n", gBtlSeq->state, vblanks);

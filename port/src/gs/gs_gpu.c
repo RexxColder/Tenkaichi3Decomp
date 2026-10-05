@@ -866,6 +866,26 @@ static int same_state(const Draw *a, const Draw *b) {
            memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
 }
 
+/* A draw that tests the alpha already in the frame buffer (TEST.DATE: the fill of a HUD bar cut to length by a
+   mask, a word shown through a band, and also some of the stage's own layers): at the start of a run of such
+   draws, a copy of the alpha bytes is taken for them to read. Called by every way a primitive can be recorded;
+   left out of the vertex-program paths at first, the stage's layers tested against the copy the HUD had made the
+   frame before, and showed a strip of different-looking scenery where an announcement's band had been. */
+static void date_snapshot(const Draw *d) {
+    Draw *prev = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+    Draw c;
+
+    if (d->misc[1] == 0.0f || (prev != NULL && !prev->native && prev->misc[1] != 0.0f && prev->target == d->target)) {
+        return;
+    }
+    memset(&c, 0, sizeof(c));
+    c.native = 5;
+    c.target = d->target;
+    if (sDrawCount + 1 < MAX_DRAWS) {
+        sDraws[sDrawCount++] = c;
+    }
+}
+
 void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     uint64_t prim = gGs.prim, t0 = gGs.tex0[ctx];
     int fst = (prim >> 8) & 1, gouraud = (prim >> 3) & 1, n = type == 6 ? 2 : type == 3 ? 3 : type == 1 ? 2 : 1;
@@ -887,20 +907,7 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
            texture coordinates per GS pixel (gs.frag) */
         d.misc[3] = (float)SCALE;
     }
-    if (d.misc[1] != 0.0f) {
-        /* A draw that tests the alpha already in the frame buffer (the fill of a HUD bar, cut to length by a mask
-           drawn just before it): at the start of a run of such draws, keep a copy of the alpha bytes for them. */
-        Draw *prev = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
-        if (prev == NULL || prev->native || prev->misc[1] == 0.0f || prev->target != d.target) {
-            Draw c;
-            memset(&c, 0, sizeof(c));
-            c.native = 5;
-            c.target = d.target;
-            if (sDrawCount + 1 < MAX_DRAWS) {
-                sDraws[sDrawCount++] = c;
-            }
-        }
-    }
+    date_snapshot(&d);
     for (i = 0; i < n; i++) {
         if (fst) {
             s[i] = (float)v[i].u / 16.0f / tw * us;
@@ -1030,6 +1037,7 @@ void GsGpu_DrawVu6(int ctx, const float *vertices, uint32_t count, const float *
     if (!draw_state(ctx, 0, 0, 3, &d, &us, &vs)) {
         return;
     }
+    date_snapshot(&d);
     memset(&u, 0, sizeof(u));
     memcpy(u.boneA, &consts[0x0C * 4], 64);  /* world -> shadow camera */
     u.pivotA[0] = consts[0x10 * 4];          /* texture scale */
@@ -1083,6 +1091,7 @@ void GsGpu_DrawVu4(int ctx, const float *vertices, uint32_t count, const float *
     if (!draw_state(ctx, 0, 0, 2, &d, &us, &vs)) {
         return;
     }
+    date_snapshot(&d);
     memset(&u, 0, sizeof(u));
     memcpy(u.screen, &consts[0], 64);
     u.misc[0] = (float)(gGs.xyoffset[ctx] & 0xFFFF) / 16.0f;
@@ -1122,6 +1131,7 @@ void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, co
     if (!draw_state(ctx, 0, 0, 1, &d, &us, &vs)) {
         return;
     }
+    date_snapshot(&d);
     memcpy(u.boneA, &consts[0], 64);
     memcpy(u.boneB, &consts[16], 64);
     memcpy(u.pivotA, &consts[32], 16);
@@ -1237,6 +1247,22 @@ static void frame_end(void) {
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
         fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped, %u native effects\n",
                 gGsFrame, sDrawCount, sVertCount + sVuVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped, sNative);
+    }
+    if (getenv("BT3_GPU_TAIL") != NULL && (int)gGsFrame == atoi(getenv("BT3_GPU_TAIL"))) { /* the frame's last draws */
+        uint32_t k;
+        for (k = sDrawCount > 14 ? sDrawCount - 14 : 0; k < sDrawCount; k++) {
+            const Draw *d = &sDraws[k];
+            fprintf(stderr, "tail: draw %u native %d target %d vu %d first %u count %u pipeline key %08x mode %d %d %d %d misc %.0f %.0f %.0f %.0f x %.1f..\n",
+                    k, d->native, d->target, d->vu, d->first, d->count, d->native ? 0 : sPipes[d->pipeline].key, d->mode[0], d->mode[1], d->mode[2],
+                    d->mode[3], d->misc[0], d->misc[1], d->misc[2], d->misc[3], d->native || d->vu ? 0.0f : sVerts[d->first].x);
+            if (!d->native && !d->vu && d->count <= 12 && k + 3 >= sDrawCount) {
+                uint32_t j;
+                for (j = 0; j < d->count; j++) {
+                    const Vtx *v = &sVerts[d->first + j];
+                    fprintf(stderr, "tail:    (%.1f, %.1f) z %.6f st %.4f %.4f q %.3f rgba %u %u %u %u\n", v->x, v->y, v->z, v->s, v->t, v->q, v->r, v->g, v->b, v->a);
+                }
+            }
+        }
     }
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
