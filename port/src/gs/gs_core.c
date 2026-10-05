@@ -39,6 +39,7 @@ typedef struct Target {
 
 GsState gGs;
 uint32_t gGsPageGen[512];
+unsigned gGsFbUploads; /* bit 0 / 1: pixels were uploaded into display buffer 0 / 0x70 since the back end last looked */
 unsigned gGsFrame;
 #define gs gGs
 #define Vertex GsVertex
@@ -574,6 +575,15 @@ static void transfer_data(const uint8_t *p, uint32_t bytes) {
 
     if (!gs.transfer || gs.tw == 0) {
         return;
+    }
+    /* A picture uploaded straight into a display buffer (the movies: page 0, 512 wide, the second buffer 448 lines
+       down): the GPU back end has to copy it from GS memory into that buffer's texture at the end of the frame. */
+    if (dbp == 0 && dbw == 8 && Gs_PsmBits(dpsm) == 32) {
+        unsigned bit = gs.ty < 448 ? 1u : 2u;
+        if (!(gGsFbUploads & bit) && sGpu) {
+            GsGpu_FbUpload(bit == 2); /* its place among the frame's draws: after the clear, before a fade */
+        }
+        gGsFbUploads |= bit;
     }
     bits = (uint32_t)Gs_PsmBits(dpsm);
     total = gs.tw * gs.th;

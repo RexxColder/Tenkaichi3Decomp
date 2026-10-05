@@ -106,13 +106,4 @@ int scePad2Read(int socket, unsigned char *data) {
 int sceVibGetProfile() { return 0; }
 int sceVibSetActParam() { return 0; }
 
-/* ---- MPEG movies: every movie is over at once ---- */
-int sceMpegInit() { return 0; }
-int sceMpegCreate() { return 0; }
-int sceMpegDelete() { return 0; }
-int sceMpegReset() { return 0; }
-void *sceMpegAddCallback() { return 0; }
-void *sceMpegAddStrCallback() { return 0; }
-int sceMpegDemuxPss() { return 0; }
-int sceMpegGetPicture() { return 0; }
-int sceMpegIsEnd() { return 1; }
+/* ---- MPEG movies: port/src/plat_movie.c ---- */

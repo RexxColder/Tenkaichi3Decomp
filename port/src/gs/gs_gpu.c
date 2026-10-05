@@ -78,6 +78,7 @@ static SDL_GPUTransferBuffer *sVxfer;
 static SDL_GPUSampler *sSamplers[8]; /* bit 0: linear, bit 1: clamp U, bit 2: clamp V */
 static SDL_GPUTexture *sWhite;
 static SDL_GPUGraphicsPipeline *sOutlinePipe, *sKeyPipe;
+static SDL_GPUTexture *sFbTex[2]; /* pictures uploaded into the two display buffers (movies) */
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -860,6 +861,22 @@ void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, co
 
 /* A marker from the game's display list (port/src/gs_marker.c): draw the native version of an effect here, on
    the frame buffer the current context draws to. 1 = the outline. */
+/* The game uploaded pixels straight into a display buffer (a movie frame). Remembers the place in the frame's
+   draw order; the pixels are taken from GS memory at the end of the frame (frame_end). */
+void GsGpu_FbUpload(int second) {
+    Draw d;
+
+    if (sDrawCount == MAX_DRAWS) {
+        return;
+    }
+    memset(&d, 0, sizeof(d));
+    d.native = 100 + (second != 0);
+    d.target = target_get(second ? 0x70 : 0, 1);
+    if (d.target >= 0) {
+        sDraws[sDrawCount++] = d;
+    }
+}
+
 void GsGpu_Native(int effect) {
     uint64_t sc = gGs.scissor[0];
     Draw d;
@@ -962,7 +979,52 @@ static void frame_end(void) {
         free(sPending[i].px);
     }
     sPendingCount = 0;
+    /* A picture the game uploaded straight into a display buffer (a movie frame): from GS memory into a 512 x 448
+       texture here, then scaled into that buffer's texture before the frame's draws (a fade goes on top). */
+    for (i = 0; i < 2; i++) {
+        SDL_GPUTransferBufferCreateInfo ti;
+        SDL_GPUTextureTransferInfo src;
+        SDL_GPUTextureRegion dst;
+        SDL_GPUTransferBuffer *tb;
+        uint32_t *px, x, y, fbp = i ? 0x70 : 0;
+        if (!(gGsFbUploads & (1u << i))) {
+            continue;
+        }
+        if (sFbTex[i] == NULL) {
+            SDL_GPUTextureCreateInfo ci;
+            SDL_zero(ci);
+            ci.type = SDL_GPU_TEXTURETYPE_2D;
+            ci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+            ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+            ci.width = GS_W;
+            ci.height = GS_H;
+            ci.layer_count_or_depth = 1;
+            ci.num_levels = 1;
+            sFbTex[i] = SDL_CreateGPUTexture(sDev, &ci);
+        }
+        SDL_zero(ti);
+        ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+        ti.size = GS_W * GS_H * 4;
+        tb = SDL_CreateGPUTransferBuffer(sDev, &ti);
+        px = SDL_MapGPUTransferBuffer(sDev, tb, false);
+        for (y = 0; y < GS_H; y++) {
+            for (x = 0; x < GS_W; x++) {
+                px[y * GS_W + x] = Gs_VramRead(fbp * 32, 8, 0, x, y) | 0xFF000000u;
+            }
+        }
+        SDL_UnmapGPUTransferBuffer(sDev, tb);
+        SDL_zero(src);
+        src.transfer_buffer = tb;
+        SDL_zero(dst);
+        dst.texture = sFbTex[i];
+        dst.w = GS_W;
+        dst.h = GS_H;
+        dst.d = 1;
+        SDL_UploadToGPUTexture(copy, &src, &dst, false);
+        SDL_ReleaseGPUTransferBuffer(sDev, tb);
+    }
     SDL_EndGPUCopyPass(copy);
+    gGsFbUploads = 0;
     /* replay the frame */
     for (n = 0; n < sDrawCount; n++) {
         const Draw *d = &sDraws[n];
@@ -971,6 +1033,28 @@ static void frame_end(void) {
         SDL_FColor bc;
         struct { int32_t mode[4]; float misc[4]; } fu;
 
+        if (d->native >= 100) { /* a picture uploaded into this display buffer (GsGpu_FbUpload): scaled into its texture */
+            SDL_GPUBlitInfo bl;
+            if (pass != NULL) {
+                SDL_EndGPURenderPass(pass);
+                pass = NULL;
+            }
+            cur = -1;
+            SDL_zero(bl);
+            bl.source.texture = sFbTex[d->native - 100];
+            bl.source.w = GS_W;
+            bl.source.h = GS_H;
+            bl.destination.texture = sTargets[d->target].color;
+            bl.destination.w = GS_W * SCALE;
+            bl.destination.h = GS_H * SCALE;
+            bl.load_op = SDL_GPU_LOADOP_DONT_CARE;
+            bl.filter = SDL_GPU_FILTER_LINEAR;
+            if (sFbTex[d->native - 100] != NULL) {
+                SDL_BlitGPUTexture(cmd, &bl);
+                sTargets[d->target].cleared = 1;
+            }
+            continue;
+        }
         if (d->native) { /* a native full-screen effect: its own pass on the colour texture alone, reading the alpha copy */
             SDL_GPUColorTargetInfo ft;
             SDL_GPUTextureSamplerBinding fs;

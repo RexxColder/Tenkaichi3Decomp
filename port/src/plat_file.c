@@ -24,6 +24,8 @@ typedef struct PortFile {
 } PortFile;
 
 static char sPartDir[8][64];
+char gPortMoviePath[512]; /* host path of the movie file opened last */
+int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size);
 
 static const char *root(void) {
     const char *r = getenv("BT3_DATA");
@@ -127,6 +129,9 @@ void *ADXF_Open(char *fname, void *atr) {
         rel[n++] = *fname == '\\' ? '/' : (char)toupper((unsigned char)*fname);
     }
     rel[n] = '\0';
+    if (n > 4 && strcmp(&rel[n - 4], ".PSS") == 0) { /* a movie: its decoder (plat_movie.c) needs the path */
+        Port_FilePath(0, 0, &rel[10], gPortMoviePath, sizeof(gPortMoviePath));
+    }
     return open_rel(rel);
 }
 

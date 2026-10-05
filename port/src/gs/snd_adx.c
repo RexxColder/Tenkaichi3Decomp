@@ -324,3 +324,11 @@ void ADXT_SetOutputMono(int flag) {
 int ADXT_GetStat(void *adxt) {
     return adxt != NULL ? ((Player *)adxt)->stat : ADXT_STAT_STOP;
 }
+
+/* A CRI call the movie player makes (0x277A70 in the PS2 executable, not named): asked with the movie's sound
+   player before it starts a disc read ahead, which it only does on 0. Taken as "is the stream reading from the
+   disc right now"; here a stream never is (the whole file is read when it starts). */
+int func_00277A70(void *adxt) {
+    (void)adxt;
+    return 0;
+}
