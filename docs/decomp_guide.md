@@ -586,3 +586,21 @@ Tools
 - BEHAVIOURAL ERROR found this round: `EftGlow_SpawnPart`'s old attempt passed 1/fadeIn for
   the x, y, z of a colour step where the original passes the OLD value (0.0); an assignment
   inside an argument list was the cause. Never write `f(x, x, x, a * (x = ...))`.
+- A DEAD CONDITIONAL survives register allocation: `if (c) { v /= 1024; }` whose body is dead
+  leaves an empty branch until after allocation. Symptoms: a saved register saved and never
+  used, a missing tail call, a temporary "one register too far". Only bodies the early jump
+  pass cannot convert work (a signed division by a power of two). Plausible original source
+  (a removed debug print) in `IopHeap_PrintFree`; an INVENTED stand-in in `Dialog_SetCursor`
+  (fake match, marked in the source).
+- A constant computed at run time in front of a loop (`move v1,zero / sll v1,v1,4`) is a
+  second induction variable (`x += 32`), not `i * 32`. `(s64)expr | C` is narrowed to 32 bits
+  when C fits an int: put the value through an `s64` local to keep `daddiu`.
+- Two variables with the same constant value (`w = 8; tw = 8;`) give two counters their own
+  step registers. `&local.member` goes through a temporary that gcse hoists; a plain
+  `f32 local` with `&local` goes straight into the argument register.
+- `(next - 1)->field` written at every use reloads per block while `next->field` stays in a
+  register; a loop bound read from memory in the `for` condition gives a second register and
+  a copy (use a local for the count).
+- Open: chains of register copies in front of a run of stores (`move a3,v1 / move a2,a3`,
+  `Ot_Reset`, `StgPanBlur_UpdateView`): cse making each statement's address temporary the
+  canonical one; one link reproduced, not a whole chain.
