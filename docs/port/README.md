@@ -40,13 +40,30 @@ Verified by running the tools below:
 - First milestone (docs/roadmap.md stage 2): the fight simulation headless, fed by a replay
   recorded on the original, compared frame by frame.
 
+## State at the end of 2026-10-05
+
+Tools (run from the repository root, in this order): `port/tools/gen_data.py` (the game's
+remaining assembly data as host assembly, from the decompilation's generated asm/),
+then `port/tools/undefined.py` (compiles everything to port/build/obj and lists what a link
+still needs in port/build/undefined.txt). `port/tools/portsrc.py` is their shared module: it
+lists the sources of the PC build and switches on the C of functions that the matching build
+still takes from assembly.
+
+Verified by running them: 202 of 204 game sources of the main executable build to 32-bit
+objects (the four vu0 files are replaced by src/port/vu0_a.c + vu0_b.c compiled under the
+game's names through port/src/vu0_names.h). Still failing: mathf.c and randf.c (COP1 / VU0
+assembly: need PC versions on the PS2 float model, including the VU0 random register).
+A link still needs: 21 data symbols (VU1 microprograms and a few tables), 39 game functions
+(mathf, randf, three StgVu_Rotate routines, ObjSeam_TransformVtx, the entry point, and
+library names in the game range), about 190 library functions (Sony SDK, CRI, libc; many are
+referenced only by library data tables that the PC build can drop).
+
+NOT verified: that every vector-library reference has the same parameter list as the game's
+callers expect (the callers declare these functions locally); the maths harness will show it.
+
 ## Next steps, in order
 
-1. Data: a tool that reads the user's SLUS_216.78 and provides the 423+ data symbols.
-2. The eight files with MIPS assembly: PC versions (vector library from src/port/, float
-   helpers through the PS2 float model).
-3. The unmatched functions: build their C attempts (all behaviour-tested against the
-   original on 2026-10-05, except ColObb_Contact, which is dead code).
+1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
 4. Platform layer for the 69 library functions: files from loose folders, memory, pad,
    stubs for sound and the GS for the headless build.
 5. Link, boot to the battle loop, replay validation.
