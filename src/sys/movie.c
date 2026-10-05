@@ -63,7 +63,11 @@ extern volatile u32 *Port_DmaChcr(s32 channel);
 #define D4_MADR ((volatile u32 *)0x1000B410)
 #define D4_QWC ((volatile u32 *)0x1000B420)
 
+#ifdef PORT
+#define UNCACHED(p) ((void *)(p)) /* no uncached mirror of memory on PC */
+#else
 #define UNCACHED(p) ((void *)(((u32)(p) & 0x0FFFFFFF) | 0x20000000))
+#endif
 
 /* Builds the chain that uploads a w x h RGBA32 picture stored as 16x16 macroblocks in column order. */
 void MovieTag_BuildImage(u32 *tags, u8 *image, s32 x, s32 y, s32 w, s32 h) {
