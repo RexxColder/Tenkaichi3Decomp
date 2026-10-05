@@ -75,7 +75,8 @@ def dis_lower(lo, pc, label):
     imm11 = (lo & 0x7FF) - (0x800 if lo & 0x400 else 0)
     imm15 = (lo >> 10 & 0x7800) | (lo & 0x7FF)
     D = dest(d)
-    tgt = label(pc + 1 + imm11)
+    is_branch = op in (0x20, 0x21) or op in BR2 or op in BR1
+    tgt = label(pc + 1 + imm11) if is_branch else None   # only a branch names a target (labels are collected through this)
     if op == 0x00: return f"lq.{D} vf{it}, {imm11}(vi{is_})"
     if op == 0x01: return f"sq.{D} vf{is_}, {imm11}(vi{it})"
     if op == 0x04: return f"ilw.{D} vi{it}, {imm11}(vi{is_})"

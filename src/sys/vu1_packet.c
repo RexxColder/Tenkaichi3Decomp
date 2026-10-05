@@ -7,7 +7,8 @@
  *     prog 0  0x2BF6B0..0x2BFAB0     prog 3  0x2C01C0..0x2C04F0     prog 6  0x2C1F00..0x2C2D30
  *     prog 1  0x2BFAB0..0x2BFEA0     prog 4  0x2C04F0..0x2C1180     prog 7  0x2C2D30..0x2C3080
  *     prog 2  0x2BFEA0..0x2C01C0     prog 5  0x2C1180..0x2C1F00     prog 8  0x2C3080..0x2C3380
- * (the program numbers are only the address order; what each one draws was not worked out).
+ * (the program numbers are only the address order. "prog 3" here is the second variant of program 2, called 2b in
+ * the listings: src/vu1/prog*.vsm, described in docs/systems/vu1/README.md.)
  *
  * Each program has a pair of builders:
  *   Vu1Pkt_LoadProgN  a "ref" tag that uploads the microprogram, then a "cnt" packet: FLUSHE, UNPACK V4-32 of the
