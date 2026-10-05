@@ -435,11 +435,17 @@ s32 Num_CountDigits(s32 value) {
 
 /* Num_Draw driven by a NumStyle: the clip naming follows the flags, and with NUM_FLAG_SIGN the clip in front
  * of the first digit shows cell 10 when the value is not zero. */
-#if 0
-/* Not matching, 29 of 179 instructions: register allocation only. The original keeps the digit in s5, the movie in s6 and the name buffer address in s7 (here s7 / s5 / s6), and loads style->count into v0 before copying it to s0 (here straight into s0). The code is otherwise identical, branch for branch. */
-/* Second cleanup pass, without effect: the count through a conditional expression, a block-local or another
- * variable (29 to 59 differences), a 64-bit `count` (the copy is then there but everything else moves), every
- * order of the four initialised locals. */
+/* Two source forms decide the registers here (both found from a decomp-permuter candidate that used
+ * `digit++; digit--;` in the loop):
+ * - the count is an if / else with the call first (`if (style->count == 0) count = f(); else count = style->count;`):
+ *   the field is then loaded into v0 and copied to s0 at the join, as in the original; `count = style->count;
+ *   if (count == 0) ...` and the conditional expression load it straight into s0.
+ * - the blank test comes first (`if (flags & NUM_FLAG_BLANK) { digit = 10; } else { ... }`). The code is the
+ *   same either way, but the ORDER of the sets of `digit` in the insn chain differs, and local-alloc doubles a
+ *   register's live length once for every constant set without a REG_EQUAL note at the head of that chain:
+ *   with the negated test the chain starts `digit = 0` (top), `digit = 0` (first arm), which is two doublings
+ *   (556 = 4 x 139) and puts digit / flash / name in s7 / s5 / s6; with the blank arm first the second set is
+ *   `digit = 10` carrying a note (280 = 2 x 140), the original's s5 / s6 / s7. */
 void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
     FlashRef ref;
     char name[0x40];
@@ -453,9 +459,10 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
     s32 d;
     s32 flags;
 
-    count = style->count;
-    if (count == 0) {
+    if (style->count == 0) {
         count = Num_CountDigits(value);
+    } else {
+        count = style->count;
     }
     if (style->flags & NUM_FLAG_SIGN) {
         if (value <= 0) {
@@ -483,7 +490,9 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
             Flash_FindLabel(flash, a, name, &ref);
         }
         flags = style->flags;
-        if (!(flags & NUM_FLAG_BLANK)) {
+        if (flags & NUM_FLAG_BLANK) {
+            digit = 10;
+        } else {
             if (i != 0) {
                 d = value / Num_Pow(10, i);
             } else {
@@ -515,8 +524,6 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
                 Flash_ClipSetFlags(flash, &ref, FLASH_PROP_VISIBLE, 0);
                 continue;
             }
-        } else {
-            digit = 10;
         }
     draw:
         uv.y0 = style->h * (digit / 4);
@@ -527,9 +534,6 @@ void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
         Flash_ClipSetUv(flash, &ref, &uv);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/view_a_e", Num_DrawEx);
-#endif
 
 /* Non-zero if the cursor may rest on a cell: a character, the custom cell or the random cell. */
 s32 ChrGrid_IsSelectable(ChrGridCell *cells, s32 index) {
@@ -929,15 +933,11 @@ void StgGrid_ApplyUnlocks(s32 *count, s32 *ids) {
 
 /* Marks the locked entries of the music list: an entry whose bit in gSaveData->bgmBits is clear becomes
  * BGMLIST_ID_LOCKED. In mode 0x3E the random entry (0x18) is removed as well. */
-#if 0
-/* Not matching, 9 of 40 instructions: two registers are swapped (the original has i in t0 and the constant 0x19 in t1). */
-/* Second cleanup pass (allocator dump): `i` has 7 references over 58 instructions (priority 2413), the hoisted
- * constant 5 over 40 (2500), and a tie would go to `i`, so `i` needs a live range 2 instructions shorter at
- * that stage. A `do / while` behind an explicit `if (*count > 0)` gives the right registers but puts
- * `move t0,zero` behind the `blez` (5 differences); a variable for the constant set inside the loop gives the
- * registers too but the constant is then hoisted one place early (2 or 3 differences, also with variables for
- * 0x18 and 1 in every order). Without effect: a `switch` with an `id` local as in StgGrid_ApplyUnlocks, a
- * `while`, `continue` forms, `i` / `flags` declared or initialised the other way round. */
+/* The list pointer itself walks (`ids++` in the loop header): with `ids[i]` the code is the same but `i` and
+ * the hoisted constant 0x19 exchange registers (t0 / t1, 9 of 40 instructions), because the strength-reduced
+ * index leaves `i` a longer live range than the constant's allocation priority allows. (decomp-permuter matched
+ * the indexed form with a self-assignment `gProgress->mode = gProgress->mode;` in the last arm: three
+ * instructions that exist only until reload.) */
 void BgmList_ApplyUnlocks(s32 *count, s32 *ids) {
     s32 flags = 0;
     s32 i;
@@ -945,21 +945,18 @@ void BgmList_ApplyUnlocks(s32 *count, s32 *ids) {
     if (gProgress->mode == 0x3E) {
         flags = 2;
     }
-    for (i = 0; i < *count; i++) {
-        if (ids[i] == BGMLIST_ID_RANDOM) {
+    for (i = 0; i < *count; i++, ids++) {
+        if (*ids == BGMLIST_ID_RANDOM) {
             if (flags & 2) {
-                ids[i] = BGMLIST_ID_LOCKED;
+                *ids = BGMLIST_ID_LOCKED;
             }
         } else if (!(flags & 1)) {
-            if (!(gSaveData->bgmBits & (1 << ids[i]))) {
-                ids[i] = BGMLIST_ID_LOCKED;
+            if (!(gSaveData->bgmBits & (1 << *ids))) {
+                *ids = BGMLIST_ID_LOCKED;
             }
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/view_a_e", BgmList_ApplyUnlocks);
-#endif
 
 /*
  * TextBox, 0x25FE00..0x2600B0.

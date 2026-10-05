@@ -813,3 +813,31 @@ IDENTICAL; ONE real difference, `EftChain_BlendKeys` (a row index, fixed the sam
 IDENTICAL on 200 seeds); `ColObb_Contact` not run (no faithful attempt). Usage:
 `python3 build/scratch_difftest/gdt.py src/<file>.c <Func> <seeds> [--nosetup] [--seed N]`.
 Re-run it on any attempt that is rewritten and stays unmatched.
+
+## Lessons from the second permuter batch (2026-10-05)
+
+- A PERMUTER SCORE OF 0 IS NOT PROOF: its scorer ignores stack offsets and it reuses a live
+  variable's slot. 2 of 13 "solved" candidates were not exact, and one (`EftRibbon_DrawKind1`)
+  was behaviourally WRONG. Run build/permuter/verify.py on every candidate, then fdiff on the
+  real file, then the differential test if the form looks odd.
+- Each constant set at the head of a variable's insn chain doubles its live length in
+  local-alloc; swapping the arms of an if / else (which arm assigns the constant first)
+  rotates saved registers without changing the code (`Num_DrawEx`).
+- `ids[i]` versus `*ids` with `ids++` in the `for` header: same instructions, different live
+  range for `i`. `T *c = NULL;` plus a later assignment keeps its own pseudo
+  (`EftBlade_GetColor`). A field pointer assigned AFTER a store to that field
+  (`flash->flags &= ~END; flags = &flash->flags; if (*flags & PLAY)`) keeps a second
+  register (`Flash_Advance`). A 64-bit packet word built in two statements changes store
+  order against its neighbour (`Sprite_DrawPicture`).
+- An "empty" function that still copies its by-value struct to the frame: a dead float local
+  read from the struct, compared and conditionally reassigned (`EftLink_Warp / SetDir`).
+- A local initialised to a SYMBOL ADDRESS is still an instruction at the first scheduling
+  pass even when propagated away; constants are not. Useful probe for "one instruction more
+  in front of a call".
+- The "surviving copy" family has no single form: an initialiser plus a later assignment for
+  one member; a second `r = w` on a partial path inside the loop for the ribbon placers
+  (kept as fakes).
+FAKE MATCHES added (marked in the sources): `BtlText_PutSprite` (`y0++; y0--;`),
+`EftAnimPart_Draw` (`other++; other--;`), `DcPass_DrawRows` (a second `buf = name`),
+`EftRibbon_PlaceStrip`, `EftRibbon_PlaceTrail2` (a second `r = w`), `EftZap_Draw` (a function
+pointer local). `EftLink_DrawBillboard` now carries the tag too.

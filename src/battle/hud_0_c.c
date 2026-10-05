@@ -62,21 +62,21 @@ s32 BtlText_IsOnScreen(s32 x0, s32 y0, s32 x1, s32 y1) {
  * TEX0, the colour with Q = 1.0f, then the two corners with Z = 0xFFFFFFF0. Screen offset: x + 0x700,
  * y + 0x720 (in 1/16 pixel after the shift by 4).
  *
- * NOT MATCHING (7 of 108 instructions; registers only). The attempt is the same code with two saved registers
- * exchanged: the original keeps x0 + 0x700 in s4 and u0 in s3, this compiler output has them in s3 and s4.
- * The allocator orders the two by (uses / live length): 3 / 49 against 2 / 33 instructions here, and the
- * original needs x0 one instruction longer-lived (or u0 one shorter); nothing tried changes that without
- * also changing the order the two XYZ halves are built in (statement order of the four offset additions, the
- * operand order of the ORs, locals for the corners / the UVs / the Z constant, helper functions, an early
- * return). The same pattern resists in FontIcon_PutSprite (col_c_b.c). Checked with the attempt enabled:
- * every other function of the file prints OK either way.
- * Second cleanup pass: the exact condition is u0 one instruction shorter-lived (2 / 32 then ties with y0, which
- * wins as the older register) or x0 AND y0 one longer (the Z constant scheduled in front of their sign
- * extensions by the first scheduling pass). Writing the UV word as `((s64)v0 << 20) | ((s64)u0 << 4)` puts x0
- * in s4 but exchanges u0 and v0 (s5 / s3: 4 differences). Without effect: a local copy of u0 (propagated away),
- * the colour word written five other ways, a variable for the Z constant at four places, the constant first.
+ * FAKE MATCH (permuter): `y0++; y0--;` between the two calls. The pair combines to a self-move of y0 that is
+ * deleted after register allocation; its only effect is that the live ranges crossing it are one instruction
+ * longer (and y0 has two more references). Without it the code is the same with two saved registers exchanged
+ * (7 of 108 instructions): the allocator orders x0 and u0 by uses / live length, 3 / 49 against 2 / 33, so x0
+ * comes first and takes s3; with x0 at 50 instructions (3 / 50 < 2 / 33) u0 comes first, the original's s3 for
+ * u0 and s4 for x0. The dummy works anywhere between the on-screen test and the BtlText_GetTex0 call and
+ * nowhere else, and only on y0. It stands in for a source form that is one instruction longer there before
+ * register allocation (or leaves u0 one shorter) yet emits the same code; that form was not found: the
+ * statement order of the four offset additions (all 24), the operand order of the ORs, locals for the corners /
+ * the UVs / the Z constant / the texture word / the test result, helper functions, an early return and the
+ * offsets added in the call were tried (`((s64)v0 << 20) | ((s64)u0 << 4)` puts x0 in s4 but exchanges u0 and
+ * v0). The forms that made the similar FontIcon_PutSprite (col_c_b.c) match (separate locals for the corners,
+ * (u64) casts, the Z and Q constants written as shifts) leave the same 7 here; the same dummy on u0, x0, y1,
+ * u1 or v1 does not work.
  */
-#if 0
 void BtlText_PutSprite(u64 **pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u0, s32 v0, s32 u1, s32 v1, u32 color,
                        s32 part) {
     x0 += 0x700;
@@ -86,6 +86,8 @@ void BtlText_PutSprite(u64 **pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u0, s32 v0
     if (BtlText_IsOnScreen(x0, y0, x1, y1)) {
         (*pkt)[0] = 0x8400000000008001;
         (*pkt)[1] = 0x535316F0;
+        y0++;
+        y0--;
         *pkt += 2;
         (*pkt)[0] = 0x156;
         (*pkt)[1] = 0;
@@ -101,8 +103,6 @@ void BtlText_PutSprite(u64 **pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u0, s32 v0
         *pkt += 2;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/hud_0_c", BtlText_PutSprite);
 
 /* TEX0 of sheet entry `part` (its own pixels and CLUT, TCC on). */
 u64 BtlText_GetTex0(s32 part) {

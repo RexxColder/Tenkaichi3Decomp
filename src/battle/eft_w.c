@@ -733,6 +733,9 @@ void EftLink_DrawBillboardClipped(Vec4 *pos, f32 w, f32 h, Vec4 *color, Vec4 *sc
 /* Queues a sprite as a screen-aligned textured quad around the projection of `pos`: w x h are half sizes and
    (offX, offY) the centre offset, scaled by the perspective of `pos`; `rot` turns it about the view axis.
    Dropped when smaller than 2 units or when a corner leaves the GS drawing area. */
+/* FAKE MATCH: the empty `__asm__("");` behind the offset scaling. It emits nothing but counts as one instruction
+   in the live ranges of u1 / v1 and so breaks their allocation tie ($f27 / $f26); it stands in for a source form
+   that is one instruction longer somewhere in the function, which was not found (see the note at the statement). */
 void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 offY, f32 u0, f32 v0, f32 u1,
                            f32 v1, f32 rot, s32 layer, s32 noDepth, u64 tex0) {
     Mtx44 m;
@@ -1055,27 +1058,30 @@ void EftLink_SetPos2(EftWTask *task, EftWVec pos) {
     }
 }
 
-/* The module's "warp" entry: does nothing. (The effect pack library calls it for EFT_SPAWN_MOVE | EFT_SPAWN_WARP.) */
-#if 0
-/* NON-MATCHING: the original still copies the by-value vector to its stack (ld / ld / sd / sd, 8 instructions);
-   an empty body lets the compiler delete the copy (3 instructions). What is known (cleanup round 2): the copy is
-   two 8-byte moves (not a block-move instruction), and the life pass deletes such frame stores only in the last
-   basic block and only when nothing after them reads memory. A `volatile` parameter keeps them but in source
-   order (ld 0 / sd 0 / ld 8 / sd 8); an empty `__asm__("")` behind them keeps them in the original's order
-   (ld 8 / ld 0 / sd 8 / sd 0) but with v0 / v1 exchanged: the original has the low half in v0, i.e. the first
-   scheduling pass did not reorder the moves and the second did. No source form that does both was found. */
+/* The module's "warp" entry: does nothing. (The effect pack library calls it for EFT_SPAWN_MOVE | EFT_SPAWN_WARP.)
+   The original still copies the by-value vector to its stack (ld / ld / sd / sd): the life pass deletes such frame
+   stores only in the last basic block, so the body was not empty when flow analysis ran. What reproduces it is a
+   float local read from the low half of the vector (x or y), tested and conditionally reassigned, and never used
+   (the compare and branch are deleted after the life pass): the remains of stubbed-out code. WHICH test and value
+   stood there cannot be recovered (`< 0.0f` / `= 0.0f`, `!= 0.0f` / `= 1.0f`, `> 1.0f` ... all give the same code);
+   reading z or w first exchanges v0 / v1. Found by decomp-permuter as `float n; if (n) { n = 1; }`. */
 void EftLink_Warp(EftWTask *task, EftWVec pos) {
-}
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_w", EftLink_Warp);
+    f32 x = pos.x;
 
-/* The module's "set direction" entry: does nothing (the direction comes from the two end points). */
-#if 0
-/* NON-MATCHING: same as EftLink_Warp. */
-void EftLink_SetDir(EftWTask *task, EftWVec dir) {
+    if (x < 0.0f) {
+        x = 0.0f;
+    }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_w", EftLink_SetDir);
+
+/* The module's "set direction" entry: does nothing (the direction comes from the two end points). Same dead
+   remains as EftLink_Warp. */
+void EftLink_SetDir(EftWTask *task, EftWVec dir) {
+    f32 x = dir.x;
+
+    if (x < 0.0f) {
+        x = 0.0f;
+    }
+}
 
 /* Sets the size factor. */
 void EftLink_SetSize(EftWTask *task, f32 size) {

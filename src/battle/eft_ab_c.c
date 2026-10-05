@@ -282,9 +282,15 @@ void EftRibbon_InitNodes(EftRbn *w, EftRbnArg *arg) {
 
 /* Kind 0: spreads the nodes evenly from start to the ribbon's end point; the first, middle and last segments use
    textures 0, 1 and 2. */
-ASM_STUB_BEGIN(); /* compiled so that EftRibbon_Update / EftRibbon_SetEnd see the definition; the assembler skips it */
-/* NON-MATCHING: the original copies `w` into $a1 after the first calls (move a1,s1) and reads the list head and the colour
-   address through the copy; no source form tried reproduces the copy (60 of 87 differ, mostly by that shift). */
+/* FAKE MATCH (permuter): `r = w;` a second time inside the loop, in front of the step, with the two reads behind
+   it going through `r`. The original copies `w` into $a1 behind the first calls (move a1,s1) and reads the list
+   head and the colour address through the copy; with a single `r = w` the copy propagation of gcse folds `r`
+   into `w` (60 of 87 instructions, mostly by that one-instruction shift). A second assignment that reaches the
+   colour read of the next pass leaves that read with two reaching definitions, so `r` stays a register of its
+   own up to the loop; the assignment itself emits nothing. It stands in for whatever kept the original's copy
+   alive: initialising `r` (to NULL or to `w`) at its declaration, a block-local or second copy for the step,
+   the same assignment at the flags test or without a read through `r` do not do it. Same trick, other place, in
+   EftRibbon_PlaceTrail2; EftBlade_GetColor (eft_aa.c) needed only an initialiser. */
 void EftRibbon_PlaceStrip(EftRbnPrm *prm, EftRbn *w, EftRbnVec *start) {
     EftRbnVec pos;
     EftRbnVec step;
@@ -316,10 +322,11 @@ void EftRibbon_PlaceStrip(EftRbnPrm *prm, EftRbn *w, EftRbnVec *start) {
                     n->color2.w = 0.0f;
                 }
             }
-            if (i < w->numNodes - 2) {
+            r = w;
+            if (i < r->numNodes - 2) {
                 Vec3_Add(&pos, &pos, &step);
             } else {
-                Vec3_Copy(&pos, &w->end);
+                Vec3_Copy(&pos, &r->end);
             }
             next = n->next;
             i++;
@@ -327,8 +334,6 @@ void EftRibbon_PlaceStrip(EftRbnPrm *prm, EftRbn *w, EftRbnVec *start) {
         } while (next != NULL);
     }
 }
-ASM_STUB_END();
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftRibbon_PlaceStrip);
 
 /* Kind 1: pushes the end point into the head of the list and shifts every older position one node down. */
 void EftRibbon_PlaceTrail1(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
@@ -353,13 +358,13 @@ void EftRibbon_PlaceTrail1(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
 
 /* Kind 2: the same shift, with textures 2, 1 and 0 for the first, middle and last segments and the colour
    refreshed. */
-#if 0
-/* NON-MATCHING: 9 of 59 instructions differ: as in EftRibbon_PlaceStrip the original copies `w` into $a1 (move a1,s3) for the
-   head and the colour address, and it sets $a1 before $a0 for the first Vec4_Copy.
-   Cleanup E: here `r = w` survives the first cse pass (r is used later than w, so r stays the canonical register)
-   and is removed by the copy propagation of gcse, which then hoists `w + 0xB0`. Every form of the copy tried gives
-   the same code (initialiser, assignment before / after the first call, twice, in the loop, through a conditional,
-   an array, a union, an integer cast). The original keeps a short-lived second pseudo up to the loop. */
+/* FAKE MATCH (permuter): `r = w;` a second time inside the loop (in the arm that tests the node count), as in
+   EftRibbon_PlaceStrip: the colour read behind the if / else then has two reaching definitions of `r`, the copy
+   propagation of gcse cannot fold `r` into `w`, and the original's `move a1,s3` with the list head and the hoisted
+   `r + 0xB0` read through $a1 comes out. With a single `r = w` the code differs in 9 of 59 instructions (no copy,
+   and $a0 set before $a1 for the first Vec4_Copy). The assignment must be on a path that does not cover the
+   whole loop body: at the loop top, at its end or in front of the colour copy it does nothing or worse; `while`
+   / `for` forms of the loop give 24. */
 void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
     EftRbnVec cur;
     EftRbnVec old;
@@ -377,10 +382,13 @@ void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
             Vec3_Copy(&n->pos, &cur);
             if (i == 0) {
                 n->tex = 2;
-            } else if (i < w->numNodes - 2) {
-                n->tex = 1;
             } else {
-                n->tex = 0;
+                r = w;
+                if (i < r->numNodes - 2) {
+                    n->tex = 1;
+                } else {
+                    n->tex = 0;
+                }
             }
             Vec4_Copy(&n->color, &r->color);
             i++;
@@ -390,8 +398,6 @@ void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
         } while (next != NULL);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftRibbon_PlaceTrail2);
 
 /* A vertex as ClipVtx_Set fills it (eft_a.h EftGfxVert). */
 typedef struct EftRbnVert {
@@ -629,7 +635,7 @@ extern void EftZap_LoadTex(EftZapWork *w);
    EftRibbon_SetTexFrame match only when EftRibbon_PlaceStrip / EftRibbon_SetTexPair are DEFINED earlier in the same translation
    unit (a branch-likely / delay-slot choice changes otherwise), and so does EftRibbon_Update (one instruction):
    this file is the tail of that source file. Merged at integration; where the function the callers need is still
-   INCLUDE_ASM (EftRibbon_PlaceStrip, EftRibbon_DrawStrip, EftRibbon_DrawKind1), its attempt is compiled inside
+   INCLUDE_ASM (EftRibbon_DrawStrip, EftRibbon_DrawKind1), its attempt is compiled inside
    ASM_STUB_BEGIN / ASM_STUB_END (include/include_asm.h) so that the compiler has seen a definition. */
 #define EftRibbon_FreeNodes ((void (*)(EftRibbon *w))EftRibbon_FreeNodes)                                       /* frees the nodes */
 #define EftRibbon_SetTexPair ((void (*)(EftRibbon *w, s32 slot, void *uv, s32 a, s32 b))EftRibbon_SetTexPair)     /* sets a texture frame */
@@ -649,7 +655,14 @@ extern void EftZap_LoadTex(EftZapWork *w);
    quad's end points. */
 ASM_STUB_BEGIN(); /* compiled so that EftRibbon_Draw sees the definition; the assembler skips it */
 /* NON-MATCHING: 15 of 302 instructions differ: the node pointer and the address of prev[0] swap s6 / s7; everything else
-   (including the frame layout) is identical. */
+   (including the frame layout) is identical.
+   Permuter round 2: its "score 0" candidate (no `cam`; the eye copied into `prevSide`) is NOT a match and NOT the
+   same behaviour: prevSide is overwritten at the end of every pass, so the direction to the camera would be wrong
+   from the second quad on, and the frame is 16 bytes off (66 of 302 by fdiff; the permuter's score ignores stack
+   offsets). The original has `cam` at sp + 224 as here. It does show that the swap depends on the pseudos that
+   hold local addresses in front of the loop. Without effect (15): `for` instead of `while` for the link walk,
+   declaration order of link / node, `np` at function scope, a local for node->next; a node-pointer walk gives 27;
+   `cam` declared anywhere else gives 18 to 38. */
 void EftRibbon_DrawKind1(EftRibbon *w, EftRibbonArg *arg, EftRibbonPrm *prm) {
     EftAcVec uvA[4] = { { 1.0f, 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 1.0f, 0.0f } };
     EftAcVec uvB[4] = { { 1.0f, 1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f, 0.0f } };
@@ -1545,10 +1558,17 @@ void EftZap_PostUpdate(EftAcTask *task) {
    else EftGfx_DrawSprite at 16 times the width); otherwise a ribbon like EftRibbon_DrawKind1 through the points
    transformed by the line's matrix, the side vector taken against the camera (facing 0) or against the emitter's
    origin (facing 1), drawn as clipped triangles (flag 0x80) or as one GS quad (EftZap_DrawQuad). */
-#if 0
-/* NON-MATCHING: 9 of 420 instructions differ: the temporaries that carry the addresses of cam, half and verts into the three
-   initialiser memsets use a2 / a3 / t0 in the original and a3 / t0 / v0 here (the second memset loads its length
-   after the address). The rest is identical. The 8-byte initialiser of u[] is D_002FEAD8 in .sdata. */
+/* FAKE MATCH (permuter): the local function pointer `set` (= ClipVtx_Set), the first declaration of the block,
+   used for the three vertex calls. The calls come out as plain `jal ClipVtx_Set` and the pointer leaves no
+   instruction, but its initialisation (a symbol address) is still an instruction when the first scheduling pass
+   runs, right behind the Vu0Cur_LoadMtx call, and that pass issues two instructions per cycle: one more in front
+   decides the order in which the address / length arguments of the three initialiser memsets (cam, half, verts)
+   are loaded and so their temporaries (a2 / a3 / t0 as in the original; without it a3 / t0 / v0 and the second
+   memset loads its length behind the address: 9 of 420 instructions). Any symbol address works there (a pointer
+   to Vu0Cur_ProjectPoints does too); a constant in a variable, an initialised local, a camera-view or eye
+   pointer do not (propagated away earlier, or they change the code). So the original had one more instruction
+   in front of the initialisers that left no trace; which is not known. The permuter's second change
+   (`0.0f > dot`) is not needed. The 8-byte initialiser of u[] is D_002FEAD8 in .sdata. */
 void EftZap_Draw(EftAcTask *task) {
     EftZapWork *w = task->work;
     EftZapDef *def = w->arg.def;
@@ -1556,6 +1576,7 @@ void EftZap_Draw(EftAcTask *task) {
     Vu0Cur_Push();
     Vu0Cur_LoadMtx(&gBtlCamView->world2screen);
     {
+    void (*set)(EftAcVert *vtx, Vec4 *pos, Vec4 *uv, Vec4 *col) = ClipVtx_Set;
     EftAcScr scr[4];
     EftAcVec seg;
     EftAcVec view;
@@ -1647,9 +1668,9 @@ void EftZap_Draw(EftAcTask *task) {
                         if (def->flags & 0x80) {
                             Vu0Cur_ProjectPoints(scr, V(pos), 4);
                             for (i = 0; i < 2; i++) {
-                                ClipVtx_Set(&verts[0], V(&pos[i]), V(&uv[i]), V(&line->color));
-                                ClipVtx_Set(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&line->color));
-                                ClipVtx_Set(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&line->color));
+                                set(&verts[0], V(&pos[i]), V(&uv[i]), V(&line->color));
+                                set(&verts[1], V(&pos[i + 1]), V(&uv[i + 1]), V(&line->color));
+                                set(&verts[2], V(&pos[i + 2]), V(&uv[i + 2]), V(&line->color));
                                 EftGfx_DrawPolyScaledZ(verts, def->blend, 0, 0, (w->flags >> 17) & 1, 0,
                                                        EFT_TEX0(w->arg.tex, w->texIdx), 2.0f);
                             }
@@ -1671,10 +1692,6 @@ void EftZap_Draw(EftAcTask *task) {
     }
     Vu0Cur_Pop();
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_ab_c", D_002ED690);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftZap_Draw);
-#endif
 
 /* Task reset: kills the task. */
 void EftZap_Reset(EftAcTask *task) {
@@ -2180,8 +2197,13 @@ void EftZap_UpdateLines(EftZapWork *w) {
    context 2). With `front` the vertices are drawn at the nearest depth. Nothing is drawn when the projection
    clips the quad. */
 #if 0
-/* NON-MATCHING: 45 of 274 instructions differ: register allocation and the order in which the packet header constants are
-   loaded; the stores, the bit-field writes and the ordering-table code are identical. */
+/* NON-MATCHING: 19 of 274 instructions differ (was 45). The packet header now matches: `regs` written as
+   `K + (ctx << 4)` (int shift, constant first), the form of the guide's GS packet header lesson. What is left is
+   behind the Vec4_ToInt call: the original loads the bit-field constant 0xFFFFFF (a1) first, then the first colour
+   byte, `l = layer`, the 0xFF000000FFFFFFFF mask (a0), -1 (a2), and computes `texIdx << 4` last (behind the layer
+   adjustment); here the shift comes first and the two masks are in a0 / a1 the other way round (11 lines there
+   plus the 8 `and` that use them). Moving the texture pointer behind the layer adjustment, or reading it inline
+   at the tex0 store, puts the shift right but exchanges tex / texIdx in s5 / s6 (21). */
 void EftZap_DrawQuad(EftAcVec *pos, EftAcVec color, f32 u0, f32 v0, f32 u1, f32 v1, f32 u2, f32 v2, f32 u3, f32 v3,
                      s32 layer, s32 texIdx, s32 front, EftAcTex *tex) {
     EftAcVec uv[4];
@@ -2214,7 +2236,7 @@ void EftZap_DrawQuad(EftAcVec *pos, EftAcVec color, f32 u0, f32 v0, f32 u1, f32 
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000008;
     p->gifTag = 0xE400000000008001;
-    p->regs = ((u64)ctx << 4) + 0x42142142142160;
+    p->regs = 0x42142142142160 + (ctx << 4);
     p->next = NULL;
     z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
     if (front) {

@@ -256,7 +256,8 @@ EftGroundPiece *EftGndDust_SpawnPieceEx(EftGroundWork *w, Vec4 *pos, Vec4 *dir, 
 
 /* Dust rising from a fighter's body: pieces along ten node-to-node segments, one per quarter body height
    (6 units at least), each flying away from node 3. Five libc rand() per piece, two of them unused. */
-#if 0 /* NON-MATCHING: 21 of 347 instructions, all register choices and scheduling inside the piece loop: the original keeps (f32)j in f0 and start.z in f1 (this C the other way round), swaps f6 / f7 between step.y and the 0.7f constant, and orders the loads of the 0.1f / 0.01f / 0.8f constants and the stores to def->fade / def->drag differently. Same instructions, same calls, same stack layout. */
+#if 0 /* NON-MATCHING: 12 of 347 instructions (was 21), register choices only, in the position sum of the piece loop: the original keeps (f32)j in f0 and start.z in f1 (this C the other way round) and has step.y in f6 and the 0.7f constant in f7 (here f7 / f6). Same instructions, same calls, same stack layout.
+   Permuter round 2: the definition's scalars are stored in the order fade, grow, drag, gravity (that fixed the order of the 0.1f / 0.01f / 0.8f loads and of the stores: 9 instructions). Without effect on the rest: every order and operand order of the three position lines, a local for (f32)j, the 0.7f added in a second statement or at the use, the life statement moved behind the position lines (67). */
 void EftGndDust_SpawnBodyDust(EftGroundWork *w, EftGroundDef *def, f32 scale) {
     EftGroundSeg seg[10] = {
         { 3, -1, 0 },       { 0xB, 8, 0 },      { 0xF, 0xC, 0 },    { 0x15, -1, 0 },    { 0x23, -1, 0 },
@@ -324,10 +325,10 @@ void EftGndDust_SpawnBodyDust(EftGroundWork *w, EftGroundDef *def, f32 scale) {
             Vec4_Copy(&def->dir, (Vec4 *)&dir);
             Vec4_Set(&def->grav, 0.0f, -1.0f, 0.0f, 1.0f);
             def->life = life * 30.0f;
-            def->grow = 0.1f;
             def->fade = 5;
-            def->gravity = 0.01f;
+            def->grow = 0.1f;
             def->drag = 0.8f;
+            def->gravity = 0.01f;
             def->spin = 0;
             def->speed = 1.5f;
             def->speedRand = 0.0f;
@@ -1218,12 +1219,13 @@ u8 *EftBlade_GetColorPtr(void) {
 }
 
 /* The default trail colour as four ints; returns its alpha as 0..1. */
-#if 0 /* NON-MATCHING: 17 of 31 instructions: the original loads the colour pointer into v0, tests it and copies it to a1 in the delay slot (the shape of an inlined EftBlade_GetColorPtr); this C loads it into a1 directly, which shifts the rest by one instruction.
-   Cleanup E: every way of writing a second pointer variable (static inline getter, explicit `c = r` before or after
-   the test, the getter expanded twice, loops, empty do-while) is folded back into one register by cse; no compiler
-   flag changes it. The original needs two pseudos at allocation time (the tested one in v0, its copy in a1). */
+/* `c` is initialised to NULL at its declaration and assigned again behind the test: a variable with two sets is
+   a pseudo of its own, so the tested value stays in v0 and its copy goes to a1 in the delay slot (the original's
+   `lw v0,0xC(v0) / bnez v0 / move a1,v0`). With a single assignment cse folds the copy into the tested register
+   and the load goes straight to a1 (17 of 31 instructions). This is the "surviving copy" of the ribbon placers
+   in its simplest form. (decomp-permuter found it as a read of the uninitialised `c` in the default arm.) */
 f32 EftBlade_GetColor(EftAaIVec *out) {
-    u8 *c;
+    u8 *c = NULL;
 
     if (gEftBlade == NULL || gEftBlade->color == NULL) {
         out->x = 0xF0;
@@ -1239,9 +1241,6 @@ f32 EftBlade_GetColor(EftAaIVec *out) {
     out->w = c[3];
     return (f32)out->w / 255.0f;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_aa", EftBlade_GetColor);
-#endif
 
 /* The trail definition of a fighter's character, or NULL when it has none. */
 EftBladeDef *EftBlade_FindDef(s32 objId) {
@@ -1578,11 +1577,15 @@ void EftAnimPart_Update(EftAaTask *task) {
 
 /* Task draw: picks the draw layer from the part's mode; some modes are not drawn in a view that does not
    show the owner (unless a technique camera cut is running). */
-#if 0 /* NON-MATCHING: 16 of 67 instructions, one register exchange: the original has `other` in s2 and `w` in s3, this C the reverse.
-   Cleanup E: global allocation order here is layer, chr, w, other (priority = log2(refs) * refs / live length:
-   w 7 refs over 43 insns, other 5 over 38). The original needs `other` ahead of `w`: two more references to
-   `other`, or two fewer to `w`. Declaration orders, the forms of the `other` test, separate case bodies and a second
-   pointer for the two draw calls all leave the counts unchanged. */
+/* FAKE MATCH (permuter): `other++; other--;` in front of the switch. The pair combines to a self-move of
+   `other` that is deleted after register allocation; it only gives `other` two more references (one more set,
+   one more use). Without it the code is the same with one register exchange (16 of 67 instructions: `other` in
+   s3 and `w` in s2). Global allocation orders the two by log2(refs) * refs / live length: w has 7 references
+   over 43 instructions (14 / 43), other 5 over 38 (10 / 38), and the original needs `other` first: 7 references
+   to `other` (14 / 39), or 5 to `w`. The dummy stands in for those two references, wherever the original had
+   them; the forms of the `other` assignment (if / else, &&, |=, a second statement, narrower types), separate
+   case bodies, the mode in a local and other pointers for the two draw calls were tried without effect. (The
+   permuter also reused `other` for the constant of the flags test; that half is not needed.) */
 void EftAnimPart_Draw(EftAaTask *task) {
     s32 layer = 0;
     EftAnimPart *w = task->work;
@@ -1595,6 +1598,8 @@ void EftAnimPart_Draw(EftAaTask *task) {
     if (!EftCam_IsActive()) {
         other = BtlScene_IsCharInView(chr) == 0;
     }
+    other++;
+    other--;
     switch (w->arg.mode) {
     case 1:
     case 3:
@@ -1636,9 +1641,6 @@ void EftAnimPart_Draw(EftAaTask *task) {
         EftSprAnim_Draw(w);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_aa", EftAnimPart_Draw);
-#endif
 
 /* 1 when a handle still names a live part: the task is not killed, is of this class, has the id the part was
    created with, and the part has not finished fading. */

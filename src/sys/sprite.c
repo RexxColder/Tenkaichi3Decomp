@@ -17,10 +17,13 @@ s32 Sprite_ConvY(s32 y) {
 }
 
 /* Draws textures 0..7 of a sheet as a 512x448 picture (4 x 2 tiles of 128x256 texels shown 128x224). */
-#if 0
-/* 12 of 150 instructions differ, all instruction order / register choice with the same operations: at the top of
-   the row loop (the `row * 4` store and the reload of `x << 4` use v0 instead of v1 and are scheduled differently)
-   and in the GIF tag of each tile (the original loads both tag words before storing them). */
+/* The tile's GIF tag is written in two statements, tag word first (`p[0] = ...; p[0] |= ...; p[1] = regs;`): the
+   compiler folds them into one constant but emits the stores in the original's order (both words loaded, then
+   `sd regs,8 / sd tag,0`), and the instruction count in front of the stores also settles the scheduling at the
+   top of the row loop. One statement per word gives the same operations with 12 of 150 instructions in another
+   order / register (either store order). WHICH bits the second statement adds cannot be told: every split of
+   the four fields matches (found by decomp-permuter as `p[0] = 1 << 15; p[0] = 1 | p[0] | ...`); the packed tag
+   plus the REGLIST flag is the reading chosen here. */
 void Sprite_DrawPicture(SpriteRes *res, s32 x, s32 y, s32 alpha) {
     u64 *p;
     s32 row;
@@ -64,8 +67,9 @@ void Sprite_DrawPicture(SpriteRes *res, s32 x, s32 y, s32 alpha) {
             y1 = row ? yy + 0xC0 : yy + 0xE0;
             y0 = row ? yy - 0x20 : yy;
             y0 = (y0 << 4) + SPRITE_OFS_Y;
+            p[0] = GIF_TAG(1, 1, 6);
+            p[0] |= (u64)GIF_FLG_REGLIST << 58;
             p[1] = 0x535306; /* TEX0_1, PRIM, UV, XYZ2, UV, XYZ2 */
-            p[0] = GIF_TAG_EX(1, 1, GIF_FLG_REGLIST, 6);
             p += 2;
             p[0] = res->tex[idx].tex0 | ((u64)(res->tex[idx].cbpOfs + SPRITE_CBP_PICTURE) << 37) |
                    (((u64)4 << 32) | SPRITE_TBP);
@@ -82,8 +86,6 @@ void Sprite_DrawPicture(SpriteRes *res, s32 x, s32 y, s32 alpha) {
         yy += 0x100;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/sprite", Sprite_DrawPicture);
 
 /* Draws a run of sprite records at an offset; the run ends at the first record with LOAD_SPR_END. */
 void Sprite_DrawList(SpriteRes *res, s32 x, s32 y, LoadSprite *list) {

@@ -709,6 +709,8 @@ segments:
       - [0x1FEA18, sdata, cod/1FEA18]
       - [0x1FEA54, .sdata, battle/eft_q]
       - [0x1FEA58, sdata, cod/1FEA58]
+      - [0x1FEAD8, .sdata, battle/eft_ab_c]
+      - [0x1FEAE0, sdata, cod/1FEAE0]
       - [0x1FEB20, .sdata, battle/btl_act_a]
       - [0x1FEB28, sdata, cod/1FEB28]
       - [0x1FEB3C, .sdata, battle/hud_a]

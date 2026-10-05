@@ -1070,26 +1070,25 @@ void Flash_Destroy(Flash *flash) {
     }
 }
 
-#if 0
-/* NOT MATCHING: one instruction short. The original copies the masked flags before testing bit 0
-   (`and v1,v1,v0 / move v0,v1 / andi v0,v0,1`); this gives `and v1,v1,v0 / andi v0,v1,1`, everything else is
-   the same (shifted by that one instruction). About 120 spellings were tried (copies, 64-bit temporaries, bit
-   fields, inline helpers, a (u8) cast: `andi v0,v1,1 / andi v0,v0,0xff`). Same behaviour. */
 /* One tick: clears the event bits of the last tick and, while playing, runs `speed` frames of the root. */
+/* The play test reads the flags back through a pointer to the field that is set AFTER the masking store (the
+   same habit as `speed`): the compiler knows the value but keeps it as a second register, which is the
+   original's `and v1,v1,v0 / move v0,v1 / andi v0,v0,1`. Testing a local or the field itself gives
+   `andi v0,v1,1` (one instruction short), and a pointer initialised at its declaration makes the function
+   two instructions longer. Found from a decomp-permuter candidate
+   (`if ((*(p = &flash->flags) & ~FLASH_END) & FLASH_PLAY)`), of which only the late pointer is needed. */
 void Flash_Advance(Flash *flash) {
     s32 *speed = &flash->speed;
-    u32 flags;
+    u32 *flags;
 
     flash->trig = 0;
     flash->se = 0;
-    flags = flash->flags & ~FLASH_END;
-    flash->flags = flags;
-    if (flags & FLASH_PLAY) {
+    flash->flags &= ~FLASH_END;
+    flags = &flash->flags;
+    if (*flags & FLASH_PLAY) {
         FlashTl_Advance(flash->root, *speed, 0, 0);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_c", Flash_Advance);
 
 /* Draws the movie (after the default drawing environment) unless it is hidden. */
 void Flash_Draw(Flash *flash) {

@@ -12,15 +12,12 @@
  * (0x8C bytes). Its read-only data is 0x3BD700 ("mc_input_code_%d_%02d") .. 0x3BE16C (the two jump tables of
  * DcPass_Input); with the `#if 0` attempts compiled in, the strings come out exactly as in the original.
  *
- * Three functions are INCLUDE_ASM. What they refer to in the object's data:
+ * Two functions are INCLUDE_ASM. What they refer to in the object's data:
  *   DcPass_WrapPos     nothing
  *   DcPass_DrawStatus  its own seven strings, 0x3BD850..0x3BD914 ("mc_status_ability_plus_%d" 0x3BD850,
  *                      "mc_status_ability_base2_1" 0x3BD870, "mc_text_ability_&d" 0x3BD890,
  *                      "mc_status_ability_base1_%d" 0x3BD8A8, "mc_status_ability_minus_%d" 0x3BD8C8,
  *                      "mc_text_ability_1" 0x3BD8E8, "mc_status_attribute" 0x3BD900); no C function shares them
- *   DcPass_DrawRows    "mc_menu_plate2_%d" 0x3BD930 (a literal of DcPass_SetListClip, in front of it; shared with
- *                      DcPass_LightRow and DcPass_ConfirmRow too) and its own "mc_menu_text1_on" 0x3BD9B8 and
- *                      "mc_menu_text2_on" 0x3BD9D0
  */
 
 /*
@@ -678,10 +675,6 @@ static inline void DcPass_SetCellB(MFlashUv *uv, s32 col, s32 row, s32 w, s32 h)
     uv->y1 = uv->y0 + h;
 }
 
-/* A named object because DcPass_DrawRows (INCLUDE_ASM) uses it too; it sits where DcPass_SetListClip's literal
-   was. In the attempt it is the literal "mc_menu_plate2_%d". */
-static const char sDcPassPlate2Clip[] __attribute__((aligned(8))) = "mc_menu_plate2_%d";
-
 /* Makes the four plates of the slot list draw inside the list's window. */
 void DcPass_SetListClip(DcPassView *view) {
     MFlashRef ref;
@@ -690,7 +683,7 @@ void DcPass_SetListClip(DcPassView *view) {
     s32 i;
 
     for (i = 0; i < 4; i++) {
-        sprintf(name, sDcPassPlate2Clip, i + 1);
+        sprintf(name, "mc_menu_plate2_%d", i + 1);
         Flash_FindLabel(flash, NULL, name, &ref);
         Flash_ClipSetCallbackA(flash, &ref, DcPass_ClipBegin, NULL);
         Flash_ClipSetCallbackB(flash, &ref, DcPass_ClipEnd, NULL);
@@ -752,7 +745,7 @@ void DcPass_LightRow(DcPassView *view, DcPassList *list, s32 on) {
     char name[0x100];
     MFlash *flash = &view->flash[1];
 
-    sprintf(name, sDcPassPlate2Clip, list->cursor + 1);
+    sprintf(name, "mc_menu_plate2_%d", list->cursor + 1);
     Flash_FindLabel(flash, NULL, name, &ref);
     if (on) {
         Flash_ClipGotoLabel(flash, &ref, "fl_on_start");
@@ -776,24 +769,26 @@ s32 DcPass_ClampTop(DcPassList *list) {
 
 /*
  * Fills the four plates of the slot list: the name and form of the character saved there, or a dimmed plate.
- * INCLUDE_ASM: the attempt below is the same code with three saved registers rotated (20 of 161 instructions,
- * was 47): the original has the name buffer's address in s4, list in s5 and view in s6; this gives s6, s4, s5.
- * Found in the cleanup: the movie is `&view->flash[1]` written at every use, not a local (that puts the movie in
- * s1 and the character in s2 as in the original). The rest is the allocation order of three registers that live
- * through the whole function: the hoisted `sp + 16` is equivalent to a constant, so its live length counts
- * double (254 against 128) and with its 14 weighted references it ranks behind list and view (8 each); it needs
- * 16 to rank first, i.e. one more use inside the loop. A `char *buf = name` used for the four lookups by name
- * alone reaches that and gives the original's registers, but then the lookup at the end of the first arm uses
- * the register where the original computes `sp + 16` again (9 differences). What gave the original its extra
- * reference is not found (duplicated arms, the pointer assigned inside the loop and every mix of `buf` / `name`
- * were tried: build/scratch_cleanup2_I/dr*.py).
+ * FAKE MATCH (permuter): the pointer `buf`. It is set to the name buffer at its declaration and again in the
+ * "cursor on an empty slot" arm, and only the second lookup of a filled plate reads it. Without it the code is
+ * the same with three saved registers rotated (20 of 161 instructions: name buffer / list / view in s6 / s4 / s5
+ * instead of s4 / s5 / s6). The three live through the whole function and are ordered by weighted references
+ * over live length; the hoisted `sp + 16` is equivalent to a constant, so its live length counts double (254
+ * against 128), and with 14 weighted references it ranks behind list and view (8 each): it needs 16. The
+ * second assignment is that reference: it becomes a copy of the hoisted register into a pseudo that gets no
+ * register and is rematerialised at its use (`addiu v0,sp,16`, which is what the original has at all three
+ * lookups of that arm anyway), and the copy itself is then deleted. So the original had one more use of the
+ * hoisted address inside the loop that left no instruction; what it was is not found (the permuter's own form
+ * left `buf` unset on the other paths; initialising it keeps the match and makes the C well defined; `buf`
+ * for more of the lookups, or set only once, does not match). Also needed, found in the cleanup: the movie is
+ * `&view->flash[1]` written at every use, not a local.
  */
-#if 0
 void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
     MFlashRef ref;
     char name[0x100];
     s32 i;
     s32 chara;
+    char *buf = name;
 
     for (i = 0; i < 4; i++) {
         sprintf(name, "mc_menu_plate2_%d", i + 1);
@@ -801,6 +796,7 @@ void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
             chara = list->chara[i + list->top];
             if (i == list->cursor) {
                 if (chara == -1) {
+                    buf = name;
                     Flash_FindLabel(&view->flash[1], NULL, name, &ref);
                     Flash_ClipSetAlpha(&view->flash[1], &ref, 1.0f);
                     continue;
@@ -810,7 +806,7 @@ void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
             }
             Flash_FindLabel(&view->flash[1], name, "mc_menu_text1_on", &ref);
             TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->nameBox[i]);
-            Flash_FindLabel(&view->flash[1], name, "mc_menu_text2_on", &ref);
+            Flash_FindLabel(&view->flash[1], buf, "mc_menu_text2_on", &ref);
             TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->formBox[i]);
             Flash_FindLabel(&view->flash[1], NULL, name, &ref);
             Flash_ClipSetAlpha(&view->flash[1], &ref, 1.0f);
@@ -831,9 +827,6 @@ void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/menu/menu_z_d", DcPass_DrawRows);
-#endif
 
 /* Draws the slot list. */
 void DcPass_DrawList(DcPass *pass) {
@@ -1129,7 +1122,7 @@ void DcPass_ConfirmRow(DcPass *pass) {
     char name[0x100];
     MFlash *flash = &pass->view.flash[1];
 
-    sprintf(name, sDcPassPlate2Clip, pass->list.cursor + 1);
+    sprintf(name, "mc_menu_plate2_%d", pass->list.cursor + 1);
     Flash_FindLabel(flash, NULL, name, &ref);
     Flash_ClipGotoLabel(flash, &ref, "fl_ok");
 }

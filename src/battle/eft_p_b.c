@@ -54,7 +54,7 @@ extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);
 extern void Vec3_Set(EftPVec *dst, f32 x, f32 y, f32 z);
 extern void Vec4_Div(EftPVec *dst, EftPVec *src, f32 div);
 extern void Vec4_Clamp(EftPVec *dst, EftPVec *src, f32 lo, f32 hi);
-extern void Vu0Cur_ProjectPoint(EftPScr *out, EftPVec *pos);
+extern s32 Vu0Cur_ProjectPoint(EftPScr *out, EftPVec *pos); /* returns a value (unused here); `void` changes the callers' registers */
 
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftPVec *out);
 extern void BtlCharApi_GetDir(s32 objId, EftPVec *out);
@@ -967,18 +967,10 @@ void EftGlow_MakeFacingMtx(Mtx44 *m, EftPVec *dir, EftPVec *pos) {
     m->m[3][2] = pos->z;
 }
 
-/* NON-MATCHING: 9 of 487 instructions, register choice in the three off-screen tests only (the original holds the
-   projected x in v1, the limit 0xFFF0 in a1 and the two copies of the record pointer in v0 / a0; this code uses
-   v0, v1, a0, a1).
-   Second cleanup, from the allocation dumps: the three `sp + i * 16` addresses (one per member read, later turned
-   into copies) and the limit live across the tests' blocks, so global allocation places them; x and its compare
-   result live inside one block and local allocation, which runs first, gives them v0. For the original's result
-   (y address in v0, x in v1, z address in a0, limit in a1) x would have to be allocated globally, after the y
-   address. A variable for the limit (`lim = 0xFFF0;` in front of the first test) puts the limit in a1 (8 of
-   487) but not x. No effect: the range written as `x < 0 || x > 0xFFF0`, `0xFFF0 < x`, `>= 0xFFF1`, else-if
-   chains, inline helpers taking the value or the record, a 16-aligned record type. The same three tests differ
-   the same way in EftAura_DrawFlames (eft_n.c). */
-#if 0
+/* Matched once Vu0Cur_ProjectPoint was declared with its return value (`s32`, as its definition has): with the
+   local `void` prototype the three off-screen tests came out with x / the limit 0xFFF0 / the record pointer
+   copies in permuted registers (9 of 487 instructions), because a call that returns nothing leaves v0 free for
+   local allocation in the block behind it. Same cause as EftAura_DrawFlames (eft_n.c). */
 /* Draws a fighter's quads (not the trailing ones): each is projected, skipped when a corner is off the GS
    coordinate range or behind the near plane, and queued in the order table by its average depth. */
 void EftGlow_DrawParts(EftPGlow *e, s32 objId, f32 alpha) {
@@ -1139,5 +1131,3 @@ void EftGlow_DrawParts(EftPGlow *e, s32 objId, f32 alpha) {
         link = &p->next;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_p_b", EftGlow_DrawParts);
