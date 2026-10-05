@@ -191,6 +191,50 @@ mc_extract.py (PS2 memory card image reader), BT3_TRACE=<n> (fight state every n
 blanks), BT3_DUMP=<file> (heap dump at the end of the battle, for comparison with a console
 memory dump: both use the same addresses).
 
+## Hunting the divergence (2026-10-05 / 06)
+
+Console reference: four PCSX2 save states the user made while PLAYING BACK the replay
+(gamedata/validation/play01..04: 55 frames into the countdown, battle ticks 319, 906, 1506)
+and state01 (result screen of the original fight). Tools: `BT3_AT=<ticks>` dumps heap and
+globals at those ticks; `port/tools/compare_state.py <tick> <eeMemory.bin>` compares the
+heap byte by byte and the global variables by name (pointer-aware);
+`port/tools/intro_metric.py` reads a `BT3_TRACE=1` trace and reports how close the PC is to
+play01 (the fighters already move during the countdown, so this is the earliest check).
+
+Verified:
+- Health is identical at tick 319 (38030 / 26510) and different at 906 and later.
+- A replay stores no random seed; the game's generators differ between any two runs
+  (docs/netplay_notes.md in the decompilation), so they are not expected to match.
+- 55 frames into the countdown the fighter positions already differ from the console in the
+  last few bits (e.g. x 0x43119222 against 0x4311922A): the divergence is ARITHMETIC and starts
+  at once; everything later is amplification.
+
+Float model, as far as it is established (port/src/softfloat_ps2.c; PCSX2 is the reference
+because the save states come from it):
+- FPU add / subtract: truncating, and the smaller operand loses its low bits first (exponent
+  difference d of 1..24 clears d - 1 bits, 25 or more leaves only the sign). CONFIRMED: with
+  it a decaying animation value matches the console bit for bit at tick 319 (0xB5C0554B);
+  with plain truncation it was 3 units low.
+- FPU division: to nearest. Evidence: 1.0f / 30.0f in gFade.
+- FPU multiply: truncating (assumed). Vector unit add / multiply / divide: truncating
+  (assumed). Square root: the vector unit's truncates, the FPU's / libm's rounds to nearest
+  (assumed).
+- The integer routines agree with the host float unit on 4,000,000 random cases per
+  operation in both rounding modes, so what remains is the choice of model, not its coding.
+- libm is the PS2's own (newlib 1.10.0 float sources, unmodified, in
+  port/third_party/newlib_libm, compiled with software float); libc rand is newlib's
+  64-bit generator (read from the executable).
+- Experiment switches (environment): BT3_VU_NEAREST, BT3_FPU_NEAREST, BT3_VU_ADDHACK,
+  BT3_FPU_NOADDHACK. None of the six combinations tried makes the countdown positions exact
+  (differences stay around 0.001 units summed over six coordinates).
+
+Not known: which operation still differs. Candidates: a vector-unit operation PCSX2 treats
+differently from the assumption, an instruction the original uses where our C compiles to
+something else (multiply-add, the FPU square root's handling of edge cases), or a logic
+difference that only shows in the last bits.
+The decisive tool would be a small PS2 test program run in PCSX2 that prints the result bits
+of every operation class for fixed inputs (the maths harness planned in docs/roadmap.md).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

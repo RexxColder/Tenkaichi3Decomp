@@ -150,15 +150,17 @@ static uint32_t mul_core(uint32_t a, uint32_t b, int nearest) {
    divide to nearest; BT3_FPU_NEAREST=1 does the same for the FPU's add / multiply. Default: toward zero. */
 #include <stdlib.h>
 static int mode(int which) {
-    static int m[2] = {-1, -1};
+    static const char *const name[4] = {"BT3_VU_NEAREST", "BT3_FPU_NEAREST", "BT3_VU_ADDHACK", "BT3_FPU_NOADDHACK"};
+    static int m[4] = {-1, -1, -1, -1};
 
     if (m[which] < 0) {
-        const char *e = getenv(which ? "BT3_FPU_NEAREST" : "BT3_VU_NEAREST");
+        const char *e = getenv(name[which]);
         m[which] = e != NULL && e[0] == '1';
     }
     return m[which];
 }
-uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) { return add_core(a, b, mode(0)); }
+static uint32_t fpu_add(uint32_t a, uint32_t b);
+uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) { return mode(2) ? fpu_add(a, b) : add_core(a, b, mode(0)); }
 uint32_t RefVu0_MulBits(uint32_t a, uint32_t b) { return mul_core(a, b, mode(0)); }
 
 /* a / b; nearest = 1 rounds to nearest even (the FPU's div.s under PCSX2), 0 truncates (vdiv). */
@@ -218,6 +220,9 @@ uint32_t __divsf3(uint32_t a, uint32_t b) { return RefVu0_DivBits(a, b); }
 static uint32_t fpu_add(uint32_t a, uint32_t b) {
     int32_t d = (int32_t)EXP(a) - (int32_t)EXP(b);
 
+    if (mode(3)) {
+        return add_core(a, b, mode(1));
+    }
     if (d >= 25) {
         b &= SIGN;
     } else if (d > 0) {
