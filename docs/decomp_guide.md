@@ -841,3 +841,25 @@ FAKE MATCHES added (marked in the sources): `BtlText_PutSprite` (`y0++; y0--;`),
 `EftAnimPart_Draw` (`other++; other--;`), `DcPass_DrawRows` (a second `buf = name`),
 `EftRibbon_PlaceStrip`, `EftRibbon_PlaceTrail2` (a second `r = w`), `EftZap_Draw` (a function
 pointer local). `EftLink_DrawBillboard` now carries the tag too.
+
+## `BtlInput_Update` (2026-10-05): matched as a FAKE MATCH; allocator facts from the gcc source
+
+`BtlInput_Update` (src/battle/btl_input.c) is live through an empty asm with operands behind
+the computation of `pressed`: `__asm__("" : "=r"(pressed) : "0"(pressed));` plus the `pressed`
+store moved behind the float stores. It emits no instruction; it is one more register copy
+tied to `pressed` (two more references). Behaviour: differential test on the final form,
+4000 seeds, 8 of 8 branches, no difference. No natural form was found; the note in the source
+has the arithmetic argument why no statement order can work with four references.
+- From gcc's local-alloc.c (2.95.3 source in build/scratch_cleanup5_IN/gccsrc/): quantities
+  with a hard-register SUGGESTION (a copy to or from a hard register) are allocated first, to
+  that register; only the rest go by `floor_log2(refs) * refs * size / length`, ties to the
+  first-born; a candidate register is excluded if the hard register is live anywhere in the
+  quantity's lifetime.
+- TOOL: `__asm__("" : "=r"(v) : "0"(v));` adds two references and one tied copy to `v`,
+  emits nothing and is NOT a scheduling barrier (a bare `__asm__("")` is). It is a precise
+  probe for "this quantity needs N more references" hypotheses, and a last-resort fake.
+- Things removed before allocation (so they cannot add a reference): `x++; x--;` folded by
+  combine unless the variable has a use in between; a double store (dead store); a field
+  stored to itself or reloaded (cse); a `register ... asm("$2")` variable.
+- `do { } while (0)` inside a block is a scheduling barrier; a dead conditional splits the
+  block.
