@@ -10,7 +10,8 @@ layout(set = 2, binding = 1) uniform sampler2D dateTex; // a copy of the target'
 layout(set = 3, binding = 0) uniform Params {
     ivec4 mode;  // x: textured (1 from GS memory, 2 a frame buffer), y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
     vec4 misc;   // x: AREF in GS units (0..255); y: destination alpha test (0 off, 1 pass where bit 7 of the
-                 // stored alpha is 0, 2 where it is 1); z: 1 = FBA, the alpha written gets bit 7 set
+                 // stored alpha is 0, 2 where it is 1); z: 1 = FBA, the alpha written gets bit 7 set;
+                 // w: for 2D sprites, output pixels per GS pixel (0 = sample per output pixel)
     vec4 rect;   // textured from a frame buffer (mode.x == 2): the uv range that may be sampled
 } p;
 void main() {
@@ -25,6 +26,15 @@ void main() {
     float a = vColor.a * k;
     if (p.mode.x != 0) {
         vec2 uv = vStq.xy / vStq.z;
+        if (p.misc.w != 0.0) {
+            // A 2D sprite: take the texture coordinate where the GS takes it, at the whole GS pixel this fragment
+            // belongs to (misc.w = output pixels per GS pixel). Every output pixel of that GS pixel then shows
+            // the same texel, as on the console. Sampling at the output pixels' own centres reaches a quarter or
+            // three quarters of a texel further, and at a sprite's edge that is the neighbouring picture of the
+            // sheet (seen as slivers of another bar's colour and as thin lines along HUD panels).
+            vec2 f = gl_FragCoord.xy, g = floor(f / p.misc.w) * p.misc.w;
+            uv -= dFdx(uv) * (f.x - g.x) + dFdy(uv) * (f.y - g.y);
+        }
         if (p.mode.x == 2) uv = clamp(uv, p.rect.xy, p.rect.zw);
         vec4 t = texture(tex, uv);
         if (p.mode.x == 1) t.a *= k; // a texture from GS memory keeps the GS alpha (0x80 opaque, up to 0xFF)

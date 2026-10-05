@@ -725,3 +725,14 @@ with a third of the interpreter's work gone.
   the game's passes give, and the GPU and software pictures agree on that level, but it was not compared with a
   console at a peak of the glare). The half-pixel rule is applied to the texture coordinates of sprites textured
   from a render target (moving the sprite left the first row and column undrawn).
+
+## 2026-10-06: HUD
+
+- **Bars did not shrink**: the gauges are cut to length with a mask (src/battle/hud_a_d.c): context 2 writes only
+  alpha with FBA (bit 7 set) where the mask sprite's alpha is not 0, context 1 draws the bar with TEST.DATE where
+  bit 7 is clear. Added: the FBA register, DATE / DATM in gs.frag against a copy of the alpha bytes taken at the
+  start of each run of DATE draws (`native` 5). Confirmed by the user in a duel.
+- **Slivers of other bars' colours, grey lines under the panels**: at 2x each output pixel sampled the sprite sheet
+  at its own centre, a quarter or three quarters of a texel past where the GS samples, which at a sprite's edge
+  is the neighbouring picture. 2D sprites now take the coordinate at the whole GS pixel (gs.frag, misc.w), so
+  2D art looks as on the console (2x point-scaled), not sharper. Not yet confirmed by the user.

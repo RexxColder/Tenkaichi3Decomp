@@ -842,7 +842,7 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
 static int same_state(const Draw *a, const Draw *b) {
     return !a->native && a->vu == b->vu && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
-           a->misc[2] == b->misc[2] && a->blendc == b->blendc &&
+           a->misc[2] == b->misc[2] && a->misc[3] == b->misc[3] && a->blendc == b->blendc &&
            memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 &&
            memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
 }
@@ -862,6 +862,9 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     }
     if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
         return;
+    }
+    if (type == 6 && !d.tex_is_target) {
+        d.misc[3] = (float)SCALE; /* a 2D sprite: texture coordinates per GS pixel (gs.frag) */
     }
     if (d.misc[1] != 0.0f) {
         /* A draw that tests the alpha already in the frame buffer (the fill of a HUD bar, cut to length by a mask
