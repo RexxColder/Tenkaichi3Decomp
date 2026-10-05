@@ -148,7 +148,9 @@ void ADXPS2_SetupDvdFs(void *param) { (void)param; }
 void ADXPS2_LoadFcacheDvd(void *param) { (void)param; }
 void ADXPS2_SetupThrd(void *param, int unk) { (void)param; (void)unk; }
 void ADXM_ExecMain(void) {}
-void ADXM_WaitVsync(void) {}
+/* Waits for the next vertical blank. Headless: the blank happens now (no real-time pacing). */
+extern void Port_VBlank(void);
+void ADXM_WaitVsync(void) { Port_VBlank(); }
 void ADXERR_EntryErrFunc(void (*func)(void *obj, char *msg), void *obj) { (void)func; (void)obj; }
 
 /* The drive: a PS2 DVD is always present and idle (sceCdGetDiskTypeSafe 0x14 = PS2 DVD, sceCdStatus 10 = paused). */

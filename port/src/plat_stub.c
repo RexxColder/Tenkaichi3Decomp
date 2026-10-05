@@ -22,7 +22,8 @@ int sceSifDmaStat() { return -1; }     /* transfer finished */
 /* ---- sound driver ---- */
 int sceSdRemoteInit() { return 0; }
 int func_00296B48() { return 0; }      /* sceSdRemoteCallbackInit */
-int func_002967C0() { return 0; }      /* sceSdRemote */
+/* sceSdRemote: the sample-upload status query (rSdVoiceTransStatus, 0x80F0) answers "finished". */
+int func_002967C0(int block, int cmd) { (void)block; return cmd == 0x80F0 ? 1 : 0; }
 
 /* ---- CRI ADXT stream players ---- */
 static uint8_t sAdxt[8][0x100];
@@ -53,7 +54,14 @@ int sceGsSwapDBuff() { return 0; }
 int sceGsSyncPath() { return 0; }
 void *sceGsSyncVCallback(int (*handler)(int)) { void *old = (void *)sVsyncHandler; sVsyncHandler = handler; return old; }
 /* One vertical blank: runs the game's VBlank handler, as the interrupt would. */
-int sceGsSyncV() { if (sVsyncHandler != NULL) { sVsyncHandler(0); } return 0; }
+unsigned gPortVBlanks; /* vertical blanks since start: the headless build's clock */
+void Port_VBlank(void) {
+    gPortVBlanks++;
+    if (sVsyncHandler != NULL) {
+        sVsyncHandler(0);
+    }
+}
+int sceGsSyncV() { Port_VBlank(); return 0; }
 
 /* ---- pads ---- */
 int sceDbcInit() { return 1; }
