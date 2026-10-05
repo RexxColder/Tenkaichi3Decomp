@@ -666,3 +666,37 @@ sweep. Remaining follow-ups unchanged: tag older fakes, rebuild docs/open_questi
 flagged prototypes (EftGndDust_SpawnPieceEx in eft_z.h; Vu0Cur_ProjectPoint declared void in
 eft_p_b.c: retry `EftGlow_DrawParts` with the right type), then the user's decision
 (more matching vs tag + port repo).
+
+## HANDOFF NOTE 2 (2026-10-05 evening) -- supersedes the earlier handoff notes
+
+VERIFIED STATE: commit f01ce65 = main executable 94.92% (42 INCLUDE_ASM), overlay 99.24% (4),
+both byte-identical; working tree clean. ~7,270 functions match; about 21 are marked
+`FAKE MATCH` in the sources (list in docs/decomp_guide.md sections of 2026-10-05).
+Behaviour test sweep DONE (docs/decomp_guide.md, build/scratch_difftest/results.md): every
+unmatched function except `ColObb_Contact` is IDENTICAL to the original; the one difference
+(`EftChain_BlendKeys`, an original copy-paste bug our C had "fixed") is corrected and in
+docs/known_bugs.md. Toolchain check DONE: compiler and flags are the game's.
+RUNNING:
+- agent a23584d35485ba2aa: `BtlInput_Update` only (src/battle/btl_input.c; last unmatched
+  function of the fight core; 4 of 149; either matches it or writes a rigorous equivalence
+  argument). When it reports: if live, apply any data move (its LIT4_WORD D_002FD294), gate,
+  commit.
+- permuter batch 3 (build/permuter/batch3.txt, 34 functions, results.txt, watcher task
+  b0tv6y1fu; ends about 21:30): `EftStreak_DrawScreen` solved so far. When it ends: one agent
+  to apply exact solutions (brief = the "Apply permuter batch 2" prompt in the transcript:
+  verify.py EVERY candidate first (a score of 0 is not proof), split the diff, natural form
+  or FAKE MATCH tag, try siblings, report data moves), then gate and commit.
+- Sunshine (user's streaming host) = background task buxegqcs7.
+TODO afterwards: rebuild docs/open_questions.md from the INCLUDE_ASM lines (stale); fix
+`EftGndDust_SpawnPieceEx` prototype in include/battle/eft_z.h (floats first) and drop the
+aliased local declarations; stale note in btl_char_cam.c; `EftRibbon_DrawKind1` permuter
+candidate was WRONG (not applied). Long targeted permuter runs only for functions that moved
+(`EftGndDust_SpawnBodyDust` 12 of 347, `DemoCam_Update`, the geysers).
+DECISION PENDING WITH THE USER: keep matching, or tag the decomp and start the separate port
+repo (my recommendation: move on; the permuter can keep running). Port preferences recorded
+in memory: loose folders instead of AFS, separate repo forked from a tagged decomp commit,
+interpolated rendering over an untouched 30 Hz simulation (discussed, not formally decided),
+SDL3 GPU suggested for the renderer (not decided).
+RULES: at most 10 agents; local commits, no Claude co-author line; run the gate before EVERY
+commit that touches anything outside docs/ (two slips today: 8f74a33 and 90e054b do not
+build, each fixed by the next commit); document findings.
