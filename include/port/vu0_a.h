@@ -104,6 +104,10 @@ void Ref_Mtx_InverseRT(RefMtx44 *dst, RefMtx44 *src);
 void Ref_Mtx_RotateZ(RefMtx44 *dst, RefMtx44 *src, float angle);
 void Ref_Mtx_RotateX(RefMtx44 *dst, RefMtx44 *src, float angle);
 void Ref_Mtx_RotateY(RefMtx44 *dst, RefMtx44 *src, float angle);
+/* 0x240C68..0x240DB8: the stage module's in-place rotations of the current matrix (vf16..vf19). */
+void Ref_StgVu_RotateZ(float angle);
+void Ref_StgVu_RotateX(float angle);
+void Ref_StgVu_RotateY(float angle);
 void Ref_Mtx_RotateZXY(RefMtx44 *dst, RefMtx44 *src, RefVec4 *angles);
 void Ref_Mtx_RotateXYZ(RefMtx44 *dst, RefMtx44 *src, RefVec4 *angles);
 void Ref_Mtx_ScaleDiag(RefMtx44 *dst, RefMtx44 *src, RefVec4 *v);
