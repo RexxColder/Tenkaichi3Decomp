@@ -550,3 +550,16 @@ Tools
 - `ColObb_Contact` (col_a.c) is NOT a near-miss: the original is 0x4258 bytes with nine
   hand-written-looking edge cases; the stored attempt is a folded rewrite. Dead code, needs a
   from-scratch decompile.
+- CHECK CALLEE RETURN TYPES against the definition: a callee wrongly declared `void` changes
+  which instruction lands in the call's delay slot (a store using `$v0` moves out of it).
+- "Parameter copied to another register at entry" can be declaration order of two
+  initialisers that load through the same pointer (`prm = arg->prm` before `anim =
+  arg->anim`). "Two spill slots exchanged" or "invariant computed twice": a local caching an
+  index expression; write the expression at every use.
+- Loop heads are aligned to 8: "one instruction short plus a missing nop" is ONE missing
+  instruction.
+- Open family (no source form found yet): a plain pointer copy that survives to register
+  allocation in the original but is always removed by cse / gcse here (`EftBlade_GetColor`,
+  `EftRibbon_PlaceStrip`, `EftRibbon_PlaceTrail2`, `EftOrbTail_DrawStreaks`,
+  `EftOrbTail_InitFrames`, the two ground-dust inits). `-fno-gcse` breaks matched functions,
+  so gcse was on.
