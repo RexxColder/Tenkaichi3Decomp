@@ -77,6 +77,35 @@ void Port_Trace(unsigned vblanks) {
     if (every < 0) {
         every = getenv("BT3_TRACE") != NULL ? atoi(getenv("BT3_TRACE")) : 0;
     }
+    /* BT3_AT=<tick>[,<tick>...]: when the battle clock first shows one of these tick counts, print the fight state
+       and write the heap to port/build/heap_<tick>.bin (to compare with console save states made at those ticks). */
+    if (sBattles != 0 && gBtlSeq != NULL && gBtlSeq->state >= 2 && getenv("BT3_AT") != NULL) {
+        static unsigned last = 0xFFFFFFFFu;
+        unsigned now = (unsigned)BtlSeq_GetClock()[0];
+
+        if (now != last) {
+            const char *t = getenv("BT3_AT");
+
+            last = now;
+            while (*t != '\0') {
+                if ((unsigned)strtoul(t, (char **)&t, 0) == now) {
+                    char name[64];
+                    FILE *fp;
+
+                    snprintf(name, sizeof(name), "port/build/heap_%u.bin", now);
+                    fp = fopen(name, "wb");
+                    fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
+                    fclose(fp);
+                    printf("bt3: tick %u (vblank %u, seq %d): hp %d %d; %s\n", now, vblanks, gBtlSeq->state,
+                           BtlCharApi_GetHp(0), BtlCharApi_GetHp(1), name);
+                    fflush(stdout);
+                }
+                if (*t == ',') {
+                    t++;
+                }
+            }
+        }
+    }
     /* BT3_DUMP=<file>: 600 vertical blanks after the battle sequence reaches its last state, write the game heap
        (PS2 addresses 0x3BE730..0x1EFB014) to the file and stop: to be compared with a console memory dump. */
     if (sBattles != 0 && gBtlSeq != NULL && gBtlSeq->state == 6 && getenv("BT3_DUMP") != NULL) {
