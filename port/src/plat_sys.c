@@ -24,3 +24,14 @@ long func_002BB390(void) {
     const char *s = getenv("BT3_SEED");
     return s != NULL ? strtol(s, NULL, 0) : 0x12345678;
 }
+
+/*
+ * The game's C library random generator, as in the PS2 executable (rand 0x2A9C78, srand 0x2A9C60: newlib's
+ * 64-bit generator). Part of the simulation state. include/port_libm.h renames the game's rand / srand to these.
+ */
+unsigned long long gPortRandNext = 1;
+void Port_Srand(unsigned seed) { gPortRandNext = seed; }
+int Port_Rand(void) {
+    gPortRandNext = gPortRandNext * 6364136223846793005ull + 1;
+    return (int)((gPortRandNext >> 32) & 0x7FFFFFFF);
+}

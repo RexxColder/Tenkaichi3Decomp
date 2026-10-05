@@ -33,4 +33,7 @@ float Port_fmodf(float, float);
 #define expf Port_expf
 #define logf Port_logf
 #define Ref_atan2f Port_atan2f /* the vector library's hook for the game's atan2f */
+/* The PS2 C library's generator (port/src/plat_sys.c), not the host's. */
+#define rand Port_Rand
+#define srand Port_Srand
 #endif

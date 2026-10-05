@@ -15,10 +15,168 @@
 
 #define SIGN 0x80000000u
 
-uint32_t __addsf3(uint32_t a, uint32_t b) { return RefVu0_AddBits(a, b); }
-uint32_t __subsf3(uint32_t a, uint32_t b) { return RefVu0_SubBits(a, b); }
-uint32_t __mulsf3(uint32_t a, uint32_t b) { return RefVu0_MulBits(a, b); }
+/*
+ * Arithmetic model. PORT_FLOAT_MODEL selects it for the whole program (the vector-library reference is compiled
+ * with REF_VU0_EXTERN_ARITH and takes RefVu0_AddBits / MulBits / DivBits from here):
+ *
+ *   PORT_FLOAT_PCSX2 (default)  what the PCSX2 emulator does with its default settings, which is what the save
+ *       states used for validation come from: IEEE single precision with denormals as zero, results rounded
+ *       TOWARD ZERO for add / subtract / multiply, an FPU division rounded TO NEAREST, a vector-unit division
+ *       toward zero, overflow and division by zero giving +/-FLT_MAX (0x7F7FFFFF).
+ *       Evidence: with pure truncation, 1.0f / 30.0f (gFade) came out one unit lower than in the save state.
+ *   PORT_FLOAT_HW  the hardware hypothesis of src/port/vu0_a.c (one guard bit, no sticky bit, largest number
+ *       0x7FFFFFFF): never checked against a console.
+ */
+#define PORT_FLOAT_PCSX2 1
+#define PORT_FLOAT_HW 2
+#ifndef PORT_FLOAT_MODEL
+#define PORT_FLOAT_MODEL PORT_FLOAT_PCSX2
+#endif
+
+#if PORT_FLOAT_MODEL == PORT_FLOAT_PCSX2
+
+#define FMAX 0x7F7FFFFFu
+#define EXP(x) (((x) >> 23) & 0xFF)
+#define MANT(x) (((x) & 0x7FFFFF) | 0x800000)
+
+/* An operand with exponent 255 (infinity / NaN patterns) counts as the largest number. */
+static uint32_t in(uint32_t a) {
+    return EXP(a) == 255 ? (a & SIGN) | FMAX : a;
+}
+
+/* Packs sign, exponent and a mantissa in [2^23, 2^24); out of range gives +/-FLT_MAX or +/-0. */
+static uint32_t pack(uint32_t sign, int32_t e, uint32_t m) {
+    if (e >= 255) {
+        return sign | FMAX;
+    }
+    if (e <= 0) {
+        return sign;
+    }
+    return sign | ((uint32_t)e << 23) | (m & 0x7FFFFF);
+}
+
+/* a + b, exact then truncated toward zero. */
+uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) {
+    uint64_t ma, mb;
+    uint32_t sign;
+    int32_t e, d;
+
+    a = in(a);
+    b = in(b);
+    if (EXP(a) == 0 && EXP(b) == 0) {
+        return a & b & SIGN;
+    }
+    if (EXP(b) == 0) {
+        return a;
+    }
+    if (EXP(a) == 0) {
+        return b;
+    }
+    if ((a & 0x7FFFFFFF) < (b & 0x7FFFFFFF)) {
+        uint32_t t = a;
+        a = b;
+        b = t;
+    }
+    sign = a & SIGN;
+    e = (int32_t)EXP(a);
+    d = e - (int32_t)EXP(b);
+    ma = (uint64_t)MANT(a) << 32;
+    mb = (uint64_t)MANT(b) << 32;
+    if ((a ^ b) & SIGN) {
+        /* the bits of b shifted out below 2^-32 make the exact difference smaller: one unit there, then truncate */
+        uint64_t lost = d > 32;
+
+        mb = d >= 64 ? 0 : mb >> d;
+        ma -= mb + lost;
+        if (ma == 0) {
+            return 0; /* x - x is +0 */
+        }
+        while (!(ma & ((uint64_t)1 << 55))) {
+            ma <<= 1;
+            e--;
+        }
+    } else {
+        ma += d >= 64 ? 0 : mb >> d;
+        if (ma & ((uint64_t)1 << 56)) {
+            ma >>= 1;
+            e++;
+        }
+    }
+    return pack(sign, e, (uint32_t)(ma >> 32));
+}
+
+/* a * b, truncated toward zero. */
+uint32_t RefVu0_MulBits(uint32_t a, uint32_t b) {
+    uint32_t sign = (a ^ b) & SIGN;
+    uint64_t m;
+    int32_t e;
+
+    a = in(a);
+    b = in(b);
+    if (EXP(a) == 0 || EXP(b) == 0) {
+        return sign;
+    }
+    m = (uint64_t)MANT(a) * MANT(b);
+    e = (int32_t)EXP(a) + (int32_t)EXP(b) - 127;
+    if (m & ((uint64_t)1 << 47)) {
+        m >>= 24;
+        e++;
+    } else {
+        m >>= 23;
+    }
+    return pack(sign, e, (uint32_t)m);
+}
+
+/* a / b; nearest = 1 rounds to nearest even (the FPU's div.s under PCSX2), 0 truncates (vdiv). */
+static uint32_t divide(uint32_t a, uint32_t b, int nearest) {
+    uint32_t sign = (a ^ b) & SIGN;
+    uint64_t n, q, rem;
+    uint32_t m;
+    int32_t e;
+
+    a = in(a);
+    b = in(b);
+    if (EXP(b) == 0) {
+        return sign | FMAX; /* x / 0 and 0 / 0 */
+    }
+    if (EXP(a) == 0) {
+        return sign;
+    }
+    n = (uint64_t)MANT(a) << 26;
+    q = n / MANT(b);
+    rem = n % MANT(b);
+    e = (int32_t)EXP(a) - (int32_t)EXP(b) + 127;
+    if (q >= ((uint64_t)1 << 26)) {
+        rem |= q & 1;
+        q >>= 1;
+    } else {
+        e--;
+    }
+    rem |= q & 1; /* q is now in [2^25, 2^26): one more bit goes to the sticky bits */
+    q >>= 1;
+    m = (uint32_t)(q >> 1); /* 24 bits; q & 1 is the round bit, rem the sticky bits */
+    if (nearest && (q & 1) && (rem != 0 || (m & 1))) {
+        m++;
+        if (m == 0x1000000) {
+            m >>= 1;
+            e++;
+        }
+    }
+    return pack(sign, e, m);
+}
+
+uint32_t RefVu0_DivBits(uint32_t a, uint32_t b) { return divide(a, b, 0); }
+uint32_t __divsf3(uint32_t a, uint32_t b) { return divide(a, b, 1); }
+
+#else /* PORT_FLOAT_HW: the primitives of src/port/vu0_a.c (compile it without REF_VU0_EXTERN_ARITH) */
+
 uint32_t __divsf3(uint32_t a, uint32_t b) { return RefVu0_DivBits(a, b); }
+
+#endif
+
+uint32_t __addsf3(uint32_t a, uint32_t b) { return RefVu0_AddBits(a, b); }
+uint32_t __subsf3(uint32_t a, uint32_t b) { return RefVu0_AddBits(a, b ^ SIGN); }
+uint32_t __mulsf3(uint32_t a, uint32_t b) { return RefVu0_MulBits(a, b); }
 uint32_t __negsf2(uint32_t a) { return a ^ SIGN; }
 
 /* Comparisons: every pattern is an ordinary number (c.eq.s / c.lt.s / c.le.s never see "unordered"). */

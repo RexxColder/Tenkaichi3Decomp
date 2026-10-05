@@ -31,8 +31,8 @@ def main():
     # PC-only code: the vector-library references under the game's names, and port/src.
     for f in [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"] + sorted((ROOT / "port/src").glob("*.c")):
         o = OBJ / ("pc_" + f.stem + ".o")
-        names = ["-include", "vu0_names.h"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
-        soft = [] if f.name == "plat_libm.c" else ["-msoft-float", "-mno-sse", "-mno-mmx", "-include", "math.h", "-include", "port_libm.h"]
+        names = ["-include", "vu0_names.h", "-DREF_VU0_EXTERN_ARITH"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
+        soft = [] if f.name == "plat_libm.c" else ["-msoft-float", "-mno-sse", "-mno-mmx", "-include", "math.h", "-include", "stdlib.h", "-include", "port_libm.h"]
         r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O1", "-g", "-malign-double", "-fno-strict-aliasing",
                             "-ffp-contract=off", "-fno-builtin", "-w", "-Iinclude", "-Iport/include", "-Iport/src"] +
                            soft + names + [str(f), "-o", str(o)],
