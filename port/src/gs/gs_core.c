@@ -994,7 +994,9 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     /* The frame's work ends here. Time it (BT3_GS_VERBOSE), then keep 30 frames per second. */
     t = now_ns();
     if (start != 0) {
-        uint64_t work = t - start;
+        extern unsigned long long gPortSleptNs;
+        uint64_t work = t - start - (uint64_t)gPortSleptNs; /* without the waiting for the vertical blank */
+        gPortSleptNs = 0;
         {   /* a frame over budget: where the time went and what was created in it */
             extern unsigned gGpuNewTex, gGpuNewTexPixels, gGpuNewPipes;
             extern uint64_t gGpuTexNs, gGpuPipeNs, gGpuEndNs;
@@ -1019,13 +1021,9 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
             n = 0; sum = 0; worst = 0; over = 0;
         }
     }
-    if (next > t && next - t < 100000000ull) {
-        struct timespec ts = {0, (long)(next - t)};
-        nanosleep(&ts, NULL);
-        next += 33366700ull;
-    } else {
-        next = t + 33366700ull;
-    }
+    /* pacing is done at the vertical blank (Port_VBlank in plat_stub.c): 60 per second, the game waits for one
+       per menu frame and two per battle frame */
+    (void)next;
     start = now_ns();
     if (sThreaded) {
         render_post(2, tadr, tte);

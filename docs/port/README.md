@@ -624,3 +624,22 @@ with a third of the interpreter's work gone.
   (`BT3_PIPELINES` overrides the path; git-ignored) and all known ones are created at start (22 in 101 ms).
   Whole replay with the file present, two runs: no frame over budget, mean 10.8 ms, worst 29.1 ms. The first run
   on a machine (no file) still has the hitches; shipping a list with the game would remove that.
+
+## 2026-10-05 (late): the menu overlay is part of the PC build
+
+- `src/menu/*.c` (the DBZP.BIN overlay, 69 files) is compiled and linked with the rest: all files compiled
+  unchanged. `port/tools/portsrc.py` lists them; `gen_data.py` also converts the overlay's one assembly data
+  chunk and now assembles the data objects itself (that step was done by hand before and not scripted).
+- `Progress_Main` exists twice (the real one and the replay / demo stand-in in `headless.c`): linked with
+  `--wrap=Progress_Main`. `BT3_REPLAY` or `BT3_DEMO` take the stand-in; otherwise the real menus run
+  (`port/run.sh menu`). The overlay load (`Overlay_Load`) reads nothing.
+- Fixes needed to reach the title screen: `UNCACHED()` in movie.c under PORT; `StgVu_RotateZ / X / Y` (hand-written
+  VU0 code in the stage module) added to the reference vector library. Movies are skipped (MPEG stand-ins).
+- Verified by screenshots: memory card check, publisher logos, legal screen, title screen with "Press START".
+- **Input** (`port/src/gs/gs_input.c`): keyboard and SDL gamepads into the game's pad buffer; mapping in the
+  file's header. The user confirmed a controller works.
+- **Pacing**: the vertical blank is the clock with a window (`Port_VBlank` waits on a 59.94 Hz grid): menus run
+  at 60 frames per second, battles at 30, as the game asks. `BT3_UNCAPPED=1` removes the wait.
+- `port/src/plat_crash.c`: a fatal signal writes a backtrace to the terminal and `bt3_crash.txt`.
+- Open: the user reports the program closes when creating a save file (not reproduced yet). The memory card
+  layer still answers "no card"; saves need the folder-backed card.

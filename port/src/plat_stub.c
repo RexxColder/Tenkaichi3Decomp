@@ -5,6 +5,8 @@
  */
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
+#include <time.h>
 
 /* ---- second processor (IOP): heap and remote calls ---- */
 int sceSifInitIopHeap() { return 0; }
@@ -53,7 +55,33 @@ void *sceGsSyncVCallback(int (*handler)(int)) { void *old = (void *)sVsyncHandle
 /* One vertical blank: runs the game's VBlank handler, as the interrupt would. */
 extern void Port_Trace(unsigned vblanks);
 unsigned gPortVBlanks; /* vertical blanks since start: the headless build's clock */
+/* With a window, a vertical blank is also the clock: one every 1/59.94 s. The game waits for one per frame in
+   the menus (60 frames per second) and two in a battle (30), as on the console. Headless runs do not wait. */
+extern int GsGpu_Enabled(void);
+unsigned long long gPortSleptNs; /* time spent waiting here (the renderer's frame timing subtracts it) */
+
+static void vblank_wait(void) {
+    static unsigned long long next;
+    struct timespec ts;
+    unsigned long long t;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    t = (unsigned long long)ts.tv_sec * 1000000000ull + (unsigned long long)ts.tv_nsec;
+    if (next > t && next - t < 100000000ull) {
+        ts.tv_sec = 0;
+        ts.tv_nsec = (long)(next - t);
+        nanosleep(&ts, NULL);
+        gPortSleptNs += next - t;
+        next += 16683350ull;
+    } else {
+        next = t + 16683350ull; /* late (or the first one): start a new grid from now */
+    }
+}
+
 void Port_VBlank(void) {
+    if (GsGpu_Enabled() && getenv("BT3_UNCAPPED") == NULL) {
+        vblank_wait();
+    }
     gPortVBlanks++;
     Port_Trace(gPortVBlanks);
     if (sVsyncHandler != NULL) {
@@ -74,11 +102,16 @@ int scePad2GetButtonProfile(int socket, unsigned char *profile) {
     profile[0] = 0xFF; profile[1] = 0xFF; profile[2] = 0xFF; profile[3] = 0x03;
     return 4;
 }
-/* Headless: nobody touches the pad. Buttons are active-low; the sticks rest at 0x80. */
+/* With a window: keyboard and gamepads (port/src/gs/gs_input.c). Headless: nobody touches the pad. Buttons are
+   active-low; the sticks rest at 0x80. */
+extern int Port_PadRead(int socket, unsigned char *data);
+
 int scePad2Read(int socket, unsigned char *data) {
     int i;
 
-    (void)socket;
+    if (Port_PadRead(socket, data)) {
+        return 18;
+    }
     data[0] = 0xFF; data[1] = 0xFF;
     for (i = 2; i < 6; i++) { data[i] = 0x80; }
     for (i = 6; i < 18; i++) { data[i] = 0; }
