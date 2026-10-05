@@ -726,3 +726,26 @@ More lessons (agents S and V):
   has its constant inside the subscript (`p->arr[i * 12 + k]`).
 - A register-masked structural diff (build/scratch_cleanup3_V/sdiff.py) is the useful metric
   for large functions.
+
+## Toolchain check (2026-10-05): we use the game's compiler
+
+Investigation in build/scratch_compiler/ (summary.txt; driver drv.py). Our compiler is
+`gcc version 2.96-ee-001003-1` (tools/ee-gcc2.96; its cc1 is byte-identical to the one in
+`ee-gcc2.96.tar.xz` of the GitHub decompme/compilers release); the game ELF carries Sony
+library tags 3000 / 3020. Measured over ALL source files (6,953 matching compiled functions
+at the time):
+- Every other public ee-gcc (2.9-ee-99xxxx, 2.95.2 / 2.95.3 SN, 3.2-ee) keeps at most 16 % of
+  the matched functions and makes every stubborn function worse. Compiling as C++ breaks
+  matches too: the game code is C.
+- 118 flag sets plus 361 combinations: none makes any stubborn function match; every flag
+  that changes code breaks matched functions in the same file. `-fno-strict-aliasing` is
+  firmly original (1,060 functions break without it); the game was built without `-g` (84
+  functions break with it; `-g1` is nearly neutral).
+- So the "surviving copy" family (`EftBlade_GetColor`, `EftRibbon_PlaceStrip`,
+  `EftRibbon_PlaceTrail2`, `EftOrbTail_DrawStreaks`, `EftOrbTail_InitFrames`, the ground-dust
+  inits, `Ot_Reset`, `StgPanBlur_UpdateView`) and the exact ties (`EftEmit_SpawnType16` / `5`,
+  `PadWatch_GetMissing`, `ScrXfade_StoreHalf`, `Shen_BuildList`) are SOURCE-FORM problems, not
+  toolchain ones. Do not spend more effort on compiler versions or flags.
+- Leads it turned up: `ChrCam_CalcCut` (btl_char_cam_cut.c) drops from 248 to 17 differing
+  with `-fssa` (which renumbers pseudos: a declaration / statement ORDER clue, not a flag);
+  `Sprite_DrawPicture` improves with `-fforce-addr` (an address-through-a-variable clue).
