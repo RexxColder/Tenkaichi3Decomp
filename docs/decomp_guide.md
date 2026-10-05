@@ -668,3 +668,17 @@ Functions starting at a score of 60 or less were nearly all solved in minutes; t
 - `DcPass_Input` (src/menu/menu_z_d.c) is PATH-SENSITIVE: an unchanged copy of the file under
   another directory compiles its switch dispatch differently. Scratch copies of that file
   cannot be trusted for that function.
+- ARRAY OF TWO-FLOAT STRUCT versus `f32 [N][2]`: the struct member offset joins the base (a
+  base of its own per member); the 2-D constant index joins the index (shared base). The
+  symptom is NOT local: every shared address in a long run of statements changes register
+  ("same operations, 200+ differ, registers only"). Try the 2-D form first whenever a "pair"
+  struct is indexed by a variable. Likewise a folded `f32 val[16][3]` view of consecutive
+  tracks does not match per-member code: one member per track.
+- Base+index shapes are produced by combine, not by source: do not read struct nesting into
+  `(def+rest) + (idx4+K16)` versus `K16(idx4 + (def+rest))`; test fragments in isolation
+  mislead because sharing decides the form.
+- `T *p = &tmp;` used for the memset and all later calls moves a store scheduled in front of
+  the first call to behind it (a single `sw zero,N(sp)` on the wrong side of a `jal`).
+- A float clamp as a conditional expression (`t = (t < 0.0f) ? 0.0f : (1.0f < t) ? 1.0f : t;`)
+  gives `mtc1 zero,f0 / mov.s f1,f0`; the if / else form loads the constant straight.
+- Check a sibling's MATCHED function for its struct view before designing one.

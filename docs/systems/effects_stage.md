@@ -750,3 +750,22 @@ reads.
   capped at 0x80. Stage textures upload one at a time to GS block 0x2A00 / CLUT 0x32C0.
 - Original quirks: material texture animations advance once per `StgModel_Draw` call, so
   twice per frame in split screen; back-and-forth mode with one frame reads `frames[-1]`.
+
+## Effect key tracks (part kinds 10 and 15; verified by matching C, 2026-10-05)
+
+An emitter definition is two blocks (the pack entry's two resources). Every animated quantity
+is a TRACK of three keys (start, middle, end), stored track by track: scalar `f32 k[3]`
+(12 bytes), three-axis `f32 k[3][3]`, two-value `f32 k[3][2]` (a 2-D array, not an array of
+pair structs), vector `Vec4 k[3]` (16-aligned). Most quantities come as a (value, range)
+pair of tracks (the range reading is inferred from the spawn code's `Rand_FloatRange`).
+Layouts: `EftPart10Def` / `EftPart10Def2` in include/battle/eft_x.h, `EftLinkDef` /
+`EftLinkDef2` in include/battle/eft_v.h (member lists with offsets there; the second block
+has the same 0x12C-byte shape in both: four Vec4 colour tracks, three two-value tracks,
+three scalar tracks).
+Runtime (same algorithm in both modules): `keyTime = def.keyTime * 30` frames,
+`keyMid = keyTime * def.keyMid`; segment 1 runs from age 0, segment 2 once `keyMid <= age`
+(a KEY2 flag); starting a segment stores `delta = key[s] - key[s-1]` per track; each frame
+`cur = key[seg] + delta * t` with `t = age / keyMid` or `(age - keyMid) / (keyTime -
+keyMid)`. Part kind 10 clamps t to 0..1, kind 15 does not. Original quirk: kind 10 scales
+colours with `Vec3_Scale` then `Vec4_Add`, so the w of a colour takes whatever the scale left
+in its temporary. `SetKey(i)` copies key i of every track without interpolation.
