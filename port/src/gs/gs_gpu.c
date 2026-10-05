@@ -92,6 +92,7 @@ static struct { uint32_t hash, last; SDL_GPUTexture *tex; } sCluts[MAX_CLUTS];
 /* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F5 while running): 1 outline, 2 see-through tint,
    4 depth tint, 8 glare and object glow, 16 blur of distant things. */
 static unsigned sFxOff;
+static int sGlowPercent = 100; /* strength of glare and glow (BT3_GLOW=<percent>; F6 / F7 change it by 10) */
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -274,6 +275,7 @@ int GsGpu_Init(void) {
         sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
     }
     sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
+    sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : 100;
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     pipelines_preload();
     return 1;
@@ -885,17 +887,29 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             put(&v[i], v[i].x, v[i].y, s[i], t[i], q[i], c->r, c->g, c->b, c->a, zmax);
         }
     }
-    if (d.tex_is_target) {
+    if (d.tex_is_target && type == 6 && v[1].x != v[0].x && v[1].y != v[0].y) {
         /* The GS evaluates texture coordinates at whole pixel positions, a GPU at pixel centres, half a pixel
            later. For one buffer drawn into another that half pixel is not cosmetic: the blur steps of the glow
            chain sample one texel apart on purpose (each step should average two texels and move the picture
            back and forth by half a texel); evaluated at pixel centres they do not blur and move it a whole texel
-           every round, which showed as a displaced copy of the scenery in the sky. Moving the primitive half a
-           GS pixel puts the pixel centres where the GS samples. */
+           every round, which showed as a displaced copy of the scenery in the sky. The coordinates are taken
+           half a pixel back instead. (Moving the sprite itself left its first row and column undrawn: a line
+           of the wrong brightness along the top of the picture.) */
+        float ds = 0.5f * (sVerts[d.first + 1].s - sVerts[d.first].s) / (v[1].x - v[0].x);
+        float dt = 0.5f * (sVerts[d.first + 2].t - sVerts[d.first].t) / (v[1].y - v[0].y);
         uint32_t k;
         for (k = d.first; k < sVertCount; k++) {
-            sVerts[k].x += 0.5f;
-            sVerts[k].y += 0.5f;
+            sVerts[k].s -= ds;
+            sVerts[k].t -= dt;
+        }
+        /* the user's strength for the glare and the glow: the pass that adds the blurred buffer to the picture */
+        if (sGlowPercent != 100 && (uint32_t)(gGs.frame[ctx] & 0x1FF) == (uint32_t)gGsMainFbp && ((gGs.prim >> 6) & 1) &&
+            (gGs.alpha[ctx] & 0xFF) == 0x68) {
+            for (k = d.first; k < sVertCount; k++) {
+                sVerts[k].r = (uint8_t)(sVerts[k].r * sGlowPercent / 100 > 255 ? 255 : sVerts[k].r * sGlowPercent / 100);
+                sVerts[k].g = (uint8_t)(sVerts[k].g * sGlowPercent / 100 > 255 ? 255 : sVerts[k].g * sGlowPercent / 100);
+                sVerts[k].b = (uint8_t)(sVerts[k].b * sGlowPercent / 100 > 255 ? 255 : sVerts[k].b * sGlowPercent / 100);
+            }
         }
     }
     d.count = sVertCount - d.first;
@@ -1111,6 +1125,12 @@ static void frame_end(void) {
     while (SDL_PollEvent(&ev)) {
         if (ev.type == SDL_EVENT_QUIT || (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE)) {
             exit(0);
+        }
+        if (ev.type == SDL_EVENT_KEY_DOWN && (ev.key.key == SDLK_F6 || ev.key.key == SDLK_F7)) {
+            sGlowPercent += ev.key.key == SDLK_F7 ? 10 : -10;
+            if (sGlowPercent < 0) { sGlowPercent = 0; }
+            if (sGlowPercent > 200) { sGlowPercent = 200; }
+            fprintf(stderr, "bt3: glare and glow strength %d%%\n", sGlowPercent);
         }
         if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F5) {
             static const char *names[5] = {"outline", "see-through tint", "depth tint", "glare and glow", "blur of distant things"};
