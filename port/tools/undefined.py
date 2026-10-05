@@ -53,12 +53,13 @@ def main():
     gen = ROOT / "port/build/gen/gs"
     gen.mkdir(parents=True, exist_ok=True)
     arrays = []
-    for stage, name in (("vert", "kGsVertSpv"), ("frag", "kGsFragSpv")):
-        spv = gen / f"gs.{stage}.spv"
-        r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(ROOT / f"port/src/gs/shaders/gs.{stage}"), "-o", str(spv)],
-                           capture_output=True, text=True)
+    for src in sorted((ROOT / "port/src/gs/shaders").glob("*.*")):  # gs.vert -> kGsVertSpv, outline.frag -> kOutlineFragSpv
+        stage = src.suffix[1:]
+        name = "k" + src.stem.capitalize() + stage.capitalize() + "Spv"
+        spv = gen / (src.name + ".spv")
+        r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(src), "-o", str(spv)], capture_output=True, text=True)
         if r.returncode:
-            print("FAILED shader", stage, r.stderr[:300])
+            print("FAILED shader", src.name, r.stderr[:300])
             continue
         arrays.append(f"static const unsigned char {name}[] = {{" + ",".join(str(b) for b in spv.read_bytes()) + "};\n")
     (gen / "shaders.h").write_text("/* generated from port/src/gs/shaders by port/tools/undefined.py */\n" + "".join(arrays))

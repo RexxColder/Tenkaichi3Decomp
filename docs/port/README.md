@@ -477,6 +477,37 @@ Speed is unchanged (about half real time): see the profile above, not addressed 
   clamped), which destroys ids above 0x80; the GS alpha byte needs its own exact channel
   (a second colour attachment written unblended under the alpha part of FBMSK).
 
+## First native effect: the outline (2026-10-06)
+
+Mechanism for native effects, used here for the first time:
+- MARKER. The game builds the frame's display list first and the renderer runs it later, so
+  the place of an effect travels in the list: `Port_GsMarker(effect)` (port/src/gs_marker.c)
+  queues a one-register GIF packet writing the effect number to "register 0x7F", which the
+  GS does not have. The game's effect function calls it under `#ifdef PORT`
+  (`ObjOutline_Draw`: PORT_FX_OUTLINE = 1). gs_core.c passes it to `GsGpu_Native`; the
+  software reference ignores it and keeps drawing the PS2 passes, which the GPU path drops.
+- EXACT ALPHA BYTE. Every render target has a second colour attachment (R8, "aux") that
+  receives the GS alpha byte unblended, under the alpha part of FBMSK; the colour texture
+  keeps alpha rescaled for blending. Object numbers live in that byte.
+- NATIVE PASS. In the replay, a native entry ends the current pass and runs its own pass on
+  the colour texture alone (so the aux texture can be sampled), then normal drawing resumes.
+
+The outline itself (shaders/outline.frag): the PS2 pass (verified reading of
+`ObjOutline_Draw` / `ObjOutline_BuildClut`) maps the id byte through a table (id * 8, or
+0x80 when that is 0; id 0xFF = no colour), subtracts the same image shifted by one pixel in
+each axis so only positive differences remain, and blends a dark rectangle (0x64 per
+channel) through the result. The native shader reads the id of the pixel and its four
+neighbours one PS2 pixel away, applies the same table, and subtracts 0x64 / 255 where the
+pixel's value is larger than a neighbour's. Where the ids come from (verified on a frame):
+the frame's alpha is set to 0xFF, the fighters are drawn with their part numbers as alpha,
+and that alpha is what the pass reads (on the PS2 through a copy in the depth page's top
+byte). `BT3_FX_DEBUG=1` shows the numbers instead of the lines.
+Verified by looking at the read-back (docs/port/img/gpu_full_scene.png): a dark line around
+both fighters and between body parts with different table values.
+Not matched exactly: the PS2 line's thickness and strength (it draws the edge image three
+times, one line up, one down and centred, with different alphas); decoded textures keep
+alpha rescaled, so an id passes through a rounding step (looked right, not proven exact).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

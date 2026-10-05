@@ -620,6 +620,7 @@ static void reg_write(uint32_t addr, uint64_t d) {
     case 0x51: gs.trxpos = d; break;
     case 0x52: gs.trxreg = d; break;
     case 0x53: gs.trxdir = d; transfer_begin(); break;
+    case 0x7F: if (sGpu) { GsGpu_Native((int)d); } break; /* not a GS register: the port's marker (gs_marker.c) */
     default: break;
     }
 }

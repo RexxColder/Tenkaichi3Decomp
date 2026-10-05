@@ -35,6 +35,7 @@ typedef struct Vtx {
 typedef struct Target {
     uint32_t fbp;
     SDL_GPUTexture *color, *depth;
+    SDL_GPUTexture *aux; /* the GS alpha byte, exact (R8): the colour texture keeps alpha rescaled for blending */
     int cleared;
     unsigned draws; /* this frame */
     uint32_t gen;   /* upload generation of its first page when it was last drawn to */
@@ -48,6 +49,7 @@ typedef struct Tex {
 } Tex;
 
 typedef struct Draw {
+    int native; /* 0: primitives; otherwise a native full-screen effect (PORT_FX_*) at this point of the frame */
     uint32_t first, count;
     int target;
     SDL_GPUTexture *tex;
@@ -71,6 +73,7 @@ static SDL_GPUBuffer *sVbuf;
 static SDL_GPUTransferBuffer *sVxfer;
 static SDL_GPUSampler *sSamplers[8]; /* bit 0: linear, bit 1: clamp U, bit 2: clamp V */
 static SDL_GPUTexture *sWhite;
+static SDL_GPUGraphicsPipeline *sOutlinePipe;
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -83,6 +86,7 @@ static uint32_t sVertCount;
 static Draw *sDraws;
 static uint32_t sDrawCount;
 static uint64_t sNextFrameNs;
+static unsigned sNative; /* native effect markers seen this frame */
 static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
 /* textures created this frame, to upload in the copy pass */
@@ -161,6 +165,36 @@ int GsGpu_Init(void) {
         memcpy(sPending[sPendingCount].px, &white, 4);
         sPendingCount++;
     }
+    {   /* native outline: destination minus source on the colour channels */
+        SDL_GPUShader *vs = shader(kFxVertSpv, sizeof(kFxVertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+        SDL_GPUShader *fs = shader(kOutlineFragSpv, sizeof(kOutlineFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+        SDL_GPUColorTargetDescription cd;
+        SDL_GPUGraphicsPipelineCreateInfo ci;
+        SDL_zero(cd);
+        SDL_zero(ci);
+        cd.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+        cd.blend_state.enable_blend = true;
+        cd.blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+        cd.blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+        cd.blend_state.color_blend_op = SDL_GPU_BLENDOP_REVERSE_SUBTRACT;
+        cd.blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+        cd.blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+        cd.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+        cd.blend_state.color_write_mask = SDL_GPU_COLORCOMPONENT_R | SDL_GPU_COLORCOMPONENT_G | SDL_GPU_COLORCOMPONENT_B;
+        cd.blend_state.enable_color_write_mask = true;
+        ci.vertex_shader = vs;
+        ci.fragment_shader = fs;
+        ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        ci.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+        ci.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+        ci.target_info.color_target_descriptions = &cd;
+        ci.target_info.num_color_targets = 1;
+        sOutlinePipe = vs && fs ? SDL_CreateGPUGraphicsPipeline(sDev, &ci) : NULL;
+        if (sOutlinePipe == NULL) {
+            fprintf(stderr, "bt3: outline pipeline: %s\n", SDL_GetError());
+            return 0;
+        }
+    }
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     return 1;
 }
@@ -186,6 +220,8 @@ static int target_get(uint32_t fbp, int create) {
     ci.layer_count_or_depth = 1;
     ci.num_levels = 1;
     sTargets[sTargetCount].color = SDL_CreateGPUTexture(sDev, &ci);
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+    sTargets[sTargetCount].aux = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
     sTargets[sTargetCount].depth = SDL_CreateGPUTexture(sDev, &ci);
@@ -318,7 +354,7 @@ static void blend_of(uint64_t alpha, int abe, SDL_GPUColorTargetBlendState *b, u
 static int pipeline_get(int ctx, int topo) {
     uint64_t test = gGs.test[ctx], zb = gGs.zbuf[ctx];
     int zte = (test >> 16) & 1, ztst = (test >> 17) & 3, zwrite = !((zb >> 32) & 1);
-    SDL_GPUColorTargetDescription cd;
+    SDL_GPUColorTargetDescription cd, cds[2];
     SDL_GPUGraphicsPipelineCreateInfo ci;
     SDL_GPUVertexBufferDescription vb;
     SDL_GPUVertexAttribute at[3];
@@ -371,8 +407,13 @@ static int pipeline_get(int ctx, int topo) {
     ci.depth_stencil_state.enable_depth_write = zwrite;
     ci.depth_stencil_state.compare_op = ztst == 0 ? SDL_GPU_COMPAREOP_NEVER : ztst == 1 ? SDL_GPU_COMPAREOP_ALWAYS :
                                         ztst == 2 ? SDL_GPU_COMPAREOP_GREATER_OR_EQUAL : SDL_GPU_COMPAREOP_GREATER;
-    ci.target_info.color_target_descriptions = &cd;
-    ci.target_info.num_color_targets = 1;
+    cds[0] = cd;
+    SDL_zero(cds[1]); /* the exact alpha byte: never blended, written whenever the frame's alpha is writable */
+    cds[1].format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+    cds[1].blend_state.color_write_mask = (wmask & SDL_GPU_COLORCOMPONENT_A) ? SDL_GPU_COLORCOMPONENT_R : 0;
+    cds[1].blend_state.enable_color_write_mask = true;
+    ci.target_info.color_target_descriptions = cds;
+    ci.target_info.num_color_targets = 2;
     ci.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     ci.target_info.has_depth_stencil_target = true;
     sPipes[sPipeCount].key = key;
@@ -495,13 +536,36 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     sTargets[d.target].draws++;
     sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
     last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
-    if (last != NULL && last->target == d.target && last->tex == d.tex && last->sampler == d.sampler && last->pipeline == d.pipeline &&
+    if (last != NULL && !last->native && last->target == d.target && last->tex == d.tex && last->sampler == d.sampler && last->pipeline == d.pipeline &&
         memcmp(last->mode, d.mode, sizeof(d.mode)) == 0 && last->misc[0] == d.misc[0] && last->blendc == d.blendc &&
         memcmp(&last->scissor, &d.scissor, sizeof(SDL_Rect)) == 0) {
         last->count += d.count; /* same state as the previous primitive: one draw call */
     } else {
         sDraws[sDrawCount++] = d;
     }
+}
+
+/* A marker from the game's display list (port/src/gs_marker.c): draw the native version of an effect here, on
+   the frame buffer the current context draws to. 1 = the outline. */
+void GsGpu_Native(int effect) {
+    uint64_t sc = gGs.scissor[0];
+    Draw d;
+
+    if (effect != 1 || sDrawCount == MAX_DRAWS) {
+        return;
+    }
+    sNative++;
+    memset(&d, 0, sizeof(d));
+    d.native = effect;
+    d.target = target_get((uint32_t)(gGs.frame[0] & 0x1FF), 0);
+    if (d.target < 0) {
+        return;
+    }
+    d.scissor.x = (int)(sc & 0x7FF) * SCALE;
+    d.scissor.y = (int)((sc >> 32) & 0x7FF) * SCALE;
+    d.scissor.w = ((int)((sc >> 16) & 0x7FF) + 1) * SCALE - d.scissor.x;
+    d.scissor.h = ((int)((sc >> 48) & 0x7FF) + 1) * SCALE - d.scissor.y;
+    sDraws[sDrawCount++] = d;
 }
 
 void GsGpu_FrameEnd(void) {
@@ -520,8 +584,8 @@ void GsGpu_FrameEnd(void) {
         }
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
-        fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped\n",
-                gGsFrame, sDrawCount, sVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped);
+        fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped, %u native effects\n",
+                gGsFrame, sDrawCount, sVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped, sNative);
     }
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
@@ -573,8 +637,43 @@ void GsGpu_FrameEnd(void) {
         SDL_FColor bc;
         struct { int32_t mode[4]; float misc[4]; } fu;
 
+        if (d->native) { /* a native full-screen effect: its own pass on the colour texture alone, reading the alpha copy */
+            SDL_GPUColorTargetInfo ft;
+            SDL_GPUTextureSamplerBinding fs;
+            SDL_Rect sc;
+            float params[4];
+            Target *t = &sTargets[d->target];
+            if (pass != NULL) {
+                SDL_EndGPURenderPass(pass);
+                pass = NULL;
+            }
+            cur = -1;
+            if (!t->cleared) {
+                continue;
+            }
+            SDL_zero(ft);
+            ft.texture = t->color;
+            ft.load_op = SDL_GPU_LOADOP_LOAD;
+            ft.store_op = SDL_GPU_STOREOP_STORE;
+            pass = SDL_BeginGPURenderPass(cmd, &ft, 1, NULL);
+            SDL_BindGPUGraphicsPipeline(pass, sOutlinePipe);
+            fs.texture = t->aux;
+            fs.sampler = sSamplers[6]; /* nearest, clamped */
+            SDL_BindGPUFragmentSamplers(pass, 0, &fs, 1);
+            params[0] = 1.0f / (float)GS_W;
+            params[1] = 1.0f / (float)GS_H;
+            params[2] = 100.0f / 255.0f; /* the dark rectangle's 0x64 */
+            params[3] = getenv("BT3_FX_DEBUG") != NULL ? 1.0f : 0.0f;
+            SDL_PushGPUFragmentUniformData(cmd, 0, params, sizeof(params));
+            sc = d->scissor;
+            SDL_SetGPUScissor(pass, &sc);
+            SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+            SDL_EndGPURenderPass(pass);
+            pass = NULL;
+            continue;
+        }
         if (d->target != cur) {
-            SDL_GPUColorTargetInfo ct;
+            SDL_GPUColorTargetInfo ct, cts[2];
             SDL_GPUDepthStencilTargetInfo dt;
             Target *t = &sTargets[d->target];
             if (pass != NULL) {
@@ -585,6 +684,8 @@ void GsGpu_FrameEnd(void) {
             ct.texture = t->color;
             ct.load_op = t->cleared ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
             ct.store_op = SDL_GPU_STOREOP_STORE;
+            cts[1] = ct;
+            cts[1].texture = t->aux;
             if (getenv("BT3_GPU_MAGENTA") != NULL) { ct.clear_color.r = 1.0f; ct.clear_color.b = 1.0f; ct.clear_color.a = 1.0f; }
             dt.texture = t->depth;
             dt.load_op = t->cleared ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
@@ -592,7 +693,8 @@ void GsGpu_FrameEnd(void) {
             dt.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
             dt.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
             t->cleared = 1;
-            pass = SDL_BeginGPURenderPass(cmd, &ct, 1, &dt);
+            cts[0] = ct;
+            pass = SDL_BeginGPURenderPass(cmd, cts, 2, &dt);
             cur = d->target;
             vb.buffer = sVbuf;
             vb.offset = 0;
@@ -657,7 +759,7 @@ void GsGpu_FrameEnd(void) {
             ti.size = w * h * 4;
             tb = SDL_CreateGPUTransferBuffer(sDev, &ti);
             SDL_zero(src);
-            src.texture = sTargets[best].color;
+            src.texture = getenv("BT3_SHOT_AUX") != NULL ? sTargets[best].aux : sTargets[best].color;
             src.w = w;
             src.h = h;
             src.d = 1;
@@ -675,7 +777,12 @@ void GsGpu_FrameEnd(void) {
                 fprintf(fp, "P6\n%u %u\n255\n", w, h);
                 for (y = 0; y < h; y++) {
                     for (x = 0; x < w; x++) {
-                        fwrite(&px[(y * w + x) * 4], 1, 3, fp);
+                        if (getenv("BT3_SHOT_AUX") != NULL) { /* one byte per pixel: show it as grey, times 16 to see small ids */
+                            uint8_t g = (uint8_t)(px[y * w + x] * 16), t[3] = {g, g, px[y * w + x]};
+                            fwrite(t, 1, 3, fp);
+                        } else {
+                            fwrite(&px[(y * w + x) * 4], 1, 3, fp);
+                        }
                     }
                 }
                 fclose(fp);
@@ -690,6 +797,7 @@ void GsGpu_FrameEnd(void) {
     sVertCount = 0;
     sDrawCount = 0;
     sSkipped = 0;
+    sNative = 0;
     /* the game runs at 30 frames per second (two vertical blanks per frame) */
     {
         uint64_t now = SDL_GetTicksNS();

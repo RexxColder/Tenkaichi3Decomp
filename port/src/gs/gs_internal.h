@@ -57,5 +57,6 @@ void GsVu1_FrameEnd(void);
    as single lines / triangles). The state to draw with is gGs. */
 int GsGpu_Init(void);
 void GsGpu_Draw(int type, int ctx, const GsVertex *v);
+void GsGpu_Native(int effect); /* marker register 0x7F: a native effect goes here */
 void GsGpu_FrameEnd(void);
 #endif

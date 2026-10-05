@@ -4,6 +4,7 @@
 layout(location = 0) in vec4 vColor;
 layout(location = 1) in vec3 vStq;
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAux; // .r: the alpha byte exactly as the GS stores it (object numbers live there)
 layout(set = 2, binding = 0) uniform sampler2D tex;
 layout(set = 3, binding = 0) uniform Params {
     ivec4 mode;  // x: textured, y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
@@ -35,4 +36,5 @@ void main() {
         if (!pass) discard;
     }
     outColor = vec4(clamp(rgb, 0.0, 1.0), clamp(a, 0.0, 1.0));
+    outAux = vec4(clamp(a * 128.0 / 255.0, 0.0, 1.0), 0.0, 0.0, 1.0);
 }
