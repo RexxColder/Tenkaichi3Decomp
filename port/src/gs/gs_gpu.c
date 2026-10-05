@@ -97,6 +97,7 @@ static unsigned sFxOff;
    left panel, right panel, centre, end of the HUD). 0 = no group. */
 static int sAnchor;
 extern int Port_IsWide(void);   /* plat_stub.c */
+extern int Port_AspectMilli(void);
 extern int gPortMenuMode;       /* headless.c: the menus are running */
 /* Strength of glare and glow in percent of what the game's passes give (BT3_GLOW=<percent>; F6 / F7 change it by
    10). Default 60: the user's choice on 2026-10-06 (100 looked too strong at the glare's peaks). */
@@ -164,8 +165,8 @@ int GsGpu_Init(void) {
     {
         /* The window has the picture's shape: 448 lines times the multiplier high, 4:3 or 16:9 wide (1195 x 896 or
            1593 x 896 at 2x), and keeps that shape when it is resized. BT3_WINDOW=WxH gives another start size. */
-        extern int Port_IsWide(void);
-        float want = Port_IsWide() ? 16.0f / 9.0f : 4.0f / 3.0f;
+        extern int Port_AspectMilli(void);
+        float want = (float)Port_AspectMilli() / 1000.0f;
         int h = 448 * SCALE, w = (int)((float)h * want + 0.5f);
         if (getenv("BT3_WINDOW") != NULL) {
             sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h);
@@ -982,12 +983,17 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             pivot = 256.0f;
         } else if (sAnchor != 0) {
             pivot = sAnchor == 1 ? 0.0f : sAnchor == 2 ? 512.0f : 256.0f;
+            if (sAnchor == 4) { /* a part without a fixed side (captions: technique names): the side it is on */
+                float cx = (x0 + x1) * 0.5f;
+                pivot = x1 <= 300.0f || cx < 180.0f ? 0.0f : x0 >= 212.0f || cx > 332.0f ? 512.0f : 256.0f;
+            }
         } else if (type == 6 && x1 - x0 < 480.0f) {
             pivot = (x0 + x1) * 0.5f;
         }
         if (pivot >= 0.0f) {
+            float narrow = 1333.333f / (float)Port_AspectMilli(); /* 3/4 at 16:9, 9/16 at 21:9 */
             for (k = d.first; k < sVertCount; k++) {
-                sVerts[k].x = pivot + (sVerts[k].x - pivot) * 0.75f;
+                sVerts[k].x = pivot + (sVerts[k].x - pivot) * narrow;
             }
         }
     }
@@ -1166,8 +1172,8 @@ void GsGpu_Native(int effect) {
 
     /* 1 = outline. 2 (the see-through tint) is drawn by the generic table pass now (depth_clut), from the game's
        own table. */
-    if (effect >= 0x10 && effect <= 0x13) {
-        sAnchor = effect == 0x13 ? 0 : effect - 0x0F; /* 1 left, 2 right, 3 centre */
+    if (effect >= 0x10 && effect <= 0x14) {
+        sAnchor = effect == 0x13 ? 0 : effect == 0x14 ? 4 : effect - 0x0F; /* 1 left, 2 right, 3 centre, 4 by position */
         return;
     }
     if (effect != 1 || sDrawCount == MAX_DRAWS || (sFxOff & 1)) {
@@ -1545,7 +1551,7 @@ static void frame_end(void) {
         {
             /* The picture keeps its shape whatever the window's: 4:3, or 16:9 in widescreen, centred, the rest
                black. (The 512 x 448 buffer is not square-pixelled: it always fills a 4:3 or 16:9 screen.) */
-            float want = Port_IsWide() ? 16.0f / 9.0f : 4.0f / 3.0f;
+            float want = (float)Port_AspectMilli() / 1000.0f;
             Uint32 w = sw, h = sh;
             if ((float)sw > (float)sh * want) {
                 w = (Uint32)((float)sh * want + 0.5f);

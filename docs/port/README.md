@@ -757,3 +757,8 @@ with a third of the interpreter's work gone.
   - The fight's outcome is the same with widescreen on (tick 2111: 23050 / 0). Checked by picture: three replay
     frames (sky to the edges, fighters and logo not stretched, shadow intact). Not checked: HUD panels at the
     edges, the menus, other stages, split screen.
+- **Any aspect ratio from 4:3 up** (`Port_AspectMilli` in plat_stub.c): `BT3_ASPECT=21:9`, `BT3_WIDE=1` (16:9), or
+  a `BT3_WINDOW=WxH` wider than 3:2 (its own shape). The 2D narrowing and the window follow it. Fight outcome
+  unchanged at 4:3, 16:9, 21:9, 32:9. The window opens at the picture's shape and keeps it on resize.
+- Captions (technique names; the replay mark) are anchored to the side they are drawn on (marker 0x14).
+- 2D layout in widescreen cannot be checked from the replay (it hides the HUD): only the user has seen it.

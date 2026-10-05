@@ -173,6 +173,7 @@ void HudNode_Update(HudNode *node) {
 #define PORT_2D_RIGHT 0x11
 #define PORT_2D_CENTER 0x12
 #define PORT_2D_END 0x13
+#define PORT_2D_BY_POS 0x14
 extern void Port_GsMarker(s32 effect);
 #endif
 
@@ -186,8 +187,11 @@ void HudNode_Draw(HudNode *node, s32 mirror) {
         return;
     }
 #ifdef PORT
-    if (node == gHud->timer || node == gHud->notice || node == gHud->caption) {
+    if (node == gHud->timer || node == gHud->notice) {
         Port_GsMarker(PORT_2D_CENTER); /* the parts without a side */
+    }
+    if (node == gHud->caption) {
+        Port_GsMarker(PORT_2D_BY_POS); /* captions (technique names) appear on either side: the side they are on */
     }
 #endif
     Vu0Cur_Push();

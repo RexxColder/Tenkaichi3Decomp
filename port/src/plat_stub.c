@@ -108,22 +108,37 @@ int sceVibSetActParam() { return 0; }
 /* ---- MPEG movies: port/src/plat_movie.c ---- */
 
 /* ---- widescreen ----
-   BT3_WIDE=1 (or port/run.sh wide): a 16:9 picture. The game's projection gets 4/3 more width of view at the same
-   height (View_SetProjection, src/battle/btl_cam.c); the renderer keeps 2D art at its own proportions and shows
-   the picture at 16:9 (port/src/gs/gs_gpu.c). */
-int gPortWide = -1;
-int Port_IsWide(void) {
-    if (gPortWide < 0) {
-        if (getenv("BT3_WIDE") != NULL) {
-            gPortWide = atoi(getenv("BT3_WIDE")) != 0;
-        } else {
-            /* not said: a window size wider than 3:2 (BT3_WINDOW=1920x1080) asks for widescreen by itself */
-            int w = 0, h = 0;
-            gPortWide = getenv("BT3_WINDOW") != NULL && sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h) == 2 && h > 0 && w * 2 > h * 3;
+   The picture's shape, as width over height times 1000 (1333 = 4:3, the console's). Wider shapes keep the height
+   of view and add to the sides:
+       BT3_ASPECT=21:9 (or 16:9, 32:9, ...)    the shape asked for
+       BT3_WIDE=1                               16:9          (BT3_WIDE=0: 4:3 whatever else is said)
+       BT3_WINDOW=3440x1440                     a window wider than 3:2 asks for its own shape
+   The game's projection, culling and effect proportions take Port_WideFactor() (src/battle/btl_cam.c, stg_a.c,
+   eft_*.c, all #ifdef PORT); the renderer keeps 2D art in proportion and shows the picture at this shape
+   (port/src/gs/gs_gpu.c). */
+static int sAspectMilli = -1;
+int Port_AspectMilli(void) {
+    if (sAspectMilli < 0) {
+        int a = 0, b = 0, w = 0, h = 0;
+        sAspectMilli = 1333;
+        if (getenv("BT3_WIDE") != NULL && atoi(getenv("BT3_WIDE")) == 0) {
+            /* 4:3 */
+        } else if (getenv("BT3_ASPECT") != NULL && sscanf(getenv("BT3_ASPECT"), "%d:%d", &a, &b) == 2 && a > 0 && b > 0) {
+            sAspectMilli = a * 1000 / b;
+        } else if (getenv("BT3_WIDE") != NULL) {
+            sAspectMilli = 1778;
+        } else if (getenv("BT3_WINDOW") != NULL && sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h) == 2 && h > 0 && w * 2 > h * 3) {
+            sAspectMilli = w * 1000 / h;
         }
+        if (sAspectMilli < 1333) { sAspectMilli = 1333; }
+        if (sAspectMilli > 4000) { sAspectMilli = 4000; }
     }
-    return gPortWide;
+    return sAspectMilli;
 }
+int Port_IsWide(void) {
+    return Port_AspectMilli() > 1340;
+}
+/* The picture's width over the console's 4:3 width (1 = not wide). */
 float Port_WideFactor(void) {
-    return Port_IsWide() ? 4.0f / 3.0f : 1.0f;
+    return Port_IsWide() ? (float)Port_AspectMilli() * 3.0f / 4000.0f : 1.0f;
 }
