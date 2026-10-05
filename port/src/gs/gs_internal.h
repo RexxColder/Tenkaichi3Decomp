@@ -57,6 +57,11 @@ void GsVu1_FrameEnd(void);
    as single lines / triangles). The state to draw with is gGs. */
 int GsGpu_Init(void);
 void GsGpu_Draw(int type, int ctx, const GsVertex *v);
+/* A vertex program run as a shader: `count` strip vertices of 48 bytes (position + weight, normal, texture
+   coordinates) with the program's constants (VU memory quadwords 0..23); layer 0 or 1. The GS state is gGs. */
+int GsGpu_Enabled(void);
+void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, const float *consts);
+void Gs_RegWrite(uint32_t addr, uint64_t d);
 void GsGpu_Native(int effect); /* marker register 0x7F: a native effect goes here */
 void GsGpu_FrameEnd(void);
 #endif

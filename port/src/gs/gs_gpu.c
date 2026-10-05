@@ -49,6 +49,8 @@ typedef struct Tex {
 } Tex;
 
 typedef struct Draw {
+    int vu;      /* 1: vertices of vertex program 0 (sVuVerts, uniform block `uniform`) */
+    int uniform;
     int native; /* 0: primitives; otherwise a native full-screen effect (PORT_FX_*) at this point of the frame */
     uint32_t first, count;
     int target;
@@ -81,6 +83,18 @@ static int sTexCount;
 static Tex *sLast; /* the entry the previous lookup returned */
 static Pipe sPipes[1024];
 static int sPipeCount;
+#define MAX_VU_VERTS (1 << 19)
+#define MAX_VU_UNIFORMS 8192
+typedef struct Vu0Uniform { /* std140 layout of the block in shaders/vu0.vert */
+    float boneA[16], boneB[16], pivotA[4], pivotB[4], screen[16], light[4], color0[4], color1[4], misc[4];
+} Vu0Uniform;
+static float *sVuVerts;         /* 12 floats per vertex, as the vertex program gets them */
+static uint32_t sVuVertCount;
+static Vu0Uniform *sVuUni;
+static uint32_t sVuUniCount;
+static SDL_GPUBuffer *sVuVbuf;
+static SDL_GPUTransferBuffer *sVuXfer;
+static SDL_GPUShader *sVu0Vs;
 static Vtx *sVerts;
 static uint32_t sVertCount;
 static Draw *sDraws;
@@ -157,6 +171,13 @@ int GsGpu_Init(void) {
         si.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
         sSamplers[i] = SDL_CreateGPUSampler(sDev, &si);
     }
+    sVu0Vs = shader(kVu0VertSpv, sizeof(kVu0VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    bi.size = MAX_VU_VERTS * 48;
+    sVuVbuf = SDL_CreateGPUBuffer(sDev, &bi);
+    ti.size = MAX_VU_VERTS * 48;
+    sVuXfer = SDL_CreateGPUTransferBuffer(sDev, &ti);
+    sVuVerts = malloc(MAX_VU_VERTS * 48);
+    sVuUni = malloc(MAX_VU_UNIFORMS * sizeof(Vu0Uniform));
     sVerts = malloc(MAX_VERTS * sizeof(Vtx));
     sDraws = malloc(MAX_DRAWS * sizeof(Draw));
     {
@@ -361,7 +382,7 @@ static void blend_of(uint64_t alpha, int abe, SDL_GPUColorTargetBlendState *b, u
     *key = 1u | (uint32_t)k[0] << 1 | (uint32_t)k[1] << 4 | (uint32_t)C << 7;
 }
 
-static int pipeline_get(int ctx, int topo) {
+static int pipeline_get(int ctx, int topo, int vu) {
     uint64_t test = gGs.test[ctx], zb = gGs.zbuf[ctx];
     int zte = (test >> 16) & 1, ztst = (test >> 17) & 3, zwrite = !((zb >> 32) & 1);
     SDL_GPUColorTargetDescription cd, cds[2];
@@ -386,7 +407,7 @@ static int pipeline_get(int ctx, int topo) {
         cd.blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
         cd.blend_state.enable_color_write_mask = true;
     }
-    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16;
+    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20;
     for (i = 0; i < sPipeCount; i++) {
         if (sPipes[i].key == key) {
             return i;
@@ -404,7 +425,13 @@ static int pipeline_get(int ctx, int topo) {
     at[0].location = 0; at[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3; at[0].offset = 0;
     at[1].location = 1; at[1].format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM; at[1].offset = 12;
     at[2].location = 2; at[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3; at[2].offset = 16;
-    ci.vertex_shader = sVs;
+    if (vu) { /* the vertex program's own vertices: three float quadwords */
+        vb.pitch = 48;
+        at[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[0].offset = 0;
+        at[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[1].offset = 16;
+        at[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[2].offset = 32;
+    }
+    ci.vertex_shader = vu ? sVu0Vs : sVs;
     ci.fragment_shader = sFs;
     ci.vertex_input_state.vertex_buffer_descriptions = &vb;
     ci.vertex_input_state.num_vertex_buffers = 1;
@@ -444,19 +471,16 @@ static void put(const GsVertex *v, float x, float y, float s, float t, float q, 
     o->s = s; o->t = t; o->q = q;
 }
 
-void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
+/* The state part of a draw: everything the current GS registers decide (target, texture, sampler, blending,
+   tests, scissor). Returns 0 when the primitive belongs to a pass that is not drawn here. `sprite` = the primitive
+   is a sprite; `vu` selects the pipeline family (0: GS vertices, 1: vertex program 0's vertices). us / vs: scale
+   of texture coordinates when the texture is a frame buffer. */
+static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us, float *vs) {
     uint64_t prim = gGs.prim, t0 = gGs.tex0[ctx], test = gGs.test[ctx], cl = gGs.clamp[ctx], sc = gGs.scissor[ctx];
-    int tme = (prim >> 4) & 1, fst = (prim >> 8) & 1, gouraud = (prim >> 3) & 1, n = type == 6 ? 2 : type == 3 ? 3 : type == 1 ? 2 : 1;
-    float tw = (float)(1u << ((t0 >> 26) & 15)), th = (float)(1u << ((t0 >> 30) & 15)), us = 1.0f, vs = 1.0f;
-    float zmax = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
-    float s[3], t[3], q[3];
-    const GsVertex *flat = &v[n - 1];
-    Draw d, *last;
-    int i, src;
+    int tme = (prim >> 4) & 1, src;
+    float tw = (float)(1u << ((t0 >> 26) & 15)), th = (float)(1u << ((t0 >> 30) & 15));
 
-    if (sVertCount + 6 > MAX_VERTS || sDrawCount == MAX_DRAWS) {
-        return;
-    }
+    *us = *vs = 1.0f;
     /* Passes that only make sense on the PS2's memory layout are not drawn here: they belong to full-screen
        effects that get native versions (see docs/port/README.md). Dropped:
          - drawing through a 16-bit view of the frame buffer (the "channel shuffle" between halves of a pixel),
@@ -467,36 +491,73 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         uint32_t tpsm = (uint32_t)((t0 >> 20) & 0x3F), tbp = (uint32_t)(t0 & 0x3FFF);
         if (Gs_PsmBits(fpsm) == 16 || fbp == zbp) {
             sSkipped++;
-            return;
+            return 0;
         }
         if (tme && ((tpsm & 0x30) == 0x30 || tbp / 32 == zbp || tpsm == 0x1B || tpsm == 0x24 || tpsm == 0x2C)) {
             sSkipped++;
-            return;
+            return 0;
         }
     }
-    memset(&d, 0, sizeof(d));
-    d.target = target_get((uint32_t)(gGs.frame[ctx] & 0x1FF), 1);
-    if (d.target < 0) {
-        return;
+    memset(d, 0, sizeof(*d));
+    d->target = target_get((uint32_t)(gGs.frame[ctx] & 0x1FF), 1);
+    if (d->target < 0) {
+        return 0;
     }
-    d.tex = sWhite;
+    d->tex = sWhite;
     if (tme) {
         src = target_get((uint32_t)((t0 & 0x3FFF) / 32), 0);
         /* a frame buffer used as a texture: only if nothing was uploaded over it since it was drawn */
         if (src >= 0 && (t0 & 0x1F) == 0 && sTargets[src].cleared && sTargets[src].gen == gGsPageGen[sTargets[src].fbp & 511]) {
-            if (src == d.target || type == 6) {
+            if (src == d->target || sprite) {
                 /* A sprite that copies one frame buffer into another (or into itself) is a step of a full-screen
                    effect (glare's shrink / blur / add chain, blur feedback): those get native versions. Triangles
                    textured with a buffer are kept: that is how the shadow is projected onto the ground. */
                 sSkipped++;
-                return;
+                return 0;
             }
-            d.tex = sTargets[src].color; /* a frame buffer used as a texture */
-            us = tw / (float)GS_W;
-            vs = th / (float)GS_H;
+            d->tex = sTargets[src].color;
+            *us = tw / (float)GS_W;
+            *vs = th / (float)GS_H;
         } else {
-            d.tex = texture_get(ctx);
+            d->tex = texture_get(ctx);
         }
+    }
+    d->sampler = (int)((gGs.tex1[ctx] >> 5) & 1) | ((cl & 3) ? 2 : 0) | (((cl >> 2) & 3) ? 4 : 0);
+    d->pipeline = pipeline_get(ctx, topo, vu);
+    d->mode[0] = tme;
+    d->mode[1] = (int32_t)((t0 >> 35) & 3);
+    d->mode[2] = (int32_t)((t0 >> 34) & 1);
+    d->mode[3] = (test & 1) && ((test >> 12) & 3) == 0 ? (int32_t)((test >> 1) & 7) + 1 : 0;
+    d->misc[0] = (float)((test >> 4) & 0xFF);
+    d->blendc = (float)((gGs.alpha[ctx] >> 32) & 0xFF) / 128.0f;
+    d->scissor.x = (int)(sc & 0x7FF) * SCALE;
+    d->scissor.y = (int)((sc >> 32) & 0x7FF) * SCALE;
+    d->scissor.w = ((int)((sc >> 16) & 0x7FF) + 1) * SCALE - d->scissor.x;
+    d->scissor.h = ((int)((sc >> 48) & 0x7FF) + 1) * SCALE - d->scissor.y;
+    return 1;
+}
+
+static int same_state(const Draw *a, const Draw *b) {
+    return !a->native && a->vu == b->vu && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
+           memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->blendc == b->blendc &&
+           memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
+}
+
+void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
+    uint64_t prim = gGs.prim, t0 = gGs.tex0[ctx];
+    int fst = (prim >> 8) & 1, gouraud = (prim >> 3) & 1, n = type == 6 ? 2 : type == 3 ? 3 : type == 1 ? 2 : 1;
+    float tw = (float)(1u << ((t0 >> 26) & 15)), th = (float)(1u << ((t0 >> 30) & 15)), us, vs;
+    float zmax = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
+    float s[3], t[3], q[3];
+    const GsVertex *flat = &v[n - 1];
+    Draw d, *last;
+    int i;
+
+    if (sVertCount + 6 > MAX_VERTS || sDrawCount == MAX_DRAWS) {
+        return;
+    }
+    if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
+        return;
     }
     for (i = 0; i < n; i++) {
         if (fst) {
@@ -509,18 +570,6 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             q[i] = v[i].q != 0.0f ? v[i].q : 1.0f;
         }
     }
-    d.sampler = (int)((gGs.tex1[ctx] >> 5) & 1) | ((cl & 3) ? 2 : 0) | (((cl >> 2) & 3) ? 4 : 0);
-    d.pipeline = pipeline_get(ctx, type == 1 ? 1 : type == 0 ? 2 : 0);
-    d.mode[0] = tme;
-    d.mode[1] = (int32_t)((t0 >> 35) & 3);
-    d.mode[2] = (int32_t)((t0 >> 34) & 1);
-    d.mode[3] = (test & 1) && ((test >> 12) & 3) == 0 ? (int32_t)((test >> 1) & 7) + 1 : 0;
-    d.misc[0] = (float)((test >> 4) & 0xFF);
-    d.blendc = (float)((gGs.alpha[ctx] >> 32) & 0xFF) / 128.0f;
-    d.scissor.x = (int)(sc & 0x7FF) * SCALE;
-    d.scissor.y = (int)((sc >> 32) & 0x7FF) * SCALE;
-    d.scissor.w = ((int)((sc >> 16) & 0x7FF) + 1) * SCALE - d.scissor.x;
-    d.scissor.h = ((int)((sc >> 48) & 0x7FF) + 1) * SCALE - d.scissor.y;
     d.first = sVertCount;
     if (type == 6) { /* sprite: two corners, flat colour and depth of the second vertex */
         const GsVertex *a = &v[0], *b = &v[1];
@@ -546,13 +595,57 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     sTargets[d.target].draws++;
     sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
     last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
-    if (last != NULL && !last->native && last->target == d.target && last->tex == d.tex && last->sampler == d.sampler && last->pipeline == d.pipeline &&
-        memcmp(last->mode, d.mode, sizeof(d.mode)) == 0 && last->misc[0] == d.misc[0] && last->blendc == d.blendc &&
-        memcmp(&last->scissor, &d.scissor, sizeof(SDL_Rect)) == 0) {
+    if (last != NULL && same_state(last, &d)) {
         last->count += d.count; /* same state as the previous primitive: one draw call */
     } else {
         sDraws[sDrawCount++] = d;
     }
+}
+
+/* Vertex program 0 as a shader: one strip of the fighters' models (see shaders/vu0.vert and gs_vu1.c). The strip
+   becomes a triangle list of the program's own 48-byte vertices; the constants go into a uniform block. */
+void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, const float *consts) {
+    Vu0Uniform u;
+    Draw d, *last;
+    float us, vs;
+    uint32_t i, k;
+
+    if (count < 3 || sVuVertCount + (count - 2) * 3 > MAX_VU_VERTS || sDrawCount == MAX_DRAWS || sVuUniCount == MAX_VU_UNIFORMS) {
+        return;
+    }
+    if (!draw_state(ctx, 0, 0, 1, &d, &us, &vs)) {
+        return;
+    }
+    memcpy(u.boneA, &consts[0], 64);
+    memcpy(u.boneB, &consts[16], 64);
+    memcpy(u.pivotA, &consts[32], 16);
+    memcpy(u.pivotB, &consts[36], 16);
+    memcpy(u.screen, &consts[56], 64);
+    u.light[0] = consts[40]; u.light[1] = consts[44]; u.light[2] = consts[48]; u.light[3] = consts[52];
+    memcpy(u.color0, &consts[88], 16);
+    memcpy(u.color1, &consts[92], 16);
+    u.misc[0] = (float)(gGs.xyoffset[ctx] & 0xFFFF) / 16.0f;
+    u.misc[1] = (float)((gGs.xyoffset[ctx] >> 32) & 0xFFFF) / 16.0f;
+    u.misc[2] = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
+    u.misc[3] = (float)layer;
+    d.vu = 1;
+    d.first = sVuVertCount;
+    for (i = 0; i + 2 < count; i++) { /* strip -> list */
+        for (k = 0; k < 3; k++) {
+            memcpy(&sVuVerts[sVuVertCount++ * 12], &vertices[(i + k) * 12], 48);
+        }
+    }
+    d.count = sVuVertCount - d.first;
+    sTargets[d.target].draws++;
+    sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
+    last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+    if (last != NULL && same_state(last, &d) && memcmp(&sVuUni[last->uniform], &u, sizeof(u)) == 0) {
+        last->count += d.count;
+        return;
+    }
+    d.uniform = (int)sVuUniCount;
+    sVuUni[sVuUniCount++] = u;
+    sDraws[sDrawCount++] = d;
 }
 
 /* A marker from the game's display list (port/src/gs_marker.c): draw the native version of an effect here, on
@@ -585,7 +678,7 @@ void GsGpu_FrameEnd(void) {
     SDL_GPUTexture *swap = NULL;
     SDL_Event ev;
     Uint32 sw = 0, sh = 0;
-    int cur = -1, best = -1, i;
+    int cur = -1, best = -1, bound = -1, i;
     uint32_t n;
 
     while (SDL_PollEvent(&ev)) {
@@ -595,7 +688,7 @@ void GsGpu_FrameEnd(void) {
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
         fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped, %u native effects\n",
-                gGsFrame, sDrawCount, sVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped, sNative);
+                gGsFrame, sDrawCount, sVertCount + sVuVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped, sNative);
     }
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
@@ -611,6 +704,19 @@ void GsGpu_FrameEnd(void) {
         dst.buffer = sVbuf;
         dst.offset = 0;
         dst.size = sVertCount * sizeof(Vtx);
+        SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+    }
+    if (sVuVertCount != 0) {
+        SDL_GPUTransferBufferLocation src;
+        SDL_GPUBufferRegion dst;
+        void *p = SDL_MapGPUTransferBuffer(sDev, sVuXfer, true);
+        memcpy(p, sVuVerts, sVuVertCount * 48);
+        SDL_UnmapGPUTransferBuffer(sDev, sVuXfer);
+        src.transfer_buffer = sVuXfer;
+        src.offset = 0;
+        dst.buffer = sVuVbuf;
+        dst.offset = 0;
+        dst.size = sVuVertCount * 48;
         SDL_UploadToGPUBuffer(copy, &src, &dst, true);
     }
     for (i = 0; i < sPendingCount; i++) {
@@ -706,9 +812,16 @@ void GsGpu_FrameEnd(void) {
             cts[0] = ct;
             pass = SDL_BeginGPURenderPass(cmd, cts, 2, &dt);
             cur = d->target;
-            vb.buffer = sVbuf;
+            bound = -1;
+        }
+        if (bound != d->vu) {
+            vb.buffer = d->vu ? sVuVbuf : sVbuf;
             vb.offset = 0;
             SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
+            bound = d->vu;
+        }
+        if (d->vu) {
+            SDL_PushGPUVertexUniformData(cmd, 0, &sVuUni[d->uniform], sizeof(Vu0Uniform));
         }
         SDL_BindGPUGraphicsPipeline(pass, sPipes[d->pipeline].p);
         ts.texture = d->tex;
@@ -805,6 +918,8 @@ void GsGpu_FrameEnd(void) {
         sTargets[i].draws = 0;
     }
     sVertCount = 0;
+    sVuVertCount = 0;
+    sVuUniCount = 0;
     sDrawCount = 0;
     sSkipped = 0;
     sNative = 0;

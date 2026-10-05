@@ -531,6 +531,47 @@ Next: the interpreter itself (pre-decoding the microcode when it is uploaded, wh
 operations for the full-mask cases, a straight copy for unmasked V4-32 UNPACK), and later
 the shader versions of the programs, which remove this cost altogether.
 
+## Vertex programs as shaders: program 0 (2026-10-06)
+
+Decision (user): no interpreter tuning; go straight to shader versions. The interpreter
+stays as the fallback for programs without a shader, as the reference to compare with
+(`BT3_VU_INTERP=1` forces it), and for the software renderer.
+
+Who costs what (measured, `BT3_GS_VERBOSE`; programs are told apart by uploaded size):
+| uploaded size | program in the executable | used for | share of interpreted instructions |
+|---|---|---|---|
+| 399 | 4 (402) | stage and most static geometry | 27 to 39 % |
+| 127 | 0 (128) | the fighters' models, two layers | 30 to 36 % |
+| 101 | 3 (102) or 2 (100): not determined | the fighters again for the shadow buffer | 29 to 35 % |
+| 451 | 6 (454) | a few runs per frame | under 1 % |
+
+PROGRAM 0, read from its disassembly (port/tools/vudis.py) and confirmed on memory dumps
+(`BT3_VU_DUMP=<frame>`):
+- Constants, VU memory quadwords: 0..3 bone matrix A, 4..7 bone matrix B (columns), 8 / 9
+  their pivots, 10..13 a matrix of which only the x components are set (the light direction:
+  x' = light . v), 14..17 the matrix to GS screen coordinates, 18..21 the clip-test matrix,
+  22 / 23 the two layers' colours (0..255 as floats). MSCALF 0 only precomputes 26..33
+  (10..13 times A and B).
+- A batch (one MSCNT): +0 a GIF tag "one A+D register", +1 TEX0_1 (texture layer), +2 TEX0_2
+  (toon layer), +3 / +4 the primitive tags of the two layers (NLOOP = vertex count, PRIM in
+  the tag: 0x5C and 0x25C, registers ST, RGBAQ, XYZF2), +5 the vertices: position with the
+  blend weight in w, normal, (s, t, 1). One batch is ONE triangle strip.
+- Per vertex: p = mix(B (pos - pivotB), A (pos - pivotA), weight); screen = C p, divided by
+  w, to 12.4 fixed point with the integer depth in XYZF2; layer 0 gets (s, t) and colour 22;
+  layer 1 gets u = 0.5 + 0.5 (light . normal'), v = 0 and colour 23: cel shading through a
+  ramp texture. A triangle with a vertex outside the guard volume is dropped (ADC bit), there
+  is no real clipping.
+- Output: both layers in one kick, the second packet right behind the first.
+Shader version: gs_vu1.c `hle_program0` sets each layer's TEX0 and PRIM through the normal
+register path and passes the raw vertices and constants to `GsGpu_DrawVu0`;
+shaders/vu0.vert does the skinning, outputs clip-space positions (the GPU clips and
+interpolates with perspective; x, y, depth mapped as for GS vertices) and the two layers'
+colour / coordinates; the fragment shader is the common one. Strips become triangle lists;
+consecutive strips with the same state and constants are one draw call.
+Verified: the same frame rendered with the interpreter and with the shader differs clearly in
+587 of 917,504 pixels (0.06 %, edges); `work per frame` went from about 30 ms to about 24 ms
+with a third of the interpreter's work gone.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

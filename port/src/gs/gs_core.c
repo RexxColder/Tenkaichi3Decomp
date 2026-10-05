@@ -627,6 +627,14 @@ static void reg_write(uint32_t addr, uint64_t d) {
     }
 }
 
+void Gs_RegWrite(uint32_t addr, uint64_t d) {
+    reg_write(addr, d);
+}
+
+int GsGpu_Enabled(void) {
+    return sGpu;
+}
+
 /* ------------------------------------------------------------------------------------------------ GIF */
 
 /* One run of GIF data (whole quadwords). */

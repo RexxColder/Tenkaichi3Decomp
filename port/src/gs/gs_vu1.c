@@ -42,6 +42,9 @@ static struct {
 
 static unsigned sUnknown[2][128];
 static unsigned sStatRuns, sStatInstr, sStatKicks;
+static unsigned sProgSize;
+static unsigned sHle; /* program calls served by shader versions this frame */
+static struct { unsigned size, runs, instr, kicks; } sProg[16]; /* per loaded program, this frame */
 
 static inline float clampf(float v) {
     uint32_t u;
@@ -66,6 +69,8 @@ void GsVu1_SetCol(const uint32_t *v) { memcpy(vu.col, v, 16); }
 
 void GsVu1_Program(uint32_t addr, const uint32_t *words, uint32_t count) {
     uint32_t i;
+    /* which program is loaded: identified by its size in instructions (an upload at 0 starts a new one) */
+    sProgSize = addr == 0 ? count / 2 : sProgSize + count / 2;
     for (i = 0; i < count; i++) {
         memcpy(&vu.micro[((addr * 8) + i * 4) & 0x3FFC], &words[i], 4);
     }
@@ -179,8 +184,14 @@ static void run(uint32_t start) {
     int ending = 0, branch = 0;
     uint32_t target = 0, guard;
 
+    unsigned slot, before = sStatInstr, kbefore = sStatKicks;
+
     vu.pc = start & 0x7FF;
     sStatRuns++;
+    for (slot = 0; slot < 15 && sProg[slot].size != 0 && sProg[slot].size != sProgSize; slot++) {
+    }
+    sProg[slot].size = sProgSize;
+    sProg[slot].runs++;
     for (guard = 0; guard < 4000000; guard++) {
         uint32_t lo, hi, dest, ft, fs, fd, op, bc, c;
         Reg res, *wr = NULL;
@@ -397,6 +408,8 @@ upper_done:
         /* ---- next instruction: branches take effect after one more instruction; so does the end ---- */
         if (ending) {
             vu.pc = next;
+            sProg[slot].instr += sStatInstr - before;
+            sProg[slot].kicks += sStatKicks - kbefore;
             return;
         }
         if (hi & 0x40000000u) {
@@ -430,6 +443,36 @@ upper_done:
     }
 }
 
+/* ---------------------------------------------------------------------------------------------- shader versions */
+
+/* Program 0 (the fighters' models; 127 instructions uploaded) without the interpreter: the batch at TOP is two
+   GIF headers and one strip; both layers go to the GPU back end with the constants, which does the vertex work in
+   shaders/vu0.vert. Layout of the batch (verified on dumps): +0 GIF tag "one A+D register", +1 TEX0_1 of the
+   texture layer, +2 TEX0_2 of the toon layer, +3 / +4 the primitive tags of the two layers (NLOOP = vertices,
+   PRIM in the tag), +5 the vertices, three quadwords each. */
+static int hle_program0(void) {
+    uint8_t pkt[32];
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count;
+    int layer;
+
+    memcpy(tag, &vu.mem[(top + 3) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 5 + count * 3 > 1024) {
+        return 0;
+    }
+    for (layer = 0; layer < 2; layer++) {
+        memcpy(pkt, &vu.mem[top * 16], 16);
+        memcpy(pkt + 16, &vu.mem[(top + 1 + (uint32_t)layer) * 16], 16);
+        Gs_Gif(pkt, 2); /* the layer's TEX0 */
+        memcpy(tag, &vu.mem[(top + 3 + (uint32_t)layer) * 16], 16);
+        Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF); /* PRIM from the tag */
+        GsGpu_DrawVu0(layer, (int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 5) * 16], count, (const float *)vu.mem);
+    }
+    sStatKicks++;
+    return 1;
+}
+
 /* MSCAL / MSCALF (addr = instruction address) or MSCNT (addr < 0: continue where the last run stopped). */
 void GsVu1_Call(int addr) {
     vu.top = vu.tops;
@@ -441,6 +484,30 @@ void GsVu1_Call(int addr) {
         vu.tops = vu.base + vu.ofst;
         vu.dbf = 1;
     }
+    if (getenv("BT3_VU_DUMP") != NULL && (int)gGsFrame == atoi(getenv("BT3_VU_DUMP")) && sProgSize == 127) {
+        static int shown;
+        if (shown < 3 && addr < 0) {
+            uint32_t q, w[4];
+            float f[4];
+            shown++;
+            fprintf(stderr, "vu1 dump: program %u, MSCNT, top %u, itop %u\n", sProgSize, vu.top, vu.itop);
+            for (q = 0; q < 24; q++) {
+                memcpy(w, &vu.mem[q * 16], 16); memcpy(f, w, 16);
+                fprintf(stderr, "  const %2u: %08x %08x %08x %08x  %10.4g %10.4g %10.4g %10.4g\n", q, w[0], w[1], w[2], w[3], f[0], f[1], f[2], f[3]);
+            }
+            for (q = 0; q < 11; q++) {
+                memcpy(w, &vu.mem[((vu.top + q) & 0x3FF) * 16], 16); memcpy(f, w, 16);
+                fprintf(stderr, "  top+%2u: %08x %08x %08x %08x  %10.4g %10.4g %10.4g %10.4g\n", q, w[0], w[1], w[2], w[3], f[0], f[1], f[2], f[3]);
+            }
+        }
+    }
+    if (sProgSize == 127 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        /* MSCALF 0 only prepares derived constants (the shader derives them itself); every MSCNT is one batch */
+        if (addr >= 0 || hle_program0()) {
+            sHle++;
+            return;
+        }
+    }
     run(addr < 0 ? vu.pc : (uint32_t)addr);
 }
 
@@ -448,9 +515,15 @@ void GsVu1_FrameEnd(void) {
     int k, i;
 
     if (getenv("BT3_GS_VERBOSE") != NULL && (gGsFrame < 4 || gGsFrame % 60 == 0)) {
-        fprintf(stderr, "vu1: frame %u: %u program runs, %u instructions, %u kicks\n", gGsFrame, sStatRuns, sStatInstr, sStatKicks);
+        fprintf(stderr, "vu1: frame %u: %u interpreted runs, %u instructions, %u kicks; %u calls served by shaders\n", gGsFrame, sStatRuns, sStatInstr, sStatKicks, sHle);
+        for (k = 0; k < 16 && sProg[k].size != 0; k++) {
+            fprintf(stderr, "vu1:   program of %u instructions: %u runs, %u instructions (%u%%), %u kicks\n", sProg[k].size, sProg[k].runs,
+                    sProg[k].instr, sStatInstr ? sProg[k].instr * 100 / sStatInstr : 0, sProg[k].kicks);
+        }
     }
     sStatRuns = sStatInstr = sStatKicks = 0;
+    sHle = 0;
+    memset(sProg, 0, sizeof(sProg));
     for (k = 0; k < 2; k++) {
         for (i = 0; i < 128; i++) {
             if (sUnknown[k][i] != 0) {
