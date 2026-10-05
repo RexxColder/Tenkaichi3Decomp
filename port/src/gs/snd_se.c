@@ -39,7 +39,18 @@
 #define SPU_SIZE 0x200000
 #define VOICES 48
 #define OUT_RATE 48000
-#define SE_GAIN 0.55f
+/* Loudness of the effects against the music. 0.55 (a guess) was too loud by the user's ear. 0.25 follows the
+   chain the console had: sequence volume, note velocity and timbre volume are each 100 of 127 ((100/127)^3 = 0.49)
+   and the sound chip's voice volume tops out at half scale. BT3_SE_GAIN=<percent> overrides it for tuning. */
+#define SE_GAIN_DEFAULT 0.25f
+static float se_gain(void) {
+    static float g = -1.0f;
+    if (g < 0.0f) {
+        g = getenv("BT3_SE_GAIN") != NULL ? (float)atoi(getenv("BT3_SE_GAIN")) / 100.0f : SE_GAIN_DEFAULT;
+    }
+    return g;
+}
+#define SE_GAIN se_gain()
 
 typedef struct Bank {
     int set;
