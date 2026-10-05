@@ -19,15 +19,24 @@ layout(set = 1, binding = 0) uniform U {
     mat4 screen;         // 14..17
     vec4 light;          // xyz: the x components of 10..12, w: of 13
     vec4 color0, color1; // 22, 23 (0..255)
-    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1)
+    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1; 2 = programs 2a / 2b)
 } u;
 void main() {
     float w = inPos.w;
     vec3 pa = (u.boneA * vec4(inPos.xyz - u.pivotA.xyz, 1.0)).xyz;
     vec3 pb = (u.boneB * vec4(inPos.xyz - u.pivotB.xyz, 1.0)).xyz;
     vec4 s = u.screen * vec4(mix(pb, pa, w), 1.0);
+    // Programs 2a / 2b: the shadow camera's matrix is orthographic with a NEGATIVE constant w (measured: -862).
+    // The PS2 only divides by it; a GPU would clip everything as "behind the eye". The same point with w > 0:
+    if (u.misc.w == 2.0 && s.w < 0.0) s = -s;
     gl_Position = vec4((s.x - u.misc.x * s.w) / 512.0 - s.w, s.w - (s.y - u.misc.y * s.w) / 512.0, s.z / u.misc.z, s.w);
-    if (u.misc.w == 0.0) {
+    if (u.misc.w == 2.0) {
+        // programs 2a / 2b (flat-colour model for the shadow): their "screen" matrix is the shadow camera's, whose
+        // depth is not kept inside the depth range; the PS2 just stores whatever integer comes out. Keep every
+        // triangle: depth clamped into range instead of clipped.
+        gl_Position.z = clamp(s.z / u.misc.z, 0.0, s.w);
+    }
+    if (u.misc.w != 1.0) {
         vColor = u.color0 / 255.0;
         vStq = vec3(inSt.xy, 1.0);
     } else {

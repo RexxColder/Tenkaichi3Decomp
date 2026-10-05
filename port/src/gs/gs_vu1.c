@@ -518,7 +518,9 @@ static int hle_program2(void) {
     memcpy(&consts[88], &vu.mem[10 * 16], 16);        /* colour: program 0's layer 0 colour at 22 */
     Gs_Gif(&vu.mem[top * 16], 2);
     Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF); /* PRIM from the tag */
-    GsGpu_DrawVu0(0, (int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 5) * 16], count, consts);
+    /* the context is the one of the PRIM in force, not the tag's: the shadow passes run with PRMODECONT.AC = 0,
+       where the attributes (texturing, blending, context) come from PRMODE and the tag only gives the type */
+    GsGpu_DrawVu0(2, (int)((gGs.prim >> 9) & 1), (const float *)&vu.mem[(top + 5) * 16], count, consts);
     sStatKicks++;
     return 1;
 }

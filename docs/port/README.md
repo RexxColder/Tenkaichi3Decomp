@@ -603,6 +603,10 @@ with a third of the interpreter's work gone.
   shadow page), 4 stage, 5 unused, 6 ground shadow, 7 debris, 8 animated stage objects.
 - Measured per program: the interpreter's work in a fight frame was 92% program 2b (1,092 runs) and 7% program 6.
 - Programs 2a / 2b go through program 0's shader (`hle_program2` in `gs_vu1.c`: the same batch, constants in
-  other places, first layer only). Frame work about 21 ms -> about 13 ms; pictures equal to the interpreter's in
-  the three frames compared by eye. Left in the interpreter: program 6 (6 runs per frame), 1, 7, 8.
+  other places, first layer only). Frame work about 21 ms -> about 13 ms.
+  First version lost the shadows (my check used frames with both fighters in the air; the user noticed). Cause:
+  the shadow camera's matrix is orthographic with a negative constant w (-862 measured); the PS2 only divides,
+  a GPU clips it as behind the eye. The shader negates the whole position when w < 0. Also: the context comes
+  from the PRIM in force (the shadow passes use PRMODE), and depth is clamped, not clipped. Checked on the first
+  frames of the fight (fighters on the ground) against the interpreter: shadows equal by eye. Left in the interpreter: program 6 (6 runs per frame), 1, 7, 8.
 - Not carried over from the originals: program 4's 0.5% enlargement of clipped triangles (see the decomp notes).
