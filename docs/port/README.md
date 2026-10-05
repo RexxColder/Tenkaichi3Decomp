@@ -92,6 +92,34 @@ The symbols game code itself needs (not only library data tables) are about 130:
 (8), libc / libm (about 25), the nine VU1 microprograms and a few tables, the menu overlay's
 entry points (the overlay is not part of this link yet), four VU0 assembly routines.
 
+## Start-up runs (2026-10-05, night)
+
+Verified by running port/build/bt3: `Game_Main` completes its whole initialisation list
+(Sys_RebootIop ... PadWatch_Init: heap, graphics, sound, files, movie, common data, save,
+jobs, vector unit, DMA buffers, pad, memory card, fonts, fade) and stops at `Overlay_Load`,
+where the PS2 reads the menu overlay to a fixed address. Files come from loose folders.
+
+Platform layer so far (port/src):
+- plat_mem.c: memory at PS2 addresses (heap 0x00400000..0x02000000 served to the game's one
+  malloc; hardware register pages; scratchpad).
+- plat_file.c: CRI ADXF over folders made by port/tools/extract_disc.py (`gamedata/`, or
+  BT3_DATA); `gamedata/mods/<same path>` overrides a file.
+- plat_gs.c: DMA channel control registers (a started transfer completes at the next access;
+  the data is dropped in the headless build).
+- plat_sys.c, plat_stub.c, plat_mc.c: system calls, sound, GS, pads, movies (do nothing),
+  memory card ("no card").
+- port/tools/where.sh: where the program is stuck or crashed.
+
+Changes this needed in the shared sources (all made in the decompilation, matching build
+unchanged): DMA control register macros go through `Port_DmaChcr` under PORT; the 68 integer
+literals with an `L` / `UL` suffix became `LL` / `ULL` (`1UL << 34` is wrong on a 32-bit
+host); guards around five assembly maths / random functions and three hardware waits.
+
+Not looked at yet: other uses of the PS2's 64-bit `long` semantics that are not literals
+(none found by grep: the sources use s64 / u64), struct layouts that depend on 64-bit
+alignment (u64 members are 8-byte aligned on the PS2 and 4-byte aligned on 32-bit x86: must
+be checked, `-malign-double` is the likely fix), and float behaviour.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

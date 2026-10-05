@@ -29,4 +29,7 @@ typedef float f32;
 #define ASM_STUB_BEGIN() extern int asm_stub_begin_
 #define ASM_STUB_END() extern int asm_stub_end_
 
+/* C library calls of the game that must not go to the host's versions (see port/src/plat_mem.c). */
+#define malloc Port_Malloc
+
 #endif

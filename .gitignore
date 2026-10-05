@@ -13,3 +13,4 @@ __pycache__/
 /build.ninja
 .ninja_*
 /port/build/
+/gamedata/
