@@ -127,7 +127,7 @@ typedef struct EftPart10Def {
     /* 0x138 */ f32 lifeRange[EFT_PART10_KEYS];
     /* 0x144 */ f32 unk158[EFT_PART10_KEYS];  /* seconds */
     /* 0x150 */ f32 unk160[EFT_PART10_KEYS];
-    /* 0x15C */ EftPart10Key2 unk168[EFT_PART10_KEYS];
+    /* 0x15C */ f32 unk168[EFT_PART10_KEYS][2];
     /* 0x174 */ f32 unk178[EFT_PART10_KEYS];
     /* 0x180 */ f32 unk180;
     /* 0x184 */ f32 spinA[3];                   /* emitter spin (flag 0x40): three keys or one range */
@@ -163,9 +163,9 @@ typedef struct EftPart10Def2 {
     /* 0x030 */ Vec4 colorRange[EFT_PART10_KEYS];
     /* 0x060 */ Vec4 endColor[EFT_PART10_KEYS];
     /* 0x090 */ Vec4 endColorRange[EFT_PART10_KEYS];
-    /* 0x0C0 */ EftPart10Key2 stretchX[EFT_PART10_KEYS];
-    /* 0x0D8 */ EftPart10Key2 stretchY[EFT_PART10_KEYS];
-    /* 0x0F0 */ EftPart10Key2 stretchZ[EFT_PART10_KEYS];
+    /* 0x0C0 */ f32 stretchX[EFT_PART10_KEYS][2];
+    /* 0x0D8 */ f32 stretchY[EFT_PART10_KEYS][2];
+    /* 0x0F0 */ f32 stretchZ[EFT_PART10_KEYS][2];
     /* 0x108 */ f32 stretchTime[EFT_PART10_KEYS];
     /* 0x114 */ f32 unk248[EFT_PART10_KEYS];
     /* 0x120 */ f32 unk250[EFT_PART10_KEYS];

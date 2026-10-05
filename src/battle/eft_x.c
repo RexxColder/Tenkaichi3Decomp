@@ -11,10 +11,11 @@
  * one Rand_IntRange (libc rand(); definition flag 0x10, the texture frame). EftPart10_InitSpin, once per
  * emitter with definition flag 0x40: 3 or 9 Rand_FloatRange. They reach only particle appearance.
  *
- * Three functions are INCLUDE_ASM with the attempt in `#if 0` above them: the key-frame functions
- * EftPart10_StartKeys, EftPart10_UpdateKeys and EftPart10_SetKey (same operations, different register
- * allocation of about fifty shared addresses; the address arithmetic of the original, bases def + 4 / + 8 / + 0xC
- * with idx * 4 + a multiple of 16, says the tracks are nested structures that these views do not have yet).
+ * The key-frame functions (EftPart10_StartKeys, EftPart10_UpdateKeys, EftPart10_SetKey) depend on the element
+ * type of the definition's two-value tracks: `f32 track[3][2]` (a 2-D array, [key][0 / 1]), not an array of
+ * two-float structures. With the structure the second value is addressed as (def + rest + 4) + index, with the
+ * 2-D array as (def + rest) + (index + 4), which shares its base with the first value; that one difference
+ * changed the allocation of all fifty shared addresses.
  */
 
 /* The view being drawn (include/battle/btl_cam.h). */
@@ -810,9 +811,6 @@ void EftPart10_UpdateSpin(EftPart10 *em) {
 
 /* Starts a segment of the emitter's key-frame animation: at age 0 the first (keys 0 to 1), once the age
    reaches keyMid the second (keys 1 to 2). Stores the change of every value over the segment. */
-#if 0
-/* NON-MATCHING: same operations and length (477 instructions), but the original keeps `seg` in a register
-   and spills the track addresses it shares between statements; this spills `seg`. Register allocation only. */
 void EftPart10_StartKeys(EftPart10 *em) {
     s32 seg = 0;
     EftPart10Def *def = em->def;
@@ -857,15 +855,15 @@ void EftPart10_StartKeys(EftPart10 *em) {
         em->lifeRange.d = def->lifeRange[seg] - def->lifeRange[seg - 1];
         em->unk158.d = def->unk158[seg] - def->unk158[seg - 1];
         em->unk160.d = def->unk160[seg] - def->unk160[seg - 1];
-        em->dUnk168.a = def->unk168[seg].a - def->unk168[seg - 1].a;
-        em->dUnk168.b = def->unk168[seg].b - def->unk168[seg - 1].b;
+        em->dUnk168.a = def->unk168[seg][0] - def->unk168[seg - 1][0];
+        em->dUnk168.b = def->unk168[seg][1] - def->unk168[seg - 1][1];
         em->unk178.d = def->unk178[seg] - def->unk178[seg - 1];
-        em->dStretchX.a = def2->stretchX[seg].a - def2->stretchX[seg - 1].a;
-        em->dStretchX.b = def2->stretchX[seg].b - def2->stretchX[seg - 1].b;
-        em->dStretchY.a = def2->stretchY[seg].a - def2->stretchY[seg - 1].a;
-        em->dStretchY.b = def2->stretchY[seg].b - def2->stretchY[seg - 1].b;
-        em->dStretchZ.a = def2->stretchZ[seg].a - def2->stretchZ[seg - 1].a;
-        em->dStretchZ.b = def2->stretchZ[seg].b - def2->stretchZ[seg - 1].b;
+        em->dStretchX.a = def2->stretchX[seg][0] - def2->stretchX[seg - 1][0];
+        em->dStretchX.b = def2->stretchX[seg][1] - def2->stretchX[seg - 1][1];
+        em->dStretchY.a = def2->stretchY[seg][0] - def2->stretchY[seg - 1][0];
+        em->dStretchY.b = def2->stretchY[seg][1] - def2->stretchY[seg - 1][1];
+        em->dStretchZ.a = def2->stretchZ[seg][0] - def2->stretchZ[seg - 1][0];
+        em->dStretchZ.b = def2->stretchZ[seg][1] - def2->stretchZ[seg - 1][1];
         em->stretchTime.d = def2->stretchTime[seg] - def2->stretchTime[seg - 1];
         em->unk248.d = def2->unk248[seg] - def2->unk248[seg - 1];
         em->unk250.d = def2->unk250[seg] - def2->unk250[seg - 1];
@@ -875,22 +873,20 @@ void EftPart10_StartKeys(EftPart10 *em) {
         Vec4_Sub(&em->dEndColorRange, &def2->endColorRange[seg], &def2->endColorRange[seg - 1]);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_x", EftPart10_StartKeys);
-#endif
 
 /* Advances the key-frame animation: every value = its key at the start of the segment + change * progress. */
-#if 0
-/* NON-MATCHING: 393 instructions against 393; register allocation of the shared track addresses (the
-   original keeps `def` in t9 across the memset call and clamps through an inlined helper). */
+/* The temporary is reached through a pointer variable (`p`); with `&tmp` at every use the `seg = 0` store is
+   scheduled in front of the memset call instead of behind it (presumably the pointer's own set takes that
+   scheduler slot and reload deletes it afterwards: not verified). The clamp is the conditional expression. */
 void EftPart10_UpdateKeys(EftPart10 *em) {
     Vec4 tmp;
     s32 seg;
     EftPart10Def *def = em->def;
     EftPart10Def2 *def2 = em->def2;
     f32 t;
+    Vec4 *p = &tmp;
 
-    memset(&tmp, 0, sizeof(tmp));
+    memset(p, 0, sizeof(tmp));
     seg = 0;
     if (!(em->flags & EFT_PART10_KEY2)) {
         t = em->age / em->keyMid;
@@ -898,11 +894,7 @@ void EftPart10_UpdateKeys(EftPart10 *em) {
         seg = 1;
         t = (em->age - em->keyMid) / (em->keyTime - em->keyMid);
     }
-    if (t < 0.0f) {
-        t = 0.0f;
-    } else if (1.0f < t) {
-        t = 1.0f;
-    }
+    t = (t < 0.0f) ? 0.0f : (1.0f < t) ? 1.0f : t;
     em->kSize[0] = def->size[seg][0] + em->dSize[0] * t;
     em->kSize[1] = def->size[seg][1] + em->dSize[1] * t;
     em->kSize[2] = def->size[seg][2] + em->dSize[2] * t;
@@ -932,34 +924,29 @@ void EftPart10_UpdateKeys(EftPart10 *em) {
     em->lifeRange.v = def->lifeRange[seg] + em->lifeRange.d * t;
     em->unk158.v = def->unk158[seg] + em->unk158.d * t;
     em->unk160.v = def->unk160[seg] + em->unk160.d * t;
-    em->unk168.a = def->unk168[seg].a + em->dUnk168.a * t;
-    em->unk168.b = def->unk168[seg].b + em->dUnk168.b * t;
+    em->unk168.a = def->unk168[seg][0] + em->dUnk168.a * t;
+    em->unk168.b = def->unk168[seg][1] + em->dUnk168.b * t;
     em->unk178.v = def->unk178[seg] + em->unk178.d * t;
-    em->stretchX.a = def2->stretchX[seg].a + em->dStretchX.a * t;
-    em->stretchX.b = def2->stretchX[seg].b + em->dStretchX.b * t;
-    em->stretchY.a = def2->stretchY[seg].a + em->dStretchY.a * t;
-    em->stretchY.b = def2->stretchY[seg].b + em->dStretchY.b * t;
-    em->stretchZ.a = def2->stretchZ[seg].a + em->dStretchZ.a * t;
-    em->stretchZ.b = def2->stretchZ[seg].b + em->dStretchZ.b * t;
+    em->stretchX.a = def2->stretchX[seg][0] + em->dStretchX.a * t;
+    em->stretchX.b = def2->stretchX[seg][1] + em->dStretchX.b * t;
+    em->stretchY.a = def2->stretchY[seg][0] + em->dStretchY.a * t;
+    em->stretchY.b = def2->stretchY[seg][1] + em->dStretchY.b * t;
+    em->stretchZ.a = def2->stretchZ[seg][0] + em->dStretchZ.a * t;
+    em->stretchZ.b = def2->stretchZ[seg][1] + em->dStretchZ.b * t;
     em->stretchTime.v = def2->stretchTime[seg] + em->stretchTime.d * t;
     em->unk248.v = def2->unk248[seg] + em->unk248.d * t;
     em->unk250.v = def2->unk250[seg] + em->unk250.d * t;
-    Vec3_Scale(&tmp, &em->dColor, t);
-    Vec4_Add(&em->color, &def2->color[seg], &tmp);
-    Vec3_Scale(&tmp, &em->dEndColor, t);
-    Vec4_Add(&em->endColor, &def2->endColor[seg], &tmp);
-    Vec3_Scale(&tmp, &em->dColorRange, t);
-    Vec4_Add(&em->colorRange, &def2->colorRange[seg], &tmp);
-    Vec3_Scale(&tmp, &em->dEndColorRange, t);
-    Vec4_Add(&em->endColorRange, &def2->endColorRange[seg], &tmp);
+    Vec3_Scale(p, &em->dColor, t);
+    Vec4_Add(&em->color, &def2->color[seg], p);
+    Vec3_Scale(p, &em->dEndColor, t);
+    Vec4_Add(&em->endColor, &def2->endColor[seg], p);
+    Vec3_Scale(p, &em->dColorRange, t);
+    Vec4_Add(&em->colorRange, &def2->colorRange[seg], p);
+    Vec3_Scale(p, &em->dEndColorRange, t);
+    Vec4_Add(&em->endColorRange, &def2->endColorRange[seg], p);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_x", EftPart10_UpdateKeys);
-#endif
 
 /* Sets every animated value of the emitter to key `idx` of its definition. */
-#if 0
-/* NON-MATCHING: 208 instructions against 208; register allocation of the shared track addresses. */
 void EftPart10_SetKey(EftPart10 *em, s32 idx) {
     EftPart10Def *def = em->def;
     EftPart10Def2 *def2;
@@ -994,15 +981,15 @@ void EftPart10_SetKey(EftPart10 *em, s32 idx) {
     em->lifeRange.v = def->lifeRange[idx];
     em->unk158.v = def->unk158[idx];
     em->unk160.v = def->unk160[idx];
-    em->unk168.a = def->unk168[idx].a;
-    em->unk168.b = def->unk168[idx].b;
+    em->unk168.a = def->unk168[idx][0];
+    em->unk168.b = def->unk168[idx][1];
     em->unk178.v = def->unk178[idx];
-    em->stretchX.a = def2->stretchX[idx].a;
-    em->stretchX.b = def2->stretchX[idx].b;
-    em->stretchY.a = def2->stretchY[idx].a;
-    em->stretchY.b = def2->stretchY[idx].b;
-    em->stretchZ.a = def2->stretchZ[idx].a;
-    em->stretchZ.b = def2->stretchZ[idx].b;
+    em->stretchX.a = def2->stretchX[idx][0];
+    em->stretchX.b = def2->stretchX[idx][1];
+    em->stretchY.a = def2->stretchY[idx][0];
+    em->stretchY.b = def2->stretchY[idx][1];
+    em->stretchZ.a = def2->stretchZ[idx][0];
+    em->stretchZ.b = def2->stretchZ[idx][1];
     em->stretchTime.v = def2->stretchTime[idx];
     em->unk248.v = def2->unk248[idx];
     em->unk250.v = def2->unk250[idx];
@@ -1011,9 +998,6 @@ void EftPart10_SetKey(EftPart10 *em, s32 idx) {
     Vec4_Copy(&em->colorRange, &def2->colorRange[idx]);
     Vec4_Copy(&em->endColorRange, &def2->endColorRange[idx]);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_x", EftPart10_SetKey);
-#endif
 
 /* Chooses the emitter's two pack textures; the blended TEX0 goes to entry a + b of the table (b when equal). */
 void EftPart10_SelectTex(EftPart10 *em, EftXTexEntry *tbl, s32 a, s32 b) {

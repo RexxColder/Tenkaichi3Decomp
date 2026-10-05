@@ -333,6 +333,7 @@ void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s
                               s32 zOfs);
 void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                             f32 zScale);
-/* EftGfx_DrawSprite (0x131A20) is left in assembly; its arguments are described in eft_a.c. */
+void EftGfx_DrawSprite(EftVec *pos, EftVec *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 layer,
+                       s32 front, u64 tex0);
 
 #endif

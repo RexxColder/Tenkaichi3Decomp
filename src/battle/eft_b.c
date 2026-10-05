@@ -289,20 +289,6 @@ typedef struct EftBStripPkt {
 /* Queues a screen-aligned textured quad centred on the projection of `pos`: w x h are half sizes in world units
    (scaled by the perspective of pos), rot turns it about the view axis, zScale scales its depth slot. Dropped when
    smaller than 2 pixels or when any corner leaves the GS drawing area. Sets pos->w to 1. */
-#if 0
-/* NON-MATCHING: 27 instructions differ (was 51), same length, same operations. No caller in the executable.
-   Second pass: the corner coordinates are computed in plain order (x0, y0, x1, y1, x2, y2, x3, y3, then the
-   depth), declared in that order with the depth after y0, and the UV / fog / TEX0 stores are in plain source order
-   (st0.s .. st3.t, xyz0.f .. xyz3.f, tex0): the four offsets now load into a1, a2, a3, a0 and the stores come out
-   in the original's order (the scheduler emits the last use of each value first). Left:
-   - u0 / v0 are in f28 / f27 here and f27 / f28 in the original: u0's life is one instruction longer than v0's at
-     register allocation (its copy from $f14 is scheduled two instructions before v0's, it dies one before). No
-     order of the parameters changes that (41 tried; for EftPrim_DrawQuadDepthScaled that was the fix).
-   - the depth is in t0 and the first corner in t2 / t4 here; the original has the corner in t0 / t2 and the depth
-     in t4 (the depth's life is the shorter one here). Every position of `zz = scr.z` was tried.
-   - the header constants: the original loads 0x10000000 (vif0) last and reuses a0 three times; here it is loaded
-     early and holds a0 (the same difference as in EftPrim_DrawTriangle). A hill-climb over the header stores
-     reaches 25 with prim, dmaTag, vif0, vif1, regs, gifTag, next. */
 void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 tex0, f32 w, f32 h, f32 u0, f32 v0,
                            f32 u1, f32 v1, f32 rot, f32 zScale) {
     Mtx44 m;
@@ -381,11 +367,11 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     }
     ctx = layer >= 2;
     p->prim = ((u64)abe << 6) | ((u64)ctx << 9) | 0x14;
-    p->regs = ((u64)ctx << 4) + 0xF42424242160;
     p->dmaTag = 0x20000007;
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000007;
     p->gifTag = 0xC400000000008001;
+    p->regs = 0xF42424242160 + (ctx << 4);
     p->next = NULL;
     p->rgbaq.r = color->x;
     p->rgbaq.g = color->y;
@@ -433,9 +419,6 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     e->tail->next = (OtPrim *)p;
     e->tail = (OtPrim *)p;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_b", EftPrim_DrawBillboard);
-#endif
 
 /* One vertex as ClipVtx_Set builds it for EftGfx_DrawPolyFixedZ: position, texture coordinates and colour. */
 typedef struct EftBVert {
@@ -536,12 +519,6 @@ void EftPrim_DrawQuadDepthScaled(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f
 /* Queues one gouraud textured triangle from projected vertices, float colours (0..255) and (s, t, q) texture
    coordinates. Skipped when all three alphas are 0.01 or less. A negative layer means layer 0 without blending;
    layers 2 and 3 are layers 0 and 1 drawn with GS context 2. */
-#if 0
-/* NON-MATCHING: 12 instructions differ: the loads of the constants 0x1B and 0x10000000 are scheduled a
-   few instructions later in the original; everything else is identical (same registers).
-   Second pass: every position of the prim / vif0 statements among the header stores (72 combinations), 2500
-   random orders of the nine header statements, and the GS_SET_PRIM-style spellings of the PRIM value (constant
-   first, parenthesised groups, `+`) give 12 or more. */
 void EftPrim_DrawTriangle(EftBIVec *v0, EftBIVec *v1, EftBIVec *v2, Vec4 *c0, Vec4 *c1, Vec4 *c2, Vec4 *uv0, Vec4 *uv1,
                           Vec4 *uv2, s32 unk1, s32 unk2, s32 layer, s32 z, u64 tex0) {
     s32 abe = 1;
@@ -561,11 +538,11 @@ void EftPrim_DrawTriangle(EftBIVec *v0, EftBIVec *v1, EftBIVec *v2, Vec4 *c0, Ve
     p = (EftBTriPkt *)gOtCur;
     gOtCur = (u32 *)(p + 1);
     p->prim = ((u64)abe << 6) | ((u64)ctx << 9) | 0x1B;
-    p->vif0 = 0x10000000;
     p->dmaTag = 0x20000007;
-    p->regs = ((u64)ctx << 4) + 0xF42142142160;
+    p->vif0 = 0x10000000;
     p->vif1 = 0x50000007;
     p->gifTag = 0xC400000000008001;
+    p->regs = 0xF42142142160 + (ctx << 4);
     p->next = NULL;
     p->nop = 0;
     p->rgbaq0.r = c0->x;
@@ -616,9 +593,6 @@ void EftPrim_DrawTriangle(EftBIVec *v0, EftBIVec *v1, EftBIVec *v2, Vec4 *c0, Ve
     e->tail->next = (OtPrim *)p;
     e->tail = (OtPrim *)p;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_b", EftPrim_DrawTriangle);
-#endif
 
 /* 1 when a projected point cannot be drawn: behind the camera or outside the GS drawing area. */
 s32 EftPrim_IsOffScreen(s32 x, s32 y, s32 z) {

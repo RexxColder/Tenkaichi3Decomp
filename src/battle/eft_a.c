@@ -2,6 +2,7 @@
 #include "battle/battle.h"
 #include "battle/btl_pool.h"
 #include "battle/eft_a.h"
+#include "sys/gfx_ot.h"
 
 /*
  * Effect core, 0x12DD80..0x132290. The object model is described in include/battle/eft_a.h.
@@ -1664,21 +1665,210 @@ void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32
     }
 }
 
+/* GS XYZF2 register. */
+typedef struct EftGfxXyzf {
+    u64 x : 16;
+    u64 y : 16;
+    u64 z : 24;
+    u64 f : 8;
+} EftGfxXyzf;
+
+typedef struct EftGfxRgbaq {
+    u8 r, g, b, a;
+    f32 q;
+} EftGfxRgbaq;
+
+typedef struct EftGfxSt {
+    f32 s, t;
+} EftGfxSt;
+
+/* DMA tag + REGLIST GIF tag (14 registers): PRIM, TEX0, four (RGBAQ, ST, XYZF2): one gouraud textured strip
+   (the same packet as EftBStripPkt of eft_b.c). */
+typedef struct EftGfxStripPkt {
+    /* 0x00 */ u32 dmaTag;       /* 0x20000008: NEXT, 8 quadwords */
+    /* 0x04 */ struct EftGfxStripPkt *next;
+    /* 0x08 */ u32 vif0;         /* 0x10000000 */
+    /* 0x0C */ u32 vif1;         /* 0x50000008: DIRECT, 8 quadwords */
+    /* 0x10 */ u64 gifTag;       /* 0xE400000000008001: NLOOP 1, EOP, REGLIST, 14 registers */
+    /* 0x18 */ u64 regs;         /* 0x42142142142160; + 0x10 for context 2 (TEX0_1 becomes TEX0_2) */
+    /* 0x20 */ u64 prim;         /* 0x5C (gouraud textured triangle strip, alpha blended) | context << 9 */
+    /* 0x28 */ u64 tex0;
+    /* 0x30 */ EftGfxRgbaq rgbaq0;
+    /* 0x38 */ EftGfxSt st0;
+    /* 0x40 */ EftGfxXyzf xyz0;
+    /* 0x48 */ EftGfxRgbaq rgbaq1;
+    /* 0x50 */ EftGfxSt st1;
+    /* 0x58 */ EftGfxXyzf xyz1;
+    /* 0x60 */ EftGfxRgbaq rgbaq2;
+    /* 0x68 */ EftGfxSt st2;
+    /* 0x70 */ EftGfxXyzf xyz2;
+    /* 0x78 */ EftGfxRgbaq rgbaq3;
+    /* 0x80 */ EftGfxSt st3;
+    /* 0x88 */ EftGfxXyzf xyz3;
+} EftGfxStripPkt; /* size 0x90 */
+
+extern s32 Vu0Cur_ProjectPoint(EftGfxScr *out, EftVec *pos); /* projects a point to GS 12.4 screen x, y, depth, w */
+extern void Vec4_Mul(EftVec *dst, EftVec *a, EftVec *b);      /* per-component product */
+extern void Vec4_ToInt(EftGfxScr *dst, EftVec *src);          /* float vector to fixed point */
+extern s32 EftPrim_IsOffScreen(s32 x, s32 y, s32 z);          /* eft_b.c: outside the GS drawing area */
+
 /*
- * Draws a camera-facing textured quad at a world position, written straight into the display list. Left in
- * assembly (0x870 bytes); read from the disassembly:
- *   (EftVec *pos, EftVec *color, s32 layer, s32 front, u64 tex0, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1,
- *    f32 roll)
- *   - pos->w = 1; 0x1210D8 projects pos with a (1, 7/6, 1, 1) scale vector into fixed-point screen x, y, z, w;
- *     the size in pixels is w (h) * (gBtlCamView + 0x234) * 4096 / screen w, >> 12; nothing is drawn below 2 pixels.
- *   - the two corner offsets (w, h) and (-w, h) are rotated about Z by roll (Mtx_StoreIdentity + 0x120308),
- *     scaled (0x121F08) and converted to fixed point (0x1220F0); the quad is rejected when any corner is off
- *     screen (0x133398).
- *   - takes 0x90 bytes at gOtCur: a GIF tag for a 4-vertex textured, alpha-blended triangle strip (context
- *     chosen by layer >= 2), TEX0 = tex0, then per vertex RGBAQ (the four floats of color converted to bytes,
- *     q = 1), ST (u0/v0/u1/v1) and XYZ2 (z = 0xFFFFFF when front is set).
- *   - links the packet into the ordering table gOtZ at (z >> 8) * 2 + layer (layer - 2 for layers >= 2),
- *     clamped to the table's ends.
- * It reads the camera view only and writes nothing but display-list memory.
+ * Draws a camera-facing textured quad at a world position, written straight into the display list.
+ *   - pos->w = 1; Vu0Cur_ProjectPoint projects pos into fixed-point screen x, y, z, w. The half size in pixels is
+ *     (s32)w (h) * (s32)(gBtlCamView + 0x234 (screen distance) * 4096 / screen w) >> 12; nothing is drawn below 2
+ *     pixels in either direction.
+ *   - the two corner offsets (w, h) and (-w, h) are rotated about Z by rot (Mtx_StoreIdentity + Mtx_RotateZ),
+ *     scaled by the aspect vector (1, 7/6, 1, 1) and converted to fixed point; the quad is dropped when any of the
+ *     four corners centre -/+ a, centre +/- b is off screen (EftPrim_IsOffScreen).
+ *   - takes 0x90 bytes at gOtCur: a 4-vertex gouraud textured, alpha-blended triangle strip (context 2 when
+ *     layer >= 2), TEX0 = tex0, per vertex RGBAQ (the four floats of color converted to bytes, q = 1), ST
+ *     ((u0,v0), (u0,v1), (u1,v0), (u1,v1)) and XYZF2 (centre - a, centre + b, centre - b, centre + a; depth
+ *     forced to 0xFFFFFF when front is set; fog 0xFF).
+ *   - links the packet into the ordering table at depth slot (projected z >> 8, taken BEFORE front is applied,
+ *     clamped to 0..0xFFF) and chain layer (layer - 2 for layers >= 2).
+ * It reads the camera view only and writes nothing but pos->w and display-list memory.
+ * The parameter order (floats in front of layer / front / tex0) is the one three callers declare (eft_aa.c,
+ * eft_ab_c.c, eft_c.c); it decides which saved float register u1 and v1 get.
  */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_DrawSprite);
+void EftGfx_DrawSprite(EftVec *pos, EftVec *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 layer,
+                       s32 front, u64 tex0) {
+    EftMtx m;
+    EftVec aspect;
+    EftVec a;
+    EftVec b;
+    EftGfxScr scr __attribute__((aligned(16)));
+    EftGfxScr ia __attribute__((aligned(16)));
+    EftGfxScr ib __attribute__((aligned(16)));
+    f32 scale = *(f32 *)(gBtlCamView + 0x234);
+    s32 sw;
+    s32 sh;
+    s32 z;
+    s32 x0, y0, x1, y1, x2, y2, x3, y3;
+    s32 zz;
+    s32 abe = 1;
+    s32 ctx;
+    s32 l;
+    EftGfxStripPkt *p;
+    OtEntry *e;
+
+    Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
+    pos->w = 1.0f;
+    Vu0Cur_ProjectPoint(&scr, pos);
+    sw = w;
+    sh = h;
+    scale *= 4096.0f;
+    z = scr.z >> 8;
+    scale /= scr.w;
+    sw = (sw * (s32)scale) >> 12;
+    sh = (sh * (s32)scale) >> 12;
+    if (sw < 2 || sh < 2) {
+        return;
+    }
+    w = sw;
+    h = sh;
+    Vec4_Set(&a, w, h, 0.0f, 1.0f);
+    Vec4_Set(&b, -w, h, 0.0f, 1.0f);
+    Mtx_StoreIdentity(&m);
+    Mtx_RotateZ(&m, &m, rot);
+    Mtx_MulVec4(&a, &m, &a);
+    Mtx_MulVec4(&b, &m, &b);
+    Vec4_Mul(&a, &a, &aspect);
+    Vec4_Mul(&b, &b, &aspect);
+    Vec4_ToInt(&ia, &a);
+    Vec4_ToInt(&ib, &b);
+    if (EftPrim_IsOffScreen(scr.x - ia.x, scr.y - ia.y, scr.z)) {
+        return;
+    }
+    if (EftPrim_IsOffScreen(scr.x + ib.x, scr.y + ib.y, scr.z)) {
+        return;
+    }
+    if (EftPrim_IsOffScreen(scr.x - ib.x, scr.y - ib.y, scr.z)) {
+        return;
+    }
+    if (EftPrim_IsOffScreen(scr.x + ia.x, scr.y + ia.y, scr.z)) {
+        return;
+    }
+    if (front) {
+        scr.z = 0xFFFFFF;
+    }
+    p = (EftGfxStripPkt *)gOtCur;
+    gOtCur = (u32 *)(p + 1);
+    x0 = scr.x - ia.x;
+    y0 = scr.y - ia.y;
+    x1 = scr.x + ib.x;
+    y1 = scr.y + ib.y;
+    x2 = scr.x - ib.x;
+    y2 = scr.y - ib.y;
+    x3 = scr.x + ia.x;
+    y3 = scr.y + ia.y;
+    zz = scr.z;
+    if (p == NULL) {
+        return;
+    }
+    ctx = layer >= 2;
+    p->prim = ((u64)abe << 6) | ((u64)ctx << 9) | 0x1C;
+    p->dmaTag = 0x20000008;
+    p->vif0 = 0x10000000;
+    p->vif1 = 0x50000008;
+    p->gifTag = 0xE400000000008001;
+    p->regs = 0x42142142142160 + (ctx << 4);
+    p->next = NULL;
+    p->rgbaq0.r = color->x;
+    p->rgbaq0.g = color->y;
+    p->rgbaq0.b = color->z;
+    p->rgbaq0.a = color->w;
+    p->rgbaq0.q = 1.0f;
+    p->rgbaq1.r = color->x;
+    p->rgbaq1.g = color->y;
+    p->rgbaq1.b = color->z;
+    p->rgbaq1.a = color->w;
+    p->rgbaq1.q = 1.0f;
+    p->rgbaq2.r = color->x;
+    p->rgbaq2.g = color->y;
+    p->rgbaq2.b = color->z;
+    p->rgbaq2.a = color->w;
+    p->rgbaq2.q = 1.0f;
+    p->rgbaq3.r = color->x;
+    p->rgbaq3.g = color->y;
+    p->rgbaq3.b = color->z;
+    p->rgbaq3.a = color->w;
+    p->rgbaq3.q = 1.0f;
+    p->st0.s = u0;
+    p->st0.t = v0;
+    p->st1.s = u0;
+    p->st1.t = v1;
+    p->st2.s = u1;
+    p->st2.t = v0;
+    p->st3.s = u1;
+    p->st3.t = v1;
+    p->xyz0.x = x0;
+    p->xyz0.y = y0;
+    p->xyz0.z = zz;
+    p->xyz0.f = 0xFF;
+    p->xyz1.x = x1;
+    p->xyz1.y = y1;
+    p->xyz1.z = zz;
+    p->xyz1.f = 0xFF;
+    p->xyz2.x = x2;
+    p->xyz2.y = y2;
+    p->xyz2.z = zz;
+    p->xyz2.f = 0xFF;
+    p->xyz3.x = x3;
+    p->xyz3.y = y3;
+    p->xyz3.z = zz;
+    p->xyz3.f = 0xFF;
+    p->tex0 = tex0;
+    l = layer;
+    if (l >= 2) {
+        l -= 2;
+    }
+    if (z < 0) {
+        e = &gOtZ[0].layer[l];
+    } else if (z >= 0x1000) {
+        e = &gOtZ[0xFFF].layer[l];
+    } else {
+        e = &gOtZ[z].layer[l];
+    }
+    e->tail->next = (OtPrim *)p;
+    e->tail = (OtPrim *)p;
+}

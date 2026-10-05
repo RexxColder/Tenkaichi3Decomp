@@ -413,25 +413,16 @@ void StgHaze_Step(StgHaze *haze, s32 split, s32 view) {
  * col * width / (cols - 1). The top vertex is displaced by curX/curY[row][col], the bottom one by
  * curX/curY[row][col + 1] (the next column of the SAME row, not the next row), both clamped to the
  * view.
- * Not matched, but 171 of 186 instructions are now identical and the other 15 differ ONLY in a stack
- * offset. What made the difference (found with StgBlur_Draw, which matches): the "scratch block" is
- * not a structure. Only the packet pointer is in memory (StgHazeDraw is one pointer); haze, width,
- * widthPx, xOffset, cols, y0, y1, v0, nextRow, v1, lastRow and nVerts are ordinary locals that the
- * register allocator leaves on the stack, in declaration order (sp+4 .. sp+0x30). That is why the
- * original reloads them where it pleases (the "reads cols back from the stack" of the old note).
- * What still differs: in the original v0 and v1 keep their own pseudo registers (slots 0x20 and 0x28,
- * between y1 / nextRow and nextRow / lastRow). Here the quotient of each division is first put in a
- * temporary and copied (`tmp = a / b; v0 = tmp;`), and gcse's copy propagation then replaces v0 and
- * v1 by those temporaries, whose higher register numbers put their slots last: nextRow 0x20,
- * lastRow 0x24, nVerts 0x28, v0 0x2C, v1 0x30. Tried without effect: an inline helper for the
- * scaling, `v = a * b; v /= n;`, the statements in other orders. A dummy `v0 += z` with z = 0 keeps
- * the variables but changes the multiplications. Needed: a source form in which v0 / v1 are either
- * set again later in the same basic block or have two reaching definitions, so that the copy is
- * not "available" to gcse. Other things this attempt needs: u computed before px (the two
- * strength-reduced counters take s7 / s8 in that order), the explicit `if (row < lastRow)` with
- * `n = lastRow` behind it (a second register for the divisor), h and srcH as variables.
+ * Matching notes: only the packet pointer is in memory (StgHazeDraw is one pointer). Everything the
+ * original keeps at sp+4 .. sp+0x30 is a spilled pseudo register, in creation order: the parameter and
+ * the declared locals first (haze, width, widthPx, xOffset, cols, y0, y1), then compiler temporaries in
+ * the order the statements create them: the quotient of v0 (0x20), `row + 1` (0x24, first written in
+ * the y1 statement, which therefore comes BEHIND v0), the quotient of v1 (0x28), and the copies of
+ * `rows - 1` (0x2C) and `cols * 2` (0x30) that the jump pass makes when it duplicates the loop test.
+ * So there are no nextRow / lastRow / nVerts / divisor variables in the source: `rows - 1`, `row + 1`
+ * and `cols * 2` are written out at every use. (v0 and v1 themselves disappear: a division always
+ * lands in a temporary on this compiler and the copy is propagated.)
  */
-#if 0
 void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
     StgHazeDraw d;
     s32 width;
@@ -441,15 +432,11 @@ void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
     s32 y0;
     s32 y1;
     s32 v0;
-    s32 nextRow;
     s32 v1;
-    s32 lastRow;
-    s32 nVerts;
     u16 x1;
     s32 rows;
     s32 row;
     s32 col;
-    s32 n;
     s32 px;
     s32 u;
     s32 x;
@@ -472,21 +459,15 @@ void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
         cols /= 2;
         widthPx = 0x100;
     }
-    lastRow = rows - 1;
     StgHaze_BeginDraw(&d, haze, xOffset, x1, width, srcH, widthPx, h);
-    row = 0;
-    if (row < lastRow) {
-        n = lastRow;
-        nVerts = cols * 2;
-        do {
-        nextRow = row + 1;
-        StgHaze_PutStripTag(&d, haze, nVerts);
+    for (row = 0; row < rows - 1; row++) {
+        StgHaze_PutStripTag(&d, haze, cols * 2);
         cx = haze->curX[row];
         cy = haze->curY[row];
-        y0 = (h * row / n) << 4;
-        y1 = (h * nextRow / n) << 4;
-        v0 = srcH * row / n;
-        v1 = srcH * nextRow / n;
+        y0 = (h * row / (rows - 1)) << 4;
+        v0 = srcH * row / (rows - 1);
+        y1 = (h * (row + 1) / (rows - 1)) << 4;
+        v1 = srcH * (row + 1) / (rows - 1);
         for (col = 0; col < cols; col++) {
             u = col * width / (cols - 1) + xOffset;
             px = (col * widthPx / (cols - 1)) << 4;
@@ -504,13 +485,9 @@ void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
             cy++;
         }
         StgHaze_EndStrip(&d);
-        row = nextRow;
-        } while (row < lastRow);
     }
     StgHaze_EndDraw(&d);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/stg_c", StgHaze_Draw);
 
 /* One view: look-up, jitter (not while paused), draw. */
 void StgHaze_DrawView(s32 split, s32 view) {

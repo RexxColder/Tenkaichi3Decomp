@@ -359,12 +359,30 @@ typedef struct EftLinkPair {
 
 /* First definition block of a chain: three keys of every animated value, then the fixed parameters. */
 typedef struct EftLinkDef {
-    /* 0x000 */ f32 val[16][3];    /* [8] twist per node (turns), [11] / [12] jitter along the chain */
-    /* 0x0C0 */ f32 vecA[3][3];
-    /* 0x0E4 */ f32 vecB[3][3];
-    /* 0x108 */ f32 val2[4][3];
-    /* 0x138 */ EftLinkPair pair[3];
-    /* 0x150 */ f32 val3[3];
+    /* 0x000 */ f32 rotX[3];       /* three keys of every animated value */
+    /* 0x00C */ f32 rotXRange[3];
+    /* 0x018 */ f32 rotZ[3];
+    /* 0x024 */ f32 rotZRange[3];
+    /* 0x030 */ f32 dirAng[3];
+    /* 0x03C */ f32 dirAngRange[3];
+    /* 0x048 */ f32 spin[3];
+    /* 0x054 */ f32 spinRange[3];
+    /* 0x060 */ f32 twist[3];      /* twist per node (turns) */
+    /* 0x06C */ f32 ofsX[3];
+    /* 0x078 */ f32 ofsY[3];
+    /* 0x084 */ f32 unk84[3];      /* unk84 / unk90: jitter along the chain */
+    /* 0x090 */ f32 unk90[3];
+    /* 0x09C */ f32 dist[3];
+    /* 0x0A8 */ f32 distRange[3];
+    /* 0x0B4 */ f32 distBase[3];
+    /* 0x0C0 */ f32 size[3][3];    /* [key][axis] */
+    /* 0x0E4 */ f32 sizeRange[3][3];
+    /* 0x108 */ f32 life[3];
+    /* 0x114 */ f32 lifeRange[3];
+    /* 0x120 */ f32 wait[3];
+    /* 0x12C */ f32 waitRange[3];
+    /* 0x138 */ f32 pulse[3][2];   /* [key][0 / 1] */
+    /* 0x150 */ f32 pulseTime[3];
     /* 0x15C */ f32 keyTime;       /* seconds */
     /* 0x160 */ f32 keySplit;      /* fraction of keyTime at which key 1 is reached */
     /* 0x164 */ u8 unk164[0xC];
@@ -382,9 +400,16 @@ typedef struct EftLinkDef {
 
 /* Second definition block: three keys of the vector values. */
 typedef struct EftLinkDef2 {
-    /* 0x000 */ EftVVec vec[4][3];
-    /* 0x0C0 */ EftLinkPair pair[3][3];
-    /* 0x108 */ f32 val[3][3];
+    /* 0x000 */ EftVVec col0[3];
+    /* 0x030 */ EftVVec col0Range[3];
+    /* 0x060 */ EftVVec col1[3];
+    /* 0x090 */ EftVVec col1Range[3];
+    /* 0x0C0 */ f32 mulR[3][2];    /* [key][0 / 1] */
+    /* 0x0D8 */ f32 mulG[3][2];
+    /* 0x0F0 */ f32 mulB[3][2];
+    /* 0x108 */ f32 mulTime[3];
+    /* 0x114 */ f32 fade0[3];
+    /* 0x120 */ f32 fade1[3];
 } EftLinkDef2;
 
 /* Argument block of the creation entry 0x18BB08 (EftArg15 in eft_i.c). */

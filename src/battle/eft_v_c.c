@@ -314,10 +314,9 @@ void EftLink_UpdateGrow(EftLinkWork *w) {
 
 /* At the start of each key interval (time 0, then the split time): stores the difference between the interval's
    two keys for every animated value. */
-/* NOT MATCHING: 282 instructions in the original, 402 here. Same operations; the original shares the addresses
-   def + 4k, def + 4 + 4k, def + 8 + 4k, def + 12 + 4k between the statements (it adds the 16-byte multiple of
-   each field offset as a displacement) and spills them, this C recomputes them. */
-#if 0
+/* Matches only with every track a member of its own in EftLinkDef (`f32 rotX[3]`, ...; the two-value tracks
+   `f32 pulse[3][2]`): the member offset then splits into a 16-byte multiple added to the index and a rest
+   added to the base, and the bases def, def + 4, def + 8, def + 12 are shared between the statements. */
 void EftLink_InitKeys(EftLinkWork *w) {
     EftLinkDef *def = w->arg.def;
     EftLinkDef2 *def2 = w->arg.def2;
@@ -333,117 +332,113 @@ void EftLink_InitKeys(EftLinkWork *w) {
         w->flags |= EFT_LINK_KEY2;
     }
     if (k != 0) {
-        w->val[0].delta = def->val[0][k] - def->val[0][k - 1];
-        w->val[1].delta = def->val[1][k] - def->val[1][k - 1];
-        w->val[2].delta = def->val[2][k] - def->val[2][k - 1];
-        w->val[3].delta = def->val[3][k] - def->val[3][k - 1];
-        w->val[4].delta = def->val[4][k] - def->val[4][k - 1];
-        w->val[5].delta = def->val[5][k] - def->val[5][k - 1];
-        w->val[6].delta = def->val[6][k] - def->val[6][k - 1];
-        w->val[7].delta = def->val[7][k] - def->val[7][k - 1];
-        w->val[8].delta = def->val[8][k] - def->val[8][k - 1];
-        w->val[9].delta = def->val[9][k] - def->val[9][k - 1];
-        w->val[10].delta = def->val[10][k] - def->val[10][k - 1];
-        w->val[11].delta = def->val[11][k] - def->val[11][k - 1];
-        w->val[12].delta = def->val[12][k] - def->val[12][k - 1];
-        w->val[13].delta = def->val[13][k] - def->val[13][k - 1];
-        w->val[14].delta = def->val[14][k] - def->val[14][k - 1];
-        w->val[15].delta = def->val[15][k] - def->val[15][k - 1];
-        w->vecA[1][0] = def->vecA[k][0] - def->vecA[k - 1][0];
-        w->vecA[1][1] = def->vecA[k][1] - def->vecA[k - 1][1];
-        w->vecA[1][2] = def->vecA[k][2] - def->vecA[k - 1][2];
-        w->vecB[1][0] = def->vecB[k][0] - def->vecB[k - 1][0];
-        w->vecB[1][1] = def->vecB[k][1] - def->vecB[k - 1][1];
-        w->vecB[1][2] = def->vecB[k][2] - def->vecB[k - 1][2];
-        w->val2[0].delta = def->val2[0][k] - def->val2[0][k - 1];
-        w->val2[1].delta = def->val2[1][k] - def->val2[1][k - 1];
-        w->val2[2].delta = def->val2[2][k] - def->val2[2][k - 1];
-        w->val2[3].delta = def->val2[3][k] - def->val2[3][k - 1];
-        w->pair2[1].a = def->pair[k].a - def->pair[k - 1].a;
-        w->pair2[1].b = def->pair[k].b - def->pair[k - 1].b;
-        w->val3.delta = def->val3[k] - def->val3[k - 1];
-        w->pair[0][1].a = def2->pair[0][k].a - def2->pair[0][k - 1].a;
-        w->pair[0][1].b = def2->pair[0][k].b - def2->pair[0][k - 1].b;
-        w->pair[1][1].a = def2->pair[1][k].a - def2->pair[1][k - 1].a;
-        w->pair[1][1].b = def2->pair[1][k].b - def2->pair[1][k - 1].b;
-        w->pair[2][1].a = def2->pair[2][k].a - def2->pair[2][k - 1].a;
-        w->pair[2][1].b = def2->pair[2][k].b - def2->pair[2][k - 1].b;
-        w->val4[0].delta = def2->val[0][k] - def2->val[0][k - 1];
-        w->val4[1].delta = def2->val[1][k] - def2->val[1][k - 1];
-        w->val4[2].delta = def2->val[2][k] - def2->val[2][k - 1];
-        Vec4_Sub(&w->vec[0][1], &def2->vec[0][k], &def2->vec[0][k - 1]);
-        Vec4_Sub(&w->vec[2][1], &def2->vec[2][k], &def2->vec[2][k - 1]);
-        Vec4_Sub(&w->vec[1][1], &def2->vec[1][k], &def2->vec[1][k - 1]);
-        Vec4_Sub(&w->vec[3][1], &def2->vec[3][k], &def2->vec[3][k - 1]);
+        w->val[0].delta = def->rotX[k] - def->rotX[k - 1];
+        w->val[1].delta = def->rotXRange[k] - def->rotXRange[k - 1];
+        w->val[2].delta = def->rotZ[k] - def->rotZ[k - 1];
+        w->val[3].delta = def->rotZRange[k] - def->rotZRange[k - 1];
+        w->val[4].delta = def->dirAng[k] - def->dirAng[k - 1];
+        w->val[5].delta = def->dirAngRange[k] - def->dirAngRange[k - 1];
+        w->val[6].delta = def->spin[k] - def->spin[k - 1];
+        w->val[7].delta = def->spinRange[k] - def->spinRange[k - 1];
+        w->val[8].delta = def->twist[k] - def->twist[k - 1];
+        w->val[9].delta = def->ofsX[k] - def->ofsX[k - 1];
+        w->val[10].delta = def->ofsY[k] - def->ofsY[k - 1];
+        w->val[11].delta = def->unk84[k] - def->unk84[k - 1];
+        w->val[12].delta = def->unk90[k] - def->unk90[k - 1];
+        w->val[13].delta = def->dist[k] - def->dist[k - 1];
+        w->val[14].delta = def->distRange[k] - def->distRange[k - 1];
+        w->val[15].delta = def->distBase[k] - def->distBase[k - 1];
+        w->vecA[1][0] = def->size[k][0] - def->size[k - 1][0];
+        w->vecA[1][1] = def->size[k][1] - def->size[k - 1][1];
+        w->vecA[1][2] = def->size[k][2] - def->size[k - 1][2];
+        w->vecB[1][0] = def->sizeRange[k][0] - def->sizeRange[k - 1][0];
+        w->vecB[1][1] = def->sizeRange[k][1] - def->sizeRange[k - 1][1];
+        w->vecB[1][2] = def->sizeRange[k][2] - def->sizeRange[k - 1][2];
+        w->val2[0].delta = def->life[k] - def->life[k - 1];
+        w->val2[1].delta = def->lifeRange[k] - def->lifeRange[k - 1];
+        w->val2[2].delta = def->wait[k] - def->wait[k - 1];
+        w->val2[3].delta = def->waitRange[k] - def->waitRange[k - 1];
+        w->pair2[1].a = def->pulse[k][0] - def->pulse[k - 1][0];
+        w->pair2[1].b = def->pulse[k][1] - def->pulse[k - 1][1];
+        w->val3.delta = def->pulseTime[k] - def->pulseTime[k - 1];
+        w->pair[0][1].a = def2->mulR[k][0] - def2->mulR[k - 1][0];
+        w->pair[0][1].b = def2->mulR[k][1] - def2->mulR[k - 1][1];
+        w->pair[1][1].a = def2->mulG[k][0] - def2->mulG[k - 1][0];
+        w->pair[1][1].b = def2->mulG[k][1] - def2->mulG[k - 1][1];
+        w->pair[2][1].a = def2->mulB[k][0] - def2->mulB[k - 1][0];
+        w->pair[2][1].b = def2->mulB[k][1] - def2->mulB[k - 1][1];
+        w->val4[0].delta = def2->mulTime[k] - def2->mulTime[k - 1];
+        w->val4[1].delta = def2->fade0[k] - def2->fade0[k - 1];
+        w->val4[2].delta = def2->fade1[k] - def2->fade1[k - 1];
+        Vec4_Sub(&w->vec[0][1], &def2->col0[k], &def2->col0[k - 1]);
+        Vec4_Sub(&w->vec[2][1], &def2->col1[k], &def2->col1[k - 1]);
+        Vec4_Sub(&w->vec[1][1], &def2->col0Range[k], &def2->col0Range[k - 1]);
+        Vec4_Sub(&w->vec[3][1], &def2->col1Range[k], &def2->col1Range[k - 1]);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_v_c", EftLink_InitKeys);
 
 /* Every frame of the key animation: current value = first key of the interval + difference * progress. */
-/* NOT MATCHING: same length (354 instructions), 225 differ: the same address sharing as in EftLink_InitKeys,
-   which changes register allocation and the stack slots of the spilled addresses. */
-#if 0
+/* As EftPart10_UpdateKeys (eft_x.c): the temporary is reached through a pointer variable. */
 void EftLink_UpdateKeys(EftLinkWork *w) {
+    EftVVec tmp;
+    s32 k;
     EftLinkDef *def = w->arg.def;
     EftLinkDef2 *def2 = w->arg.def2;
-    EftVVec tmp = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-    s32 k;
     f32 t;
+    EftVVec *p = &tmp;
 
+    memset(p, 0, sizeof(tmp));
+    k = 0;
     if (!(w->flags & EFT_LINK_KEY2)) {
-        k = 0;
         t = w->time / w->keySplit;
     } else {
         k = 1;
         t = (w->time - w->keySplit) / (w->keyDur - w->keySplit);
     }
-    w->val[0].cur = def->val[0][k] + w->val[0].delta * t;
-    w->val[1].cur = def->val[1][k] + w->val[1].delta * t;
-    w->val[2].cur = def->val[2][k] + w->val[2].delta * t;
-    w->val[3].cur = def->val[3][k] + w->val[3].delta * t;
-    w->val[4].cur = def->val[4][k] + w->val[4].delta * t;
-    w->val[5].cur = def->val[5][k] + w->val[5].delta * t;
-    w->val[6].cur = def->val[6][k] + w->val[6].delta * t;
-    w->val[7].cur = def->val[7][k] + w->val[7].delta * t;
-    w->val[8].cur = def->val[8][k] + w->val[8].delta * t;
-    w->val[9].cur = def->val[9][k] + w->val[9].delta * t;
-    w->val[10].cur = def->val[10][k] + w->val[10].delta * t;
-    w->val[11].cur = def->val[11][k] + w->val[11].delta * t;
-    w->val[12].cur = def->val[12][k] + w->val[12].delta * t;
-    w->val[13].cur = def->val[13][k] + w->val[13].delta * t;
-    w->val[14].cur = def->val[14][k] + w->val[14].delta * t;
-    w->val[15].cur = def->val[15][k] + w->val[15].delta * t;
-    w->vecA[0][0] = def->vecA[k][0] + w->vecA[1][0] * t;
-    w->vecA[0][1] = def->vecA[k][1] + w->vecA[1][1] * t;
-    w->vecA[0][2] = def->vecA[k][2] + w->vecA[1][2] * t;
-    w->vecB[0][0] = def->vecB[k][0] + w->vecB[1][0] * t;
-    w->vecB[0][1] = def->vecB[k][1] + w->vecB[1][1] * t;
-    w->vecB[0][2] = def->vecB[k][2] + w->vecB[1][2] * t;
-    w->val2[0].cur = def->val2[0][k] + w->val2[0].delta * t;
-    w->val2[1].cur = def->val2[1][k] + w->val2[1].delta * t;
-    w->val2[2].cur = def->val2[2][k] + w->val2[2].delta * t;
-    w->val2[3].cur = def->val2[3][k] + w->val2[3].delta * t;
-    w->pair2[0].a = def->pair[k].a + w->pair2[1].a * t;
-    w->pair2[0].b = def->pair[k].b + w->pair2[1].b * t;
-    w->val3.cur = def->val3[k] + w->val3.delta * t;
-    w->pair[0][0].a = def2->pair[0][k].a + w->pair[0][1].a * t;
-    w->pair[0][0].b = def2->pair[0][k].b + w->pair[0][1].b * t;
-    w->pair[1][0].a = def2->pair[1][k].a + w->pair[1][1].a * t;
-    w->pair[1][0].b = def2->pair[1][k].b + w->pair[1][1].b * t;
-    w->pair[2][0].a = def2->pair[2][k].a + w->pair[2][1].a * t;
-    w->pair[2][0].b = def2->pair[2][k].b + w->pair[2][1].b * t;
-    w->val4[0].cur = def2->val[0][k] + w->val4[0].delta * t;
-    w->val4[1].cur = def2->val[1][k] + w->val4[1].delta * t;
-    w->val4[2].cur = def2->val[2][k] + w->val4[2].delta * t;
-    Vec4_Scale(&tmp, &w->vec[0][1], t);
-    Vec4_Add(&w->vec[0][0], &def2->vec[0][k], &tmp);
-    Vec4_Scale(&tmp, &w->vec[2][1], t);
-    Vec4_Add(&w->vec[2][0], &def2->vec[2][k], &tmp);
-    Vec4_Scale(&tmp, &w->vec[1][1], t);
-    Vec4_Add(&w->vec[1][0], &def2->vec[1][k], &tmp);
-    Vec4_Scale(&tmp, &w->vec[3][1], t);
-    Vec4_Add(&w->vec[3][0], &def2->vec[3][k], &tmp);
+    w->val[0].cur = def->rotX[k] + w->val[0].delta * t;
+    w->val[1].cur = def->rotXRange[k] + w->val[1].delta * t;
+    w->val[2].cur = def->rotZ[k] + w->val[2].delta * t;
+    w->val[3].cur = def->rotZRange[k] + w->val[3].delta * t;
+    w->val[4].cur = def->dirAng[k] + w->val[4].delta * t;
+    w->val[5].cur = def->dirAngRange[k] + w->val[5].delta * t;
+    w->val[6].cur = def->spin[k] + w->val[6].delta * t;
+    w->val[7].cur = def->spinRange[k] + w->val[7].delta * t;
+    w->val[8].cur = def->twist[k] + w->val[8].delta * t;
+    w->val[9].cur = def->ofsX[k] + w->val[9].delta * t;
+    w->val[10].cur = def->ofsY[k] + w->val[10].delta * t;
+    w->val[11].cur = def->unk84[k] + w->val[11].delta * t;
+    w->val[12].cur = def->unk90[k] + w->val[12].delta * t;
+    w->val[13].cur = def->dist[k] + w->val[13].delta * t;
+    w->val[14].cur = def->distRange[k] + w->val[14].delta * t;
+    w->val[15].cur = def->distBase[k] + w->val[15].delta * t;
+    w->vecA[0][0] = def->size[k][0] + w->vecA[1][0] * t;
+    w->vecA[0][1] = def->size[k][1] + w->vecA[1][1] * t;
+    w->vecA[0][2] = def->size[k][2] + w->vecA[1][2] * t;
+    w->vecB[0][0] = def->sizeRange[k][0] + w->vecB[1][0] * t;
+    w->vecB[0][1] = def->sizeRange[k][1] + w->vecB[1][1] * t;
+    w->vecB[0][2] = def->sizeRange[k][2] + w->vecB[1][2] * t;
+    w->val2[0].cur = def->life[k] + w->val2[0].delta * t;
+    w->val2[1].cur = def->lifeRange[k] + w->val2[1].delta * t;
+    w->val2[2].cur = def->wait[k] + w->val2[2].delta * t;
+    w->val2[3].cur = def->waitRange[k] + w->val2[3].delta * t;
+    w->pair2[0].a = def->pulse[k][0] + w->pair2[1].a * t;
+    w->pair2[0].b = def->pulse[k][1] + w->pair2[1].b * t;
+    w->val3.cur = def->pulseTime[k] + w->val3.delta * t;
+    w->pair[0][0].a = def2->mulR[k][0] + w->pair[0][1].a * t;
+    w->pair[0][0].b = def2->mulR[k][1] + w->pair[0][1].b * t;
+    w->pair[1][0].a = def2->mulG[k][0] + w->pair[1][1].a * t;
+    w->pair[1][0].b = def2->mulG[k][1] + w->pair[1][1].b * t;
+    w->pair[2][0].a = def2->mulB[k][0] + w->pair[2][1].a * t;
+    w->pair[2][0].b = def2->mulB[k][1] + w->pair[2][1].b * t;
+    w->val4[0].cur = def2->mulTime[k] + w->val4[0].delta * t;
+    w->val4[1].cur = def2->fade0[k] + w->val4[1].delta * t;
+    w->val4[2].cur = def2->fade1[k] + w->val4[2].delta * t;
+    Vec4_Scale(p, &w->vec[0][1], t);
+    Vec4_Add(&w->vec[0][0], &def2->col0[k], p);
+    Vec4_Scale(p, &w->vec[2][1], t);
+    Vec4_Add(&w->vec[2][0], &def2->col1[k], p);
+    Vec4_Scale(p, &w->vec[1][1], t);
+    Vec4_Add(&w->vec[1][0], &def2->col0Range[k], p);
+    Vec4_Scale(p, &w->vec[3][1], t);
+    Vec4_Add(&w->vec[3][0], &def2->col1Range[k], p);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_v_c", EftLink_UpdateKeys);

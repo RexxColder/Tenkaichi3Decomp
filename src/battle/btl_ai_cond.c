@@ -1164,19 +1164,12 @@ s32 AiThink_TestMove(AiThWork *ai) {
 
 /* Conditions 101..107 (functions 94..100) and 113, 114 (106, 107): picks a usable skill slot, then the weighted
  * test. Slots are scanned from the last (2 only with fighter flag 6) to the first. */
-#if 0
-/* Best attempt (about 260 of 308 instructions differ as fdiff counts them; about 130 with the shift removed). The
- * entry block up to the first test matches; the slot loop does not. What is known from the disassembly and the
- * RTL dumps: (1) the original frame is 144 bytes, this one 160: here the loop pass also strength-reduces
- * `&list[count]` into a walking pointer (a fifth stack slot at 64(sp)); the original recomputes it from `count`
- * at the store, i.e. its loop was too large for that reduction to pay (the heuristic compares the benefit with
- * the number of instructions in the loop), so the original loop body had MORE code at that stage than this
- * one; (2) the base constants of the original (skills + 5 with i + 352, skills + 12 with 4i + 400, 8 with
- * 2i + 16) are this compiler's split of a field offset into a multiple of 16 and a rest, which the plain
- * `skills->kind[i]` gives, so the member accesses are right; (3) reload takes registers up to t1 here, a sign
- * that the choice of spill registers differs from the first instruction that needs one (see AiThink_EvalRules).
- * Behaviour checked line by line against the disassembly (and again, independently, in the second cleanup
- * pass: every test, offset, compare direction and the order of the Rand_Range calls agree). */
+/* Matching notes: the slot test for condition 114 is written as two compares (`!= 1 && != 2`): the range form
+ * `(u8)kind - 1 >= 2` is one RTL instruction shorter, which makes the SECOND loop pass (133 against 132 insns)
+ * strength-reduce `&list[count]` and changes every reload register. The opponent's power is read first in both
+ * power compares. Dead code kept from the original: `strict == 0` implies `oppSlot != -1`, so the
+ * `skills->kind[i] != 3` arm is never reached, and `n - 1` is never negative. Differential test against the
+ * original bytes: build/scratch_cleanup3_S/t_testskill.py. */
 s32 AiThink_TestSkill(AiThWork *ai) {
     s32 list[4];
     s32 gauge;
@@ -1234,7 +1227,7 @@ s32 AiThink_TestSkill(AiThWork *ai) {
     }
     for (i = n - 1; i >= 0; i--) {
         if (anyBasic != 0) {
-            if ((u32)((u8)skills->kind[i] - 1) >= 2) {
+            if (skills->kind[i] != 1 && skills->kind[i] != 2) {
                 continue;
             }
         } else if (beatOpp != 0) {
@@ -1243,15 +1236,15 @@ s32 AiThink_TestSkill(AiThWork *ai) {
                     continue;
                 }
                 if (oppSlot != -1) {
-                    if (skills->power[i] < opp->power[oppSlot]) {
+                    if (opp->power[oppSlot] > skills->power[i]) {
                         continue;
                     }
-                    if (skills->power[i] == opp->power[oppSlot] && skills->rank[i] < opp->rank[oppSlot]) {
+                    if (opp->power[oppSlot] == skills->power[i] && skills->rank[i] < opp->rank[oppSlot]) {
                         continue;
                     }
                 }
             } else if (oppSlot != -1) {
-                if (skills->power[i] < opp->power[oppSlot]) {
+                if (opp->power[oppSlot] > skills->power[i]) {
                     continue;
                 }
             } else if (skills->kind[i] != 3) {
@@ -1285,20 +1278,18 @@ s32 AiThink_TestSkill(AiThWork *ai) {
         plan->slot = list[0];
     }
     if (count >= 2) {
-        if (list[0] == 2 && Rand_Range(100) < 50) {
+        if (list[0] == 2 && (s32)Rand_Range(100) < 50) {
             plan->slot = list[0];
         } else {
             plan->slot = list[Rand_Range(count)];
         }
     }
-    if (AiThink_TestWeighted(ai, BtlSide_IsPoweredUp(ai->objId)) != 0) {
-        return 1;
+    if (AiThink_TestWeighted(ai, BtlSide_IsPoweredUp(ai->objId)) == 0) {
+        plan->slot = -1;
+        return 0;
     }
-    plan->slot = -1;
-    return 0;
+    return 1;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_TestSkill);
 
 /* Condition function 40: the weighted test while bit 0 of BtlCharApi_GetParamUnk14 is set. */
 s32 AiThCond_WeightedIfBit0(AiThWork *ai, u8 arg) {

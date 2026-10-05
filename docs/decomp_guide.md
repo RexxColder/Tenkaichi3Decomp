@@ -682,3 +682,11 @@ Functions starting at a score of 60 or less were nearly all solved in minutes; t
 - A float clamp as a conditional expression (`t = (t < 0.0f) ? 0.0f : (1.0f < t) ? 1.0f : t;`)
   gives `mtc1 zero,f0 / mov.s f1,f0`; the if / else form loads the constant straight.
 - Check a sibling's MATCHED function for its struct view before designing one.
+- GS PACKET HEADER, the form that keeps matching: stores in the order prim, dmaTag, vif0,
+  vif1, gifTag, then `p->regs = K + (ctx << 4);` (int shift, constant first, AFTER gifTag),
+  then next. A `dsll` on the context is NOT evidence of a 64-bit operand. One insn more or
+  fewer in the header shifts every live range crossing it and flips allocation ties far away
+  ("u0 / v0 swapped", "depth in t0"): `EftGfx_DrawSprite`, `EftPrim_DrawBillboard` and
+  `EftPrim_DrawTriangle` all fell to this alone. Try it on every remaining packet writer.
+- Which saved float register an incoming float parameter gets depends on where the int
+  parameters sit in the list: take the parameter order from callers that already match.
