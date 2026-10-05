@@ -450,6 +450,33 @@ Missing on purpose until their native versions exist, so the GPU picture is brig
 sharper than the reference's: depth tint, glare, the intro's fade, any blur.
 Speed is unchanged (about half real time): see the profile above, not addressed yet.
 
+## Renderer fixes after the user looked at the window (2026-10-06)
+
+- SMEARS TRAILING BEHIND CAMERA PANS ("a trail of textures"), stage picture stuck on the
+  nearest geometry ever drawn: nothing cleared the depth buffer between frames. The game
+  leaves the per-frame clear of colour and depth to Sony's library: `sceGsSetDefDBuff`
+  builds a "drawing environment + clear sprite" GIF packet per buffer inside sceGsDBuff and
+  `sceGsSwapDBuff` sends it every frame (Gfx_EndFrame step 8). Both were empty stand-ins.
+  Implemented in port/src/gs/gs_sony.c from the documented layout.
+- TREES WITHOUT LEAVES: the leaves are alpha-tested with a result exactly at the threshold
+  (texture alpha 0x80 times vertex alpha 0x7F = 0x7F, test "alpha >= 0x7F"). The shader
+  compared floats; it now rounds to the GS's integer first.
+- TEXTURE CACHE: keyed on a content hash of the GS memory pages a texture and its palette
+  occupy (the game streams stage textures to one address hundreds of times per frame; the
+  old key changed on every upload). About 80 to 200 live textures instead of 2,048 churning,
+  and the window now runs close to full speed.
+- `BT3_GS_PROBE=x,y` (with BT3_GS_DUMP): the reference lists every primitive that reaches a
+  pixel, with its state. This is how the leaves were diagnosed.
+- CHARACTER OUTLINES ARE MISSING in the GPU picture, as expected after dropping the PS2-only
+  passes: the outline is a full-screen effect (`ObjOutline_Draw`, src/sys/gfxm_a.c), not
+  geometry. It reads a per-pixel object id that the models leave in the frame's alpha (kept
+  in the depth page's spare top byte), finds where neighbouring pixels have different ids
+  (two shifted, masked, subtracting copies), writes the edges into the frame's alpha and
+  blends a dark rectangle (0x64 per channel) by it. First native effect to write.
+  Design note for it: the render targets currently store alpha rescaled (1.0 = 0x80,
+  clamped), which destroys ids above 0x80; the GS alpha byte needs its own exact channel
+  (a second colour attachment written unblended under the alpha part of FBMSK).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
