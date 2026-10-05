@@ -275,6 +275,43 @@ port 0x1000F180 in the log):
 Known gap: constant arithmetic that only appears after the compiler propagates variables is
 folded by the host with rounding to nearest; not measured.
 
+## Renderer, step 1: software reference of the GS (2026-10-05, night)
+
+Decision (user): the renderer uses SDL3's GPU API; start with the 2D layer.
+
+port/src/gs/gs_soft.c interprets what the unchanged game code sends: the frame's DMA source
+chain on VIF1 (`Dma_Flush` -> D1_TADR, chain mode, tag transfer on) -> VIF1 commands (DIRECT
+carries GIF data; a command word often sits in the DMA tag with its data in the next run) ->
+GIF packets (PACKED / REGLIST / IMAGE) -> GS registers, texture uploads and primitives -> a
+software rasteriser (sprites, triangles, strips, fans, lines; texture functions, alpha
+blending, alpha and depth test, scissor, both contexts). It is the dependency-free reference
+for tests and for the GPU renderer, which takes over at the "registers and primitives" stage.
+
+GS memory is emulated with its real layout (4 MB; page / block / column order per pixel
+format). This is required, not a nicety: the game uploads its 4-bit textures as 32-bit
+images whose bytes are pre-arranged for the 4-bit layout (the loading screen: a 64 x 32
+32-bit upload drawn as a 128 x 128 4-bit texture), and frame buffers are read back as
+textures. The 8-bit and 4-bit column tables are generated from their first column.
+
+Use: `BT3_GS=1 BT3_SHOT=<n>` writes port/build/shots/frame_NNNNN.ppm every n frames
+(port/tools/ppm2png.py converts); `BT3_GS_DUMP=<frame>` lists that frame's primitives and
+uploads; `BT3_GS_VERBOSE=1` prints per-frame counts. Compiled with hardware float (it is not
+simulation code).
+
+Verified by looking at the output (docs/port/img/): the loading screen (the sword-field
+mini-game, character sprite and 30 swords, correct colours and transparency) and the game
+logo overlay during the battle intro. The 3D scene is black: models go through the VU1
+vertex programs, whose data the VIF1 interpreter currently skips. About 8 frames per second
+(per-pixel C, no optimisation).
+
+Not done: VU1 programs (stage, characters, most effects), bilinear filtering, fog,
+mip-mapping, GS -> host transfers, the display registers (the shown buffer is guessed as the
+one that received most pixels), GIF data on the GIF channel itself (`Dma_SendGif`, used for
+some uploads: not yet routed to the interpreter).
+
+SDL3: the 64-bit library is installed (3.4.12); the port is a 32-bit program and needs
+`lib32-sdl3` (multilib repository), not installed yet.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

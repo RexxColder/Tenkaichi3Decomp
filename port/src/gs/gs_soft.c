@@ -10,8 +10,10 @@
  *
  * Not here yet: the VU1 vertex programs (3D models: their data is skipped), reading the frame buffer back as a
  * texture, mip-mapping, fog, dithering, bilinear filtering.
- * Textures are kept per upload, keyed by their GS memory address (no emulation of GS memory layout): a texture
- * must be drawn with the same base pointer it was uploaded to.
+ * GS memory is emulated with its real layout (4 MB, pages / blocks / columns per pixel format): the game uploads
+ * 4-bit and 8-bit textures as 32-bit images whose bytes are already arranged for the indexed formats, and it
+ * draws into memory that it later uses as a texture, so uploads, textures, palettes and frame buffers must all
+ * address the same memory the same way.
  *
  * Compiled with the host's float unit (this is not simulation code). Enabled with BT3_GS=1.
  */
@@ -25,17 +27,11 @@
 
 /* ------------------------------------------------------------------------------------------------ GS state */
 
-typedef struct Upload {
-    uint32_t bp, psm, w, h; /* w, h: allocated extent */
-    uint32_t *px;           /* one word per pixel: colour as stored, or the palette index */
-} Upload;
-
-typedef struct Surface {
+typedef struct Target {
     uint32_t fbp;
-    uint32_t *rgba; /* R | G << 8 | B << 16 | A << 24, A as on the GS (0x80 = opaque) */
-    uint32_t *z;
+    uint32_t *z;    /* depth, one word per pixel (kept outside GS memory) */
     unsigned drawn; /* pixels written since the last frame end */
-} Surface;
+} Target;
 
 typedef struct Vertex {
     float x, y;
@@ -54,71 +50,104 @@ static struct {
     int vcount; /* vertices in the queue */
     int strip;  /* vertices seen since the last PRIM write */
     /* host -> GS transfer in progress */
-    Upload *dst;
+    int transfer;
     uint32_t tx, ty, tw, th, tpos;
 } gs;
 
-static Upload sUploads[4096];
-static int sUploadCount;
-static Surface sSurfaces[16];
-static int sSurfaceCount;
+static Target sTargets[16];
+static int sTargetCount;
 static unsigned sFrame, sMissingTex;
+static int sDumpFrame = -1; /* BT3_GS_DUMP=<frame>: list that frame's primitives */
 static unsigned sStat[8]; /* per frame: DMA tags, VIF codes, DIRECT quadwords, GIF tags, register writes, vertices, image quadwords, unknown VIF */
 
-static Upload *upload_find(uint32_t bp) {
-    int i;
-    for (i = 0; i < sUploadCount; i++) {
-        if (sUploads[i].bp == bp) {
-            return &sUploads[i];
+/* ---- GS local memory: 4 MB. A buffer pointer counts 256-byte blocks, a buffer width counts 64 pixels. Where a
+   pixel lives depends on its format: pages of 32 blocks, blocks in a format-specific order inside the page,
+   "columns" inside the block. The tables are the hardware's; the two indexed ones are generated from their first
+   column (odd columns exchange the two halves of every group of eight). ---- */
+static uint32_t sVram[1 << 20];
+static const uint8_t kBlock32[4][8] = {{0, 1, 4, 5, 16, 17, 20, 21}, {2, 3, 6, 7, 18, 19, 22, 23}, {8, 9, 12, 13, 24, 25, 28, 29}, {10, 11, 14, 15, 26, 27, 30, 31}};
+static const uint8_t kBlock16[8][4] = {{0, 2, 8, 10}, {1, 3, 9, 11}, {4, 6, 12, 14}, {5, 7, 13, 15}, {16, 18, 24, 26}, {17, 19, 25, 27}, {20, 22, 28, 30}, {21, 23, 29, 31}};
+static const uint8_t kCol32[8][8] = {{0, 1, 4, 5, 8, 9, 12, 13}, {2, 3, 6, 7, 10, 11, 14, 15}, {16, 17, 20, 21, 24, 25, 28, 29}, {18, 19, 22, 23, 26, 27, 30, 31},
+                                     {32, 33, 36, 37, 40, 41, 44, 45}, {34, 35, 38, 39, 42, 43, 46, 47}, {48, 49, 52, 53, 56, 57, 60, 61}, {50, 51, 54, 55, 58, 59, 62, 63}};
+static const uint8_t kCol16[8][16] = {
+    {0, 2, 8, 10, 16, 18, 24, 26, 1, 3, 9, 11, 17, 19, 25, 27}, {4, 6, 12, 14, 20, 22, 28, 30, 5, 7, 13, 15, 21, 23, 29, 31},
+    {32, 34, 40, 42, 48, 50, 56, 58, 33, 35, 41, 43, 49, 51, 57, 59}, {36, 38, 44, 46, 52, 54, 60, 62, 37, 39, 45, 47, 53, 55, 61, 63},
+    {64, 66, 72, 74, 80, 82, 88, 90, 65, 67, 73, 75, 81, 83, 89, 91}, {68, 70, 76, 78, 84, 86, 92, 94, 69, 71, 77, 79, 85, 87, 93, 95},
+    {96, 98, 104, 106, 112, 114, 120, 122, 97, 99, 105, 107, 113, 115, 121, 123}, {100, 102, 108, 110, 116, 118, 124, 126, 101, 103, 109, 111, 117, 119, 125, 127}};
+static const uint8_t kCol8First[4][16] = {{0, 4, 16, 20, 32, 36, 48, 52, 2, 6, 18, 22, 34, 38, 50, 54}, {8, 12, 24, 28, 40, 44, 56, 60, 10, 14, 26, 30, 42, 46, 58, 62},
+                                          {33, 37, 49, 53, 1, 5, 17, 21, 35, 39, 51, 55, 3, 7, 19, 23}, {41, 45, 57, 61, 9, 13, 25, 29, 43, 47, 59, 63, 11, 15, 27, 31}};
+static const uint8_t kCol4First[4][32] = {
+    {0, 8, 32, 40, 64, 72, 96, 104, 2, 10, 34, 42, 66, 74, 98, 106, 4, 12, 36, 44, 68, 76, 100, 108, 6, 14, 38, 46, 70, 78, 102, 110},
+    {16, 24, 48, 56, 80, 88, 112, 120, 18, 26, 50, 58, 82, 90, 114, 122, 20, 28, 52, 60, 84, 92, 116, 124, 22, 30, 54, 62, 86, 94, 118, 126},
+    {65, 73, 97, 105, 1, 9, 33, 41, 67, 75, 99, 107, 3, 11, 35, 43, 69, 77, 101, 109, 5, 13, 37, 45, 71, 79, 103, 111, 7, 15, 39, 47},
+    {81, 89, 113, 121, 17, 25, 49, 57, 83, 91, 115, 123, 19, 27, 51, 59, 85, 93, 117, 125, 21, 29, 53, 61, 87, 95, 119, 127, 23, 31, 55, 63}};
+static uint8_t sCol8[16][16];
+static uint16_t sCol4[16][32];
+
+static void tables_init(void) {
+    int y, x;
+    for (y = 0; y < 16; y++) {
+        int col = y >> 2;
+        for (x = 0; x < 16; x++) {
+            int sx = (col & 1) ? (x ^ 4) : x;
+            sCol8[y][x] = (uint8_t)(kCol8First[y & 3][sx] + col * 64);
+        }
+        for (x = 0; x < 32; x++) {
+            int sx = (col & 1) ? (x ^ 4) : x;
+            sCol4[y][x] = (uint16_t)(kCol4First[y & 3][sx] + col * 128);
         }
     }
-    return NULL;
 }
 
-static Upload *upload_get(uint32_t bp, uint32_t psm, uint32_t w, uint32_t h) {
-    Upload *u = upload_find(bp);
+/* Reads (write = 0) or writes the pixel (x, y) of a buffer at bp, width bw, format psm. Value: the stored bits. */
+static uint32_t vram_rw(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y, int write, uint32_t v) {
+    uint32_t a, *w;
 
-    if (u == NULL) {
-        if (sUploadCount == 4096) {
-            sUploadCount = 0; /* crude: start over */
-        }
-        u = &sUploads[sUploadCount++];
-        memset(u, 0, sizeof(*u));
-        u->bp = bp;
+    if (bw == 0) {
+        bw = 1;
     }
-    if (u->psm != psm || u->w < w || u->h < h || u->px == NULL) {
-        uint32_t nw = u->psm == psm && u->w > w ? u->w : w, nh = u->psm == psm && u->h > h ? u->h : h;
-        uint32_t *px = calloc((size_t)nw * nh, 4);
-        uint32_t y;
-
-        if (u->px != NULL && u->psm == psm) {
-            for (y = 0; y < u->h; y++) {
-                memcpy(px + (size_t)y * nw, u->px + (size_t)y * u->w, (size_t)u->w * 4);
-            }
+    switch (psm) {
+    case 0x02: case 0x0A: /* 16 bits */
+        a = ((bp + ((y >> 1) & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + kBlock16[(y >> 3) & 7][(x >> 4) & 3]) << 7) + kCol16[y & 7][x & 15];
+        w = &sVram[(a >> 1) & 0xFFFFF];
+        if (write) { *w = (*w & ~(0xFFFFu << ((a & 1) * 16))) | (v & 0xFFFF) << ((a & 1) * 16); return 0; }
+        return (*w >> ((a & 1) * 16)) & 0xFFFF;
+    case 0x13: /* 8 bits */
+        a = ((bp + ((y >> 1) & ~0x1Fu) * (bw >> 1) + ((x >> 2) & ~0x1Fu) + kBlock32[(y >> 4) & 3][(x >> 4) & 7]) << 8) + sCol8[y & 15][x & 15];
+        w = &sVram[(a >> 2) & 0xFFFFF];
+        if (write) { *w = (*w & ~(0xFFu << ((a & 3) * 8))) | (v & 0xFF) << ((a & 3) * 8); return 0; }
+        return (*w >> ((a & 3) * 8)) & 0xFF;
+    case 0x14: /* 4 bits */
+        a = ((bp + ((y >> 2) & ~0x1Fu) * (bw >> 1) + ((x >> 2) & ~0x1Fu) + kBlock16[(y >> 4) & 7][(x >> 5) & 3]) << 9) + sCol4[y & 15][x & 31];
+        w = &sVram[(a >> 3) & 0xFFFFF];
+        if (write) { *w = (*w & ~(0xFu << ((a & 7) * 4))) | (v & 0xF) << ((a & 7) * 4); return 0; }
+        return (*w >> ((a & 7) * 4)) & 0xF;
+    default: /* 32 bits, and the formats that live inside a 32-bit pixel */
+        a = ((bp + (y & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + kBlock32[(y >> 3) & 3][(x >> 3) & 7]) << 6) + kCol32[y & 7][x & 7];
+        w = &sVram[a & 0xFFFFF];
+        switch (psm) {
+        case 0x01: if (write) { *w = (*w & 0xFF000000u) | (v & 0xFFFFFF); return 0; } return *w & 0xFFFFFF;
+        case 0x1B: if (write) { *w = (*w & 0x00FFFFFFu) | v << 24; return 0; } return *w >> 24;
+        case 0x24: if (write) { *w = (*w & 0xF0FFFFFFu) | (v & 15) << 24; return 0; } return (*w >> 24) & 15;
+        case 0x2C: if (write) { *w = (*w & 0x0FFFFFFFu) | (v & 15) << 28; return 0; } return *w >> 28;
+        default: if (write) { *w = v; return 0; } return *w;
         }
-        free(u->px);
-        u->px = px;
-        u->w = nw;
-        u->h = nh;
-        u->psm = psm;
     }
-    return u;
 }
 
-static Surface *surface_get(uint32_t fbp) {
+static Target *target_get(uint32_t fbp) {
     int i;
-    for (i = 0; i < sSurfaceCount; i++) {
-        if (sSurfaces[i].fbp == fbp) {
-            return &sSurfaces[i];
+    for (i = 0; i < sTargetCount; i++) {
+        if (sTargets[i].fbp == fbp) {
+            return &sTargets[i];
         }
     }
-    if (sSurfaceCount == 16) {
-        return &sSurfaces[0];
+    if (sTargetCount == 16) {
+        return &sTargets[0];
     }
-    sSurfaces[sSurfaceCount].fbp = fbp;
-    sSurfaces[sSurfaceCount].rgba = calloc(SURF_W * SURF_H, 4);
-    sSurfaces[sSurfaceCount].z = calloc(SURF_W * SURF_H, 4);
-    return &sSurfaces[sSurfaceCount++];
+    sTargets[sTargetCount].fbp = fbp;
+    sTargets[sTargetCount].z = calloc(SURF_W * SURF_H, 4);
+    return &sTargets[sTargetCount++];
 }
 
 /* ------------------------------------------------------------------------------------------------ textures */
@@ -154,55 +183,37 @@ static uint32_t expand(uint32_t c, uint32_t psm) {
 
 static uint32_t texel(int ctx, int u, int v) {
     uint64_t t0 = gs.tex0[ctx], cl = gs.clamp[ctx];
-    uint32_t tbp = t0 & 0x3FFF, psm = (t0 >> 20) & 0x3F, tw = 1u << ((t0 >> 26) & 15), th = 1u << ((t0 >> 30) & 15);
+    uint32_t tbp = t0 & 0x3FFF, tbw = (t0 >> 14) & 0x3F, psm = (t0 >> 20) & 0x3F, tw = 1u << ((t0 >> 26) & 15), th = 1u << ((t0 >> 30) & 15);
     uint32_t cbp = (t0 >> 37) & 0x3FFF, cpsm = (t0 >> 51) & 15, csa = (t0 >> 56) & 31;
     uint32_t wms = cl & 3, wmt = (cl >> 2) & 3;
     int minu = (cl >> 4) & 0x3FF, maxu = (cl >> 14) & 0x3FF, minv = (cl >> 24) & 0x3FF, maxv = (cl >> 34) & 0x3FF;
-    Upload *tex = upload_find(tbp), *clut;
     uint32_t c;
 
     if (wms == 0) { u &= (int)tw - 1; } else if (wms == 1) { u = u < 0 ? 0 : u >= (int)tw ? (int)tw - 1 : u; }
     else if (wms == 2) { u = u < minu ? minu : u > maxu ? maxu : u; } else { u = (u & minu) | maxu; }
     if (wmt == 0) { v &= (int)th - 1; } else if (wmt == 1) { v = v < 0 ? 0 : v >= (int)th ? (int)th - 1 : v; }
     else if (wmt == 2) { v = v < minv ? minv : v > maxv ? maxv : v; } else { v = (v & minv) | maxv; }
-    if (tex == NULL) {
-        sMissingTex++;
-        return 0x80FFFFFFu;
-    }
-    if (u < 0 || v < 0 || (uint32_t)u >= tex->w || (uint32_t)v >= tex->h) {
-        return 0;
-    }
-    c = tex->px[(size_t)v * tex->w + u];
+    c = vram_rw(tbp, tbw, psm, (uint32_t)u, (uint32_t)v, 0, 0);
     if (psm_bits(psm) > 8) {
         return expand(c, psm);
     }
-    clut = upload_find(cbp);
-    if (clut == NULL) {
-        return 0x80000000u | (c * 0x010101u); /* no palette: show the index as grey */
-    }
+    /* Palette (CSM1): a 16-colour palette is an 8 x 2 block at CBP, a 256-colour one 16 x 16 read in the GS's order.
+       CSA only moves a 16-colour palette inside the GS's internal buffer, not in memory. */
+    (void)csa;
     if (psm_bits(psm) == 8) {
-        c = (c & 0xE7) | ((c & 8) << 1) | ((c & 0x10) >> 1); /* the GS reads an 8-bit palette in this order */
-        if (clut->w >= 16) {
-            c = (c >> 4) * clut->w + (c & 15);
-        }
-    } else {
-        c = (c & 15) + csa * 16;
-        if (clut->w >= 8 && clut->w < 16) {
-            c = (c >> 3) * clut->w + (c & 7);
-        }
+        c = (c & 0xE7) | ((c & 8) << 1) | ((c & 0x10) >> 1);
+        return expand(vram_rw(cbp, 1, cpsm, c & 15, c >> 4, 0, 0), cpsm);
     }
-    if (c >= clut->w * clut->h) {
-        return 0;
-    }
-    return expand(clut->px[c], cpsm);
+    return expand(vram_rw(cbp, 1, cpsm, c & 7, c >> 3, 0, 0), cpsm);
 }
 
 /* ------------------------------------------------------------------------------------------------ pixels */
 
-static void pixel(Surface *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
+static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
     uint64_t test = gs.test[ctx], al = gs.alpha[ctx], zb = gs.zbuf[ctx], pr = gs.prim;
-    uint64_t sc = gs.scissor[ctx];
-    uint32_t *dp, d, sr, sg, sb, sa, out[3];
+    uint64_t sc = gs.scissor[ctx], fr = gs.frame[ctx];
+    uint32_t fbp = (fr & 0x1FF) << 5, fbw = (fr >> 16) & 0x3F, fpsm = (fr >> 24) & 0x3F;
+    uint32_t d, sr, sg, sb, sa, out[3];
     int i, write_rgb = 1, write_z = !((zb >> 32) & 1);
 
     if (x < (int)(sc & 0x7FF) || x > (int)((sc >> 16) & 0x7FF) || y < (int)((sc >> 32) & 0x7FF) || y > (int)((sc >> 48) & 0x7FF) ||
@@ -241,8 +252,12 @@ static void pixel(Surface *sf, int ctx, int x, int y, uint32_t z, uint32_t src) 
         default: if (z <= zd) { return; } break;
         }
     }
-    dp = &sf->rgba[y * SURF_W + x];
-    d = *dp;
+    d = vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 0, 0);
+    if (psm_bits(fpsm) == 16) {
+        d = (d & 31) << 3 | ((d >> 5) & 31) << 11 | ((d >> 10) & 31) << 19 | ((d & 0x8000) ? 0x80000000u : 0);
+    } else if (fpsm == 1) {
+        d |= 0x80000000u;
+    }
     sr = src & 0xFF; sg = (src >> 8) & 0xFF; sb = (src >> 16) & 0xFF;
     out[0] = sr; out[1] = sg; out[2] = sb;
     if ((pr >> 6) & 1) { /* blending: ((A - B) * C >> 7) + D */
@@ -258,7 +273,11 @@ static void pixel(Surface *sf, int ctx, int x, int y, uint32_t z, uint32_t src) 
         }
     }
     if (write_rgb) {
-        *dp = out[0] | out[1] << 8 | out[2] << 16 | sa << 24;
+        uint32_t c = out[0] | out[1] << 8 | out[2] << 16 | sa << 24;
+        if (psm_bits(fpsm) == 16) {
+            c = out[0] >> 3 | (out[1] >> 3) << 5 | (out[2] >> 3) << 10 | (sa & 0x80) << 8;
+        }
+        vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 1, c);
         sf->drawn++;
     }
     if (write_z) {
@@ -301,7 +320,7 @@ static uint32_t vcol(const Vertex *v) {
     return v->r | v->g << 8 | v->b << 16 | (uint32_t)v->a << 24;
 }
 
-static void draw_sprite(Surface *sf, int ctx, const Vertex *a, const Vertex *b) {
+static void draw_sprite(Target *sf, int ctx, const Vertex *a, const Vertex *b) {
     float x0 = a->x, x1 = b->x, y0 = a->y, y1 = b->y;
     int xa, xb, ya, yb, x, y;
     uint32_t col = vcol(b);
@@ -323,7 +342,7 @@ static float edge(const Vertex *a, const Vertex *b, float x, float y) {
     return (b->x - a->x) * (y - a->y) - (b->y - a->y) * (x - a->x);
 }
 
-static void draw_triangle(Surface *sf, int ctx, const Vertex *a, const Vertex *b, const Vertex *c) {
+static void draw_triangle(Target *sf, int ctx, const Vertex *a, const Vertex *b, const Vertex *c) {
     float area = edge(a, b, c->x, c->y);
     int gouraud = (gs.prim >> 3) & 1;
     float minx = a->x, maxx = a->x, miny = a->y, maxy = a->y;
@@ -360,7 +379,7 @@ static void draw_triangle(Surface *sf, int ctx, const Vertex *a, const Vertex *b
     }
 }
 
-static void draw_line(Surface *sf, int ctx, const Vertex *a, const Vertex *b) {
+static void draw_line(Target *sf, int ctx, const Vertex *a, const Vertex *b) {
     float dx = b->x - a->x, dy = b->y - a->y;
     int n = (int)((dx < 0 ? -dx : dx) > (dy < 0 ? -dy : dy) ? (dx < 0 ? -dx : dx) : (dy < 0 ? -dy : dy)), i;
 
@@ -373,7 +392,7 @@ static void draw_line(Surface *sf, int ctx, const Vertex *a, const Vertex *b) {
 /* A vertex arrives (XYZ2 / XYZF2 with kick = 1, XYZ3 / XYZF3 with kick = 0). */
 static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
     int ctx = (gs.prim >> 9) & 1, type = gs.prim & 7;
-    Surface *sf;
+    Target *sf;
     Vertex v;
 
     sStat[5]++;
@@ -391,7 +410,19 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
         gs.vtx[0] = gs.vtx[1]; gs.vtx[1] = gs.vtx[2]; gs.vtx[2] = v;
     }
     gs.strip++;
-    sf = surface_get(gs.frame[ctx] & 0x1FF);
+    sf = target_get(gs.frame[ctx] & 0x1FF);
+    if (sDumpFrame == (int)sFrame && kick && gs.vcount >= (type == 6 || type == 1 || type == 2 ? 2 : type == 0 ? 1 : 3)) {
+        const Vertex *p0 = &gs.vtx[0], *p1 = &gs.vtx[gs.vcount - 1];
+        fprintf(stderr, "  prim %d ctx %d fbp %03x abe %d tme %d fst %d | (%.1f,%.1f)-(%.1f,%.1f) z %08x uv (%d,%d)-(%d,%d) st (%.3f,%.3f) q %.3f "
+                        "rgba %02x%02x%02x%02x | tbp %04x psm %02x tw %d th %d cbp %04x | xyoff %d,%d scis %d..%d,%d..%d alpha %llx test %llx\n",
+                type, ctx, (unsigned)(gs.frame[ctx] & 0x1FF), (int)((gs.prim >> 6) & 1), (int)((gs.prim >> 4) & 1), (int)((gs.prim >> 8) & 1),
+                p0->x, p0->y, p1->x, p1->y, p1->z, p0->u >> 4, p0->v >> 4, p1->u >> 4, p1->v >> 4, p1->s, p1->t, p1->q, p1->r, p1->g, p1->b, p1->a,
+                (unsigned)(gs.tex0[ctx] & 0x3FFF), (unsigned)((gs.tex0[ctx] >> 20) & 0x3F), 1 << ((gs.tex0[ctx] >> 26) & 15),
+                1 << ((gs.tex0[ctx] >> 30) & 15), (unsigned)((gs.tex0[ctx] >> 37) & 0x3FFF),
+                (int)(gs.xyoffset[ctx] & 0xFFFF) >> 4, (int)((gs.xyoffset[ctx] >> 32) & 0xFFFF) >> 4,
+                (int)(gs.scissor[ctx] & 0x7FF), (int)((gs.scissor[ctx] >> 16) & 0x7FF), (int)((gs.scissor[ctx] >> 32) & 0x7FF),
+                (int)((gs.scissor[ctx] >> 48) & 0x7FF), (unsigned long long)gs.alpha[ctx], (unsigned long long)gs.test[ctx]);
+    }
     switch (type) {
     case 0: if (kick) { pixel(sf, ctx, (int)v.x, (int)v.y, v.z, vcol(&v)); } gs.vcount = 0; break;
     case 1: if (gs.vcount == 2) { if (kick) { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } gs.vcount = 0; } break;
@@ -413,41 +444,38 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
 /* ------------------------------------------------------------------------------------------------ registers */
 
 static void transfer_begin(void) {
-    uint32_t dbp = (gs.bitbltbuf >> 32) & 0x3FFF, dbw = (gs.bitbltbuf >> 48) & 0x3F, dpsm = (gs.bitbltbuf >> 56) & 0x3F;
-
-    gs.dst = NULL;
-    if ((gs.trxdir & 3) != 0) {
-        return; /* only host -> GS */
-    }
+    gs.transfer = (gs.trxdir & 3) == 0; /* only host -> GS */
     gs.tx = (gs.trxpos >> 32) & 0x7FF;
     gs.ty = (gs.trxpos >> 48) & 0x7FF;
     gs.tw = gs.trxreg & 0xFFF;
     gs.th = (gs.trxreg >> 32) & 0xFFF;
     gs.tpos = 0;
-    (void)dbw;
-    gs.dst = upload_get(dbp, dpsm, gs.tx + gs.tw, gs.ty + gs.th);
+    if (sDumpFrame == (int)sFrame) {
+        fprintf(stderr, "  upload dbp %04x dbw %u psm %02x at %u,%u size %ux%u\n", (unsigned)((gs.bitbltbuf >> 32) & 0x3FFF),
+                (unsigned)((gs.bitbltbuf >> 48) & 0x3F), (unsigned)((gs.bitbltbuf >> 56) & 0x3F), gs.tx, gs.ty, gs.tw, gs.th);
+    }
 }
 
 static void transfer_data(const uint8_t *p, uint32_t bytes) {
-    Upload *u = gs.dst;
+    uint32_t dbp = (gs.bitbltbuf >> 32) & 0x3FFF, dbw = (gs.bitbltbuf >> 48) & 0x3F, dpsm = (gs.bitbltbuf >> 56) & 0x3F;
     uint32_t bits, total, i;
 
-    if (u == NULL || gs.tw == 0) {
+    if (!gs.transfer || gs.tw == 0) {
         return;
     }
-    bits = (uint32_t)psm_bits(u->psm);
+    bits = (uint32_t)psm_bits(dpsm);
     total = gs.tw * gs.th;
-    for (i = 0; i * bits < bytes * 8 && gs.tpos < total; gs.tpos++) {
+    for (i = 0; i * bits < bytes * 8 && gs.tpos < total; gs.tpos++, i++) {
         uint32_t x = gs.tx + gs.tpos % gs.tw, y = gs.ty + gs.tpos / gs.tw, c;
 
         switch (bits) {
-        case 32: c = p[i * 4] | p[i * 4 + 1] << 8 | p[i * 4 + 2] << 16 | (uint32_t)p[i * 4 + 3] << 24; i++; break;
-        case 24: c = p[i * 3] | p[i * 3 + 1] << 8 | p[i * 3 + 2] << 16; i++; break;
-        case 16: c = p[i * 2] | p[i * 2 + 1] << 8; i++; break;
-        case 8: c = p[i]; i++; break;
-        default: c = (p[i / 2] >> ((i & 1) * 4)) & 15; i++; break;
+        case 32: c = p[i * 4] | p[i * 4 + 1] << 8 | p[i * 4 + 2] << 16 | (uint32_t)p[i * 4 + 3] << 24; break;
+        case 24: c = p[i * 3] | p[i * 3 + 1] << 8 | p[i * 3 + 2] << 16; break;
+        case 16: c = p[i * 2] | p[i * 2 + 1] << 8; break;
+        case 8: c = p[i]; break;
+        default: c = (p[i / 2] >> ((i & 1) * 4)) & 15; break;
         }
-        u->px[(size_t)y * u->w + x] = c;
+        vram_rw(dbp, dbw, dpsm, x, y, 1, c);
     }
 }
 
@@ -622,7 +650,8 @@ static void vif(const uint32_t *w, uint32_t count) {
 
 static void screenshot(void) {
     static int every = -1;
-    Surface *best = NULL;
+    static uint64_t shown; /* FRAME register of the buffer that received the most pixels */
+    Target *best = NULL;
     char name[64];
     FILE *fp;
     int i, x, y;
@@ -630,26 +659,34 @@ static void screenshot(void) {
     if (every < 0) {
         every = getenv("BT3_SHOT") != NULL ? atoi(getenv("BT3_SHOT")) : 0;
     }
-    for (i = 0; i < sSurfaceCount; i++) {
-        if (best == NULL || sSurfaces[i].drawn > best->drawn) {
-            best = &sSurfaces[i];
+    for (i = 0; i < sTargetCount; i++) {
+        if (best == NULL || sTargets[i].drawn > best->drawn) {
+            best = &sTargets[i];
         }
     }
     if (every > 0 && best != NULL && sFrame % (unsigned)every == 0) {
+        uint64_t fr = (gs.frame[0] & 0x1FF) == best->fbp ? gs.frame[0] : (gs.frame[1] & 0x1FF) == best->fbp ? gs.frame[1] : shown;
+        uint32_t fbw = (fr >> 16) & 0x3F, fpsm = (fr >> 24) & 0x3F;
+
+        shown = fr;
         snprintf(name, sizeof(name), "port/build/shots/frame_%05u.ppm", sFrame);
         fp = fopen(name, "wb");
         if (fp != NULL) {
             fprintf(fp, "P6\n640 448\n255\n");
             for (y = 0; y < 448; y++) {
                 for (x = 0; x < 640; x++) {
-                    fwrite(&best->rgba[y * SURF_W + x], 1, 3, fp);
+                    uint32_t c = x < (int)(fbw ? fbw : 10) * 64 ? vram_rw(best->fbp << 5, fbw ? fbw : 10, fpsm, (uint32_t)x, (uint32_t)y, 0, 0) : 0;
+                    if (psm_bits(fpsm) == 16) {
+                        c = (c & 31) << 3 | ((c >> 5) & 31) << 11 | ((c >> 10) & 31) << 19;
+                    }
+                    fwrite(&c, 1, 3, fp);
                 }
             }
             fclose(fp);
         }
     }
-    for (i = 0; i < sSurfaceCount; i++) {
-        sSurfaces[i].drawn = 0;
+    for (i = 0; i < sTargetCount; i++) {
+        sTargets[i].drawn = 0;
     }
     sFrame++;
 }
@@ -662,6 +699,8 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
 
     if (on < 0) {
         on = getenv("BT3_GS") != NULL;
+        tables_init();
+        sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
     }
     if (!on) {
         return;
@@ -692,8 +731,8 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && (sFrame < 4 || sFrame % 60 == 0)) {
         fprintf(stderr, "gs: frame %u: %u DMA tags, %u VIF codes, %u DIRECT qwords, %u GIF tags, %u register writes, %u vertices, "
-                        "%u image qwords, %d surfaces\n", sFrame, sStat[0], sStat[1], sStat[2], sStat[3], sStat[4], sStat[5],
-                sStat[6], sSurfaceCount);
+                        "%u image qwords, %d targets\n", sFrame, sStat[0], sStat[1], sStat[2], sStat[3], sStat[4], sStat[5],
+                sStat[6], sTargetCount);
     }
     memset(sStat, 0, sizeof(sStat));
     screenshot();
