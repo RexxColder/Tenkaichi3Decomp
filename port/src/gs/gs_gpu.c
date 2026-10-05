@@ -96,7 +96,7 @@ static Vu0Uniform *sVuUni;
 static uint32_t sVuUniCount;
 static SDL_GPUBuffer *sVuVbuf;
 static SDL_GPUTransferBuffer *sVuXfer;
-static SDL_GPUShader *sVu0Vs, *sVu4Vs;
+static SDL_GPUShader *sVu0Vs, *sVu4Vs, *sVu6Vs;
 static Vtx *sVerts;
 static uint32_t sVertCount;
 static Draw *sDraws;
@@ -175,6 +175,7 @@ int GsGpu_Init(void) {
     }
     sVu0Vs = shader(kVu0VertSpv, sizeof(kVu0VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     sVu4Vs = shader(kVu4VertSpv, sizeof(kVu4VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    sVu6Vs = shader(kVu6VertSpv, sizeof(kVu6VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     bi.size = MAX_VU_VERTS * 48;
     sVuVbuf = SDL_CreateGPUBuffer(sDev, &bi);
     ti.size = MAX_VU_VERTS * 48;
@@ -422,7 +423,7 @@ static int pipeline_get(int ctx, int topo, int vu) {
         cd.blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
         cd.blend_state.enable_color_write_mask = true;
     }
-    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20; /* vu: 0 GS vertices, 1 program 0, 2 program 4 */
+    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20; /* vu: 0 GS vertices, 1 program 0, 2 program 4, 3 program 6 */
     for (i = 0; i < sPipeCount; i++) {
         if (sPipes[i].key == key) {
             return i;
@@ -446,7 +447,7 @@ static int pipeline_get(int ctx, int topo, int vu) {
         at[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[1].offset = 16;
         at[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[2].offset = 32;
     }
-    ci.vertex_shader = vu == 2 ? sVu4Vs : vu ? sVu0Vs : sVs;
+    ci.vertex_shader = vu == 3 ? sVu6Vs : vu == 2 ? sVu4Vs : vu ? sVu0Vs : sVs;
     ci.fragment_shader = sFs;
     ci.vertex_input_state.vertex_buffer_descriptions = &vb;
     ci.vertex_input_state.num_vertex_buffers = 1;
@@ -634,6 +635,61 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     } else {
         sDraws[sDrawCount++] = d;
     }
+}
+
+/* Vertex program 6 as a shader: one strip of the ground under a fighter, textured with the shadow page (see
+   shaders/vu6.vert). Vertices: four quadwords each (position with an integer "no draw" flag in w, normal, colour
+   as floats, a slot the original fills with s, t). A flagged vertex means: the triangle that ends here is not
+   drawn (it only joins two real triangles of the strip). */
+void GsGpu_DrawVu6(int ctx, const float *vertices, uint32_t count, const float *consts) {
+    Vu0Uniform u;
+    Draw d, *last;
+    float us, vs;
+    uint32_t i, k, flag;
+
+    if (count < 3 || sVuVertCount + (count - 2) * 3 > MAX_VU_VERTS || sDrawCount == MAX_DRAWS || sVuUniCount == MAX_VU_UNIFORMS) {
+        return;
+    }
+    if (!draw_state(ctx, 0, 0, 3, &d, &us, &vs)) {
+        return;
+    }
+    memset(&u, 0, sizeof(u));
+    memcpy(u.boneA, &consts[0x0C * 4], 64);  /* world -> shadow camera */
+    u.pivotA[0] = consts[0x10 * 4];          /* texture scale */
+    u.pivotB[0] = us;
+    u.pivotB[1] = vs;
+    memcpy(u.screen, &consts[0], 64);
+    u.misc[0] = (float)(gGs.xyoffset[ctx] & 0xFFFF) / 16.0f;
+    u.misc[1] = (float)((gGs.xyoffset[ctx] >> 32) & 0xFFFF) / 16.0f;
+    u.misc[2] = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
+    d.vu = 3;
+    d.first = sVuVertCount;
+    for (i = 0; i + 2 < count; i++) { /* strip -> list, without the flagged triangles */
+        memcpy(&flag, &vertices[(i + 2) * 16 + 3], 4);
+        if (flag & 0xFFFF) {
+            continue;
+        }
+        for (k = 0; k < 3; k++) {
+            float *o = &sVuVerts[sVuVertCount++ * 12];
+            memcpy(o, &vertices[(i + k) * 16], 16);          /* position */
+            memcpy(o + 4, &vertices[(i + k) * 16 + 8], 16);  /* colour */
+            memset(o + 8, 0, 16);
+        }
+    }
+    d.count = sVuVertCount - d.first;
+    if (d.count == 0) {
+        return;
+    }
+    sTargets[d.target].draws++;
+    sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
+    last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+    if (last != NULL && same_state(last, &d) && memcmp(&sVuUni[last->uniform], &u, sizeof(u)) == 0) {
+        last->count += d.count;
+        return;
+    }
+    d.uniform = (int)sVuUniCount;
+    sVuUni[sVuUniCount++] = u;
+    sDraws[sDrawCount++] = d;
 }
 
 /* Vertex program 4 as a shader: one strip of stage geometry (see shaders/vu4.vert). Vertices: position, colour

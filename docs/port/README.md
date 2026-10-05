@@ -610,3 +610,9 @@ with a third of the interpreter's work gone.
   from the PRIM in force (the shadow passes use PRMODE), and depth is clamped, not clipped. Checked on the first
   frames of the fight (fighters on the ground) against the interpreter: shadows equal by eye. Left in the interpreter: program 6 (6 runs per frame), 1, 7, 8.
 - Not carried over from the originals: program 4's 0.5% enlargement of clipped triangles (see the decomp notes).
+- **Program 6 (ground shadow) as a shader** (`vu6.vert`, `hle_program6`, `GsGpu_DrawVu6`): position through the
+  screen matrix, s, t generated from the shadow camera matrix and the scale, flagged strip triangles skipped on
+  the CPU, the texture coordinates rescaled for a frame buffer used as a texture. Checked on the first frames of
+  the fight against the interpreter (shadows equal by eye). The interpreter now runs 0 times in replay01's first
+  24 seconds; frame work about 10 ms (mean of the per-second averages). Three single frames over the 33.4 ms
+  budget remain (75.7 ms near frame 121, about 36 ms near frames 361 and 1261): not examined.

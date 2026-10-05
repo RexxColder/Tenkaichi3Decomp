@@ -525,6 +525,27 @@ static int hle_program2(void) {
     return 1;
 }
 
+/* Program 6 (451 instructions; the ground shadow: decomp src/vu1/prog6.vsm). After MSCALF 0 the first MSCNT only
+   takes one quadword (the tag for the clipper's fans); every later MSCNT is a batch: +0 / +1 a TEX0 tag and data
+   that the program never sends, +2 the primitive tag (PRE set, NLOOP = vertices), +3 the vertices, four
+   quadwords each. */
+static int sP6Batches;
+
+static int hle_program6(void) {
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count;
+
+    memcpy(tag, &vu.mem[(top + 2) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 3 + count * 4 > 1024) {
+        return 0;
+    }
+    Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF);
+    GsGpu_DrawVu6((int)((gGs.prim >> 9) & 1), (const float *)&vu.mem[(top + 3) * 16], count, (const float *)vu.mem);
+    sStatKicks++;
+    return 1;
+}
+
 /* MSCAL / MSCALF (addr = instruction address) or MSCNT (addr < 0: continue where the last run stopped). */
 void GsVu1_Call(int addr) {
     vu.top = vu.tops;
@@ -570,6 +591,20 @@ void GsVu1_Call(int addr) {
         /* a batch the shader path cannot take: the interpreter needs the state the skipped calls would have left */
         run(0);
         vu.pc = 21;
+    }
+    if (sProgSize == 451 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        if (addr >= 0) {          /* MSCALF 0: constants to registers only */
+            sP6Batches = 0;
+            sHle++;
+            return;
+        }
+        if (sP6Batches++ == 0 || hle_program6()) { /* the first MSCNT: the fan tag, only the clipper uses it */
+            sHle++;
+            return;
+        }
+        /* a batch the shader path cannot take (fewer than 3 vertices): nothing to draw either */
+        sHle++;
+        return;
     }
     if ((sProgSize == 99 || sProgSize == 101) && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         /* MSCALF 0 only loads registers; every MSCNT is one batch */

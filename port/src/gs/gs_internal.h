@@ -62,6 +62,7 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v);
 int GsGpu_Enabled(void);
 void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, const float *consts);
 void GsGpu_DrawVu4(int ctx, const float *vertices, uint32_t count, const float *consts);
+void GsGpu_DrawVu6(int ctx, const float *vertices, uint32_t count, const float *consts);
 void Gs_RegWrite(uint32_t addr, uint64_t d);
 void GsGpu_Native(int effect); /* marker register 0x7F: a native effect goes here */
 void GsGpu_FrameEnd(void);
