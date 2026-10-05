@@ -14,3 +14,8 @@ __pycache__/
 .ninja_*
 /port/build/
 /gamedata/
+port/tests/ps2float/*.o
+port/tests/ps2float/*.s
+!port/tests/ps2float/crt0*.s
+port/tests/ps2float/*.elf
+port/tests/ps2float/*.bin
