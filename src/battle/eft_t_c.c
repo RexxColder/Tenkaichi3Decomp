@@ -185,7 +185,11 @@ typedef struct EftUUpC {
 } __attribute__((aligned(16))) EftUUpC;
 
 extern EftUView *gBtlCamView;
+#ifdef PORT /* assigned to: a cast is not an lvalue for a modern compiler */
+#define gEftShotFx (*(EftShotFxWork **)&gEftShotFx)
+#else
 #define gEftShotFx ((EftShotFxWork *)gEftShotFx)
+#endif
 extern EftShotFxSeg gEftShotFxSegs[23];
 extern EftShotFxRow gEftShotFxRows[6];
 

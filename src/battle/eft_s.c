@@ -1543,7 +1543,11 @@ extern s32 BtlCharApi_IsInClashA(s32 objId);
 extern void *D_002C3E48[6]; /* chain task class */
 extern void *gEftRayClass[6]; /* ray task class */
 
+#ifdef PORT /* assigned to: a cast is not an lvalue for a modern compiler */
+#define gEftChain (*(EftChainMgr **)&gEftChain)
+#else
 #define gEftChain ((EftChainMgr *)gEftChain)
+#endif
 extern void *gEftChainList;
 extern EftRayMgr *gEftRay;
 

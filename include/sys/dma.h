@@ -3,8 +3,14 @@
 
 #include "types.h"
 
+#ifdef PORT
+/* PC build: no 128-bit integer on a 32-bit host; the game only copies and stores these. */
+typedef struct { u64 lo, hi; } __attribute__((aligned(16))) s128;
+typedef struct { u64 lo, hi; } __attribute__((aligned(16))) u128;
+#else
 typedef int s128 __attribute__((mode(TI)));
 typedef unsigned int u128 __attribute__((mode(TI)));
+#endif
 
 #define DMA_BUF_SIZE 0x100000
 
