@@ -70,12 +70,23 @@ typedef unsigned int u128 __attribute__((mode(TI)));
 #define GS_PSMZ24 0x31
 
 /* EE hardware registers. */
+#ifdef PORT
+extern volatile u32 *Port_DmaChcr(s32 channel);
+#endif
 #define VIF1_STAT ((volatile u32 *)0x10003C00)
 #define GIF_STAT ((volatile u32 *)0x10003020)
+#ifdef PORT /* PC build: every access first completes a transfer that was started (port/src/plat_gs.c) */
+#define D1_CHCR Port_DmaChcr(1)
+#else
 #define D1_CHCR ((volatile u32 *)0x10009000)
+#endif
 #define D1_QWC ((volatile u32 *)0x10009020)
 #define D1_TADR ((volatile u32 *)0x10009030)
+#ifdef PORT /* PC build: every access first completes a transfer that was started (port/src/plat_gs.c) */
+#define D2_CHCR Port_DmaChcr(2)
+#else
 #define D2_CHCR ((volatile u32 *)0x1000A000)
+#endif
 #define D2_MADR ((volatile u32 *)0x1000A010)
 #define D2_QWC ((volatile u32 *)0x1000A020)
 #define D2_TADR ((volatile u32 *)0x1000A030)
