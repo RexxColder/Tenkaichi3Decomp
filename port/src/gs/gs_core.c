@@ -519,7 +519,7 @@ static void reg_write(uint32_t addr, uint64_t d) {
 /* ------------------------------------------------------------------------------------------------ GIF */
 
 /* One run of GIF data (whole quadwords). */
-static void gif(const uint8_t *p, uint32_t qwc) {
+void Gs_Gif(const uint8_t *p, uint32_t qwc) {
     static uint64_t tag_lo, tag_hi; /* current tag: persists across runs */
     static uint32_t loops, reg;     /* loops left, register index within the loop */
     const uint64_t *q = (const uint64_t *)p;
@@ -596,13 +596,12 @@ static void gif(const uint8_t *p, uint32_t qwc) {
 
 /* ------------------------------------------------------------------------------------------------ VIF1 */
 
-static uint32_t sVifCl = 1, sVifWl = 1;
-
-/* One run of VIF data (32-bit words). GIF data (DIRECT) goes to the GS; everything for VU1 is skipped.
-   A command's data may continue in the next run (the command word often sits in the DMA tag, its data behind). */
+/* One run of VIF data (32-bit words): GIF data (DIRECT) goes to the GS, everything else to VU1 (gs_vu1.c).
+   A command's data may continue in the next run (the command word often sits in the DMA tag, its data behind):
+   DIRECT data is passed on as it comes, the data of the other commands is collected first. */
 static void vif(const uint32_t *w, uint32_t count) {
-    static uint32_t direct; /* quadwords of GIF data still to come */
-    static uint32_t skip;   /* words of other data still to come */
+    static uint32_t direct;                    /* quadwords of GIF data still to come */
+    static uint32_t pend, need, have, buf[2048]; /* a command waiting for `need` words of data */
     uint32_t i = 0;
 
     while (i < count) {
@@ -614,15 +613,29 @@ static void vif(const uint32_t *w, uint32_t count) {
                 break; /* misaligned run: drop it */
             }
             sStat[2] += qwc;
-            gif((const uint8_t *)&w[i], qwc);
+            Gs_Gif((const uint8_t *)&w[i], qwc);
             i += qwc * 4;
             direct -= qwc;
             continue;
         }
-        if (skip != 0) {
-            uint32_t n = count - i < skip ? count - i : skip;
+        if (need != 0) {
+            uint32_t n = count - i < need - have ? count - i : need - have;
+            if (have + n <= 2048) {
+                memcpy(&buf[have], &w[i], n * 4);
+            }
+            have += n;
             i += n;
-            skip -= n;
+            if (have == need) {
+                uint32_t c = (pend >> 24) & 0x7F, pn = (pend >> 16) & 0xFF;
+                if (need <= 2048) {
+                    if (c == 0x20) { GsVu1_SetMask(buf[0]); }
+                    else if (c == 0x30) { GsVu1_SetRow(buf); }
+                    else if (c == 0x31) { GsVu1_SetCol(buf); }
+                    else if (c == 0x4A) { GsVu1_Program(pend & 0xFFFF, buf, need); }
+                    else { GsVu1_Unpack(c, pn, pend & 0xFFFF, buf); }
+                }
+                need = have = 0;
+            }
             continue;
         }
         code = w[i++];
@@ -630,24 +643,27 @@ static void vif(const uint32_t *w, uint32_t count) {
         num = (code >> 16) & 0xFF;
         imm = code & 0xFFFF;
         sStat[1]++;
-        if (cmd == 0x01) {
-            sVifCl = imm & 0xFF;
-            sVifWl = (imm >> 8) & 0xFF;
-        } else if (cmd == 0x20) {
-            skip = 1;
-        } else if (cmd == 0x30 || cmd == 0x31) {
-            skip = 4;
-        } else if (cmd == 0x4A) {
-            skip = (num ? num : 256) * 2;
-        } else if (cmd == 0x50 || cmd == 0x51) {
-            direct = imm ? imm : 65536;
-        } else if (cmd >= 0x60) {
-            uint32_t vn = (cmd >> 2) & 3, vl = cmd & 3, n = num ? num : 256;
-            uint32_t bits = vn == 3 && vl == 3 ? 16 : (32u >> vl) * (vn + 1);
-            if (sVifWl > sVifCl && sVifWl != 0) {
-                n = sVifCl * (n / sVifWl) + (n % sVifWl > sVifCl ? sVifCl : n % sVifWl);
+        pend = code;
+        if (sDumpFrame == (int)sFrame && cmd != 0 && cmd != 0x50) {
+            fprintf(stderr, "  vif %02x num %3u imm %04x\n", cmd, num, imm);
+        }
+        switch (cmd) {
+        case 0x01: GsVu1_SetCycle(imm & 0xFF, (imm >> 8) & 0xFF); break;
+        case 0x02: GsVu1_SetOffset(imm); break;
+        case 0x03: GsVu1_SetBase(imm); break;
+        case 0x04: GsVu1_SetItop(imm); break;
+        case 0x05: GsVu1_SetMode(imm); break;
+        case 0x14: case 0x15: GsVu1_Call((int)imm); break;
+        case 0x17: GsVu1_Call(-1); break;
+        case 0x20: need = 1; break;
+        case 0x30: case 0x31: need = 4; break;
+        case 0x4A: need = (num ? num : 256) * 2; break;
+        case 0x50: case 0x51: direct = imm ? imm : 65536; break;
+        default:
+            if (cmd >= 0x60) {
+                need = GsVu1_UnpackWords(cmd, num);
             }
-            skip = (n * bits + 31) / 32;
+            break;
         }
     }
 }
@@ -745,6 +761,7 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
                 sStat[6], sTargetCount);
     }
     memset(sStat, 0, sizeof(sStat));
+    GsVu1_FrameEnd();
     if (sGpu) {
         GsGpu_FrameEnd();
     }

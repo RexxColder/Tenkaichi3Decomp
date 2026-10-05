@@ -33,6 +33,23 @@ uint32_t Gs_VramRead(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_
 int Gs_PsmBits(uint32_t psm);
 uint32_t Gs_Expand(uint32_t c, uint32_t psm); /* stored colour -> R | G << 8 | B << 16 | A << 24 */
 
+void Gs_Gif(const uint8_t *p, uint32_t qwc); /* GIF data for the GS (from VIF1 DIRECT or a VU1 kick) */
+
+/* VU1 (gs_vu1.c): what VIF1 does to it, and running its programs. */
+void GsVu1_SetCycle(uint32_t cl, uint32_t wl);
+void GsVu1_SetBase(uint32_t v);
+void GsVu1_SetOffset(uint32_t v);
+void GsVu1_SetItop(uint32_t v);
+void GsVu1_SetMode(uint32_t v);
+void GsVu1_SetMask(uint32_t v);
+void GsVu1_SetRow(const uint32_t *v);
+void GsVu1_SetCol(const uint32_t *v);
+void GsVu1_Program(uint32_t addr, const uint32_t *words, uint32_t count);
+uint32_t GsVu1_UnpackWords(uint32_t cmd, uint32_t num);
+void GsVu1_Unpack(uint32_t cmd, uint32_t num, uint32_t imm, const uint32_t *data);
+void GsVu1_Call(int addr);
+void GsVu1_FrameEnd(void);
+
 /* GPU back end (gs_gpu.c). Primitive = PRIM type: 0 point, 1 line, 3 triangle, 6 sprite (strips and fans arrive
    as single lines / triangles). The state to draw with is gGs. */
 int GsGpu_Init(void);

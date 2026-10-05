@@ -341,6 +341,45 @@ upload generations, so a texture re-uploaded every frame (the loading screen doe
 every sprite) is decoded again each time (correct, wasteful: hash the contents instead);
 no keyboard / pad input yet; the window shows nothing of the 3D scene (VU1 programs).
 
+## Renderer, step 3: the vertex unit (VU1) as an interpreter (2026-10-05 / 06)
+
+Decision: run the game's nine ORIGINAL vertex programs in an interpreter first
+(port/src/gs/gs_vu1.c), instead of rewriting each as a shader straight away. Nothing was
+known about what the programs do (the decompilation's notes say so), and an interpreter
+gives the correct 3D scene for all nine at once and a reference to check shader versions
+against later. Its output is GIF packets (XGKICK), so both back ends draw it unchanged.
+
+- VIF1 side (gs_core.c `vif`): STCYCL, OFFSET, BASE, ITOP, STMOD, STMASK, STROW, STCOL, MPG,
+  UNPACK (all formats, masks, modes, skipping and filling cycles, TOPS-relative addresses),
+  MSCAL / MSCALF / MSCNT with the TOP / TOPS double-buffer flip.
+- Interpreter: the instruction subset found by surveying the 1946 instruction pairs of the
+  microcode block (upper: add / sub / madd / mul with broadcast, Q and I forms, the ACC
+  forms, itof0, ftoi0, ftoi4, abs, clip; lower: lq, sq, lqi, sqi, sqd, ilwr, iswr, isw,
+  integer add / and, branches, bal, jr, div, waitq, mr32, move, xtop, xgkick, fcand, fcor,
+  fcget) plus neighbours; unknown instructions are counted and reported. Upper and lower
+  halves of an instruction read their operands before either writes; Q has its latency;
+  the clipping flags have their four-instruction delay. MAC / status flags are not modelled
+  (no program reads them).
+- A fact that cost a debugging round: BAL stores an instruction NUMBER and JR jumps to one
+  (no division by 8).
+- port/tools/vudis.py disassembles microcode (the used subset); a run that does not end
+  dumps port/build/vu1_micro.bin and vu1_mem.bin.
+
+How the game drives it (verified from the command stream of a battle frame): MPG uploads a
+program at 0 (two commands, 399 instructions for the first battle program); UNPACK of 12
+quadwords of constants at 0; BASE 141, OFFSET 436; MSCALF 0 (initialisation, ends at the
+first E bit); then per batch UNPACK header (3 quadwords at TOPS) + vertices (3 quadwords each
+at TOPS + 3), MSCNT. The program's main loop: transform by the matrix in vf1..vf4 and a
+second one in vf5..vf8, divide, ftoi4, clip test with a branch to a clipper, XGKICK.
+
+Verified by looking at the GPU read-back (docs/port/img/): both fighters are drawn
+correctly (textured, cel-shaded, with their after-images) during the battle intro, and the
+sky is drawn.
+Wrong or missing: the sky shows as vertical stripes (first_stage_sky.png), the stage itself
+is black in the frames looked at, the picture is slower than real time (about 15 frames per
+second: the interpreter, thousands of small draws, and textures decoded again whenever
+their upload generation changes).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
