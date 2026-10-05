@@ -690,3 +690,39 @@ Functions starting at a score of 60 or less were nearly all solved in minutes; t
   `EftPrim_DrawTriangle` all fell to this alone. Try it on every remaining packet writer.
 - Which saved float register an incoming float parameter gets depends on where the int
   parameters sit in the list: take the parameter order from callers that already match.
+
+## Differential behaviour test (2026-10-05)
+
+build/scratch_cleanup3_S/ (README.txt there): `dt.py` on top of `emu2.py` runs the ORIGINAL
+bytes of a function and the compiled C attempt on the same seeded inputs and compares the
+return value, every outgoing call with its arguments in order, every byte written outside
+the frame and the callee-saved registers; callee stubs return seeded values by call position
+on both sides; it reports branch coverage of the original. A new test needs a prototype
+table, a `setup()` and `T.run(setup, seeds)`; examples `t_testskill.py`, `t_unk17.py`,
+`t_input.py`. USE IT on every function that stays unmatched before the port relies on its C.
+Results so far (4000 seeds each, no difference): `AiThink_TestSkill`, `BtlAiStep_FireSkill`
+(both since matched), `BtlInput_Update` (8 of 8 branches covered; still 4 of 149 off: one
+store position; analysis in the source note).
+
+More lessons (agents S and V):
+- The loop pass runs TWICE; a giv "not worth while" in the first run can be reduced in the
+  second, where the loop is shorter. A whole-function reload-register shift plus a larger
+  frame can be ONE RTL instruction of loop length: try compare forms that differ in insn
+  count (`kind != 1 && kind != 2` versus `(u32)((u8)kind - 1) >= 2`). `grep "Loop from\|not
+  worth" x.c.09.loop` shows both runs.
+- `if (x != K) return 1;` versus nesting the tail under `if (x == K) { ... } return 1;`
+  decides which branch gets the first epilogue load in its delay slot (an empty slot where
+  the attempt has `ld sN`).
+- Scheduling: at most one memory instruction and two instructions per cycle; a store whose
+  source register is set again before the next call sinks to the end of the block. Loads in
+  one order and stores in another, with float registers following the loads: the values went
+  through locals.
+- Screen sizes as variables set at the top (`width`, `half`, `srcH`, `h`) are a house style
+  of the draw functions; signs: a real `mult` / `div` by a constant, an integer constant
+  converted to float from `.sdata`, single-use constants in saved registers.
+- Spill-slot order is creation order of the pseudo, temporaries included; a division always
+  lands in a fresh temporary. `p += 2` inside each arm versus behind the if / else decides
+  the schedule. Copy chains in front of stores come from post-reload cse when each address
+  has its constant inside the subscript (`p->arr[i * 12 + k]`).
+- A register-masked structural diff (build/scratch_cleanup3_V/sdiff.py) is the useful metric
+  for large functions.

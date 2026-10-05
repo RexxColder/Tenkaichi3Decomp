@@ -556,23 +556,28 @@ void BtlInput_Sample(BtlInputChr *chr) {
 }
 
 /* Per-frame update: fetches the input and derives pressed/released words, the smoothed stick and the frame counters. */
-/* NON-MATCHING: 6 of 149 instructions. Same instructions and registers as the original; only the order in which the
- * scheduler emits the twelve stores of the first block (and two of the four `and`s) differs. The original emits
- * stickPrev[0], stickRawPrev[0], stickRawPrev[1], pressed, cmdPressed, cmdReleased, prev, cmdPrev, held, cmdHeld,
- * stickPrev[1], released; this statement order (the best of every permutation tried) emits pressed, stickRawPrev[0],
- * stickRawPrev[1], stickPrev[0], cmdReleased, cmdPressed and then the same tail.
- * From the scheduler dumps: the stores come out in statement order, except that the two whose value sits in a0
- * and f0 (registers the following calls need) go last. So the original statement order of the stores is
- * stickPrev[0], stickRawPrev[0], stickRawPrev[1], pressed, cmdPressed, cmdReleased, prev, cmdPrev, held, cmdHeld
- * (stickPrev[1] and released anywhere), while the register numbers follow the order of the LOADS, which is this
- * attempt's. Both at once need the loads and the stores as separate statements (locals): searched (all 40320
- * orders of the eight loads for one store order, hill climbing from several starts, the forms that read back
- * `in->prev` / `in->held`): best 10 differences with the store order right and v0 / v1 exchanged. */
-/* Second cleanup pass: the plain order (stickPrev, stickRawPrev, pressed, released, cmdPressed, cmdReleased,
- * prev, cmdPrev, held, cmdHeld) gives the original STORE order exactly but other registers (24 differences).
- * Behaviour re-checked against the disassembly: both versions do the same eight loads, the same four
- * `and` / `nor` pairs and the same twelve stores, all loads in front of all stores; the rest of the function
- * is instruction for instruction the original. No behavioural difference. */
+/* NON-MATCHING: 4 of 149 instructions (was 6): `sw v0` (pressed) comes out in front of the three float stores
+ * instead of behind them; everything else, registers included, is the original. Behaviour is identical: proven
+ * with a differential run of the original bytes against this C (build/scratch_cleanup3_S/t_input.py, all
+ * branches covered, calls / arguments / memory compared).
+ * What decides this block (third cleanup pass, all checked against the -dS / -dR / -dl dumps):
+ * - first scheduling pass: one memory instruction and one other per cycle; the four integer loads go first, each
+ *   `nor` two cycles behind its load, so the loads / `nor`s are fixed. Float loads and `nor`s tie on priority and
+ *   come out in SOURCE order, as do the `and`s, as do the stores;
+ * - local register allocation: a `nor` temporary and its `and` result are one quantity (4 references); priority is
+ *   8 / (position of the store - position of the `nor`), ties to the one born first; floats 2 / (store - load);
+ * - second scheduling pass: keeps that order for equals, except that a store whose source register is set again
+ *   before the next call (a0: the next argument, f0: the call's result) has one dependent fewer and goes last,
+ *   and the `and` into a0 / the load into f0 move accordingly.
+ * Hence: float loads in the order stickRaw[0], stickRaw[1], stick[0], stick[1] but their stores stickPrev first
+ * (locals: this fixed f0..f3); `and`s in the order released, cmdReleased, pressed, cmdPressed but stores pressed,
+ * released, cmdPressed, cmdReleased (locals again). What is left: `pressed` must get v0, i.e. beat cmdPressed,
+ * whose `nor` is born six instructions later and whose store follows directly. With four references each that
+ * needs the pressed store at least seven instructions ahead of the cmdPressed store, which the second pass
+ * cannot turn into "adjacent"; so in the original the pressed quantity had SIX references (12 / 17 against
+ * 8 / 13), i.e. one more tied pseudo (a copy that leaves no instruction). No source form that produces that
+ * copy was found (tried: statement expression, extra variable, chained store, casts, inline helper for the
+ * button pair only). The chained store used here shortens the life instead, which costs the store order. */
 #if 0
 void BtlInput_Update(BtlInputChr *chr) {
     u8 stick[2];
@@ -580,17 +585,32 @@ void BtlInput_Update(BtlInputChr *chr) {
     u32 commands;
     BtlCharInput *in = &chr->input;
     f32 len;
+    f32 rawX;
+    f32 rawY;
+    f32 stickX;
+    f32 stickY;
+    u32 pressed;
+    u32 released;
+    u32 cmdPressed;
+    u32 cmdReleased;
 
     BtlChar_GetPad(chr);
     BtlInput_Fetch(chr, &buttons, &commands, stick);
-    in->pressed = buttons & ~in->held;
-    in->stickRawPrev[0] = in->stickRaw[0];
-    in->stickRawPrev[1] = in->stickRaw[1];
-    in->stickPrev[1] = in->stick[1];
-    in->released = in->held & ~buttons;
-    in->stickPrev[0] = in->stick[0];
-    in->cmdReleased = in->cmdHeld & ~commands;
-    in->cmdPressed = commands & ~in->cmdHeld;
+    released = in->held & ~buttons;
+    rawX = in->stickRaw[0];
+    rawY = in->stickRaw[1];
+    stickX = in->stick[0];
+    stickY = in->stick[1];
+    cmdReleased = in->cmdHeld & ~commands;
+    in->pressed = pressed = buttons & ~in->held;
+    cmdPressed = commands & ~in->cmdHeld;
+    in->stickPrev[0] = stickX;
+    in->stickPrev[1] = stickY;
+    in->stickRawPrev[0] = rawX;
+    in->stickRawPrev[1] = rawY;
+    in->released = released;
+    in->cmdPressed = cmdPressed;
+    in->cmdReleased = cmdReleased;
     in->prev = in->held;
     in->cmdPrev = in->cmdHeld;
     in->held = buttons;

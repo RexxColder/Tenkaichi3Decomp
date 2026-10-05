@@ -417,8 +417,8 @@ void StgHaze_Step(StgHaze *haze, s32 split, s32 view) {
  * original keeps at sp+4 .. sp+0x30 is a spilled pseudo register, in creation order: the parameter and
  * the declared locals first (haze, width, widthPx, xOffset, cols, y0, y1), then compiler temporaries in
  * the order the statements create them: the quotient of v0 (0x20), `row + 1` (0x24, first written in
- * the y1 statement, which therefore comes BEHIND v0), the quotient of v1 (0x28), and the copies of
- * `rows - 1` (0x2C) and `cols * 2` (0x30) that the jump pass makes when it duplicates the loop test.
+ * the y1 statement, which therefore comes BEHIND v0), the quotient of v1 (0x28), and last the registers
+ * that later passes create for `rows - 1` (0x2C) and `cols * 2` (0x30).
  * So there are no nextRow / lastRow / nVerts / divisor variables in the source: `rows - 1`, `row + 1`
  * and `cols * 2` are written out at every use. (v0 and v1 themselves disappear: a division always
  * lands in a temporary on this compiler and the copy is propagated.)

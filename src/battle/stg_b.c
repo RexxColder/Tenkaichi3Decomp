@@ -1620,10 +1620,21 @@ void StgFog_ResetColor(void) {
 
 /* Draws the depth tone: the table turns depth into the frame's alpha, the frame is copied at half size into the
    work buffer, and the copy is blended back over the frame through that alpha (a blur that grows with depth). */
-#if 0 /* same instructions in a different schedule: the original loads 0x4E, 0x80808080, 0x30000, 0x47, the TEX0 constant and 448 into s3..s8 at the top and keeps the first call's result in s0; this C puts 0xE in s8 and swaps s0 / s1 and s3 / s4 (156 of 229 differ). Second cleanup: the saved registers are not shared constants. 0x4E, 0x30000, 0x47 and the TEX0 constant are single-use values that local register allocation pushes into s-registers because every temporary is busy while the packet is built (the second scheduling pass then lifts their `li` to the top); 0xE, 0x4C and 6 are the constants cse shares between the two packets, they live across the calls, and only one saved register (s8) is left for them. The original gives s8 to 448 (used once, as the stack argument of the first Dma_PutTexStrips) and re-materialises 0xE twice (230 instructions); this C gives it to 0xE (229). A variable `s32 h = 0x1C0` for both calls does put 448 in a saved register, but local allocation then takes s7 for it, 0x4E drops to a temporary and 0xE still gets s8 (102 differ). No effect: order of tw / th, fbw as s32, if / else or `v -= 0xE00` forms for the three frame-parity values, where h is declared. Reordering the TEX0 operands (`tbp | fbw << 14 | tw << 26 | th << 30`) gives 80 of 229. */
+/* Emits two local tables in .sdata: 0x2FEC10 = {0x2A00, 0x2D80} (the work buffers as textures) and
+   0x2FEC18 = {0x150, 0x16C} (as frame buffers).
+   Matching notes: as in StgBlur_Draw the sizes are VARIABLES set at the top (`width`, `half`, `srcH`, `h`) and
+   passed to both Dma_PutTexStrips calls. All four are needed: they are what occupies the saved registers the
+   way the original has it (448 in s8; 0x4E, 0x30000, 0x47 and the second TEX0 value pushed into s3 / s5 / s6 /
+   s7 by local allocation; 0xE re-materialised twice). With literals, or with only some of the four as
+   variables, the same instructions come out in another schedule (88 of 230). The TEX0 word is
+   `tbp | fbw << 14 | tw << 26 | th << 30` in that order, with tw declared before th. */
 void StgFog_Draw(void) {
     StgFog *tone = gStgFog;
     u64 *p;
+    s32 width = 0x200;
+    s32 half = 0x100;
+    s32 srcH = 0x1C0;
+    s32 h = 0xE0;
 
     Dma_AddData(tone->load, 0x10);
     Dma_AddTexFlush();
@@ -1634,8 +1645,8 @@ void StgFog_Draw(void) {
     {
         u32 tbp[2] = { 0x2A00, 0x2D80 };
         u32 fbp[2] = { 0x150, 0x16C };
-        s32 th;
         s32 tw;
+        s32 th;
         u64 fbw = 4;
 
         tw = Tex_Log2Size(0x100);
@@ -1658,7 +1669,7 @@ void StgFog_Draw(void) {
         p[0] = !(gGfx.frame & 1) ? 0xA64020E00UL : 0xA64020000UL;
         p[1] = GS_TEX0_1;
         p += 2;
-        Dma_PutTexStrips((GsQword **)&p, 0, 0, 0x100, 0xE0, 0, 0, 0, 0, 0x200, 0x1C0, 0, 0, 0x80808080, 1);
+        Dma_PutTexStrips((GsQword **)&p, 0, 0, half, h, 0, 0, 0, 0, width, srcH, 0, 0, 0x80808080, 1);
         p[0] = GIF_TAG(3, 0, 1);
         p[1] = GIF_REG_AD;
         p += 2;
@@ -1668,16 +1679,13 @@ void StgFog_Draw(void) {
         p[0] = (0x80UL << 32) | 0x54;
         p[1] = GS_ALPHA_1;
         p += 2;
-        p[0] = (u64)tbp[0] | ((u64)th << 30) | (((u64)tw << 26) | (fbw << 14));
+        p[0] = (u64)tbp[0] | (fbw << 14) | ((u64)tw << 26) | ((u64)th << 30);
         p[1] = GS_TEX0_1;
         p += 2;
-        Dma_PutTexStrips((GsQword **)&p, 0, 0, 0x200, 0x1C0, 0, 0, 0, 0, 0x100, 0xE0, 8, 8, 0x80808080, 1);
+        Dma_PutTexStrips((GsQword **)&p, 0, 0, width, srcH, 0, 0, 0, 0, half, h, 8, 8, 0x80808080, 1);
         Dma_EndDirect(p);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/stg_b", StgFog_Draw);
-#endif
 
 /* Takes the three control points from the stage's parameters (defaults when NULL) and rebuilds the table. */
 void StgFog_SetParams(StgFogParams *prm) {

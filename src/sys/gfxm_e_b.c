@@ -291,28 +291,28 @@ s32 ObjShadow_CalcPacketWords(s32 count) {
    triangle at TOPS + 3 (per vertex: x, y, z, a no-draw flag that is 1 on the first two vertices of every
    triangle but the batch's first; the normal with w = 1; the colour; 0, 0, 1, 0) and MSCNT; padding to a
    quadword and a DMA end tag. */
-/* NOT MATCHING: the code is the same up to register names once loop-invariant hoisting is out of the way, but
-   this compiler's second loop pass moves the first three header constants (0x6C038000, 0x8001, 0x10000000)
-   out of the batch loop into saved registers, which the original does not do. The decision is a size
-   threshold (the pass moves a single-use constant only while the loop has at most ~128 RTL instructions; this
-   body has 121 in the second pass), so the original source was about eight RTL instructions longer inside the
-   batch loop in a way that leaves no trace in the final code. With four throw-away `*p++ = 0;` added to the
-   header the remaining differences are: the triangle pointer (original: i * 64 kept as the induction variable
-   and added to `tris` per triangle) and where `li v0, 1` is scheduled. Behaviour is the same. */
+/* NOT MATCHING (registers only, see the note in the attempt): the hoisting of the three header constants, which
+   used to be the obstacle, is reproduced by duplicating the statements behind the flag store in its three arms. */
 #if 0
-/* NOT MATCHING (60 of 182 aligned; 31 with the filler described below). What was learned:
-   - The three header constants of the batch loop (0x6C038000, 0x8001, 0x10000000) are hoisted by the SECOND run of
-     the loop pass when the outer loop has 128 RTL instructions or fewer at that point; this C gives 121, the
-     original must have had 129 or more (the limit drops by 3 per register already moved). Eight dead statements at
-     the end of the batch loop (`pad = 0;` in front of the loops and `pad += j; pad ^= i; pad += n; pad -= j;
-     pad ^= n; pad += i; pad -= n; pad ^= j;` behind `*p++ = 0x17000000;`) make the hoisting match exactly, so the
-     original had about eight more instructions there that leave no code: not found what (pointer copies do not
-     count, cse removes them before the loop pass).
-   - The header stores are in this order (pkt[3] first of the last five), the padding loop counts `pad = 4 - pad`
-     directly, and tag[0] is written before tag[4]: each verified against the original with the filler in place.
-   - Still open with the filler: the registers of the triangle loop (the original has the triangle base in v1, the
-     vertex pointer in a0, k in t2, the k test in t3, i * 64 in t4, j in t5; here t2 / t3 / v1 / t5 / a0 / t4).
-     Declaration order of the locals changes nothing; `tri` / vertex pointer locals make it worse. */
+/* NOT MATCHING, but the code is now the original's in shape: 182 instructions against 182, and with register
+   names masked only 4 of them differ (60 by name). Third cleanup:
+   - The missing loop size is found without any filler. The three arms of the no-draw flag each hold the flag
+     store AND the first three statements behind it (`f = (f32 *)p; f[0] = normal.x; f[1] = normal.y;`). The arms
+     are merged again after register allocation, so nothing of it shows, but the batch loop is then long enough
+     at the second loop pass that the three header constants (0x6C038000, 0x8001, 0x10000000) stay in the loop,
+     as in the original, while 1, 1.0f and 0.02f are still hoisted. Two statements in the arms are too few
+     (186 instructions), four give the same count with other differences, five are too many. (The dead `pad`
+     arithmetic of the second cleanup is not needed and is gone.)
+   - Header stores in this order (pkt[3] first of the last five), `pad = 4 - pad` directly, tag[0] written
+     before tag[4]: unchanged from the second cleanup.
+   Still different (all register choice except the last two):
+   - the triangle loop: the original has the triangle base in v1, the vertex pointer in a0, k in t2, the k test
+     in t3, i * 64 in t4, j in t5; here t1 / t3 / v1 / t5 / a0 / t4. A `tri` pointer with or without a walking
+     vertex pointer changes the instruction count (186 / 184) and is worse.
+   - the normal's three loads alternate f1 / f0 / f1 in the original, f0 / f1 / f0 here, and `f + 12` is computed
+     one store earlier there.
+   - `bnez` for the j < 18 test and `blez` in front of the padding loop where this has `bnezl` / `blezl`.
+   Behaviour is the same. */
 s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
     u32 *p;
     f32 *f;
@@ -361,15 +361,21 @@ s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
                 if (k < 2) {
                     if (j == 0) {
                         *p++ = 0;
+                        f = (f32 *)p;
+                        f[0] = tris[i].normal.x;
+                        f[1] = tris[i].normal.y;
                     } else {
                         *p++ = 1;
+                        f = (f32 *)p;
+                        f[0] = tris[i].normal.x;
+                        f[1] = tris[i].normal.y;
                     }
                 } else {
                     *p++ = 0;
+                    f = (f32 *)p;
+                    f[0] = tris[i].normal.x;
+                    f[1] = tris[i].normal.y;
                 }
-                f = (f32 *)p;
-                f[0] = tris[i].normal.x;
-                f[1] = tris[i].normal.y;
                 f[2] = tris[i].normal.z;
                 f[3] = 1.0f;
                 f[4] = color[0];
@@ -407,6 +413,7 @@ s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
     pkt[0] = (p - pkt) / 4 + 0x5FFFFFFE;
     return ret;
 }
+
 #endif
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_e_b", ObjShadow_BuildPacket);
 

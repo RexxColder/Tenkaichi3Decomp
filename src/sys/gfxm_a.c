@@ -11,8 +11,8 @@
  * Full-screen post effects, 0x102F28..0x106D60. See include/sys/gfxm_a.h for the overview.
  * Everything here is drawing: nothing reads a pad, the clock or a random generator.
  *
- * Three functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
- * StgPanBlur_UpdateView, StgPanBlur_DrawView, StgDepthTint_Draw.
+ * Two functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
+ * StgPanBlur_UpdateView (13 instructions off: two saved registers exchanged) and StgDepthTint_Draw.
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -187,36 +187,40 @@ void StgPanBlur_BuildClut(u8 *clut) {
 
 /* Follows the camera of one view: strength from its horizontal speed, the two layers from that. Returns 0 when
    the strength has run out. */
-/* NOT MATCHING (60 of 191 instructions): everything up to the layer loop differs only in which of two
-   callee-saved registers holds &move and &view->prev.m[3] and in float register numbers; in the loop the
-   original recomputes view + i * 0x30 for each of the eight stores (a chain of register copies, offsets
-   0xB0..0xCC), this attempt gets one pointer. The attempt computes the same values. */
-/* Cleanup pass 2, layer loop: the address form of the original (`i * 48 + view` once, displacements 176..204) is
-   what indexing a two-dimensional float array gives (`(*(f32 (*)[2][12])view->layer)[i][k]`, or
-   `((f32 *)view)[i * 12 + 44 + k]`): a constant in the subscript stays a displacement, while a member offset that
-   is a multiple of 16 is added to the index (the `addiu v0,v0,176` of the attempt below). The chain of register
-   copies in front of the stores (t3 -> v1 -> a1 -> a2 -> a3 -> t1 -> t0 -> v0, last store through t3 again) is cse
-   making each statement's own address temporary the canonical one; with the array form this compiler still
-   uses one register for all eight stores (52 of 197 aligned, against 49 for the attempt below), so something in
-   the original keeps cse from folding the eight temporaries (the same thing as in Ot_Reset, gfx_ot.c). */
+/* NOT MATCHING, 13 of 197 instructions (was 60 of 191): the layer loop now matches. What remains is in the
+   straight-line part in front of it: two callee-saved registers are exchanged (the original keeps
+   `view->prev.m[3]` in s3 and `&move` in s4, this has them the other way round), and with that the
+   `addiu s1,sp,48` / `li a2,16` pair of the fourth clear is in the other order. Same behaviour.
+   What made the loop match (third cleanup): the two layers are written as ONE FLAT float array,
+   `layer[i * 12 + k]`, an array member (not a pointer) indexed with the constant inside the subscript.
+   The compiler then adds the whole constant (0xB0 + 4 * k) to the index before adding `view`, cse cannot
+   relate the eight addresses, combine re-associates each one into `(i * 48 + view) + K`, and only the
+   post-reload cse sees that the eight sums are the same value and turns seven of them into register copies:
+   that is the copy chain t3 -> v1 -> a1 -> a2 -> a3 -> t1 -> t0 -> v0 of the original. (The same thing
+   explains Ot_Reset in gfx_ot.c: its later loads are `slots[cur + 1]`, `slots[cur + 2]` with the constant in
+   the subscript.) The four vectors are `{0, 0, 0, 1}` initialisers (same code as memset + store).
+   Tried for the s3 / s4 exchange without effect (about 25 variants): pointer variables for the two matrix
+   rows declared or assigned in several places, the rows written as `&m[3][0]`, the two `dist` stores in
+   either order or chained, `cam` and `dist` initialised in their declarations, a local for gBtlCam or for
+   the index, pointers to the two matrices. Local register allocation decides it: the two row addresses
+   (three references each, born where the scheduler puts them, in front of Mtx_Copy) and the three
+   `sp + N` addresses compete for s1..s5, and the original ranks `view + 0x70` between `&dirCur` and
+   `&move` while this ranks both row addresses last. */
 #if 0
+typedef struct StgPanBlurViewF {
+    u8 pad[0xB0];
+    f32 layer[24];
+} StgPanBlurViewF;
+#define L(i, k) ((StgPanBlurViewF *)view)->layer[(i) * 12 + (k)]
 s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
-    Vec4 side;
-    Vec4 move;
-    Vec4 dirCur;
-    Vec4 dirPrev;
+    Vec4 side = { 0.0f, 0.0f, 0.0f, 1.0f };
+    Vec4 move = { 0.0f, 0.0f, 0.0f, 1.0f };
+    Vec4 dirCur = { 0.0f, 0.0f, 0.0f, 1.0f };
+    Vec4 dirPrev = { 0.0f, 0.0f, 0.0f, 1.0f };
     BtlCamView *cam;
     f32 dist;
     s32 i;
 
-    memset(&side, 0, sizeof(Vec4));
-    side.w = 1.0f;
-    memset(&move, 0, sizeof(Vec4));
-    move.w = 1.0f;
-    memset(&dirCur, 0, sizeof(Vec4));
-    dirCur.w = 1.0f;
-    memset(&dirPrev, 0, sizeof(Vec4));
-    dirPrev.w = 1.0f;
     cam = &gBtlCam->views[view->index];
     dist = 0.0f;
     Mtx_Copy(&view->prev, &view->cur);
@@ -256,23 +260,23 @@ s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
         view->side = -1.0f;
     }
     for (i = 0; i < 2; i++) {
-        StgPanBlurLayer *layer = &view->layer[i];
         s32 a = view->maxAlpha * view->strength - (i * 32);
 
         if (a < 0) {
             a = 0;
         }
-        layer->ofs.x = (i + 1) * view->side;
-        layer->ofs.y = 0.0f;
-        layer->ofs.z = 0.0f;
-        layer->ofs.w = 1.0f;
-        layer->color.x = 128.0f;
-        layer->color.y = 128.0f;
-        layer->color.z = 128.0f;
-        layer->color.w = a;
+        L(i, 0) = (i + 1) * view->side;
+        L(i, 1) = 0.0f;
+        L(i, 2) = 0.0f;
+        L(i, 3) = 1.0f;
+        L(i, 4) = 128.0f;
+        L(i, 5) = 128.0f;
+        L(i, 6) = 128.0f;
+        L(i, 7) = a;
     }
     return 1;
 }
+
 #endif
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_a", StgPanBlur_UpdateView);
 
@@ -353,9 +357,12 @@ void StgPanBlur_CopyScreen(void) {
 /* Draws one view of the pan blur. The work page (256x256 copy of the frame, or the view's half of it in split
    screen) goes to the 128x128 page 0x170 with alpha = strength; the two layers are blended over it, shifted
    sideways; the result is stretched back over the view's rectangle of the frame, blended by its alpha. */
-/* NOT MATCHING (83 of 454 instructions): register allocation in the layer loop (which temporaries hold the
-   quad's corners) and in the last loop (the original keeps u in the register that held `view`). Same packet. */
-#if 0
+/* Matching notes: the strip x of the layer loop is `i * step + x - r` / `(i + 1) * step + r + x` (the operand
+   order decides the order in which the loop pass emits the four start values, and with it the registers);
+   in the last loop the view's x is a plain running variable (`x += 32`, read BEFORE `step` is computed, so
+   that `view` is dead when `u` is created and u takes its register), the packet is filled in its natural
+   member order (prim first; the scheduler emits the stores whose source register dies first), and the
+   per-strip members are written texels first, then the two XYZ words. */
 void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
     GfxPostSpritePkt pkt;
     u64 *p;
@@ -453,10 +460,10 @@ void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
         r = layer->size;
         for (i = 0; i < n; i++) {
             p[0] = (((srcX + i * size) << 4) + 8) | (8 << 16);
-            p[1] = (((x - r + i * step) << 4) + 0x7C00) | ((s64)(((y - r) << 4) + 0x7C00) << 16);
+            p[1] = (((i * step + x - r) << 4) + 0x7C00) | ((s64)(((y - r) << 4) + 0x7C00) << 16);
             p += 2;
             p[0] = (((srcX + (i + 1) * size) << 4) + 8) | (0x1008 << 16);
-            p[1] = (((x + r + (i + 1) * step) << 4) + 0x7C00) | ((s64)((y + r + 0x840) << 4) << 16);
+            p[1] = ((((i + 1) * step + r + x) << 4) + 0x7C00) | ((s64)((y + r + 0x840) << 4) << 16);
             p += 2;
         }
     }
@@ -491,54 +498,48 @@ void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
     p += 2;
     {
     s32 n = view->w / 32;
-    s32 step = 0x80 / n;
     s32 x = view->x;
+    s32 step = 0x80 / n;
     s32 u = 0;
     s32 u1;
-    s32 x0;
-    s32 x1;
     s32 i;
 
     pkt.prim = 0x156;
     pkt.tag.w = 0x20000005;
+    pkt.next = NULL;
     pkt.vif0 = 0x10000000;
     pkt.vif1 = 0x50000005;
     pkt.gifTag = GIF_TAG_EX(1, 1, GIF_FLG_REGLIST, 8);
     pkt.regs = 0xF4343160;
     pkt.tex0 = 0x5DC00AE00;
-    pkt.rgbaq.a = 0x80;
-    pkt.rgbaq.q = 1.0f;
-    pkt.next = NULL;
     pkt.rgbaq.r = 0x80;
     pkt.rgbaq.g = 0x80;
     pkt.rgbaq.b = 0x80;
-    x0 = (x << 4) + 0x7000;
-    x1 = (x << 4) + 0x7200;
+    pkt.rgbaq.a = 0x80;
+    pkt.rgbaq.q = 1.0f;
     for (i = 0; i < n; i++) {
-        pkt.xyz0.x = x0;
-        pkt.xyz0.y = 0x7200;
-        pkt.xyz1.x = x1;
-        pkt.xyz1.y = 0x8E00;
-        pkt.xyz0.z = 0;
-        pkt.xyz1.z = 0;
         u1 = u + step;
         pkt.uv0.u = (u << 4) + 8;
-        pkt.uv1.u = (u1 << 4) + 8;
         pkt.uv0.v = 8;
+        pkt.uv1.u = (u1 << 4) + 8;
         pkt.uv1.v = 0x7F8;
+        pkt.xyz0.x = (x << 4) + 0x7000;
+        pkt.xyz0.y = 0x7200;
+        pkt.xyz0.z = 0;
         pkt.xyz0.f = 0xFF;
+        pkt.xyz1.x = ((x + 32) << 4) + 0x7000;
+        pkt.xyz1.y = 0x8E00;
+        pkt.xyz1.z = 0;
         pkt.xyz1.f = 0xFF;
         u = u1;
+        x += 32;
         memcpy(p, &pkt.gifTag, pkt.tag.h.qwc << 4);
         p = (u64 *)((u8 *)p + (pkt.tag.h.qwc << 4));
-        x0 += 0x200;
-        x1 += 0x200;
     }
     }
     Dma_EndDirect(p);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_a", StgPanBlur_DrawView);
+
 
 /* Back to the frame's colour buffer with the default offset, scissor and depth writes. */
 void StgPanBlur_RestoreEnv(void) {
@@ -1636,6 +1637,12 @@ void StgDepthTint_Term(void) {
    it). Needed: a zero that cse cannot see at that point. Tried: a loop that runs once (`for (i = 0; i < 1; i++)`
    with `medium = i`), an inline helper returning the variable, a dead conditional in front (the trick that
    matched IopHeap_PrintFree), none keeps the copy. */
+/* Cleanup pass 3: read the copy as `medium = zero` done BEFORE the split-screen test (`move v1,s0` sits in the
+   delay slot of that branch, so it is in the first block, behind the call), with `medium` set again in the two
+   water arms. A zero whose address goes to an inline reader (`medium = Get(&zero)`, an ADDRESSOF that is purged
+   after the first cse) is still folded (cse does not treat such memory as clobbered by the call). The zero has
+   to reach register allocation as a register copy, so whatever hides it must survive cse, gcse, cse2 AND
+   combine: not found. */
 #if 0
 void StgDepthTint_Draw(void) {
     Mtx44 m;

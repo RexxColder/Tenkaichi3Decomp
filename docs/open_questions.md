@@ -91,7 +91,7 @@ Still pulled from assembly inside linked files:
 | `Rigid_Init` | `rigid.c` | 2 of 72: two instructions swapped before a memset |
 | `PadWatch_GetMissing` | `pad_watch.c` | 2 of 69: delay-slot fill |
 | `ChrCam_CalcCut` | `btl_char_cam_cut.c` | 248 of 565: register allocation in the four "resolve a node" blocks; it owns two `.lit4` constants, which is why the fighter camera is three files |
-| `BtlAiStep_Unk17` | `btl_ai_seq.c` | 63 of 154: branch layout of the first half, registers of the class comparisons |
+| `BtlAiStep_FireSkill` | `btl_ai_seq.c` | 63 of 154: branch layout of the first half, registers of the class comparisons |
 | `AiThink_TestSkill` | `btl_ai_cond.c` | about 260 of 308: eight strength-reduced pointers in the slot loop, four of them on the stack |
 | `AiThink_GetBlastStep` | `btl_ai_cond.c` | 11 of 32: registers only |
 | `BtlAiSense_IsBusy` | `btl_ai_act.c` | 8 of 48: a delay-slot fill |

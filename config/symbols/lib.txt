@@ -395,3 +395,4 @@ scalbn = 0x00292D80; // type:func
 scalbnf = 0x00292F68; // type:func
 copysign = 0x00293030; // type:func
 copysignf = 0x00293078; // type:func
+__fixunssfdi = 0x002A6838; // type:func

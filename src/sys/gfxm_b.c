@@ -439,15 +439,6 @@ void GfxLens_DrawOne(IVec4 *pt, s32 split, s32 side, u32 rgba, s32 blend) {
     Dma_EndDirect(p);
 }
 
-/* Cleanup pass 2: why the store address is strength-reduced here (loop dump): gcse replaces the third `i * 16` of
-   the body (the one for pos[i].w, behind the join of the two Vec4_Scale arms) by a copy of a register that is set
-   in both arms; the loop pass then cannot see that copy as an induction variable and falls back on its REG_EQUAL
-   note, `i * 16` as a multiplication (cost 12), which makes the address worth a pointer of its own. In the
-   original the address was the cheap `base + i * 16` (not reduced). `Vec4 pos[7]` with `pos[i].w`, casts, a flat
-   float index and byte arithmetic all give the same 10 aligned differences; up to five more instructions in the
-   loop do not change the decision either. */
-#if 0
-/* NOT MATCHING: 15 of 240 instructions differ, in the first inner loop only: the original addresses `pos[i].w` as (sp + 0xBC) + i * 16 with the same index register as `offs[i]` (`addu v0,s4,s1 / swc1 f23,0(v0)`), here the compiler walks a second pointer (`swc1 f23,0(s4) / addiu s4,s4,16`). */
 /* True when a lens is in front of the camera and its box (points 0 and 3) touches the 512x448 screen. */
 static inline s32 GfxLens_IsOnScreen(GfxIVec *scr) {
     s32 flags;
@@ -477,7 +468,14 @@ static inline s32 GfxLens_IsOnScreen(GfxIVec *scr) {
     return flags == 3;
 }
 
-/* Ages every live lens, projects its seven points with the camera and draws those that touch the screen. */
+/* Ages every live lens, projects its seven points with the camera and draws those that touch the screen.
+   Its `offs` initialiser is the 0x70-byte table at 0x2EB6A0 (.rodata).
+   Matching notes: the first inner loop has an explicit BYTE OFFSET as a second induction variable (`o += 0x10`,
+   added to `offs` and to the address of pos[0].w, itself a variable set between `i = 0` and `v = pos`) next to
+   the walking pointer `v`. With `offs[i]` / `pos[i].w` the loop pass builds the address of the w store from the
+   `i * 16` that gcse leaves as a copy with a multiplication note (cost 12) and gives it a pointer of its own;
+   with a real variable the two addresses are plain sums of benefit 0 and stay `base + o`. The form is what
+   matches; whether the original spelled it this way (a macro, or three cursors) is not known. */
 void GfxLens_DrawAll(GfxLensView *view, s32 split, s32 side) {
     GfxFMtx rot;
     GfxFVec offs[7] = {
@@ -494,6 +492,8 @@ void GfxLens_DrawAll(GfxLensView *view, s32 split, s32 side) {
     f32 t;
     f32 half;
     GfxFVec *v;
+    s32 o;
+    f32 *w;
 
     Vu0Screen_StoreMtx((Mtx44 *)w2s);
     Mtx_Transpose((Mtx44 *)rot, &view->mtx40);
@@ -507,16 +507,15 @@ void GfxLens_DrawAll(GfxLensView *view, s32 split, s32 side) {
         }
         t = (f32)f->life / (f32)f->lifeMax * f->size;
         half = f->size * 0.5f;
-        v = pos;
-        for (i = 0; i < 7; i++) {
+        for (i = 0, w = &pos[0][3], v = pos, o = 0; i < 7; i++, o += 0x10) {
             if (i < 5) {
-                Vec4_Scale((Vec4 *)*v, (Vec4 *)offs[i], t);
+                Vec4_Scale((Vec4 *)*v, (Vec4 *)((u8 *)offs + o), t);
             } else {
-                Vec4_Scale((Vec4 *)*v, (Vec4 *)offs[i], half + t * 0.5f);
+                Vec4_Scale((Vec4 *)*v, (Vec4 *)((u8 *)offs + o), half + t * 0.5f);
             }
             Mtx_MulVec4((Vec4 *)*v, (Mtx44 *)rot, (Vec4 *)*v);
             Vec4_Add((Vec4 *)*v, &f->pos, (Vec4 *)*v);
-            pos[i][3] = 1.0f;
+            *(f32 *)((u8 *)w + o) = 1.0f;
             v++;
         }
         for (i = 0; i < 7; i++) {
@@ -529,21 +528,15 @@ void GfxLens_DrawAll(GfxLensView *view, s32 split, s32 side) {
         }
     }
 }
-#endif
-/* The seven corner offsets of GfxLens_DrawAll (its `offs` initialiser, 0x70 bytes at 0x2EB6A0). */
-INCLUDE_RODATA("asm/nonmatchings/sys/gfxm_b", gGfxLensCornerOfs);
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxLens_DrawAll);
 
-#if 0
-/* NOT MATCHING: 25 of 306 instructions (aligned) differ, down from about 130. What the strip loop needs, found
-   from the loop pass's dump: `col` and `x` are two variables; `u` exists only in the two later arms; the first
-   strip's right edge is `x + i * 32 + 32` written out (its own induction variable); the Y halves are
-   `(0x78 + i) << 8` and `(0x79 + i) << 8` (two expressions that do not share `i * 0x100`); the scissor arms each
-   store both words. Still different: (1) in the first strip's arm the original computes the Y word before the
-   `| 0x1C000000` of the X word and stores word 1 before word 0 (which lets the tail merge with the general arm:
-   306 instructions against 310); (2) the last three register writes: the original loads GS_ZBUF_1 (78) into v0
-   before the previous pair's second store, so the ZBUF value goes to a0, and computes the return value last.
-   Both are scheduling order; statement order of the pairs and `return p + 2` change nothing. Same packet. */
+
+/* Matching notes (strip loop, from the loop pass's dump): `col` and `x` are two variables; `u` exists only in
+   the two later arms; the first strip's right edge is `x + i * 32 + 32` written out (its own induction
+   variable); the Y halves are `(0x78 + i) << 8` and `(0x79 + i) << 8` (two expressions that do not share
+   `i * 0x100`). Where `p += 2` stands decides the schedule, because each arm is scheduled as a block of its own
+   before identical tails are merged: the two `side` arms of the first strip each hold both stores AND their
+   `p += 2`; the two later arms share ONE final `p += 2` behind their if / else (which also breaks an
+   allocation tie between `split` and the hoisted constant 1); the three scissor arms each end in `p += 2`. */
 /* Writes the packet that copies the screen (or one half of a split screen) into the 256x256 buffer at page 0x150,
    as 16 strips, and then restores the frame, offset and scissor. Returns the end of the packet. */
 u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
@@ -631,11 +624,12 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
             if (side == 1) {
                 p[0] = (x + 3) << sh;
                 p[1] = ((0x78 + i) << 8) | 0x78000000;
+                p += 2;
             } else {
                 p[0] = x << sh;
                 p[1] = ((0x78 + i) << 8) | 0x78000000;
+                p += 2;
             }
-            p += 2;
             p[0] = ((x + i * 32 + 32) << sh) | 0x1C000000;
             p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
             p += 2;
@@ -647,15 +641,14 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
                 p += 2;
                 p[0] = ((u + 31) << sh) | 0x1C000000;
                 p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
-                p += 2;
             } else {
                 p[0] = u << sh;
                 p[1] = ((0x78 + i) << 8) | 0x78000000;
                 p += 2;
                 p[0] = ((u + 32) << sh) | 0x1C000000;
                 p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
-                p += 2;
             }
+            p += 2;
         }
     }
     p[0] = GIF_TAG(6, 1, 1);
@@ -671,15 +664,17 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
         if (side == 0) {
             p[0] = GS_SET_SCISSOR(0, 256, 0, 447);
             p[1] = GS_SCISSOR_1;
+            p += 2;
         } else {
             p[0] = GS_SET_SCISSOR(256, 511, 0, 447);
             p[1] = GS_SCISSOR_1;
+            p += 2;
         }
     } else {
         p[0] = GS_SET_SCISSOR(0, 511, 0, 447);
         p[1] = GS_SCISSOR_1;
+        p += 2;
     }
-    p += 2;
     p[0] = 0x70000;
     p[1] = GS_TEST_1;
     p += 2;
@@ -691,8 +686,7 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
     p += 2;
     return p;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxLens_PutCapture);
+
 
 /* Draws the lenses of one view: uploads the lens texture, captures the screen and draws every live lens. */
 void GfxLens_Draw(s32 split, s32 side) {
@@ -863,7 +857,33 @@ void GfxWater_LoadStageColor(void) {
 }
 
 ASM_STUB_BEGIN(); /* compiled so that GfxWater_Draw sees the definition (it decides a branch-likely there); the assembler skips it */
-/* NOT MATCHING: about 508 of 640 instructions differ: the original keeps nine of the locals on the stack (sp+0x1E0..0x234) and twelve floats in f20-f31; the attempt has the same operations and the same ten .lit4 constants (bits compared) but a different allocation throughout. */
+/* NOT MATCHING: 96 of 639 instructions differ (was about 390 aligned), and the instruction count is now the
+   original's. Same operations and the same six .lit4 constants (0x2FC2A0..0x2FC2B4: pi, 2 pi, 2 pi, 0.8, 0.2,
+   44.8; bits compared) plus the .sdata word 0x2FE8D0 = 224.
+   Found in the third cleanup (each of these removed a block of differences):
+   - `h = 0xE0` and `srcH = 0x1C0` are VARIABLES set at the top (as in StgHaze_Draw / StgBlur_Draw). That is
+     why the original loads 0xE00 into a register for the gv clamp (`h << 4`), keeps `(s64)h << 34` apart
+     from the `| 0xA` of the second CLAMP word, multiplies `srcH * row` with a real `mult`, and converts 224
+     to float from a constant-pool word in .sdata (`fh = h`: the old attempt read D_002FE8D0 as a global).
+   - the copy loop is the twin of the first loop of StgPanBlur_DrawView (same statements, other constants):
+     `step = w / n` unshifted and `(i * step) << 4` in the loop.
+   - there is no `y` variable: `cy = h * row / 5`. The slot at sp+0x234 that looked like one is the loop
+     pass's strength-reduced `h * row` (it sits BEHIND the `view * 4` that gcse creates, so it was made later
+     than any declared variable).
+   - the three row loops share one counter (the original keeps it in s3 throughout).
+   What still differs:
+   1. float registers of the inner body: the original has ph in f20, d in f21, dx in f22; this has d, dx, ph
+      (allocation priority: ph needs about a third more references). In the original the result of the
+      SECOND sqrtf is computed straight into f20 (`sqrt.s f20,f12`, a callee-saved register, so that pseudo
+      is live across a call) and copied to d; the first goes through f0. `ph = sqrtf(..); d = ph;` is folded
+      back by cse.
+   2. the 9-register packet header: the original loads x0 early and builds the ZBUF constant late; the first
+      CLAMP word is `x0 << 4 | 0x1C0 << 34 | x1 << 14 | 0xA` with the two constants NOT merged, which
+      `(s64)srcH << 34` reproduces locally but then the function's first third changes (the phase update
+      stops spilling `view * 4`), so it is not in this attempt.
+   3. in the last loop the original loads gv before gu (`gv << 16 | gu` makes other things worse).
+   Also tried: `rows = 6` as a variable with `rows - 1` as the divisor (worse everywhere, although the
+   original divides by a 5 held in a register without a zero check). */
 /* Draws the underwater wobble for one view: advances the view's two phases, builds a 6 x N grid of texel positions
    pushed around two wave centres, copies the view into the half-height buffer at page 0x150 and draws it back over
    the screen as five triangle strips tinted with the view's colour. */
@@ -875,7 +895,6 @@ void GfxWater_DrawView(s32 split, s32 view) {
     s32 x0;
     s32 x1;
     s32 cols;
-    s32 y;
     s32 row;
     s32 col;
     s32 cx;
@@ -894,6 +913,8 @@ void GfxWater_DrawView(s32 split, s32 view) {
     f32 dy;
     f32 d;
     f32 ph;
+    s32 h = 0xE0;
+    s32 srcH = 0x1C0;
 
     if (Battle_GetWork()->flags & 0x2000) {
         return;
@@ -929,18 +950,17 @@ void GfxWater_DrawView(s32 split, s32 view) {
         x1 = 0x200;
         cols = 10;
     }
-    y = 0;
     for (row = 0; row < 6; row++) {
         for (col = 0; col < cols; col++) {
             cx = col * w / (cols - 1);
-            cy = y / 5;
+            cy = h * row / 5;
             gu[row][col] = cx << 4;
             gv[row][col] = cy << 4;
             if (row != 0 && row != 9) {
                 fw = w;
                 fx = cx;
                 fy = cy;
-                fh = D_002FE8D0[0];
+                fh = h;
                 dx = fx - fw * 0.2f;
                 dy = fy - 224 * 0.2f;
                 d = sqrtf(dx * dx + dy * dy);
@@ -963,11 +983,10 @@ void GfxWater_DrawView(s32 split, s32 view) {
             if (gv[row][col] < 0) {
                 gv[row][col] = 0;
             }
-            if (gv[row][col] > 0xE00) {
-                gv[row][col] = 0xE00;
+            if (gv[row][col] > h << 4) {
+                gv[row][col] = h << 4;
             }
         }
-        y += 0xE0;
     }
     Gfx_AddDefaultEnv();
     p = Dma_BeginDirect();
@@ -1011,16 +1030,16 @@ void GfxWater_DrawView(s32 split, s32 view) {
     p[1] = GS_RGBAQ;
     p += 2;
     n = (u32)srcW >> 5;
+    step = w / n;
     p[0] = GIF_TAG_EX(n, 0, GIF_FLG_REGLIST, 4);
     p[1] = 0x5353;
     p += 2;
-    step = (w / n) << 4;
-    for (i = 0; i < n; i++) {
-        p[0] = (x0 + i * 32) << 4;
-        p[1] = (GFX_OFX + i * step) | 0x72000000;
+    for (row = 0; row < n; row++) {
+        p[0] = (x0 + row * 32) << 4;
+        p[1] = (GFX_OFX + ((row * step) << 4)) | (0x7200 << 16);
         p += 2;
-        p[0] = (((x0 + 32) << 4) + i * 0x200) | 0x1C000000;
-        p[1] = (s64)(GFX_OFX + step + i * step) | 0x80000000;
+        p[0] = ((x0 + (row + 1) * 32) << 4) | (0x1C00 << 16);
+        p[1] = (s64)(GFX_OFX + (((row + 1) * step) << 4)) | ((u64)0x8000 << 16);
         p += 2;
     }
     p[0] = GIF_TAG(4, 0, 1);
@@ -1035,7 +1054,7 @@ void GfxWater_DrawView(s32 split, s32 view) {
     p[0] = (s64)x0 | ((s64)(x1 - 1) << 16) | ((u64)0x1BF << 48);
     p[1] = GS_SCISSOR_1;
     p += 2;
-    p[0] = ((s64)w << 14) | ((u64)0xE0 << 34) | 0xA;
+    p[0] = ((s64)w << 14) | ((s64)h << 34) | 0xA;
     p[1] = GS_CLAMP_1;
     p += 2;
     for (row = 0; row < 5; row++) {
@@ -1053,10 +1072,10 @@ void GfxWater_DrawView(s32 split, s32 view) {
         for (col = 0; col < cols; col++) {
             sx = ((x0 + col * srcW / (cols - 1)) << 4) + GFX_OFX;
             p[0] = (s64)gu[row][col] | ((s64)gv[row][col] << 16);
-            p[1] = (s64)sx | ((s64)(((row * 0x1C0 / 5) << 4) + GFX_OFY) << 16);
+            p[1] = (s64)sx | ((s64)(((srcH * row / 5) << 4) + GFX_OFY) << 16);
             p += 2;
             p[0] = (s64)gu[row + 1][col] | ((s64)gv[row + 1][col] << 16);
-            p[1] = (s64)sx | ((s64)((((row + 1) * 0x1C0 / 5) << 4) + GFX_OFY) << 16);
+            p[1] = (s64)sx | ((s64)(((srcH * (row + 1) / 5) << 4) + GFX_OFY) << 16);
             p += 2;
         }
     }
@@ -1071,6 +1090,7 @@ void GfxWater_DrawView(s32 split, s32 view) {
     p += 2;
     Dma_EndDirect(p);
 }
+
 ASM_STUB_END();
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxWater_DrawView);
 

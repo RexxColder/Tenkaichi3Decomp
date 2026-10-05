@@ -721,6 +721,8 @@ segments:
       - [0x1FEB78, sdata, cod/1FEB78]
       - [0x1FEBAC, .sdata, battle/col_b]
       - [0x1FEBB0, sdata, cod/1FEBB0]
+      - [0x1FEC10, .sdata, battle/stg_b]
+      - [0x1FEC20, sdata, cod/1FEC20]
       - [0x1FEC30, .sdata, battle/stg_c]
       - [0x1FEC44, sdata, cod/1FEC44]
       - [0x1FEC50, .sdata, sys/misc_a]
