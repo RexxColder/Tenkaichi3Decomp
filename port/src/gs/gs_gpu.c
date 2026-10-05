@@ -863,8 +863,10 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
         return;
     }
-    if (type == 6 && !d.tex_is_target) {
-        d.misc[3] = (float)SCALE; /* a 2D sprite: texture coordinates per GS pixel (gs.frag) */
+    if ((type == 6 || fst) && !d.tex_is_target) {
+        /* 2D art: sprites, and triangles with whole-texel coordinates (the logo, HUD pieces drawn as quads):
+           texture coordinates per GS pixel (gs.frag) */
+        d.misc[3] = (float)SCALE;
     }
     if (d.misc[1] != 0.0f) {
         /* A draw that tests the alpha already in the frame buffer (the fill of a HUD bar, cut to length by a mask
