@@ -667,3 +667,20 @@ with a third of the interpreter's work gone.
   Sunshine host's virtual sink while Sunshine ran (started by me earlier in the session), and the user was
   expecting sound effects, which are not implemented yet. A movie picture has to be placed in the frame's draw
   order (after the buffer clear): `GsGpu_FbUpload`.
+
+## 2026-10-06: sound, part 2: sound effects
+
+- `port/src/gs/snd_se.c` stands in for the game's IOP driver SOUNDS.IRX behind `sceSifCallRpc`, `sceSifSetDma` and
+  `sceSdRemote`: bank capture (sample data into a 2 MB "sound chip memory", the two tables as they are), the
+  per-frame command queue (play / stop by number / stop by handle), pause, stop bank, reset, mono, bank volume.
+- SOUNDS.IRX used Sony's SE sequencer (modsesq2) and synthesizer (modhsyn); its debug strings name the calls
+  (`SesqPlay port_num, sesq, loop, vol, pan, pitch, cpu_id`). Measured over all 361 bank files (18,924 effects):
+  every effect is one note-on (two also stop after 2000 ticks), timbre i uses sample i, and all timbres have the
+  same 0x30 parameter bytes. So a sampler is enough: PS2 ADPCM decode, pitch in cents, constant-power pan, 48
+  voices, one SDL stream at 48 kHz. Sample rates in the banks: 8000 to 24000 Hz, almost all 16000; 3 looping.
+- Table layouts (Vagi, Setb, Sesq) are in the file's header. Not reproduced: the envelope release (8 ms fade),
+  the chip's own interpolation, reverb.
+- Loudness: 0.25 of full level (`BT3_SE_GAIN=<percent>`), from the console's chain (three volumes of 100/127 and
+  the chip's half-scale voice volume); the user found 0.55 too loud and 0.25 fine against the music.
+- Verified by the user by ear: effects play in menus and fights. Not verified: individual effects against the
+  console, pitch accuracy, the two timed effects, the looping ones.
