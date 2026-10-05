@@ -199,14 +199,13 @@ s32 StgCol_TraceSphere(s32 zoneIdx, StgColSweep *seg, StgColVec *hitPos, f32 *fr
     StgColSweepCtx ctx;
     StgColResult res;
     StgColVec dir;
-    StgColVec tmp;
-    StgColVec unused;
+    StgColVec tmp[2]; /* the lengthened segment (two points), written by ColCapsule_GetLongSegDir and not read */
     StgColZone *zone = BtlStage_GetZone(zoneIdx);
 
     ColBounds_OfCapsule(&box, seg);
     memset(&ctx, 0, sizeof(ctx));
     ctx.seg = *seg;
-    ColCapsule_GetLongSegDir(&tmp, &dir, &ctx);
+    ColCapsule_GetLongSegDir(tmp, &dir, &ctx);
     ctx.seg.a.x -= dir.x * seg->radius * 2.0f;
     ctx.seg.a.y -= dir.y * seg->radius * 2.0f;
     ctx.seg.a.z -= dir.z * seg->radius * 2.0f;
