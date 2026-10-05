@@ -108,12 +108,7 @@ extern void EftMesh_SetOwner(void *model, s32 objId, s32 a2);
 extern void EftDisc_SpawnParts(EftOTask *task, s32 mode);
 extern void EftDisc_AddHit(EftOTask *task);
 extern void EftDisc_SetTex(EftODisc *w, void *tex, s32 a, s32 b);
-#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
-extern void EftDisc_Home(void *out, void *pos, void *dir, s32 objId, f32 speed, f32 maxTurn, f32 bank);
-#define EftDisc_Home(speed, maxTurn, bank, out, pos, dir, objId) EftDisc_Home(out, pos, dir, objId, speed, maxTurn, bank)
-#else
 extern void EftDisc_Home(f32 speed, f32 maxTurn, f32 bank, void *out, void *pos, void *dir, s32 objId);
-#endif
 extern void EftDisc_StepTex(EftODisc *w);
 extern s32 EftDiscMgr_PushHeld(EftOTask *task, s32 objId, s32 kind);
 

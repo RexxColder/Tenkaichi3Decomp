@@ -88,12 +88,7 @@ extern EftDetBattle *Battle_GetWork(void);
 
 /* The hit record core (eft_a.c). */
 extern EftDetList *EftHit_GetList(void);
-#ifdef PORT /* PC build: void, as defined; the value EftDet_HitFighterMulti passes on is never used (0 here) */
-extern void EftHit_SetTaskFlag(u32 idx, s32 bits, EftDetVec pos);
-#define EftHit_SetTaskFlag(idx, bits, pos) (EftHit_SetTaskFlag(idx, bits, pos), 0)
-#else
 extern s32 EftHit_SetTaskFlag(u32 idx, s32 bits, EftDetVec pos); /* void in eft_a.c; see EftDet_HitFighterMulti */
-#endif
 extern s32 EftHit_CanHit(EftDetRec *rec, s32 mode);
 extern s32 EftHit_IsStoppedByHit(EftDetRec *rec);
 extern s32 EftHit_RearmImpact(EftDetRec *rec);
@@ -133,11 +128,7 @@ extern s32 ColBox_Overlaps(EftDetBox *a, EftDetBox *b);                         
 extern s32 ColObb_Overlaps(void *vol, void *partVol);
 /* Swept capsule against a triangle. The 64-bit return type is what makes EftDet_StageCb match (with a 32-bit one
    the compiler threads the "return 0" after the test). */
-#ifdef PORT /* PC build: the definition's types (the PS2 passes both in one 64-bit register) */
-extern s32 ColSweep_TestTri(EftDetStageCtx *sweep, EftDetTri *tri, EftDetVec *hit, f32 *dist);
-#else
 extern s64 ColSweep_TestTri(EftDetStageCtx *sweep, EftDetTri *tri, EftDetVec *hit, f32 *dist);
-#endif
 extern s32 ColSphere_ContactObb(EftDetSphere *sphere, void *partVol, EftDetVec *out0, EftDetVec *out1, f32 *t);
 extern s32 ColSphere_TestSphere(EftDetSphere *sphere, void *box);                        /* 1 when they overlap */
 extern s32 ColSphere_SweepSphere(EftDetSphere *a, void *b, EftDetVec *moveA, EftDetVec *moveB, f32 *t);

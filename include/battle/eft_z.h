@@ -362,12 +362,7 @@ extern f32 EftMath_WrapAngle(f32 angle);
 /* tex0 is declared last here: the callers load it after the floats (eft_b.c declares it fifth; the registers are
    the same either way). */
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 blend, s32 front, u64 tex0);
-#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
-extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, s32 blend, s32 front, u64 tex0, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot);
-#define EftPrim_DrawQuadDepth(pos, color, blend, w, h, u0, v0, u1, v1, rot, front, tex0) EftPrim_DrawQuadDepth(pos, color, blend, front, tex0, w, h, u0, v0, u1, v1, rot)
-#else
 extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, s32 blend, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 front, u64 tex0);
-#endif
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
 extern void BtlPool_Free(s32 slot, void *ptr);
@@ -405,12 +400,7 @@ extern EftGndDustPart *EftGndDust_SpawnPieceEx(EftGndDustEmit *w, Vec4 *pos, Vec
                           s32 flags);
 extern void EftGndDust_SpawnBodyDust(EftGndDustEmit *w, EftGndDustArg *arg, f32 a, f32 b);
 extern void EftGndDust_SpawnChip(EftGndDustEmit *w, EftGndDustArg *arg, Vec4 *dir, u8 *colA, u8 *colB, s32 a5, s32 a6);
-#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
-extern void EftGndDust_DrawPiece(Vec4 *pos, Vec4 *color, Vec4 *dir, s32 blend, u64 tex0, s32 far, f32 w, f32 h, f32 rot);
-#define EftGndDust_DrawPiece(pos, color, dir, blend, w, h, rot, tex0, far) EftGndDust_DrawPiece(pos, color, dir, blend, tex0, far, w, h, rot)
-#else
 extern void EftGndDust_DrawPiece(Vec4 *pos, Vec4 *color, Vec4 *dir, s32 blend, f32 w, f32 h, f32 rot, u64 tex0, s32 far);
-#endif
 
 /* Returns every particle of a task to its pool. */
 static inline void EftGndDust_FreeParts(EftGndDustEmit *w) {

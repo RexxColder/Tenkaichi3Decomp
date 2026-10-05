@@ -154,12 +154,7 @@ extern s32 EftAim_GetDir(void *dir, void *from, s32 objId);
 extern void EftAim_GetDirKeep(EftJSrc *src, void *dir, void *from, s32 objId);
 extern void EftTexSet_Load32(void *tex, s32 *entry);
 extern void *EftDisc_Create(EftJPieceArg *arg);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftDisc_Release(void *h, Vec4 dir);
-#define EftDisc_Release(h, dir) EftDisc_Release(h, *(Vec4 *)(dir))
-#else
 extern void EftDisc_Release(void *h, Vec4 *dir);
-#endif
 extern void EftDisc_Kill(void *h);
 extern void EftDisc_SetSpin(void *h, f32 angle);
 extern void EftDisc_SetScale(void *h, f32 v);

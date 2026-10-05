@@ -1086,11 +1086,7 @@ s32 EftBurst_UpdateDebris(EftBurstPtcl *p) {
 #undef gEftBurstRes
 #undef gEftBurst
 #define gEftBurstRes (*(EftTransRes *)&gEftBurstRes)
-#ifdef PORT /* assigned to: a cast is not an lvalue for a modern compiler */
-#define gEftBurst (*(EftTransWork **)&gEftBurst)
-#else
 #define gEftBurst ((EftTransWork *)gEftBurst)
-#endif
 #include "sys/gfx_ot.h"
 
 /*

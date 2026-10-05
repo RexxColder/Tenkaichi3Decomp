@@ -5,7 +5,7 @@
  * A vector is four s32. The IVec3 forms leave the fourth word of the destination untouched, except IVec3_Clamp.
  * IVec4_Swap, IVec4_Copy and the three VU0 conversions are hand-written assembly in the original and are kept as
  * top-level assembly here (same bytes, checked by fdiff). Portable reference versions of the whole library half
- * are in src/port/vu0_a.c.
+ * are in src/port/vu0_a.c (bt3-port repository).
  */
 
 typedef struct IVec4 {

@@ -809,17 +809,9 @@ void GfxAlphaKey_Term(void) {
     gGfxAlphaKey = NULL;
 }
 
-#ifdef PORT
-/* A marker in the display list for the PC renderer (port/src/gs_marker.c). */
-#define PORT_FX_ALPHA_KEY 2
-extern void Port_GsMarker(s32 effect);
-#endif
 
 /* Uploads the CLUT and draws the depth buffer's spare byte through it over the screen. */
 void GfxAlphaKey_Draw(void) {
-#ifdef PORT
-    Port_GsMarker(PORT_FX_ALPHA_KEY); /* the GPU renderer draws the tint natively here and drops the pass below */
-#endif
     Dma_AddData(gGfxAlphaKey->ref, 0x10);
     Dma_AddTexFlush();
     Dma_AddZbuf(GFX_ZBP, 1);

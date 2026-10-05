@@ -95,12 +95,7 @@ void *Dma_Alloc(s32 size) {
 u64 *Dma_BeginDirect(void) {
     u128 *tag = (u128 *)gDmaCur;
 
-#ifdef PORT
-    tag->lo = 0;
-    tag->hi = 0;
-#else
     *tag = 0;
-#endif
     return (u64 *)(tag + 1);
 }
 
@@ -174,7 +169,6 @@ void Dma_InitController(void) {
 
 /* Spins until the DMA condition flag (CPCOND0: the channels selected in D_PCR have finished) is set. */
 void Dma_WaitCond(void) {
-#ifndef PORT /* PC build: nothing to wait for */
     __asm__ volatile(
         ".set noreorder\n"
         "0:\n"
@@ -182,12 +176,10 @@ void Dma_WaitCond(void) {
         "bc0f 0b\n"
         "nop\n"
         ".set reorder\n");
-#endif
 }
 
 /* Spins while the COP2 condition flag is set (VU1 still running a micro program). */
 void Dma_WaitVu1(void) {
-#ifndef PORT /* PC build: nothing to wait for */
     __asm__ volatile(
         ".set noreorder\n"
         "0:\n"
@@ -195,7 +187,6 @@ void Dma_WaitVu1(void) {
         "bc2t 0b\n"
         "nop\n"
         ".set reorder\n");
-#endif
 }
 
 /* Starts a source-chain transfer of `chain` on DMA channel 1 (VIF1) once VIF1, VU1 and the GIF path are idle. */

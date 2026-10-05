@@ -783,11 +783,7 @@ void EftPtcl_StepPtcls(EftUPtclWork *w, EftUPtclWork *w2) {
 #undef EftPtcl_FreePtcls
 #undef EftPtcl_Spawn
 #undef EftPtcl_StepPtcls
-#ifdef PORT /* assigned to: a cast is not an lvalue for a modern compiler */
-#define gEftPtcl (*(EftPtclMgr **)&gEftPtcl)
-#else
 #define gEftPtcl ((EftPtclMgr *)gEftPtcl)
-#endif
 #define Vec4_Set ((void (*)(EftVVec *dst, f32 x, f32 y, f32 z, f32 w))Vec4_Set)
 #define Vec4_Copy ((void (*)(EftVVec *dst, EftVVec *src))Vec4_Copy)
 #define Vec4_Add ((void (*)(EftVVec *dst, EftVVec *a, EftVVec *b))Vec4_Add)

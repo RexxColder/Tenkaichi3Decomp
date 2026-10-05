@@ -5,7 +5,7 @@
  * Matrix builders of the vector / matrix library, 0x1204B8..0x120A80 (config/symbols/vu0_a.txt): the compiled C
  * part of Sony's libvu0 under the game's names. The two diagonal-scale routines in the middle are hand-written VU0
  * assembly in the original and are kept as top-level assembly (same bytes, checked by fdiff).
- * Portable reference versions are in src/port/vu0_a.c.
+ * Portable reference versions are in src/port/vu0_a.c (bt3-port repository).
  */
 
 extern void Mtx_StoreIdentity(Mtx44 *m);

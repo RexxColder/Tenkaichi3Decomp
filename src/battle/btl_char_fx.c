@@ -523,12 +523,7 @@ extern void EftCharge_Start(s32 *arg);
 extern void EftCharge_Burst(s32 objId);
 extern void EftCharge_Stop(s32 objId);
 extern void EftBlastCharge_Start(FxHitArg *arg);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftRay_CreateByValue(FxLineArg arg);
-#define EftRay_CreateByValue(arg) EftRay_CreateByValue(*(FxLineArg *)(arg))
-#else
 extern void EftRay_CreateByValue(FxLineArg *arg);
-#endif
 extern void EftShotFx_Start(s32 objId, s32 kind);
 #define EftImpact_SpawnHit ((void (*)(FxPosArg *arg))EftImpact_SpawnHit)
 extern void EftShock_Start(s32 *arg);
@@ -835,31 +830,16 @@ extern s32 BtlStage_GetWaterLevel(f32 *height);
 extern s32 BtlObj_GetNodeSide(s32 kind);
 extern void EftBubble_StartBurst(s32 objId);
 extern void EftWater_SetWake(s32 objId, s32 off);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftWater_AddSplashFor(s32 objId, Vec4 pos, s32 arg, f32 speed);
-#define EftWater_AddSplashFor(objId, pos, arg, speed) EftWater_AddSplashFor(objId, *(Vec4 *)(pos), arg, speed)
-#else
 extern void EftWater_AddSplashFor(s32 objId, Vec4 *pos, s32 arg, f32 speed);
-#endif
 extern void EftAbsorb_Start(FxArg2 *arg);
 extern void EftAbsorb_Stop(s32 objId);
 extern void EftAbsorb_StartHands(FxArg2 *arg);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftBodyFx_Start(FxArg3 arg);
-#define EftBodyFx_Start(arg) EftBodyFx_Start(*(FxArg3 *)(arg))
-#else
 extern void EftBodyFx_Start(FxArg3 *arg);
-#endif
 extern void EftBodyFx_Stop(s32 objId);
 extern void EftRushBurst_Start(FxDirArg *arg);
 extern void EftRushBurst_Stage2(s32 objId);
 extern void EftRushBurst_Stop(s32 objId);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftRay_StartHit(s32 objId, Vec4 pos, s32 a, s32 b, s32 c, f32 scale);
-#define EftRay_StartHit(objId, pos, a, b, c, scale) EftRay_StartHit(objId, *(Vec4 *)(pos), a, b, c, scale)
-#else
 extern void EftRay_StartHit(s32 objId, Vec4 *pos, s32 a, s32 b, s32 c, f32 scale);
-#endif
 #define EftImpact_SpawnHit ((void (*)(FxPosArg *arg))EftImpact_SpawnHit)
 extern void EftGndDust_SetSlide(s32 objId, s32 off, f32 scale);
 extern void EftGndDust_SetDash(s32 objId, s32 off, f32 scale);
@@ -903,24 +883,9 @@ extern void Vec3_RotateAxis(Vec4 *out, Vec4 *a, Vec4 *b, f32 s);
 extern void Vec3_RotateY(Vec4 *out, Vec4 *in, f32 s);
 extern void EftDisc_Throw(FxHitArg2 *arg);
 extern void EftDisc_SpawnFromNode(FxHitArg2 *arg);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftKiBlast_Fire(FxHitArg2 arg);
-#define EftKiBlast_Fire(arg) EftKiBlast_Fire(*(FxHitArg2 *)(arg))
-#else
 extern void EftKiBlast_Fire(FxHitArg2 *arg);
-#endif
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftKiBomb_Fire(FxHitArg2 arg);
-#define EftKiBomb_Fire(arg) EftKiBomb_Fire(*(FxHitArg2 *)(arg))
-#else
 extern void EftKiBomb_Fire(FxHitArg2 *arg);
-#endif
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftKiObj_Create(FxHitArg2 arg);
-#define EftKiObj_Create(arg) EftKiObj_Create(*(FxHitArg2 *)(arg))
-#else
 extern void EftKiObj_Create(FxHitArg2 *arg);
-#endif
 extern f32 BtlChar_RandF(void);
 extern s32 BtlChar_FrameMod(s32 n);
 extern void BtlChar_SetSmallVibration(FxChr *chr, f32 seconds);

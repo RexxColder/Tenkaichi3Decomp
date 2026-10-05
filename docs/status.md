@@ -159,8 +159,8 @@ reports arrive as messages. None may run ninja / configure.py or git; I verify a
 | cleanup: stage | stg_a.c, stg_a_b.c, eft_det_b.c, eft_det_b_b.c | `BtlStage_UpdateObjs`, `BtlStage_BreakObj`, `StgPart_Animate`, `StgFrustum_Build`, `Stg_FadeByCamDist`, `StgCol_SplitStep`, `StgCol_FighterBreakObj`, `StgCol_TraceZone`, `StgNav_FindPath`, `StgNavNode_Clear` |
 | cleanup: projectiles | eft_a.c, eft_o_b.c, eft_o_c.c, eft_p.c, eft_i.c, eft_j.c, eft_r.c, eft_h.c | the `EftHit_*` near-misses, blast object, disc, sweep, `EftEmit_Spawn`, `EftBlast_Init`, `EftStruggle_Init`, shot manager |
 | cleanup: fighter / AI | btl_ai_cond.c, btl_ai_act.c, btl_ai_seq.c, eft_det_b_c.c, btl_act_a.c, btl_act_c.c, btl_act_h.c, btl_capi_a.c, btl_input.c | six `AiThink_*`, `BtlAi_GetPairRate / QuadRate`, `BtlAiSense_IsBusy`, `BtlAiStep_GuardUntilSafe / Unk17`, `BtlAiSeq_PushRule`, `BtlActB_TickMemberChange`, `BtlAct_GuardHandler`, `BtlAct_GrabDash`, `BtlCharApi_HasKiBlastType2/3`, `BtlInput_Update` |
-| vu0_a | NEW: config/symbols/vu0_a.txt, src/port/vu0_a.c, include/port/vu0_a.h, src/sys/vu0_a_c.c | vector / matrix library 0x11FA10..~0x121000: names, exact portable C reference (`Ref_*`), matching C for the non-VU0 functions |
-| vu0_b | NEW: config/symbols/vu0_b.txt, src/port/vu0_b.c, include/port/vu0_b.h, src/sys/vu0_b_c.c | the same for ~0x121000..0x122940 |
+| vu0_a | NEW: config/symbols/vu0_a.txt, src/port/vu0_a.c (bt3-port repository), include/port/vu0_a.h (bt3-port repository), src/sys/vu0_a_c.c | vector / matrix library 0x11FA10..~0x121000: names, exact portable C reference (`Ref_*`), matching C for the non-VU0 functions |
+| vu0_b | NEW: config/symbols/vu0_b.txt, src/port/vu0_b.c (bt3-port repository), include/port/vu0_b.h (bt3-port repository), src/sys/vu0_b_c.c | the same for ~0x121000..0x122940 |
 
 When a cleanup agent reports: rebuild with the gate (configure, ninja exit 0, both .ok files,
 both cmp silent), run fdiff over every linked file, then commit. A matched function may have
@@ -705,3 +705,11 @@ UPDATE to handoff note 2 (2026-10-05, later): `BtlInput_Update` is DONE (commit 
 MATCH via an empty asm with operands, behaviour-tested on 4000 seeds). Main executable 94.96%
 (41 INCLUDE_ASM), overlay 99.24% (4); byte-identical. The fight simulation's core has no
 function left in assembly. Only the permuter's batch 3 is still running; no agents.
+
+## 2026-10-06: the decomp holds PS2 code only
+
+All PC-port material was taken out of this repository: the 82 `#ifdef PORT` / `#ifndef PORT` blocks in 34 game
+source files (the PS2 branch was kept) and the PC reference vector library (`src/port/`, `include/port/`). They
+live on in the port repository (`bt3-port`), which has its own copy of the game sources and now carries its
+PC-only changes there. Rule from here on: nothing PC-specific is added to this repository. Gate after the removal:
+both images match.

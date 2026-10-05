@@ -15,7 +15,6 @@ extern void srand(u32 seed);
 extern s32 rand(void);
 
 /* Seeds the VU0 R register with the float's bit pattern and libc rand with (u32)(seed * 10000000.0f). */
-#ifndef PORT /* PC build: port/src/mathf_pc.c */
 void Rand_SeedFloat(f32 seed) {
     __asm__ volatile(
         "mfc1 $8, %0\n"
@@ -25,13 +24,11 @@ void Rand_SeedFloat(f32 seed) {
         : "f"(seed));
     srand(seed * 10000000.0f);
 }
-#endif
 
 /*
  * Returns a float in [0, 1): steps the R register 7 times, re-seeds it from the value just produced, steps it 7
  * more times, and subtracts 1.0 from the last value (which lies in [1, 2)). VU0 assembly.
  */
-#ifndef PORT /* PC build: port/src/mathf_pc.c */
 f32 Rand_Float01(void) {
     f32 result;
 
@@ -57,7 +54,6 @@ f32 Rand_Float01(void) {
         : "=f"(result));
     return result;
 }
-#endif
 
 /* Returns a float between a and b (either order): lo + Rand_Float01() * (hi - lo); b itself when a == b. */
 f32 Rand_FloatRange(f32 a, f32 b) {

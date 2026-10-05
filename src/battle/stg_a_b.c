@@ -62,12 +62,7 @@ extern void StgGround_Probe(s32 zone, StgBox *probe, StgGroundHit *out, f32 y);
 extern void StgNav_UnblockObj(s32 idx);
 extern void HudTimer_ShowMark(void);
 extern void EftGndDust_SpawnDebris(Vec4 *pos, f32 a, f32 b, f32 scale); /* dust effect */
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftWater_AddSplashAt(Vec4 pos, f32 size);
-#define EftWater_AddSplashAt(pos, size) EftWater_AddSplashAt(*(Vec4 *)(pos), size)
-#else
 extern void EftWater_AddSplashAt(Vec4 *pos, f32 size);                /* splash effect */
-#endif
 
 extern s32 gStgDbgState;       /* gStgDbgState */
 extern s32 gStgDbgUnk;         /* gStgDbgUnk */

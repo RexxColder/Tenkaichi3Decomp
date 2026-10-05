@@ -77,7 +77,7 @@ relocations, so each emitted constant has to be checked against the original dat
 92 functions, all in `src/sys/vu0_b_c.c` (linked, no gap): 25 are compiled C and match; 67 are
 hand-written VU0 code, kept as top-level assembly blocks in that file (three as raw words:
 `Vec3_Normalize` and two others the disassembler does not decode). Every one has an exact portable reference
-implementation, `Ref_<Name>` in `src/port/vu0_b.c` (not part of the matching build; it has been
+implementation, `Ref_<Name>` in `src/port/vu0_b.c (bt3-port repository)` (not part of the matching build; it has been
 compiled and sanity-tested on the host, not checked against a console or emulator). The full
 table "address, name, exact semantics" is in the agent notes at the top of that file.
 
@@ -121,7 +121,7 @@ R = 0x3F800000 | (((R << 1) | b) & 0x7FFFFF). `Vu0_Init` seeds it from 0.1234141
 
 84 functions. All 84 match in three files (`src/sys/vu0_a_c*.c`, linked): 36 are
 compiled C and 48 are the original hand-written VU0 routines kept as top-level assembly blocks
-inside those files. Exact portable references are in `src/port/vu0_a.c`: each routine executes
+inside those files. Exact portable references are in `src/port/vu0_a.c (bt3-port repository)`: each routine executes
 the original instruction sequence on a register model (vf0..31, ACC, Q, vi, flags, VU0 memory),
 with arithmetic through an integer-only model of PS2 floats that gives the same bits on every
 host. Compiled and self-tested on the host; not validated against a console or emulator.

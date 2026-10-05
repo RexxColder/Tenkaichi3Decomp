@@ -568,11 +568,7 @@ typedef struct EftAcView {
 #define EFT_TEX0(tbl, idx) (*(u64 *)((u8 *)(tbl) + ((idx) << 4)))
 
 #define gBtlCamView ((EftAcView *)gBtlCamView)
-#ifdef PORT /* assigned to: a cast is not an lvalue for a modern compiler */
-#define gEftRibbonMgr (*(EftRibbonMgr **)&gEftRibbonMgr)
-#else
 #define gEftRibbonMgr ((EftRibbonMgr *)gEftRibbonMgr)
-#endif
 extern void *gEftRibbonTasks;
 extern void *gEftRibbonClass[6];
 extern EftZapPool *gEftZapMgr;

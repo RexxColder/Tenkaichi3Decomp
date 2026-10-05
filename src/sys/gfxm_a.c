@@ -1395,17 +1395,9 @@ void ObjOutline_Term(void) {
     gObjOutline = NULL;
 }
 
-#ifdef PORT
-/* A marker in the display list for the PC renderer (port/src/gs_marker.c). */
-#define PORT_FX_OUTLINE 1
-extern void Port_GsMarker(s32 effect);
-#endif
 
 /* The outline pass: edges of the id image into the frame's alpha, then a dark rectangle blended by it. */
 void ObjOutline_Draw(void) {
-#ifdef PORT
-    Port_GsMarker(PORT_FX_OUTLINE); /* the GPU renderer draws the outline natively here and drops the passes below */
-#endif
     Dma_AddData(gObjOutline->tex.upload, 0x10);
     Dma_AddTexFlush();
     GfxPost_ClearWork(GFXPOST_WORK_FBP, 0xFF000000);

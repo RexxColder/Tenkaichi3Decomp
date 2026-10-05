@@ -46,12 +46,7 @@ extern void Vec3_Normalize(EftAbVec *dst, EftAbVec *src);
 extern f32 Vec3_Length(EftAbVec *v);
 extern void Mtx_StoreIdentity(Mtx44 *m);
 extern void Mtx_MulVec4(EftAbVec *dst, Mtx44 *m, EftAbVec *v);
-#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
-extern void Vec3_ScaleAdd(EftAbVec *dst, EftAbVec *dir, EftAbVec *base, f32 s);
-#define Vec3_ScaleAdd(dst, dir, s, base) Vec3_ScaleAdd(dst, dir, base, s)
-#else
 extern void Vec3_ScaleAdd(EftAbVec *dst, EftAbVec *dir, f32 s, EftAbVec *base); /* dst = base + dir * s */
-#endif
 extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about X */
 extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);       /* rotate about Y */
 extern void Vu0Cur_Push(void);                                    /* VU0 matrix stack: push */

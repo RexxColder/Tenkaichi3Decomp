@@ -1444,18 +1444,8 @@ void EftEmit_TagTask(void *task, s32 chr, s32 type) {
 #define ZERO_VEC { 0.0f, 0.0f, 0.0f, 0.0f }
 
 extern void *EftRay_Create(EftEmitLightArg *arg);
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void *EftRay_CreateByValue(EftEmitLightArg arg);
-#define EftRay_CreateByValue(arg) EftRay_CreateByValue(*(EftEmitLightArg *)(arg))
-#else
 extern void *EftRay_CreateByValue(EftEmitLightArg *arg);
-#endif
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void EftRay_SetPos(void *obj, Vec4 pos);
-#define EftRay_SetPos(obj, pos) EftRay_SetPos(obj, *(Vec4 *)(pos))
-#else
 extern void EftRay_SetPos(void *obj, Vec4 *pos);
-#endif
 extern void EftRay_Kill(void *obj);
 extern void EftRay_SetType(void *obj, s32 type);
 
@@ -1769,12 +1759,7 @@ void EftEmit_SpawnType17(EftSet *set, EftSetHandles *handles, s32 flags, s32 typ
     }
 }
 
-#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
-extern void *EftChain_Create(EftEmitArgA arg);
-#define EftChain_Create(arg) EftChain_Create(*(EftEmitArgA *)(arg))
-#else
 extern void *EftChain_Create(EftEmitArgA *arg);
-#endif
 extern s32 EftChain_Stop(void *obj);
 extern s32 EftChain_Kill(void *obj);
 extern s32 EftChain_SetPos(void *obj, Vec4 *pos);

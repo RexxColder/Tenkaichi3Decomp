@@ -5,7 +5,7 @@
  * 0x11FE80..0x1204B8 of the vector / matrix library (config/symbols/vu0_a.txt): screen-range tests, the sine / cosine
  * helper, and the matrix routines on matrices in memory. Everything here is hand-written VU0 (or 128-bit) assembly
  * in the original except Mtx_AxisZToEuler, and is kept as top-level assembly (same bytes, checked by fdiff).
- * What each routine computes, operation by operation, is written out in C in src/port/vu0_a.c.
+ * What each routine computes, operation by operation, is written out in C in src/port/vu0_a.c (bt3-port repository).
  *
  * Registers the routines rely on: vf0 = (0,0,0,1) (hard-wired), vf1 = (0,0,1,0), vf2 = (0,1,0,0), vf3 = (1,0,0,0)
  * (Vu0_InitAxisRegs at boot).
