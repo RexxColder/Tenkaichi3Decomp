@@ -34,6 +34,7 @@ extern f32 gMathfSinCoef[4];
  *
  * i.e. every angle is first pushed up to at least 2 * half and then brought back down.
  */
+#ifndef PORT /* PC build: port/src/mathf_pc.c */
 __asm__(
     ".text\n"
     ".align 3\n"
@@ -60,6 +61,7 @@ __asm__(
     ".set pop\n"
     ".size Mathf_WrapAngle, . - Mathf_WrapAngle\n"
 );
+#endif
 
 /* sinf of the angle wrapped to (-pi, pi]. */
 f32 Mathf_Sin(f32 angle) {
@@ -72,6 +74,7 @@ f32 Mathf_Sin(f32 angle) {
  * with x^3 formed as (c * x) * x^2 and each further power by one more multiply by x^2; the four terms are added to
  * x in the order x^3, x^5, x^7, x^9. VU0 inline assembly.
  */
+#ifndef PORT /* PC build: port/src/mathf_pc.c */
 f32 Mathf_SinFast(f32 angle) {
     f32 x = Mathf_WrapAngle(angle, MATHF_PI);
     f32 result;
@@ -99,6 +102,7 @@ f32 Mathf_SinFast(f32 angle) {
         : "f"(x), "r"(gMathfSinCoef));
     return result;
 }
+#endif
 
 /* Cosine through libm: Mathf_Sin(angle + pi/2). */
 f32 Mathf_Cos(f32 angle) {
@@ -122,6 +126,7 @@ f32 Mathf_Tan(f32 angle) {
 }
 
 /* Square root on VU0 (vsqrt, result read from the Q register). VU0 assembly. */
+#ifndef PORT /* PC build: port/src/mathf_pc.c */
 f32 Mathf_Sqrt(f32 x) {
     f32 result;
 
@@ -136,6 +141,7 @@ f32 Mathf_Sqrt(f32 x) {
         : "f"(x));
     return result;
 }
+#endif
 
 /* out[0] = Mathf_Sin(angle), out[1] = Mathf_Cos(angle). */
 void Mathf_SinCos(f32 *out, f32 angle) {
