@@ -525,3 +525,28 @@ Tools
 - The first scheduling pass only moves instructions between blocks in functions of at most
   10 basic blocks. A hoisted constant-equivalent address (`sp + N`, a string address) has its
   live length doubled for allocation priority.
+- A call to a function the compiler knows is const (static pure arithmetic, or
+  `__attribute__((const))`) does not flush the scheduler's pending reads: a swapped "field
+  load / constant load" pair in front of such a call is this (try `static`). Scheduler
+  tie-break (`-da -fsched-verbose=6`): priority, then more dependents, then source order.
+- Loop-pass hoisting is count-driven (`-dL` prints it): a one-insn constant is hoisted while
+  threshold * savings * lifetime >= loop insn count (threshold 64 with a call in the loop).
+  Insns that later vanish still count: an inline predicate's `!= 0`
+  (`static inline s32 TestFlag(def, flag) { return (def->flags & flag) != 0; }`), a `trap_if`
+  per division. "One constant hoisted, the next one not" = a loop a few insns longer.
+- A value in a saved register but computed after the calls was WRITTEN between or before the
+  calls and sunk by the second scheduling pass (`mask = 1 << (bit - 1);` between two calls).
+- Interblock scheduling has a size limit (about 100 RTL insns per region): `/` and `%` written
+  out at each use add `trap_if` insns and can push a function over it.
+- Folded member offset in an array-of-struct access:
+  `*(s32 *)((u8 *)&scr[0].z + (i << 4))`. `dsll32 24 / dsra32 24` with no `andi` is `(s8)`
+  applied to an int; two constants ORed separately means one is a 64-bit local
+  (`s64 abe = 1;` ... `prim = (abe << 6) | ((s64)(s8)ctx << 9) | 0x1B`).
+- A switch whose cases each have their OWN copy of a body (0..11 plus default) merges only
+  after register allocation; the extra insns flip allocation races. A store order that no
+  statement order reproduces is an aggregate initialiser with nested aggregates.
+- `x = a; if (c) x -= a;` keeps `move / movn x,zero`; an unexplained `move sN,sM` is a
+  function-scope copy with a dead initialiser.
+- `ColObb_Contact` (col_a.c) is NOT a near-miss: the original is 0x4258 bytes with nine
+  hand-written-looking edge cases; the stored attempt is a folded rewrite. Dead code, needs a
+  from-scratch decompile.
