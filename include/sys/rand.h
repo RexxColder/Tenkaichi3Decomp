@@ -6,9 +6,9 @@
 /* MT19937 parameters (Matsumoto & Nishimura, 2002 reference code). */
 #define RAND_N 624
 #define RAND_M 397
-#define RAND_MATRIX_A 0x9908B0DFUL
-#define RAND_UPPER_MASK 0x80000000UL
-#define RAND_LOWER_MASK 0x7FFFFFFFUL
+#define RAND_MATRIX_A 0x9908B0DFULL
+#define RAND_UPPER_MASK 0x80000000ULL
+#define RAND_LOWER_MASK 0x7FFFFFFFULL
 
 void Rand_Seed(u32 seed);
 void Rand_SeedByArray(u32 *key, s32 keyLen);

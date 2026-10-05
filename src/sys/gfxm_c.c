@@ -691,7 +691,7 @@ u64 FlashDraw_UploadTex(FlashTex *tex, s32 index, s32 tbp) {
     tex0 = pix->tex0;
     tex0 |= (s64)tbp << 37;
     tex0 |= base;
-    tex0 |= 1L << 34;
+    tex0 |= 1LL << 34;
     return tex0;
 }
 

@@ -1718,7 +1718,7 @@ void BtlColl_AddActionBit(BtlCollChr *chr, s32 action) {
         bit = 0x800;
         break;
     case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F:
-        bit = 0x2000000000UL;
+        bit = 0x2000000000ULL;
         break;
     case 0xAE:
         bit = 0x1000;
@@ -1763,7 +1763,7 @@ void BtlColl_AddActionBit(BtlCollChr *chr, s32 action) {
         bit = 0x2000000;
         break;
     case 0x84: case 0x85:
-        bit = 0x80000000UL;
+        bit = 0x80000000ULL;
         break;
     case 0xB4:
         bit = 0x4000000;
@@ -1778,37 +1778,37 @@ void BtlColl_AddActionBit(BtlCollChr *chr, s32 action) {
         bit = 0x10000000;
         break;
     case 0x99:
-        bit = 0x100000000UL;
+        bit = 0x100000000ULL;
         break;
     case 0x93:
-        bit = 0x200000000UL;
+        bit = 0x200000000ULL;
         break;
     case 0x96:
-        bit = 0x400000000UL;
+        bit = 0x400000000ULL;
         break;
     case 0x34:
-        bit = 0x800000000UL;
+        bit = 0x800000000ULL;
         break;
     case 0xA2:
-        bit = 0x1000000000UL;
+        bit = 0x1000000000ULL;
         break;
     case 0x25:
-        bit = 0x20000000000UL;
+        bit = 0x20000000000ULL;
         break;
     case 0x26:
-        bit = 0x40000000000UL;
+        bit = 0x40000000000ULL;
         break;
     case 0x28: case 0x2A:
-        bit = 0x80000000000UL;
+        bit = 0x80000000000ULL;
         break;
     case 0xD7:
-        bit = 0x100000000000UL;
+        bit = 0x100000000000ULL;
         break;
     case 0x24:
-        bit = 0x200000000000UL;
+        bit = 0x200000000000ULL;
         break;
     case 0x42:
-        bit = 0x400000000000UL;
+        bit = 0x400000000000ULL;
         break;
     default:
         break;

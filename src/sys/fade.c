@@ -37,7 +37,7 @@ void Fade_DrawRect(Fade *fade) {
     p[0] = 0x46; /* sprite, alpha blended */
     p[1] = GS_PRIM;
     p += 2;
-    p[0] = (u64)rgba | (0x3F800000UL << 32);
+    p[0] = (u64)rgba | (0x3F800000ULL << 32);
     p[1] = GS_RGBAQ;
     p += 2;
     p[0] = GIF_TAG_EX(FADE_STRIPS, 1, GIF_FLG_REGLIST, 2);

@@ -775,7 +775,7 @@ void Shen_Update(ShenWork *work) {
                     Save_AddItem(wish->id - 1);
                     break;
                 case SHEN_WISH_STAGE:
-                    gSaveData->stageBits |= 1L << (wish->id - 1);
+                    gSaveData->stageBits |= 1LL << (wish->id - 1);
                     break;
                 case SHEN_WISH_CHARA:
                     SAVE_CHARA_WORD(gSaveData, wish->id - 1) |= SAVE_CHARA_MASK(wish->id - 1);

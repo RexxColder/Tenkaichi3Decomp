@@ -102,14 +102,14 @@ void HistResult_BuildRewards(void) {
         id = rw->chara[i];
         if (id >= 0 && !(s32)((MSAVE->charaBits[id >> 6] >> (id - ((id >> 6) << 6))) & 1)) {
             HR_ADD(0, id);
-            MSAVE->charaBits[id >> 6] |= 1L << (id - ((id >> 6) << 6));
+            MSAVE->charaBits[id >> 6] |= 1LL << (id - ((id >> 6) << 6));
         }
     }
     for (i = 0; i < 3; i++) {
         id = rw->stage[i];
         if (id >= 0 && !(s32)((MSAVE->stageBits >> id) & 1)) {
             HR_ADD(1, id);
-            MSAVE->stageBits |= 1L << id;
+            MSAVE->stageBits |= 1LL << id;
         }
     }
     for (i = 0; i < 3; i++) {

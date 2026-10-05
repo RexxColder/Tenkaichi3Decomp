@@ -941,22 +941,22 @@ void BattleResult_CollectEvents(BattleResult *result) {
     RESULT_EVENT(0x27, 0x4000000);
     RESULT_EVENT(0x28, 0x8000000);
     RESULT_EVENT(0x1F, 0x10000000);
-    RESULT_EVENT(0x33, 1UL << 31);
-    RESULT_EVENT(0x41, 1UL << 32);
-    RESULT_EVENT(0x45, 1UL << 33);
-    RESULT_EVENT(0x42, 1UL << 34);
-    RESULT_EVENT(0x43, 1UL << 35);
-    RESULT_EVENT(0x44, 1UL << 36);
+    RESULT_EVENT(0x33, 1ULL << 31);
+    RESULT_EVENT(0x41, 1ULL << 32);
+    RESULT_EVENT(0x45, 1ULL << 33);
+    RESULT_EVENT(0x42, 1ULL << 34);
+    RESULT_EVENT(0x43, 1ULL << 35);
+    RESULT_EVENT(0x44, 1ULL << 36);
     if (!BtlEvent_WasRaised(0, 0x22)) {
-        result->eventSummary |= 1UL << 37;
+        result->eventSummary |= 1ULL << 37;
     }
-    RESULT_EVENT(0x58, 1UL << 39);
+    RESULT_EVENT(0x58, 1ULL << 39);
     if (!BtlEvent_WasRaised(0, 0x4E) && (u32)BattleSide_GetMemberCount(0) >= 2) {
-        result->eventSummary |= 1UL << 40;
+        result->eventSummary |= 1ULL << 40;
     }
-    RESULT_EVENT(0x21, 1UL << 41);
-    RESULT_EVENT(0x3C, 1UL << 42);
-    RESULT_EVENT(0x1E, 1UL << 44);
+    RESULT_EVENT(0x21, 1ULL << 41);
+    RESULT_EVENT(0x3C, 1ULL << 42);
+    RESULT_EVENT(0x1E, 1ULL << 44);
     count = BattleSide_GetMemberCount(0);
     sum = 0;
     for (i = 0; i < count; i++) {
@@ -968,10 +968,10 @@ void BattleResult_CollectEvents(BattleResult *result) {
         }
     }
     if (sum == 0) {
-        result->eventSummary |= 1UL << 45;
+        result->eventSummary |= 1ULL << 45;
     }
-    RESULT_EVENT(0x46, 1UL << 46);
-    RESULT_EVENT(0x47, 1UL << 47);
+    RESULT_EVENT(0x46, 1ULL << 46);
+    RESULT_EVENT(0x47, 1ULL << 47);
 }
 
 /*

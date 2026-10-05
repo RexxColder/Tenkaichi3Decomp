@@ -15,7 +15,7 @@ void Rand_Seed(u32 seed) {
     gRandState[0] = seed;
     for (gRandIndex = 1; gRandIndex < RAND_N; gRandIndex++) {
         gRandState[gRandIndex] =
-            1812433253UL * (gRandState[gRandIndex - 1] ^ (gRandState[gRandIndex - 1] >> 30)) + gRandIndex;
+            1812433253ULL * (gRandState[gRandIndex - 1] ^ (gRandState[gRandIndex - 1] >> 30)) + gRandIndex;
     }
 }
 
@@ -30,7 +30,7 @@ void Rand_SeedByArray(u32 *key, s32 keyLen) {
     j = 0;
     k = RAND_N > keyLen ? RAND_N : keyLen;
     for (; k; k--) {
-        gRandState[i] = (gRandState[i] ^ ((gRandState[i - 1] ^ (gRandState[i - 1] >> 30)) * 1664525UL)) + key[j] + j;
+        gRandState[i] = (gRandState[i] ^ ((gRandState[i - 1] ^ (gRandState[i - 1] >> 30)) * 1664525ULL)) + key[j] + j;
         i++;
         j++;
         if (i >= RAND_N) {
@@ -42,7 +42,7 @@ void Rand_SeedByArray(u32 *key, s32 keyLen) {
         }
     }
     for (k = RAND_N - 1; k; k--) {
-        gRandState[i] = (gRandState[i] ^ ((gRandState[i - 1] ^ (gRandState[i - 1] >> 30)) * 1566083941UL)) - i;
+        gRandState[i] = (gRandState[i] ^ ((gRandState[i - 1] ^ (gRandState[i - 1] >> 30)) * 1566083941ULL)) - i;
         i++;
         if (i >= RAND_N) {
             gRandState[0] = gRandState[RAND_N - 1];

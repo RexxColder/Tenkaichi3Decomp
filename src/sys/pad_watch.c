@@ -195,7 +195,7 @@ void PadWatch_DrawMessage(void) {
         p[1] = 0x5510; /* PRIM, RGBAQ, XYZ2, XYZ2 */
         p += 2;
         p[0] = 0x46; /* sprite, alpha blended */
-        p[1] = 0x3F80000060000000UL; /* black, alpha 0x60 */
+        p[1] = 0x3F80000060000000ULL; /* black, alpha 0x60 */
         p += 2;
         p[0] = GS_SET_XYZ(0x6F00, 0x7100, 0xFFFFFF);
         p[1] = GS_SET_XYZ(0x9100, 0x8F00, 0xFFFFFF);

@@ -52,7 +52,7 @@ void ChrPass_MtSeedByArray(u32 *key, s32 keyLen) {
     }
     for (k = PASS_MT_N - 1; k; k--) {
         gChrPassMtState[i] =
-            (gChrPassMtState[i] ^ ((gChrPassMtState[i - 1] ^ (gChrPassMtState[i - 1] >> 30)) * 1566083941UL)) - i;
+            (gChrPassMtState[i] ^ ((gChrPassMtState[i - 1] ^ (gChrPassMtState[i - 1] >> 30)) * 1566083941ULL)) - i;
         i++;
         if (i >= PASS_MT_N) {
             gChrPassMtState[0] = gChrPassMtState[PASS_MT_N - 1];

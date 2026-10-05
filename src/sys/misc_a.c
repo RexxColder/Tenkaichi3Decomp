@@ -52,7 +52,7 @@ void OldPass_MtSeedByArray(u32 *key, s32 keyLen) {
     }
     for (k = PASS_MT_N - 1; k; k--) {
         gOldPassMtState[i] =
-            (gOldPassMtState[i] ^ ((gOldPassMtState[i - 1] ^ (gOldPassMtState[i - 1] >> 30)) * 1566083941UL)) - i;
+            (gOldPassMtState[i] ^ ((gOldPassMtState[i - 1] ^ (gOldPassMtState[i - 1] >> 30)) * 1566083941ULL)) - i;
         i++;
         if (i >= PASS_MT_N) {
             gOldPassMtState[0] = gOldPassMtState[PASS_MT_N - 1];
