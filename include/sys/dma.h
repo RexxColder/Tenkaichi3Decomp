@@ -73,6 +73,13 @@ typedef unsigned int u128 __attribute__((mode(TI)));
 #ifdef PORT
 extern volatile u32 *Port_DmaChcr(s32 channel);
 #endif
+/* What goes into a DMA address register: the physical address on the PS2 (28 bits); on PC the pointer itself
+   (a PC stack or global address does not fit in 28 bits). */
+#ifdef PORT
+#define DMA_PHYS(a) (a)
+#else
+#define DMA_PHYS(a) ((a) & 0x0FFFFFFF)
+#endif
 #define VIF1_STAT ((volatile u32 *)0x10003C00)
 #define GIF_STAT ((volatile u32 *)0x10003020)
 #ifdef PORT /* PC build: every access first completes a transfer that was started (port/src/plat_gs.c) */

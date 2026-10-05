@@ -210,7 +210,7 @@ void Dma_SendVif1(u32 chain) {
     while (*GIF_STAT & 0xC00) {
     }
     *D1_QWC = 0;
-    *D1_TADR = chain & 0x0FFFFFFF;
+    *D1_TADR = DMA_PHYS(chain);
     *D_STAT = 2;
     FlushCache(0);
     *D1_CHCR = 0x145;
@@ -225,7 +225,7 @@ void Dma_SendVif1Sync(u32 chain) {
     while (*GIF_STAT & 0xC00) {
     }
     *D1_QWC = 0;
-    *D1_TADR = chain & 0x0FFFFFFF;
+    *D1_TADR = DMA_PHYS(chain);
     *D_STAT = 2;
     FlushCache(0);
     *D1_CHCR = 0x145;
@@ -280,7 +280,7 @@ void Dma_SendGifChain(u32 chain) {
         }
     } while (*GIF_STAT & 0xC00);
     *D2_QWC = 0;
-    *D2_TADR = chain & 0x0FFFFFFF;
+    *D2_TADR = DMA_PHYS(chain);
     *D_STAT = 4;
     FlushCache(0);
     *D2_CHCR = 0x145;
@@ -293,7 +293,7 @@ void Dma_SendGifChainSync(u32 chain) {
         }
     } while (*GIF_STAT & 0xC00);
     *D2_QWC = 0;
-    *D2_TADR = chain & 0x0FFFFFFF;
+    *D2_TADR = DMA_PHYS(chain);
     *D_STAT = 4;
     FlushCache(0);
     *D2_CHCR = 0x145;
@@ -310,7 +310,7 @@ void Dma_SendGifNoWait(u32 addr, u32 qwc) {
         }
     } while (*GIF_STAT & 0xC00);
     *D2_QWC = qwc;
-    *D2_MADR = addr & 0x0FFFFFFF;
+    *D2_MADR = DMA_PHYS(addr);
     FlushCache(0);
     *D2_CHCR = 0x101;
 }
@@ -322,7 +322,7 @@ void Dma_SendGif(u32 addr, u32 qwc) {
         }
     } while (*GIF_STAT & 0xC00);
     *D2_QWC = qwc;
-    *D2_MADR = addr & 0x0FFFFFFF;
+    *D2_MADR = DMA_PHYS(addr);
     FlushCache(0);
     *D2_CHCR = 0x101;
     do {
