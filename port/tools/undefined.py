@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Compile the game sources to 32-bit host objects and list what a link would still need, by kind.
+Usage: port/tools/undefined.py [-v]   (objects go to port/build/obj)"""
+import collections, concurrent.futures, pathlib, re, subprocess, sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+OBJ = ROOT / "port/build/obj"
+CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w",
+      "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
+TEXT_END, GAME_END = 0x2B2000, 0x273CF0  # end of all code; end of game code (libraries follow)
+
+def cc(f):
+    o = OBJ / (str(f.relative_to(ROOT / "src")).replace("/", "_")[:-2] + ".o")
+    r = subprocess.run(CC + [str(f.relative_to(ROOT)), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
+    return o if r.returncode == 0 else None, f, r.stderr
+
+def main():
+    OBJ.mkdir(parents=True, exist_ok=True)
+    fs = [ROOT / "src/main.c"] + sorted((ROOT / "src/sys").glob("*.c")) + sorted((ROOT / "src/battle").glob("*.c"))
+    with concurrent.futures.ThreadPoolExecutor(16) as ex:
+        res = list(ex.map(cc, fs))
+    bad = [(f, e) for o, f, e in res if o is None]
+    for f, e in bad:
+        print("FAILED", f.name, e.splitlines()[0] if e else "")
+    objs = [str(o) for o, _, _ in res if o]
+    defined, undef = set(), collections.Counter()
+    out = subprocess.run(["nm", "-A"] + objs, capture_output=True, text=True).stdout
+    for l in out.splitlines():
+        m = re.match(r"\S+:\s*([0-9a-f]*)\s+(\w)\s+(\S+)$", l)
+        if not m:
+            continue
+        if m.group(2) == "U":
+            undef[m.group(3)] += 1
+        elif m.group(2) not in "tdbr":
+            defined.add(m.group(3))
+    addr = {}
+    for p in (ROOT / "config/symbols").glob("*.txt"):
+        if p.name.startswith("menu"):
+            continue
+        for l in p.read_text().splitlines():
+            m = re.match(r"(\w+)\s*=\s*0x([0-9A-Fa-f]+)", l)
+            if m:
+                addr[m.group(1)] = int(m.group(2), 16)
+    kinds = collections.defaultdict(list)
+    for s in undef:
+        if s in defined:
+            continue
+        a = addr.get(s)
+        if a is None:
+            m = re.match(r"(?:func|D|jtbl)_([0-9A-F]{8})$", s)
+            a = int(m.group(1), 16) if m else None
+        k = ("no address (host library or compiler helper)" if a is None else "game function" if a < GAME_END
+             else "library function (SDK / CRI / libc)" if a < TEXT_END else "data")
+        kinds[k].append(s)
+    print(f"{len(objs)} objects, {len(defined)} global symbols defined")
+    for k, v in sorted(kinds.items()):
+        print(f"{len(v):5d}  {k}")
+        if "-v" in sys.argv:
+            print("       " + " ".join(sorted(v)))
+    (ROOT / "port/build/undefined.txt").write_text(
+        "".join(f"{k}\t{s}\n" for k, v in sorted(kinds.items()) for s in sorted(v)))
+
+main()
