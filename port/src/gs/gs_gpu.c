@@ -838,11 +838,14 @@ void GsGpu_FrameEnd(void) {
     if (pass != NULL) {
         SDL_EndGPURenderPass(pass);
     }
-    /* show the buffer that was drawn to most */
-    for (i = 0; i < sTargetCount; i++) {
-        if (best < 0 || sTargets[i].draws > sTargets[best].draws) {
-            best = i;
-        }
+    /* Show the frame's own buffer: the one sceGsSwapDBuff set up for this frame. (Guessing "the buffer with the most
+       draws" showed the shadow buffer, a grey fighter on black, on frames where it happened to receive more.) */
+    {
+        extern int gGsMainFbp;
+        best = gGsMainFbp >= 0 ? target_get((uint32_t)gGsMainFbp, 0) : -1;
+    }
+    for (i = 0; best < 0 && i < sTargetCount; i++) {
+        best = i;
     }
     if (SDL_WaitAndAcquireGPUSwapchainTexture(cmd, sWindow, &swap, &sw, &sh) && swap != NULL && best >= 0 && sTargets[best].cleared) {
         SDL_GPUBlitInfo bl;

@@ -800,9 +800,12 @@ static void screenshot(void) {
     if (every < 0) {
         every = getenv("BT3_SHOT") != NULL ? atoi(getenv("BT3_SHOT")) : 0;
     }
-    for (i = 0; i < sTargetCount; i++) {
-        if (best == NULL || sTargets[i].drawn > best->drawn) {
-            best = &sTargets[i];
+    {
+        extern int gGsMainFbp; /* the frame's own buffer (sceGsSwapDBuff), else the one that received most pixels */
+        for (i = 0; i < sTargetCount; i++) {
+            if (gGsMainFbp >= 0 ? sTargets[i].fbp == (uint32_t)gGsMainFbp : (best == NULL || sTargets[i].drawn > best->drawn)) {
+                best = &sTargets[i];
+            }
         }
     }
     if (every > 0 && best != NULL && !sGpu && sFrame % (unsigned)every == 0) {
