@@ -3,10 +3,10 @@
  *
  * The game was written for a machine with 32 MB at fixed addresses and it stores pointers in 32-bit fields, so the
  * 32-bit PC build gives it memory at PS2 addresses:
- *   0x00400000..0x02000000  the game heap. The game takes it with ONE malloc at start-up (Heap_Create,
- *                           0x1EFB000 minus the end of the menu overlay); Port_Malloc serves it from here, so
- *                           heap pointers have PS2-like values. The exact PS2 start address is not known yet
- *                           (needed only to compare raw pointers with an emulator dump).
+ *   0x003BE730..0x02000000  the game heap. The game takes it with ONE malloc at start-up (Heap_Create,
+ *                           0x1EFB000 minus the end of the menu overlay); Port_Malloc returns the address the
+ *                           PS2's malloc returns (0x3BE730, read from a save state), so heap pointers have the
+ *                           same values as on the console and memory can be compared with an emulator dump.
  *   0x10000000, 0x12000000  hardware registers (timers, DMA, GS): plain memory here, so reads give what was last
  *                           written (0 at start: "transfer finished").
  *   0x70000000              the 16 KB scratchpad.
@@ -16,10 +16,11 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#define HEAP_BASE 0x00400000u
+#define HEAP_BASE 0x003BE000u  /* page that holds the first address */
+#define HEAP_FIRST 0x003BE730u /* what the PS2's malloc returns for the game heap (gHeapStart in a PCSX2 save state) */
 #define HEAP_END 0x02000000u
 
-static uint32_t sHeapNext = HEAP_BASE;
+static uint32_t sHeapNext = HEAP_FIRST;
 
 static void map(uint32_t addr, uint32_t size, const char *what) {
     void *p = mmap((void *)(uintptr_t)addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
