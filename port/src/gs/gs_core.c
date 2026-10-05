@@ -138,6 +138,30 @@ uint32_t Gs_VramRead(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_
     return vram_rw(bp, bw, psm, x, y, 0, 0);
 }
 
+/* A hash of one 8 KB page of GS memory, recomputed only after an upload touched the page. The GPU back end keys
+   its texture cache on these, so a texture the game uploads again unchanged (it streams the stage's textures to
+   one address many times per frame) is recognised instead of decoded again. */
+uint32_t Gs_PageHash(uint32_t page) {
+    static uint32_t hash[512], seen[512];
+    static uint8_t valid[512];
+    uint32_t h = 2166136261u, i;
+    const uint32_t *w;
+
+    page &= 511;
+    if (valid[page] && seen[page] == gGsPageGen[page]) {
+        return hash[page];
+    }
+    w = &sVram[page * 2048];
+    for (i = 0; i < 2048; i++) {
+        h = (h ^ w[i]) * 16777619u;
+        h ^= h >> 15;
+    }
+    hash[page] = h;
+    seen[page] = gGsPageGen[page];
+    valid[page] = 1;
+    return h;
+}
+
 static Target *target_get(uint32_t fbp) {
     int i;
     for (i = 0; i < sTargetCount; i++) {

@@ -75,6 +75,7 @@ static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
 static int sTexCount;
+static Tex *sLast; /* the entry the previous lookup returned */
 static Pipe sPipes[1024];
 static int sPipeCount;
 static Vtx *sVerts;
@@ -206,15 +207,22 @@ static SDL_GPUTexture *texture_get(int ctx) {
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
     pages = ((tbw ? tbw : 1) * 64 * th * (bits == 24 ? 32 : bits) / 8 + 8191) / 8192;
+    /* `gen` identifies the CONTENT: a hash over the pages the texture and its palette occupy */
     for (i = 0; i <= pages; i++) {
-        gen += gGsPageGen[(tbp / 32 + i) & 511];
+        gen = (gen ^ Gs_PageHash(tbp / 32 + i)) * 16777619u + i;
     }
     if (bits <= 8) {
-        gen += gGsPageGen[(cbp / 32) & 511] + gGsPageGen[(cbp / 32 + 1) & 511];
+        gen = (gen ^ Gs_PageHash(cbp / 32)) * 16777619u;
+        gen = (gen ^ Gs_PageHash(cbp / 32 + 1)) * 16777619u;
+    }
+    if (sLast != NULL && sLast->tex0 == t0 && sLast->texa == texa && sLast->gen == gen) {
+        sLast->last = gGsFrame;
+        return sLast->tex; /* the common case: the same texture as the previous primitive */
     }
     for (i = 0; i < (uint32_t)sTexCount; i++) {
         if (sTex[i].tex0 == t0 && sTex[i].texa == texa && sTex[i].gen == gen) {
             sTex[i].last = gGsFrame;
+            sLast = &sTex[i];
             return sTex[i].tex;
         }
     }
@@ -228,8 +236,12 @@ static SDL_GPUTexture *texture_get(int ctx) {
                 old = (int)i;
             }
         }
+        if (sTex[old].last == gGsFrame) {
+            return sWhite; /* everything in the cache is in use by this frame's draw list: cannot evict */
+        }
         SDL_ReleaseGPUTexture(sDev, sTex[old].tex);
         sTex[old] = sTex[--sTexCount];
+        sLast = NULL;
     }
     px = malloc((size_t)tw * th * 4);
     for (y = 0; y < th; y++) {
@@ -256,6 +268,7 @@ static SDL_GPUTexture *texture_get(int ctx) {
     ci.layer_count_or_depth = 1;
     ci.num_levels = 1;
     t = &sTex[sTexCount++];
+    sLast = t;
     t->tex0 = t0;
     t->texa = texa;
     t->gen = gen;

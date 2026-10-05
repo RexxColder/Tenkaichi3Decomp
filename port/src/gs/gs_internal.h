@@ -31,6 +31,7 @@ extern GsState gGs;
 extern uint32_t gGsPageGen[512]; /* bumped whenever an upload writes into that 8 KB page of GS memory */
 extern unsigned gGsFrame;
 
+uint32_t Gs_PageHash(uint32_t page); /* content hash of an 8 KB page of GS memory */
 uint32_t Gs_VramRead(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y);
 int Gs_PsmBits(uint32_t psm);
 uint32_t Gs_Expand(uint32_t c, uint32_t psm); /* stored colour -> R | G << 8 | B << 16 | A << 24 */
