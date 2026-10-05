@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 /* ---- second processor (IOP): heap and remote calls ---- */
-void sceSifInitIopHeap() {}
+int sceSifInitIopHeap() { return 0; }
 void *sceSifAllocIopHeap(int size) { return calloc(1, (size_t)size); } /* "IOP memory": ordinary memory */
 int sceSifFreeIopHeap(void *addr) { free(addr); return 0; }
 int sceSifQueryTotalFreeMemSize() { return 0x100000; }
@@ -46,10 +46,10 @@ int ADXT_GetStat() { return 0; }       /* ADXT_STAT_STOP */
 static int (*sVsyncHandler)(int);
 void sceGsResetGraph() {}
 void sceGsResetPath() {}
-void sceGsSetDefDBuff() {}
+int sceGsSetDefDBuff() { return 0; }
 void sceGsSetDefStoreImage() {}
-void sceGsExecStoreImage() {}
-void sceGsPutDrawEnv() {}
+int sceGsExecStoreImage() { return 0; }
+int sceGsPutDrawEnv() { return 0; }
 int sceGsSwapDBuff() { return 0; }
 int sceGsSyncPath() { return 0; }
 void *sceGsSyncVCallback(int (*handler)(int)) { void *old = (void *)sVsyncHandler; sVsyncHandler = handler; return old; }
