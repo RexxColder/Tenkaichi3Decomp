@@ -684,3 +684,25 @@ with a third of the interpreter's work gone.
   the chip's half-scale voice volume); the user found 0.55 too loud and 0.25 fine against the music.
 - Verified by the user by ear: effects play in menus and fights. Not verified: individual effects against the
   console, pitch accuracy, the two timed effects, the looping ones.
+
+## 2026-10-06: full-screen effects, part 1: the generic table pass and the switches
+
+- The game's depth effects share one primitive, `GfxPost_DrawDepthClut`: the spare top byte of each depth word,
+  drawn over the screen as an 8-bit texture through a 256-colour table. The byte holds either a fog value made
+  from the depth (`GfxDepthFog_Draw`) or a copy of the frame's alpha, i.e. the object ids
+  (`GfxPost_CopyAlphaToDepth`). The GPU back end now recognises that draw (sprite, PSMT8H texture at the depth
+  page) and runs it as one full-screen pass (`dclut.frag`, `depth_clut` in gs_gpu.c) with the game's own table,
+  blend mode and write mask. It tracks which of the two meanings the byte has from the two passes that fill it,
+  and keeps its own copy of the ids taken at the moment the game copies them (later passes overwrite the live
+  alpha; reading the live one lost the outline).
+- Through it: the depth tint, the see-through tint (the hand-written `alphakey.frag` pass is no longer used: the
+  table comes from the game now), and the alpha writes that feed the glare and the object glow. The outline keeps
+  its own native pass; the game's outline passes through this primitive are dropped.
+- Fog value used: 0 for depth >= 0xFFA8, else 255 - depth / 256. This is read from the code, NOT confirmed: the
+  software reference's depth page at that moment gave a byte that matches this in the lower half of the picture
+  and is off by about +-24 in bands in the middle (either the reference's 16-bit view of the depth page is not
+  exact, or the console really bands; not settled). On the test stage the tint makes no visible difference
+  (compared on / off), so this stage does not prove it either way.
+- Switches: `BT3_FX_OFF=<mask>` or F1..F4 while running: 1 outline, 2 see-through tint, 4 depth tint, 8 glow
+  (glare and object glow: reserved, the glow pass itself is not written yet).
+- Still dropped: the glow pass (shrink, blur, add), pan blur, haze, stage blur, water wobble, lens, cross-fade.

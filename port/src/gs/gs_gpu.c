@@ -52,7 +52,9 @@ typedef struct Tex {
 typedef struct Draw {
     int vu;      /* 1: vertices of vertex program 0 (sVuVerts, uniform block `uniform`) */
     int uniform;
-    int native; /* 0: primitives; otherwise a native full-screen effect (PORT_FX_*) at this point of the frame */
+    int native; /* 0: primitives; otherwise a native full-screen effect (PORT_FX_*) at this point of the frame;
+                   3: a table pass (dclut.frag) with `tex` = its table and `src` = which byte indexes it */
+    int src;
     uint32_t first, count;
     int target;
     SDL_GPUTexture *tex;
@@ -79,6 +81,16 @@ static SDL_GPUSampler *sSamplers[8]; /* bit 0: linear, bit 1: clamp U, bit 2: cl
 static SDL_GPUTexture *sWhite;
 static SDL_GPUGraphicsPipeline *sOutlinePipe, *sKeyPipe;
 static SDL_GPUTexture *sFbTex[2]; /* pictures uploaded into the two display buffers (movies) */
+static SDL_GPUShader *sFxVs, *sDclutFs;
+static SDL_GPUTexture *sAuxCopy;  /* the alpha bytes, copied so that a pass can read them while it writes them */
+/* The top byte of the depth page as the game last left it: 0 = a copy of the frame's alpha (ids), 1 = the fog
+   value made from the depth. Follows the two passes that write it (see draw_state). */
+static int sDepthByteIsFog;
+#define MAX_CLUTS 64
+static struct { uint32_t hash, last; SDL_GPUTexture *tex; } sCluts[MAX_CLUTS];
+/* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F4 while running): 1 outline, 2 see-through tint,
+   4 depth tint, 8 glow (glare and object glow). */
+static unsigned sFxOff;
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -207,7 +219,7 @@ int GsGpu_Init(void) {
         sPendingCount++;
     }
     {   /* native outline: destination minus source on the colour channels */
-        SDL_GPUShader *vs = shader(kFxVertSpv, sizeof(kFxVertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+        SDL_GPUShader *vs = sFxVs = shader(kFxVertSpv, sizeof(kFxVertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
         SDL_GPUShader *fs = shader(kOutlineFragSpv, sizeof(kOutlineFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
         SDL_GPUColorTargetDescription cd;
         SDL_GPUGraphicsPipelineCreateInfo ci;
@@ -247,6 +259,20 @@ int GsGpu_Init(void) {
             return 0;
         }
     }
+    sDclutFs = shader(kDclutFragSpv, sizeof(kDclutFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 3, 1);
+    {
+        SDL_GPUTextureCreateInfo ci;
+        SDL_zero(ci);
+        ci.type = SDL_GPU_TEXTURETYPE_2D;
+        ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+        ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+        ci.width = GS_W * SCALE;
+        ci.height = GS_H * SCALE;
+        ci.layer_count_or_depth = 1;
+        ci.num_levels = 1;
+        sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
+    }
+    sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     pipelines_preload();
     return 1;
@@ -276,7 +302,7 @@ static int target_get(uint32_t fbp, int create) {
     ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
     sTargets[sTargetCount].aux = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER; /* the depth effects read it */
     sTargets[sTargetCount].depth = SDL_CreateGPUTexture(sDev, &ci);
     sTargets[sTargetCount].fbp = fbp;
     sTargets[sTargetCount].cleared = 0;
@@ -444,6 +470,7 @@ static const char *pipeline_file(void) {
    20..21 vertices: 0 GS vertices, 1 program 0, 2 program 4, 3 program 6. */
 static int pipeline_create(uint32_t key, int remember) {
     int ztst = (int)((key >> 10) & 3), zwrite = (int)((key >> 12) & 1), topo = (int)((key >> 13) & 3), vu = (int)((key >> 20) & 3);
+    int fx = (int)((key >> 22) & 1); /* a full-screen table pass (dclut.frag): no vertices, no depth attachment */
     uint32_t wmask = (key >> 16) & 15;
     SDL_GPUColorTargetDescription cds[2];
     SDL_GPUGraphicsPipelineCreateInfo ci;
@@ -495,6 +522,16 @@ static int pipeline_create(uint32_t key, int remember) {
     ci.target_info.num_color_targets = 2;
     ci.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     ci.target_info.has_depth_stencil_target = true;
+    if (fx) {
+        ci.vertex_shader = sFxVs;
+        ci.fragment_shader = sDclutFs;
+        ci.vertex_input_state.num_vertex_buffers = 0;
+        ci.vertex_input_state.num_vertex_attributes = 0;
+        ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        ci.depth_stencil_state.enable_depth_test = false;
+        ci.depth_stencil_state.enable_depth_write = false;
+        ci.target_info.has_depth_stencil_target = false;
+    }
     sPipes[sPipeCount].key = key;
     t0 = gpu_now();
     sPipes[sPipeCount].p = SDL_CreateGPUGraphicsPipeline(sDev, &ci);
@@ -527,7 +564,7 @@ static void pipelines_preload(void) {
     while (fscanf(f, "%x", &key) == 1) {
         for (i = 0; i < sPipeCount && sPipes[i].key != key; i++) {
         }
-        if (i == sPipeCount && (key & ~0x3FF7FFFu) == 0) {
+        if (i == sPipeCount && (key & ~0x7FF7FFFu) == 0) {
             pipeline_create(key, 0);
             n++;
         }
@@ -552,6 +589,9 @@ static int pipeline_get(int ctx, int topo, int vu) {
     wmask = ((m & 0xFF) != 0xFF ? SDL_GPU_COLORCOMPONENT_R : 0) | ((m & 0xFF00) != 0xFF00 ? SDL_GPU_COLORCOMPONENT_G : 0) |
             ((m & 0xFF0000) != 0xFF0000 ? SDL_GPU_COLORCOMPONENT_B : 0) | ((m & 0xFF000000u) != 0xFF000000u ? SDL_GPU_COLORCOMPONENT_A : 0);
     key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20;
+    if (vu == 4) { /* asked for by depth_clut: the table pass, which only depends on blending and the write mask */
+        key = bkey | wmask << 16 | 1u << 22;
+    }
     for (i = 0; i < sPipeCount; i++) {
         if (sPipes[i].key == key) {
             return i;
@@ -575,6 +615,97 @@ static void put(const GsVertex *v, float x, float y, float s, float t, float q, 
    of texture coordinates when the texture is a frame buffer. */
 extern int gGsMainFbp;
 
+/* A 256-colour table at `cbp` (32-bit, the GS's index order undone) as a 256 x 1 texture; alpha as stored. */
+static SDL_GPUTexture *clut_texture(uint32_t cbp) {
+    uint32_t px[256], hash = 2166136261u, i;
+    SDL_GPUTextureCreateInfo ci;
+    int k, old = 0;
+
+    for (i = 0; i < 256; i++) {
+        uint32_t n = (i & 0xE7) | ((i & 8) << 1) | ((i & 0x10) >> 1);
+        px[i] = Gs_VramRead(cbp, 1, 0, n & 15, n >> 4);
+        hash = (hash ^ px[i]) * 16777619u;
+    }
+    for (k = 0; k < MAX_CLUTS; k++) {
+        if (sCluts[k].tex != NULL && sCluts[k].hash == hash) {
+            sCluts[k].last = gGsFrame;
+            return sCluts[k].tex;
+        }
+        if (sCluts[k].tex == NULL || sCluts[k].last < sCluts[old].last) {
+            old = sCluts[k].tex == NULL && sCluts[old].tex == NULL ? old : k;
+        }
+    }
+    if (sPendingCount == 512 || (sCluts[old].tex != NULL && sCluts[old].last == gGsFrame)) {
+        return NULL;
+    }
+    if (sCluts[old].tex != NULL) {
+        SDL_ReleaseGPUTexture(sDev, sCluts[old].tex);
+    }
+    SDL_zero(ci);
+    ci.type = SDL_GPU_TEXTURETYPE_2D;
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    ci.width = 256;
+    ci.height = 1;
+    ci.layer_count_or_depth = 1;
+    ci.num_levels = 1;
+    sCluts[old].tex = SDL_CreateGPUTexture(sDev, &ci);
+    sCluts[old].hash = hash;
+    sCluts[old].last = gGsFrame;
+    sPending[sPendingCount].tex = sCluts[old].tex;
+    sPending[sPendingCount].w = 256;
+    sPending[sPendingCount].h = 1;
+    sPending[sPendingCount].px = malloc(sizeof(px));
+    memcpy(sPending[sPendingCount].px, px, sizeof(px));
+    sPendingCount++;
+    return sCluts[old].tex;
+}
+
+static int pipeline_get(int ctx, int topo, int vu);
+
+/* GfxPost_DrawDepthClut as one full-screen pass (the game sends 16 strips; they become one draw). */
+static void depth_clut(int ctx) {
+    uint64_t sc = gGs.scissor[ctx];
+    uint32_t wm = (uint32_t)(gGs.frame[ctx] >> 32);
+    Draw d, *last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+
+    if (sDrawCount == MAX_DRAWS) {
+        return;
+    }
+    memset(&d, 0, sizeof(d));
+    d.native = 3;
+    d.src = sDepthByteIsFog ? 0 : 1;
+    d.target = target_get((uint32_t)(gGs.frame[ctx] & 0x1FF), 0);
+    /* switched off by the user: the passes that colour the picture (the ones that only write alpha feed the glow) */
+    if (d.target < 0 || ((sFxOff & 4) && d.src == 0 && wm != 0x00FFFFFFu)) {
+        return;
+    }
+    {
+        uint32_t cbp = (uint32_t)((gGs.tex0[ctx] >> 37) & 0x3FFF);
+        if (cbp == 0x3E8C) {
+            return; /* the outline's own passes: the outline is drawn natively at its marker (outline.frag) */
+        }
+        if (cbp == 0x3E94 && (sFxOff & 2)) {
+            return; /* the see-through tint, switched off */
+        }
+    }
+    d.tex = clut_texture((uint32_t)((gGs.tex0[ctx] >> 37) & 0x3FFF));
+    if (d.tex == NULL) {
+        return;
+    }
+    d.pipeline = pipeline_get(ctx, 0, 4);
+    d.blendc = (float)((gGs.alpha[ctx] >> 32) & 0xFF) / 128.0f;
+    d.misc[0] = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
+    d.scissor.x = (int)(sc & 0x7FF) * SCALE;
+    d.scissor.y = (int)((sc >> 32) & 0x7FF) * SCALE;
+    d.scissor.w = ((int)((sc >> 16) & 0x7FF) + 1) * SCALE - d.scissor.x;
+    d.scissor.h = ((int)((sc >> 48) & 0x7FF) + 1) * SCALE - d.scissor.y;
+    if (last != NULL && last->native == 3 && last->tex == d.tex && last->target == d.target && last->pipeline == d.pipeline && last->src == d.src) {
+        return; /* the next strip of the same pass */
+    }
+    sDraws[sDrawCount++] = d;
+}
+
 static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us, float *vs) {
     uint64_t prim = gGs.prim, t0 = gGs.tex0[ctx], test = gGs.test[ctx], cl = gGs.clamp[ctx], sc = gGs.scissor[ctx];
     int tme = (prim >> 4) & 1, src;
@@ -589,7 +720,26 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
     {
         uint32_t fpsm = (uint32_t)((gGs.frame[ctx] >> 24) & 0x3F), fbp = (uint32_t)(gGs.frame[ctx] & 0x1FF), zbp = (uint32_t)(gGs.zbuf[ctx] & 0x1FF);
         uint32_t tpsm = (uint32_t)((t0 >> 20) & 0x3F), tbp = (uint32_t)(t0 & 0x3FFF);
+        if (Gs_PsmBits(fpsm) != 16 && fbp == zbp && tme) {
+            /* The two passes that fill the depth page's spare byte: from the frame's top byte through the fog
+               ramp (GfxDepthFog_Draw), or a plain copy of the frame's alpha (GfxPost_CopyAlphaToDepth). */
+            sDepthByteIsFog = tpsm == 0x1B;
+            if (tpsm != 0x1B) { /* the copy of the ids: taken now, read by the passes that follow */
+                Draw c, *last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+                memset(&c, 0, sizeof(c));
+                c.native = 4;
+                c.target = target_get(tbp / 32, 0);
+                if (c.target >= 0 && sDrawCount < MAX_DRAWS && !(last != NULL && last->native == 4)) {
+                    sDraws[sDrawCount++] = c;
+                }
+            }
+        }
         if (Gs_PsmBits(fpsm) == 16 || fbp == zbp) {
+            sSkipped++;
+            return 0;
+        }
+        if (tme && sprite && tpsm == 0x1B && tbp / 32 == zbp) {
+            depth_clut(ctx); /* that byte through a table over the screen: a native pass */
             sSkipped++;
             return 0;
         }
@@ -881,7 +1031,9 @@ void GsGpu_Native(int effect) {
     uint64_t sc = gGs.scissor[0];
     Draw d;
 
-    if ((effect != 1 && effect != 2) || sDrawCount == MAX_DRAWS) { /* 1 outline, 2 alpha key */
+    /* 1 = outline. 2 (the see-through tint) is drawn by the generic table pass now (depth_clut), from the game's
+       own table. */
+    if (effect != 1 || sDrawCount == MAX_DRAWS || (sFxOff & 1)) {
         return;
     }
     sNative++;
@@ -919,6 +1071,12 @@ static void frame_end(void) {
     while (SDL_PollEvent(&ev)) {
         if (ev.type == SDL_EVENT_QUIT || (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE)) {
             exit(0);
+        }
+        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F4) {
+            static const char *names[4] = {"outline", "see-through tint", "depth tint", "glow"};
+            int k = (int)(ev.key.key - SDLK_F1);
+            sFxOff ^= 1u << k;
+            fprintf(stderr, "bt3: %s %s\n", names[k], (sFxOff >> k) & 1 ? "off" : "on");
         }
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
@@ -1055,6 +1213,65 @@ static void frame_end(void) {
             }
             continue;
         }
+        if (d->native == 4) { /* the ids as they are now (GfxPost_CopyAlphaToDepth): kept for the passes that index them */
+            SDL_GPUCopyPass *cp;
+            SDL_GPUTextureLocation from, to;
+            if (pass != NULL) {
+                SDL_EndGPURenderPass(pass);
+                pass = NULL;
+            }
+            cur = -1;
+            if (!sTargets[d->target].cleared) {
+                continue;
+            }
+            cp = SDL_BeginGPUCopyPass(cmd);
+            SDL_zero(from);
+            SDL_zero(to);
+            from.texture = sTargets[d->target].aux;
+            to.texture = sAuxCopy;
+            SDL_CopyGPUTextureToTexture(cp, &from, &to, GS_W * SCALE, GS_H * SCALE, 1, false);
+            SDL_EndGPUCopyPass(cp);
+            continue;
+        }
+        if (d->native == 3) { /* a table pass: both attachments, no depth; reads the depth texture or the alpha copy */
+            SDL_GPUColorTargetInfo cts[2];
+            SDL_GPUTextureSamplerBinding fs[3];
+            SDL_FColor bc;
+            SDL_Rect sc = d->scissor;
+            Target *t = &sTargets[d->target];
+            float params[4] = {(float)d->src, d->misc[0], 0.0f, 0.0f};
+            if (pass != NULL) {
+                SDL_EndGPURenderPass(pass);
+                pass = NULL;
+            }
+            cur = -1;
+            if (!t->cleared) {
+                continue;
+            }
+            SDL_zero(cts);
+            cts[0].texture = t->color;
+            cts[0].load_op = SDL_GPU_LOADOP_LOAD;
+            cts[0].store_op = SDL_GPU_STOREOP_STORE;
+            cts[1] = cts[0];
+            cts[1].texture = t->aux;
+            pass = SDL_BeginGPURenderPass(cmd, cts, 2, NULL);
+            SDL_BindGPUGraphicsPipeline(pass, sPipes[d->pipeline].p);
+            bc.r = bc.g = bc.b = bc.a = d->blendc;
+            SDL_SetGPUBlendConstants(pass, bc);
+            fs[0].texture = t->depth;
+            fs[0].sampler = sSamplers[6];
+            fs[1].texture = sAuxCopy;
+            fs[1].sampler = sSamplers[6];
+            fs[2].texture = d->tex;
+            fs[2].sampler = sSamplers[6];
+            SDL_BindGPUFragmentSamplers(pass, 0, fs, 3);
+            SDL_PushGPUFragmentUniformData(cmd, 0, params, sizeof(params));
+            SDL_SetGPUScissor(pass, &sc);
+            SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+            SDL_EndGPURenderPass(pass);
+            pass = NULL;
+            continue;
+        }
         if (d->native) { /* a native full-screen effect: its own pass on the colour texture alone, reading the alpha copy */
             SDL_GPUColorTargetInfo ft;
             SDL_GPUTextureSamplerBinding fs;
@@ -1075,7 +1292,7 @@ static void frame_end(void) {
             ft.store_op = SDL_GPU_STOREOP_STORE;
             pass = SDL_BeginGPURenderPass(cmd, &ft, 1, NULL);
             SDL_BindGPUGraphicsPipeline(pass, d->native == 2 ? sKeyPipe : sOutlinePipe);
-            fs.texture = t->aux;
+            fs.texture = sAuxCopy; /* the ids as copied by the game, not the live alpha (later passes overwrite it) */
             fs.sampler = sSamplers[6]; /* nearest, clamped */
             SDL_BindGPUFragmentSamplers(pass, 0, &fs, 1);
             params[0] = 1.0f / (float)GS_W;

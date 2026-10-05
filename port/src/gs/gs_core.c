@@ -513,6 +513,24 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
                     vram_rw(cb, 1, cp, 0, 0, 0, 0), vram_rw(cb, 1, cp, 1, 0, 0, 0), vram_rw(cb, 1, cp, 2, 0, 0, 0), vram_rw(cb, 1, cp, 3, 0, 0, 0));
         }
     }
+    /* BT3_GS_ZDUMP=<frame>: when that frame first draws through the depth tint's table (CLUT 0x3E64), write the
+       depth page (512 x 448 words: depth in the low 24 bits, the byte the effects index on top) to zdump.bin */
+    if (kick && type == 6 && gs.vcount == 2 && getenv("BT3_GS_ZDUMP") != NULL && (int)sFrame == atoi(getenv("BT3_GS_ZDUMP")) &&
+        ((gs.tex0[ctx] >> 37) & 0x3FFF) == 0x3E64) {
+        static int done;
+        if (!done) {
+            FILE *f = fopen("zdump.bin", "wb");
+            uint32_t x, y;
+            done = 1;
+            for (y = 0; y < 448; y++) {
+                for (x = 0; x < 512; x++) {
+                    uint32_t w = Gs_VramRead(0xE0 * 32, 8, 0, x, y);
+                    fwrite(&w, 4, 1, f);
+                }
+            }
+            fclose(f);
+        }
+    }
     switch (type) {
     case 0: if (kick) { if (sGpu) { GsGpu_Draw(0, ctx, &v); } else { pixel(sf, ctx, (int)v.x, (int)v.y, v.z, vcol(&v)); } } gs.vcount = 0; break;
     case 1: if (gs.vcount == 2) { if (kick) { if (sGpu) { GsGpu_Draw(1, ctx, gs.vtx); } else { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } } gs.vcount = 0; } break;
