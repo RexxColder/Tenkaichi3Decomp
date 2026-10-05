@@ -158,7 +158,7 @@ void HudNode_Update(HudNode *node) {
     u32 i;
 
     if (node->update != NULL) {
-        node->update();
+        node->update(node);
     }
     for (i = 0; i < node->childCount; i++) {
         HudNode_Update(node->children[i]);
