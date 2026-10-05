@@ -662,3 +662,8 @@ with a third of the interpreter's work gone.
 - Headless runs open no device and every player reports "stopped", as before: the replay validation is unchanged.
   With a window the status is real, so anything in the game that waits for a voice line now really waits.
 - `BT3_NOSOUND=1` turns the sound off.
+- 2026-10-06: the user confirmed the opening movie plays (picture; ffmpeg pipe, `port/src/plat_movie.c`) and the
+  music plays. "No sound" during testing had two causes outside the code: the system's default output was the
+  Sunshine host's virtual sink while Sunshine ran (started by me earlier in the session), and the user was
+  expecting sound effects, which are not implemented yet. A movie picture has to be placed in the frame's draw
+  order (after the buffer clear): `GsGpu_FbUpload`.
