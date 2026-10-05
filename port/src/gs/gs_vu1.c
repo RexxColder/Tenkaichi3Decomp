@@ -529,6 +529,38 @@ static int hle_program2(void) {
    takes one quadword (the tag for the clipper's fans); every later MSCNT is a batch: +0 / +1 a TEX0 tag and data
    that the program never sends, +2 the primitive tag (PRE set, NLOOP = vertices), +3 the vertices, four
    quadwords each. */
+/* Programs 8 (animated stage objects; 94 instructions) and 7 (debris; 104). Both take the stage's batch: +0 GIF
+   tag "one A+D register", +1 the texture, +2 the primitive tag, +3 the vertices (position, colour as floats,
+   texture coordinates). 8 is the fighters' two-matrix skinning with the colour of each vertex; 7 is rigid, takes
+   its alpha from the mesh and does not draw a triangle whose last vertex carries a flag (low 16 bits of the
+   position's 4th word). Both go through the fighter shader (vu0.vert, layers 3 and 4). */
+static int hle_program78(int layer) {
+    float consts[96];
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count;
+
+    memcpy(tag, &vu.mem[(top + 2) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 3 + count * 3 > 1024) {
+        return 0;
+    }
+    memset(consts, 0, sizeof(consts));
+    if (layer == 3) {
+        memcpy(&consts[0], &vu.mem[0], 10 * 16);        /* matrices A, B and their pivots */
+        memcpy(&consts[56], &vu.mem[10 * 16], 4 * 16);  /* screen matrix */
+    } else {
+        memcpy(&consts[0], &vu.mem[0], 4 * 16);         /* the mesh's matrix, for both halves of the blend */
+        memcpy(&consts[16], &vu.mem[0], 4 * 16);
+        memcpy(&consts[56], &vu.mem[4 * 16], 4 * 16);   /* screen matrix */
+        memcpy(&consts[91], &vu.mem[12 * 16 + 12], 4);  /* the mesh's alpha */
+    }
+    Gs_Gif(&vu.mem[top * 16], 2);
+    Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF);
+    GsGpu_DrawVu0(layer, (int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 3) * 16], count, consts);
+    sStatKicks++;
+    return 1;
+}
+
 static int sP6Batches;
 
 static int hle_program6(void) {
@@ -620,6 +652,15 @@ void GsVu1_Call(int addr) {
         /* a batch the shader path cannot take (fewer than 3 vertices): nothing to draw either */
         sHle++;
         return;
+    }
+    if ((sProgSize == 94 || sProgSize == 104) && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        /* MSCALF 0 only loads registers; every MSCNT is one batch */
+        if (addr >= 0 || hle_program78(sProgSize == 94 ? 3 : 4)) {
+            sHle++;
+            return;
+        }
+        run(0); /* a batch the shader path cannot take: give the interpreter the registers the setup loads */
+        vu.pc = sProgSize == 94 ? 15 : 52;
     }
     if ((sProgSize == 99 || sProgSize == 101) && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         /* MSCALF 0 only loads registers; every MSCNT is one batch */

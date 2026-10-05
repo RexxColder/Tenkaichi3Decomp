@@ -1228,6 +1228,13 @@ void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, co
     d.vu = 1;
     d.first = sVuVertCount;
     for (i = 0; i + 2 < count; i++) { /* strip -> list */
+        if (layer == 4) { /* debris: a flagged vertex does not complete a triangle */
+            uint32_t flag;
+            memcpy(&flag, &vertices[(i + 2) * 12 + 3], 4);
+            if (flag & 0xFFFF) {
+                continue;
+            }
+        }
         for (k = 0; k < 3; k++) {
             memcpy(&sVuVerts[sVuVertCount++ * 12], &vertices[(i + k) * 12], 48);
         }

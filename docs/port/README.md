@@ -799,3 +799,10 @@ with a third of the interpreter's work gone.
 - While chasing that: texture cache now hashed (8192 entries, palettes hashed per palette instead of per page),
   render targets 24 with reuse of ones idle for two seconds, frame dump prints DMA tags, `BT3_VU_CALLS=1` lists
   program entry points. Program 8 (94 instructions) runs in the interpreter on that stage: 57 runs per frame.
+- **Programs 7 (debris) and 8 (animated stage objects) as shaders** (`hle_program78` in gs_vu1.c, layers 4 and 3 of
+  `vu0.vert`): 8 is the fighter skinning with per-vertex colour; 7 is rigid (the same matrix for both halves, weight
+  forced to 1), alpha from the mesh, and a flagged vertex does not complete a triangle. Checked on the user's
+  recording with destructibles (`session2.pad`, frames 2460..2760) against the interpreter (`BT3_VU_INTERP=1`):
+  same picture side by side; the pixel diff is not exact because the two runs' screenshots land a frame apart.
+  On that stage no call is interpreted any more (4416 served by shaders); work per frame 32 ms -> 19 ms in the
+  debris-heavy second. Program 1 (fighter fade) is the only one still interpreted; no recording shows it yet.

@@ -19,10 +19,10 @@ layout(set = 1, binding = 0) uniform U {
     mat4 screen;         // 14..17
     vec4 light;          // xyz: the x components of 10..12, w: of 13
     vec4 color0, color1; // 22, 23 (0..255)
-    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1; 2 = programs 2a / 2b)
+    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1; 2 = programs 2a / 2b; 3 = program 8; 4 = program 7)
 } u;
 void main() {
-    float w = inPos.w;
+    float w = u.misc.w == 4.0 ? 1.0 : inPos.w; // layer 4 (debris, rigid): the 4th word is a flag, not a weight
     vec3 pa = (u.boneA * vec4(inPos.xyz - u.pivotA.xyz, 1.0)).xyz;
     vec3 pb = (u.boneB * vec4(inPos.xyz - u.pivotB.xyz, 1.0)).xyz;
     vec4 s = u.screen * vec4(mix(pb, pa, w), 1.0);
@@ -36,7 +36,11 @@ void main() {
         // triangle: depth clamped into range instead of clipped.
         gl_Position.z = clamp(s.z / u.misc.z, 0.0, s.w);
     }
-    if (u.misc.w != 1.0) {
+    if (u.misc.w >= 3.0) {
+        // programs 8 and 7: the colour of each vertex (0..255 floats in the second quadword); 7 takes the mesh's alpha
+        vColor = clamp(floor(vec4(inNormal.rgb, u.misc.w == 4.0 ? u.color0.a : inNormal.a)), 0.0, 255.0) / 255.0;
+        vStq = vec3(inSt.xy, 1.0);
+    } else if (u.misc.w != 1.0) {
         vColor = u.color0 / 255.0;
         vStq = vec3(inSt.xy, 1.0);
     } else {
