@@ -525,7 +525,22 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
             gs.vcount = 2;
         }
         break;
-    case 6: if (gs.vcount == 2) { if (kick) { if (sGpu) { GsGpu_Draw(6, ctx, gs.vtx); } else { draw_sprite(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } } gs.vcount = 0; } break;
+    case 6:
+        if (gs.vcount == 2) {
+            /* A rectangle drawn into TEXTURE memory (a page the game uploads to, addressed as a 64-pixel-wide
+               buffer): the game paints over its fighters' palettes this way, to give them all one alpha before the
+               see-through pass. That has to happen in GS memory, where the GPU back end reads palettes from. */
+            uint32_t fb = (uint32_t)(gs.frame[ctx] & 0x1FF);
+            if (kick && sGpu && ((gs.frame[ctx] >> 16) & 0x3F) == 1 && gGsPageGen[fb] != 0) {
+                draw_sprite(sf, ctx, &gs.vtx[0], &gs.vtx[1]);
+                gGsPageGen[fb]++;
+                gGsPageGen[(fb + 1) & 511]++;
+            } else if (kick) {
+                if (sGpu) { GsGpu_Draw(6, ctx, gs.vtx); } else { draw_sprite(sf, ctx, &gs.vtx[0], &gs.vtx[1]); }
+            }
+            gs.vcount = 0;
+        }
+        break;
     default: break;
     }
 }

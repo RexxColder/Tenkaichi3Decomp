@@ -7,7 +7,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAux; // .r: the alpha byte exactly as the GS stores it (object numbers live there)
 layout(set = 2, binding = 0) uniform sampler2D tex;
 layout(set = 3, binding = 0) uniform Params {
-    ivec4 mode;  // x: textured, y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
+    ivec4 mode;  // x: textured (1 from GS memory, 2 a frame buffer), y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
     vec4 misc;   // x: AREF in GS units (0..255)
 } p;
 void main() {
@@ -16,6 +16,7 @@ void main() {
     float a = vColor.a * k;
     if (p.mode.x != 0) {
         vec4 t = texture(tex, vStq.xy / vStq.z);
+        if (p.mode.x == 1) t.a *= k; // a texture from GS memory keeps the GS alpha (0x80 opaque, up to 0xFF)
         if (p.mode.y == 0) {
             rgb = t.rgb * vColor.rgb * k;
             if (p.mode.z != 0) a = t.a * a;

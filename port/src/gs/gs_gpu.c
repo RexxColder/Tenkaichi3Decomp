@@ -56,6 +56,7 @@ typedef struct Draw {
     uint32_t first, count;
     int target;
     SDL_GPUTexture *tex;
+    int tex_is_target;
     int sampler;
     int pipeline;
     int32_t mode[4];
@@ -76,7 +77,7 @@ static SDL_GPUBuffer *sVbuf;
 static SDL_GPUTransferBuffer *sVxfer;
 static SDL_GPUSampler *sSamplers[8]; /* bit 0: linear, bit 1: clamp U, bit 2: clamp V */
 static SDL_GPUTexture *sWhite;
-static SDL_GPUGraphicsPipeline *sOutlinePipe;
+static SDL_GPUGraphicsPipeline *sOutlinePipe, *sKeyPipe;
 static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
@@ -227,6 +228,17 @@ int GsGpu_Init(void) {
             fprintf(stderr, "bt3: outline pipeline: %s\n", SDL_GetError());
             return 0;
         }
+        /* native alpha key: the tint blended by its own alpha, colour channels only */
+        fs = shader(kAlphakeyFragSpv, sizeof(kAlphakeyFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
+        cd.blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+        cd.blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        cd.blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+        ci.fragment_shader = fs;
+        sKeyPipe = fs ? SDL_CreateGPUGraphicsPipeline(sDev, &ci) : NULL;
+        if (sKeyPipe == NULL) {
+            fprintf(stderr, "bt3: alpha key pipeline: %s\n", SDL_GetError());
+            return 0;
+        }
     }
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     return 1;
@@ -264,7 +276,7 @@ static int target_get(uint32_t fbp, int create) {
     return sTargetCount++;
 }
 
-/* GS memory -> an RGBA texture for the current TEX0 (alpha rescaled so that 0x80 is 1.0). */
+/* GS memory -> an RGBA texture for the current TEX0 (alpha as stored: 0x80 is opaque). */
 static SDL_GPUTexture *texture_get(int ctx) {
     uint64_t t0 = gGs.tex0[ctx] & 0x1FFFFFFFFFFFFFFFull, texa = gGs.texa;
     uint32_t tbp = t0 & 0x3FFF, tbw = (t0 >> 14) & 0x3F, psm = (t0 >> 20) & 0x3F, tw = 1u << ((t0 >> 26) & 15), th = 1u << ((t0 >> 30) & 15);
@@ -324,8 +336,9 @@ static SDL_GPUTexture *texture_get(int ctx) {
             } else {
                 c = Gs_Expand(Gs_VramRead(cbp, 1, cpsm, c & 7, c >> 3), cpsm);
             }
-            a = (c >> 24) * 255 / 128;
-            px[y * tw + x] = (c & 0xFFFFFF) | (a > 255 ? 255 : a) << 24;
+            (void)a; /* alpha is kept as the GS has it (0x80 = opaque, up to 0xFF): the shader rescales it. Values
+                        above 0x80 matter: the see-through pass gives palettes alpha 0xF9 to write an id */
+            px[y * tw + x] = c;
         }
     }
     SDL_zero(ci);
@@ -536,6 +549,7 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
                 return 0;
             }
             d->tex = sTargets[src].color;
+            d->tex_is_target = 1;
             *us = tw / (float)GS_W;
             *vs = th / (float)GS_H;
         } else {
@@ -544,7 +558,7 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
     }
     d->sampler = (int)((gGs.tex1[ctx] >> 5) & 1) | ((cl & 3) ? 2 : 0) | (((cl >> 2) & 3) ? 4 : 0);
     d->pipeline = pipeline_get(ctx, topo, vu);
-    d->mode[0] = tme;
+    d->mode[0] = !tme ? 0 : d->tex_is_target ? 2 : 1; /* 2: a frame buffer as texture, its alpha is already rescaled */
     d->mode[1] = (int32_t)((t0 >> 35) & 3);
     d->mode[2] = (int32_t)((t0 >> 34) & 1);
     d->mode[3] = (test & 1) && ((test >> 12) & 3) == 0 ? (int32_t)((test >> 1) & 7) + 1 : 0;
@@ -713,7 +727,7 @@ void GsGpu_Native(int effect) {
     uint64_t sc = gGs.scissor[0];
     Draw d;
 
-    if (effect != 1 || sDrawCount == MAX_DRAWS) {
+    if ((effect != 1 && effect != 2) || sDrawCount == MAX_DRAWS) { /* 1 outline, 2 alpha key */
         return;
     }
     sNative++;
@@ -831,7 +845,7 @@ void GsGpu_FrameEnd(void) {
             ft.load_op = SDL_GPU_LOADOP_LOAD;
             ft.store_op = SDL_GPU_STOREOP_STORE;
             pass = SDL_BeginGPURenderPass(cmd, &ft, 1, NULL);
-            SDL_BindGPUGraphicsPipeline(pass, sOutlinePipe);
+            SDL_BindGPUGraphicsPipeline(pass, d->native == 2 ? sKeyPipe : sOutlinePipe);
             fs.texture = t->aux;
             fs.sampler = sSamplers[6]; /* nearest, clamped */
             SDL_BindGPUFragmentSamplers(pass, 0, &fs, 1);

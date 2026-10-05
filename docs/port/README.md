@@ -578,3 +578,20 @@ with a third of the interpreter's work gone.
 4. Platform layer for the 69 library functions: files from loose folders, memory, pad,
    stubs for sound and the GS for the headless build.
 5. Link, boot to the battle loop, replay validation.
+
+## 2026-10-05 (evening): fight camera inside a cliff, see-through fighter
+
+- **Camera going through terrain (verified against console state `play07`, tick 666).** `StgCol_TraceSphere`
+  handed `ColCapsule_GetLongSegDir` a 16-byte vector for a 32-byte segment. On PS2 the overflow lands in the next
+  local (which the decomp had named `unused`); on PC the stack order differs and it overwrote the query's bounding
+  box, so the camera's sweep never tested any terrain. Fixed in the decomp by declaring the scratch as two vectors
+  (still matching). Lesson: a local that is "unused" next to an out-parameter is a hint of an undersized buffer;
+  the camera of the pad fighter now equals the console's at that tick.
+- **Stale work buffers.** A work buffer whose filling pass was dropped is no longer sampled (blocks of noise).
+- **Vertex program 4 (stage) as a shader** (`vu4.vert`): strips go to the GPU unclipped, the program's own clipper
+  is not needed.
+- **See-through fighter ("alpha key", `GfxAlphaKey_Draw`)**: native pass (`alphakey.frag`, marker 2). Three things
+  were needed: the pass itself; rectangles drawn into palette memory (the game paints alpha 0xF9 over the fighter
+  palettes) must be executed in GS memory; texture alpha above 0x80 must survive (it was clamped at upload, now
+  the shader rescales).
+- Tools: `BT3_SHOT_FROM` / `BT3_SHOT_TO`, `port/tools/montage.py`, `BT3_CAMCHECK=<vblank>`.
