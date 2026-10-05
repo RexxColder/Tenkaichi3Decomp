@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 OBJ = ROOT / "port/build/obj"
 CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
-TEXT_END, GAME_END = 0x2B2000, 0x273CF0  # end of all code; end of game code (libraries follow)
+TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
 def cc(f):
     o = OBJ / (str(f.relative_to(ROOT / "src")).replace("/", "_")[:-2] + ".o")
@@ -23,6 +23,7 @@ def main():
     for f, e in bad:
         print("FAILED", f.name, e.splitlines()[0] if e else "")
     objs = [str(o) for o, _, _ in res if o]
+    objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
     defined, undef = set(), collections.Counter()
     out = subprocess.run(["nm", "-A"] + objs, capture_output=True, text=True).stdout
     for l in out.splitlines():
