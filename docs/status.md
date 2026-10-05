@@ -569,3 +569,24 @@ INCLUDE_ASM lines); `ColObb_Contact` needs a from-scratch decompile (dead code, 
 `EftGfx_DrawSprite` and `StgBlur_Draw` have no attempt; the EftPart10 / EftLink key functions
 need nested track structs. Next (user agreed): set up decomp-permuter for the register-only
 near-misses.
+
+## Thirteenth step 2026-10-05 (afternoon): permuter + targeted agents
+
+State: main executable 91.97% (85 INCLUDE_ASM), overlay 99.11% (5), both byte-identical
+(commit 87a91a2). decomp-permuter is set up (scripts/permute.py, build/permuter/); batch 1
+gave 13 matches. Ten functions are fake matches (six tagged `FAKE MATCH` in the source; four
+older ones to tag the same way: `EftLink_DrawBillboard`, `EftChain_DrawStrand`,
+`Dialog_SetCursor`, `EftWater_DrawSprayQuad`; `EftBlast_Init` is no longer one).
+Running:
+- permuter batch 2 (27 functions, build/permuter/batch2.txt, results.txt; ends about 18:15;
+  a background watcher reports). Its files must not be edited meanwhile: late_a, hud_0_c,
+  eft_ab_c, eft_p_b, view_a_e, eft_aa, menu_z_d, hud_e_b, eft_b, eft_z, gfx_ot, gfxm_c,
+  sprite, eft_c, btl_demo_cam, eft_i, eft_w.
+- five agents on disjoint files: K (key-track struct redesign: eft_x.c, eft_v_c.c),
+  S (simulation-critical: btl_input.c, btl_ai_seq.c, btl_ai_cond.c, with a differential
+  test harness first), P (`EftGfx_DrawSprite` from scratch, eft_a.c), compiler-version /
+  flag investigation (no source edits; build/scratch_compiler/), V (screen passes:
+  stg_c.c, stg_b.c, gfxm_a.c, gfxm_b.c, gfxm_e_b.c).
+When they report: apply data moves, gate, commit. TODO after: tag the four older fakes;
+rebuild docs/open_questions.md from the INCLUDE_ASM lines; `ColObb_Contact` is the only
+function with no faithful attempt (dead code, 17 KB; user has not asked for it).
