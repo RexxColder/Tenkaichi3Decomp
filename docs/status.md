@@ -590,3 +590,22 @@ Running:
 When they report: apply data moves, gate, commit. TODO after: tag the four older fakes;
 rebuild docs/open_questions.md from the INCLUDE_ASM lines; `ColObb_Contact` is the only
 function with no faithful attempt (dead code, 17 KB; user has not asked for it).
+
+## Fourteenth step 2026-10-05 (late afternoon): cleanup round 3 + behaviour test sweep
+
+State: main executable 93.28% (70 INCLUDE_ASM), overlay 99.11% (5), byte-identical at commit
+6d1fed5. NOTE: commits 8f74a33 and 90e054b do not build (a symbol comment splat rejects; a
+dropped line in configure.py); each is fixed by the commit after it. RULE: run the gate
+before EVERY commit that touches anything outside docs/, however trivial.
+Toolchain check done: we use the game's compiler and flags (docs/decomp_guide.md); the
+stubborn families are source-form problems.
+Running: permuter batch 2 (watcher bt423p9w0; files not to edit listed in the thirteenth
+step); agents W1 (eft_g, eft_n, eft_q, eft_s), W2 (eft_e, eft_d_b, eft_t_b, eft_u_b,
+eft_ae), X1 (ChrCam_CalcCut first, btl_scene, btl_seq, hud_b, view_b, view_b_d, gfxm_a,
+gfxm_b, gfxm_e_b), X2 (the two open families: eft_ab, eft_z_b, eft_z_c, eft_h), and a
+differential behaviour test sweep over every unmatched function (no source edits; results
+in build/scratch_difftest/results.md).
+After they report: apply data moves, gate, commit; apply permuter batch 2; tag the four
+older fakes with `FAKE MATCH`; rebuild docs/open_questions.md. Then the user decides:
+continue matching rounds, or tag the decomp and start the port repo (recommended once the
+behaviour sweep is clean).
