@@ -648,3 +648,17 @@ with a third of the interpreter's work gone.
   layer and an executable built without the pacing code; not seen again, cause not established.
 - Build tool fix: `eeconst.py` did not know octal literals and stopped `undefined.py` part-way (objects after
   the failing file stayed stale while the link still said OK). Lesson: read the whole output of the build step.
+
+## 2026-10-06: sound, part 1: ADX streams
+
+- `port/src/gs/snd_adx.c` replaces the ADXT stand-ins: players, start from an archive file or a loose file, stop,
+  pause, volume (0.1 dB units), pan per input channel, mono switch, status (stopped / playing / play end), loops
+  from the version 4 header. One SDL audio stream per player; decoding on SDL's audio thread.
+- All 65,201 files of the third archive and both movie tracks are plain ADX (type 3, 18-byte frames, version 4,
+  not encrypted; mono or stereo; 16, 24 or 48 kHz). Music files loop from sample 0 to a loop end in the header.
+- Checked: the decoding formula (as a Python copy) against ffmpeg's ADX decoder: identical on a short stereo clip;
+  up to 91 / 32768 apart over 3 s of music, from the rounding of the two filter coefficients.
+- Not checked by ear by me (no way to listen): the user has to confirm music and voices.
+- Headless runs open no device and every player reports "stopped", as before: the replay validation is unchanged.
+  With a window the status is real, so anything in the game that waits for a voice line now really waits.
+- `BT3_NOSOUND=1` turns the sound off.

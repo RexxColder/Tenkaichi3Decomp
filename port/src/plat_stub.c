@@ -28,21 +28,7 @@ int func_00296B48() { return 0; }      /* sceSdRemoteCallbackInit */
 int func_002967C0(int block, int cmd) { (void)block; return cmd == 0x80F0 ? 1 : 0; }
 
 /* ---- CRI ADXT stream players ---- */
-static uint8_t sAdxt[8][0x100];
-static int sAdxtCount;
-void ADXT_Init() {}
-void *ADXT_Create() { return sAdxt[sAdxtCount++ & 7]; }
-void ADXT_SetReloadSct() {}
-void ADXT_SetSvrFreq() {}
-void ADXT_StartAfs() {}
-void ADXT_StartFname() {}
-void ADXT_Stop() {}
-void ADXT_Pause() {}
-void ADXT_SetOutVol() {}
-void ADXT_SetOutPan() {}
-void ADXT_SetOutputMono() {}
-int ADXT_GetOutVol() { return 0; }
-int ADXT_GetStat() { return 0; }       /* ADXT_STAT_STOP */
+/* ---- CRI ADXT (streamed music and voices): port/src/gs/snd_adx.c ---- */
 
 /* ---- GS ---- */
 static int (*sVsyncHandler)(int);

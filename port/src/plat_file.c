@@ -56,6 +56,35 @@ static PortFile *open_rel(const char *rel) {
     return f;
 }
 
+/* The host path of a game file, for code that reads files itself (the sound streams): file `flid` of partition
+   `ptid`, or with `fname` a loose file of the disc's data directory. A file under mods/ wins. 0 = not found. */
+int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size) {
+    char rel[256];
+    FILE *fp;
+    int n;
+
+    if (fname != NULL) {
+        n = snprintf(rel, sizeof(rel), "disc/DATA/");
+        for (; *fname != '\0' && *fname != ';' && n < 255; fname++) {
+            rel[n++] = *fname == '\\' ? '/' : (char)toupper((unsigned char)*fname);
+        }
+        rel[n] = '\0';
+    } else {
+        snprintf(rel, sizeof(rel), "%s/%05d.bin", sPartDir[ptid & 7], flid);
+    }
+    snprintf(out, (size_t)size, "%s/mods/%s", root(), rel);
+    fp = fopen(out, "rb");
+    if (fp == NULL) {
+        snprintf(out, (size_t)size, "%s/%s", root(), rel);
+        fp = fopen(out, "rb");
+    }
+    if (fp == NULL) {
+        return 0;
+    }
+    fclose(fp);
+    return 1;
+}
+
 /* "pzs3us1.afs" (any case, any directory, optional ";1") -> folder "pzs3us1". */
 int ADXF_LoadPartitionNw(int ptid, char *fname, void *dir, void *ptinfo) {
     const char *base = fname;
