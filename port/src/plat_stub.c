@@ -68,10 +68,25 @@ int sceGsSyncV() { Port_VBlank(); return 0; }
 /* ---- pads ---- */
 int sceDbcInit() { return 1; }
 int scePad2Init() { return 1; }
-int scePad2CreateSocket() { return 0; }
-int scePad2GetState() { return 0; }
-int scePad2GetButtonProfile() { return 0; }
-int scePad2Read() { return 0; }
+static int sPadSockets;
+int scePad2CreateSocket() { return sPadSockets++; }
+int scePad2GetState() { return 1; }            /* connected and ready */
+/* A DualShock 2's button profile: every digital button, both sticks, every pressure-sensitive button. */
+int scePad2GetButtonProfile(int socket, unsigned char *profile) {
+    (void)socket;
+    profile[0] = 0xFF; profile[1] = 0xFF; profile[2] = 0xFF; profile[3] = 0x03;
+    return 4;
+}
+/* Headless: nobody touches the pad. Buttons are active-low; the sticks rest at 0x80. */
+int scePad2Read(int socket, unsigned char *data) {
+    int i;
+
+    (void)socket;
+    data[0] = 0xFF; data[1] = 0xFF;
+    for (i = 2; i < 6; i++) { data[i] = 0x80; }
+    for (i = 6; i < 18; i++) { data[i] = 0; }
+    return 18;
+}
 int sceVibGetProfile() { return 0; }
 int sceVibSetActParam() { return 0; }
 
