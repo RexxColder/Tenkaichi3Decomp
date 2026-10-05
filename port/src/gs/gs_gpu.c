@@ -964,7 +964,7 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
              (not in the menus: their pages are shown whole, stretched to the width; see Port_WideFactor)
              - in a fight, the left edge, the right edge or the middle for the HUD's left panel, right panel and
                centre parts (markers from the HUD code), so the panels sit at the screen's edges;
-             - any other sprite, its own middle (it stays where the game put it, e.g. over a fighter).
+             - any other 2D piece, the middle of the screen (see below).
            Only what is drawn into the picture itself: the work buffers of the effects and of the shadow are
            filled with 2D rectangles too, and narrowing those left unfilled bands and stripes in them.
            Left alone: full-screen fills and fades (untextured, full height), and in a fight sprites as wide as
@@ -985,8 +985,12 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
                 float cx = (x0 + x1) * 0.5f;
                 pivot = x1 <= 300.0f || cx < 180.0f ? 0.0f : x0 >= 212.0f || cx > 332.0f ? 512.0f : 256.0f;
             }
-        } else if (type == 6 && x1 - x0 < 480.0f) {
-            pivot = (x0 + x1) * 0.5f;
+        } else if (!(type == 6 && x1 - x0 >= 480.0f)) {
+            /* 2D outside the HUD (the pause menu, messages): one page about the middle of the screen. (Narrowing
+               each piece about its own middle pulled panels apart and spread the letters of the text.) A marker
+               the game places over a fighter is pulled a little towards the middle by this: known, not handled.
+               Sprites as wide as the screen (flashes, speed lines) are left alone. */
+            pivot = 256.0f;
         }
         if (pivot >= 0.0f) {
             float narrow = 1333.333f / (float)Port_AspectMilli(); /* 3/4 at 16:9, 9/16 at 21:9 */
