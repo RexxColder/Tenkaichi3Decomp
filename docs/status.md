@@ -609,3 +609,48 @@ After they report: apply data moves, gate, commit; apply permuter batch 2; tag t
 older fakes with `FAKE MATCH`; rebuild docs/open_questions.md. Then the user decides:
 continue matching rounds, or tag the decomp and start the port repo (recommended once the
 behaviour sweep is clean).
+
+## HANDOFF NOTE (2026-10-05, about 16:30) -- read this first after a compaction
+
+LAST GOOD COMMIT: 6d1fed5 (+ 0f2f830 docs) = main executable 93.28%, overlay 99.11%, both
+byte-identical. The WORKING TREE has UNCOMMITTED, individually fdiff-checked work from round 3:
+- X2 (families): 7 matched in eft_ab.c, eft_z_b.c, eft_z_c.c, eft_h.c (+ include/battle/eft_ab.h
+  `uv` is now `f32 uv[16][4]`).
+- W2: `EftPtcl_DrawAxisQuads` live in eft_u_b.c (FAKE: volatile alias gOtCurRead); improved
+  attempts in eft_e.c, eft_t_b.c, eft_ae.c.
+- X1: `ChrCam_CalcCut` (btl_char_cam_cut.c), `BtlText_DrawScrollBar` (btl_seq.c; old attempt
+  had a BEHAVIOURAL ERROR: both thumb parts are always drawn), `StgPanBlur_UpdateView`
+  (gfxm_a.c; FAKE: `Vec4 *sp = &side;` and a `do { } while (0)`); notes only in btl_scene.c,
+  hud_b.c, view_b.c, view_b_d.c.
+- yaml .lit4 moves ALREADY APPLIED in the working tree: eft_z_b -> [0x1FCDCC, .lit4],
+  eft_z_c -> [0x1FCE28, .lit4] (their asm chunks removed), [0x1FD08C, .lit4,
+  battle/btl_char_cam_cut], [0x1FC280, .lit4, sys/gfxm_a].
+THE GATE CURRENTLY FAILS for ONE known reason: build/src/battle/eft_g.o now emits 4 bytes of
+`.sdata` (at 0x2FE9DC, shifting gEftSteam etc. by 4): agent W1 (still running; files eft_g.c,
+eft_n.c, eft_q.c, eft_s.c) has made a function live there. When W1 reports, apply ITS data
+moves (expect a `.sdata` subsegment for battle/eft_g at 0x1FE9DC.. cut out of cod/1FE9DC, plus
+whatever it lists), then `.venv/bin/python configure.py && ninja`, both .ok files, both cmp
+silent, and ONLY THEN commit everything (`git add -A config src include docs`). If the image
+still differs: compare the link map's symbol addresses with their `D_/func_` names to find the
+first shift (python snippet used all day), fix, repeat.
+Also running:
+- permuter batch 2 (build/permuter/results.txt; watcher task bt423p9w0; ends ~17:00). When it
+  ends: launch ONE agent to apply the exact solutions like batch 1 (brief = the "Apply
+  permuter solutions" prompt: port diff, split it, look for the natural form, mark fakes,
+  try siblings; solved so far: BtlText_PutSprite, BgmList_ApplyUnlocks, EftRibbon_DrawKind1,
+  EftAnimPart_Draw, DcPass_DrawRows, EftRibbon_PlaceStrip (a "surviving copy" member: carry
+  its form to EftRibbon_PlaceTrail2 and EftBlade_GetColor); Num_DrawEx is at score 10).
+- differential behaviour test sweep over all unmatched functions (no source edits; results in
+  build/scratch_difftest/results.md): summarise for the user; any DIFFERENT is a bug to fix.
+Sunshine (the user's streaming host) runs as background task buxegqcs7 of this session.
+Then: tag the older fakes with `FAKE MATCH` (EftLink_DrawBillboard, EftChain_DrawStrand,
+Dialog_SetCursor, EftWater_DrawSprayQuad, EftPtcl_DrawAxisQuads, StgPanBlur_UpdateView,
+BtlText_DrawScrollBar's two-step form), rebuild docs/open_questions.md from the INCLUDE_ASM
+lines, fix prototypes flagged wrong (EftGndDust_SpawnPieceEx in include/battle/eft_z.h: floats
+first; stale note in btl_char_cam.c), add this round's lessons to docs/decomp_guide.md (they
+are only in the agents' reports in the transcript: X2, W2, X1). Then ask the user: continue
+matching rounds, or tag the decomp and start the separate port repo (my recommendation once
+the behaviour sweep is clean; permuter keeps running in the background).
+USER RULES: at most 10 agents; local commits only, no Claude co-author line; gate before
+EVERY commit outside docs/; document findings; the user prefers loose folders over AFS for
+the port; decomp phase ends at "all game code linked, SDK excluded" (reached).
