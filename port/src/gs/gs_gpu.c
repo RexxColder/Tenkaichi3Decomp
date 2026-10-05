@@ -22,6 +22,8 @@
 
 /* The internal resolution multiplier: BT3_SCALE=1..8 (default 2). Every render target is GS_W x GS_H times this,
    about 9 MB of video memory each at 1x, 36 MB at 2x, 144 MB at 4x; a fight uses 7 to 16 of them. */
+extern int Port_Setting(const char *name, int def); /* plat_settings.c: the saved settings */
+extern void Port_SettingSave(const char *name, int value);
 static int sScale = 2;
 #define SCALE sScale
 static int sFullscreen;
@@ -289,6 +291,7 @@ static void window_shape(void) {
 
 static void fullscreen_set(int on) {
     sFullscreen = on;
+    Port_SettingSave("fullscreen", on);
     if (on) { /* the full screen has the display's shape: the picture is centred in it */
         SDL_SetWindowAspectRatio(sWindow, 0.0f, 0.0f);
     }
@@ -328,6 +331,15 @@ static void overlay_key(SDL_Keycode key) {
         case 10: v = gPortSePercent + dir * 10; gPortSePercent = v < 0 ? 0 : v > 200 ? 200 : v; break;
         default: sFxOff ^= 1u << (sOvRow - 3); break;
         }
+    }
+    if (dir != 0) { /* keep the choices for the next run (bt3_settings.txt) */
+        Port_SettingSave("scale", sPendingScale ? sPendingScale : sScale);
+        Port_SettingSave("aspect_milli", Port_AspectMilli());
+        Port_SettingSave("fullscreen", sFullscreen);
+        Port_SettingSave("fx_off", (int)sFxOff);
+        Port_SettingSave("glow", sGlowPercent);
+        Port_SettingSave("music", gPortMusicPercent);
+        Port_SettingSave("effects", gPortSePercent);
     }
     if (gPortOverlayOpen) {
         overlay_paint();
@@ -377,10 +389,8 @@ int GsGpu_Init(void) {
         SDL_DisplayID *displays = SDL_GetDisplays(&count);
         SDL_PropertiesID props = SDL_CreateProperties();
 
-        if (getenv("BT3_SCALE") != NULL) {
-            sScale = atoi(getenv("BT3_SCALE"));
-            sScale = sScale < 1 ? 1 : sScale > 8 ? 8 : sScale;
-        }
+        sScale = getenv("BT3_SCALE") != NULL ? atoi(getenv("BT3_SCALE")) : Port_Setting("scale", 2);
+        sScale = sScale < 1 ? 1 : sScale > 8 ? 8 : sScale;
         if (getenv("BT3_WINDOW") != NULL) {
             sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h);
         }
@@ -393,7 +403,7 @@ int GsGpu_Init(void) {
             fprintf(stderr, "bt3: display %d: %s, %d x %d\n", pick + 1, SDL_GetDisplayName(displays[pick]), r.w, r.h);
         }
         pick = getenv("BT3_DISPLAY") != NULL ? atoi(getenv("BT3_DISPLAY")) : 0;
-        sFullscreen = getenv("BT3_FULLSCREEN") != NULL && atoi(getenv("BT3_FULLSCREEN")) != 0;
+        sFullscreen = (getenv("BT3_FULLSCREEN") != NULL ? atoi(getenv("BT3_FULLSCREEN")) : Port_Setting("fullscreen", 0)) != 0;
         sWantAspect = want;
         SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Budokai Tenkaichi 3 (port)");
         SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, w);
@@ -525,8 +535,10 @@ int GsGpu_Init(void) {
     sDclutFs = shader(kDclutFragSpv, sizeof(kDclutFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 3, 1);
     copies_create();
     overlay_init();
-    sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
-    sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : GLOW_DEFAULT;
+    sFxOff = (unsigned)(getenv("BT3_FX_OFF") != NULL ? atoi(getenv("BT3_FX_OFF")) : Port_Setting("fx_off", 0)) & 31;
+    sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : Port_Setting("glow", GLOW_DEFAULT);
+    gPortMusicPercent = Port_Setting("music", 100);
+    gPortSePercent = Port_Setting("effects", 100);
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
     pipelines_preload();
     return 1;

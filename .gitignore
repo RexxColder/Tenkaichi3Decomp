@@ -22,3 +22,4 @@ port/tests/ps2float/*.bin
 bt3_pipelines.txt
 bt3_crash.txt
 saves/
+bt3_settings.txt

@@ -823,3 +823,8 @@ with a third of the interpreter's work gone.
   resolution 2x -> 3x -> 1x -> 4x and 4:3 -> 16:9 during a fight (screenshot sizes and picture). Not checked: the
   panel's appearance in the window itself (no screen capture taken), the volumes by ear. Settings are not saved
   between runs. Gamepad cannot operate it yet.
+- **Settings file** (`port/src/plat_settings.c`): `bt3_settings.txt` in the current directory (`BT3_SETTINGS=<path>`,
+  or empty for none; git-ignored), lines `name=number`: scale, aspect_milli, fullscreen, fx_off, glow, music,
+  effects. Written by the overlay on every change and by F11; read at start, where an environment variable still
+  wins. Checked with scripted keys and a scratch file: changed values written, next start came up at the saved
+  resolution. Test runs should set `BT3_SETTINGS=` so the player's file neither changes them nor is changed.

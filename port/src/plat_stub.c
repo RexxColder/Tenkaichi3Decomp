@@ -149,12 +149,13 @@ int sceVibSetActParam() { return 0; }
    eft_*.c, all #ifdef PORT); the renderer keeps 2D art in proportion and shows the picture at this shape
    (port/src/gs/gs_gpu.c). */
 static int sAspectMilli = -1;
+extern int Port_Setting(const char *name, int def); /* plat_settings.c */
 int Port_AspectMilli(void) {
     if (sAspectMilli < 0) {
         int a = 0, b = 0, w = 0, h = 0;
-        sAspectMilli = 1333;
+        sAspectMilli = Port_Setting("aspect_milli", 1333); /* the saved choice; the variables below win */
         if (getenv("BT3_WIDE") != NULL && atoi(getenv("BT3_WIDE")) == 0) {
-            /* 4:3 */
+            sAspectMilli = 1333; /* 4:3 */
         } else if (getenv("BT3_ASPECT") != NULL && sscanf(getenv("BT3_ASPECT"), "%d:%d", &a, &b) == 2 && a > 0 && b > 0) {
             sAspectMilli = a * 1000 / b;
         } else if (getenv("BT3_WIDE") != NULL) {
