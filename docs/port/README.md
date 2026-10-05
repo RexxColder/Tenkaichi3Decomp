@@ -235,6 +235,46 @@ difference that only shows in the last bits.
 The decisive tool would be a small PS2 test program run in PCSX2 that prints the result bits
 of every operation class for fixed inputs (the maths harness planned in docs/roadmap.md).
 
+## The replay reproduces the console's fight (2026-10-05, evening)
+
+Verified by running it, against the user's PCSX2 save states:
+
+| Battle tick | Console health (pad / CPU) | PC build |
+|---|---|---|
+| 319 | 38030 / 26510 | 38030 / 26510 |
+| 906 | 33880 / 16320 | 33880 / 16320 |
+| 1506 | 26110 / 6970 | 26110 / 6970 |
+| end | 23050 / 0 at tick 2111, clock 1:10.366 | 23050 / 0 at tick 2111, clock 1:10.366 |
+
+and 55 frames into the countdown both fighters' positions are bit-identical to the console.
+NOT yet identical: at tick 319 the pad fighter's x differs in the last bits (0x43E00E88 /
+0x43E00E7F) and 166 of 2816 fighter words differ; not examined (candidates: effects and
+camera fed by the game's random generators, which a replay does not reproduce, or a
+remaining small arithmetic difference).
+
+How the cause was found (ground-truth tests, port/tests/ps2float, run in PCSX2 2.7.303 with
+`PCSX2.AppImage -nogui -fastboot -logfile <log> -- <elf>`; output arrives on the EE serial
+port 0x1000F180 in the log):
+1. test.c / check.py: every float operation class (FPU and vector unit: add, subtract,
+   multiply, divide, square root, multiply-add, int <-> float) on 1500 inputs: the PC model
+   agrees on all of them. So the model was right; the difference was above it.
+2. libm_test.c / pack_libm.py / check_libm.py: a driver packed into one ELF with the game
+   executable calls the game's ORIGINAL sinf, cosf, tanf, atanf, atan2f, asinf, acosf, sqrtf,
+   powf, floorf. Against the port's newlib build: 3 to 59 of 1500 results one unit off.
+3. Cause: THE PS2 COMPILER'S CONSTANTS. ee-gcc 2.96 converts decimal float constants by
+   truncation (0.1f = 0x3DCCCCCC; newlib's S1 = 0xBE2AAAAA where the source comment says
+   0xBE2AAAAB), doubles too, and its compile-time folding truncates (1.0f / 30.0f =
+   0x3D088888, (int)(0.1f * 100.0f) = 9). A host compiler rounds to nearest. This affected
+   every inexact float constant in the game's C, not only libm.
+4. Fix: port/tools/eeconst.py rewrites preprocessed source: constants become hexadecimal
+   constants with the truncated value, constant arithmetic the grammar exposes is folded
+   with truncation, a double constant initialising a float object is truncated. undefined.py
+   builds every software-float source through it (not the vector-library references, which
+   were written for a host compiler). After it: libm 0 differences on all ten functions,
+   and the table above.
+Known gap: constant arithmetic that only appears after the compiler propagates variables is
+folded by the host with rounding to nearest; not measured.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
