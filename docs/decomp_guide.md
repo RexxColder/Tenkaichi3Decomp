@@ -563,3 +563,26 @@ Tools
   `EftRibbon_PlaceStrip`, `EftRibbon_PlaceTrail2`, `EftOrbTail_DrawStreaks`,
   `EftOrbTail_InitFrames`, the two ground-dust inits). `-fno-gcse` breaks matched functions,
   so gcse was on.
+- ALIGNMENT OF THE ELEMENT TYPE decides how `p->arr[i].m` is addressed: the member offset is
+  added to the base first (`addiu s0,s0,4` ... `addu s0,s0,idx`, or the same `base + idx`
+  computed several times) only when the element's known alignment equals the member's (4);
+  with a 16-aligned element the offset stays in the load / store. Fix with a local view of
+  the other alignment (both directions occur). A pointer indexed directly never does this; a
+  pointer to a structure holding the array does.
+- A load of a global that never moves into the delay slot of the branch in front of it while
+  the store behind it does (`bnel` / `beqzl` + `lw gOtCur`): read the global through a
+  volatile alias (`extern u32 *volatile gOtCurRead __asm__("gOtCur");`). A stand-in (fake
+  match family): the same pattern is in `EftSurf_DrawTriOt`, `EftWater_DrawBillboard`,
+  `EftWater_DrawClippedFan` and others.
+- Two arms ending in the same call that the original shares (one `jal`): duplicate the
+  statements BEHIND the call into both arms. A duplicated block also changes register
+  priority (its uses count before the merge).
+- An up-counting loop the compiler would reverse: `for (;;) { ...; j++; if (j >= N) break; }`.
+  Initialising a variable in the `for` header instead of its declaration keeps it from
+  sharing a register with the parameter it copies.
+- Between two equal ready instructions the scheduler takes the one in which a register dies:
+  the LAST use of a value in source order decides. A scheduler trace is cheap and decisive:
+  `-dS -fsched-verbose=4` (build/scratch_cleanup2_C/sv.sh).
+- BEHAVIOURAL ERROR found this round: `EftGlow_SpawnPart`'s old attempt passed 1/fadeIn for
+  the x, y, z of a colour step where the original passes the OLD value (0.0); an assignment
+  inside an argument list was the cause. Never write `f(x, x, x, a * (x = ...))`.
