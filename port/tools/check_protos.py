@@ -13,7 +13,7 @@ import portsrc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OUT = ROOT / "port/build/gen/protos"
-W = set("s8 u8 s16 u16 s32 u32 int char short long unsigned signed size_t uint32_t int32_t uint8_t uint16_t".split())
+W = set("uint_least32_t s8 u8 s16 u16 s32 u32 int char short long unsigned signed size_t uint32_t int32_t uint8_t uint16_t".split())
 L = {"s64", "u64", "uint64_t", "int64_t"}
 
 def klass(t):
@@ -52,9 +52,11 @@ LINE = re.compile(r"/\* (\S+?):(\d+):([NO])([CF]) \*/ (.*?)\b(\w+) \((.*)\);")
 def dump(f):
     src, _, _ = portsrc.prepare(f)
     x = OUT / (str(f.relative_to(ROOT)).replace("/", "_") + ".X")
-    subprocess.run(["gcc", "-m32", "-std=gnu89", "-fsyntax-only", "-w", "-Iinclude", "-Iport/include", "-Iport/src",
-                    "-include", "port_compat.h", f"-I{f.parent}", str(src), "-aux-info", str(x)], cwd=ROOT,
-                   capture_output=True)
+    ref = f.parent == ROOT / "src/port"  # the vector-library references, under the game's names
+    subprocess.run(["gcc", "-m32", "-std=gnu99" if ref else "-std=gnu89", "-fsyntax-only", "-w", "-Iinclude",
+                    "-Iport/include", "-Iport/src", "-include", "port_compat.h"] +
+                   (["-include", "vu0_names.h"] if ref else []) + [f"-I{f.parent}", str(src), "-aux-info", str(x)],
+                   cwd=ROOT, capture_output=True)
     rows = []
     for l in x.read_text().splitlines() if x.exists() else []:
         l = l.split("; /*")[0] + ";"
@@ -72,7 +74,8 @@ def dump(f):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    fs = portsrc.sources() + sorted((ROOT / "src/menu").glob("*.c")) + sorted((ROOT / "port/src").glob("*.c"))
+    fs = portsrc.sources() + sorted((ROOT / "src/menu").glob("*.c")) + sorted((ROOT / "port/src").glob("*.c")) + \
+         [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"]
     defs, decls = {}, collections.defaultdict(set)
     with concurrent.futures.ThreadPoolExecutor(16) as ex:
         for rows in ex.map(dump, fs):

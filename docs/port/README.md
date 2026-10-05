@@ -120,6 +120,30 @@ Not looked at yet: other uses of the PS2's 64-bit `long` semantics that are not 
 alignment (u64 members are 8-byte aligned on the PS2 and 4-byte aligned on 32-bit x86: must
 be checked, `-malign-double` is the likely fix), and float behaviour.
 
+## The fight loop starts (2026-10-05, night)
+
+port/src/headless.c stands in for the menu overlay (`Progress_Main`): it sets up the game's
+own attract-demo battle (CPU against CPU), or loads a replay save file named by BT3_REPLAY
+(0x1AC00 bytes) through `BattleReplay_Load`, and ends the program when the battle is over.
+Verified by running it: the demo battle loads completely (sound banks, stage, both character
+models and parameter files, from loose files) and `Battle_Loop` runs; 186 vertical blanks in,
+the first CPU update crashes in `BtlObjAnim_QueryEvent`.
+
+Cause, and a general lesson: PROTOTYPE DISAGREEMENTS. Game sources declare the functions
+they call locally. On the PS2 `s32` against `u64`, the order of float against integer
+parameters and "struct by value" against pointer all produce the same code; on 32-bit x86 the
+stack layout differs. `port/tools/check_protos.py` compares every declaration with the
+definition by ABI class: 127 of 14,887 declarations disagree (86 functions; list in
+port/build/protos.txt). They are being fixed in the decompilation. The same check shows the
+vector-library references agree with all their callers except `Vec3_ScaleAdd`.
+
+Other checks added: `port/tools/check_layout.py` (14,862 documented PS2 member offsets
+against the host compiler: all agree with `-malign-double`, 22 differ without it; one
+remaining report, EftTask.unk4 in eft_c.h, not examined).
+
+The headless build has no real-time pacing: a vertical blank happens whenever the game waits
+for one (`gPortVBlanks` counts them).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
