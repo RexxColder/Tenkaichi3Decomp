@@ -487,9 +487,8 @@ void BtlChar_SpawnHitFx(BtlMemberChr *chr) {
  * through BtlChar_SetFxBit; last frame's copy at + 0x126B) and starts, keeps or stops one effect of the effect scene.
  * They are called in a fixed order from BtlFx_UpdateAll (btl_char_fx_c.c). Nothing here draws a random number.
  *
- * This file and btl_char_fx_c.c are one run of code, cut after BtlFx_FireKiBlast (0x1D1958): it is left in
- * assembly and its float constants stay in an assembly chunk between the two files' pools. BtlFx_SpawnSpeedLines,
- * also in assembly, has its four constants emitted in place with LIT4_WORD.
+ * This file and btl_char_fx_c.c are one run of code, cut after BtlFx_FireKiBlast (0x1D1958). Every function is C;
+ * the file's float constants are 0x2FD1D8..0x2FD214 (the last five, 0x2FD200.., are BtlFx_FireKiBlast's).
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -768,57 +767,34 @@ void BtlFx_SpawnFastMoveFx(FxChr *chr) {
 
 /* Request 0x15: speed lines; two parameters follow the direction to the opponent relative to the camera yaw and the distance. */
 /*
- * Not matching: 35 of 112 instructions, all in the block that fills the parameters (the order of the stores and the
- * registers of the constants). The original builds the 0x60-byte default block in a stack temporary with one memset
- * of the vector and stores for every other field, copies it to the argument, then reuses the temporary's first
- * 16 bytes as the direction vector. No way of writing the initialisation reproduced the original store order.
+ * Matching notes: the defaults are an aggregate initialiser (the compiler builds it in a stack temporary, clearing
+ * the vector with memset, and copies it; the temporary's slot is then reused for the direction vector). The
+ * colour has to be a scalar followed by an array of three (see FxLineArg) and the 0.001 a variable assigned
+ * before `angle`, or the stores and the constant loads are scheduled differently.
  */
-#if 0 /* BTLFX_NONMATCHING */
 void BtlFx_SpawnSpeedLines(FxChr *chr) {
-    FxLineArg arg;
-    FxLineArg init;
     f32 angle;
+    f32 eps;
 
     if (BtlChar_TestFxBit(chr, 0x15)) {
-        memset(&init.pos, 0, sizeof(Vec4));
-        init.pos.w = 1.0f;
-        init.r = 0x80;
-        init.g = 0x80;
-        init.b = 0x80;
-        init.a = 0x40;
-        init.unk20 = 1.0f;
-        init.unk24 = 800.0f;
-        init.unk28 = 1.5f;
-        init.unk2C = 0.0f;
-        init.unk30 = 50.0f;
-        init.unk34 = 2;
-        init.unk38 = 0x30;
-        init.objId = chr->objId;
-        init.unk40 = 1;
-        init.unk44 = 1;
-        init.unk48 = 0;
-        init.unk4C = 0;
-        init.unk50 = 1;
-        arg = init;
-        BtlOpp_GetDelta(chr, &init.pos);
+        FxLineArg arg = { { 0.0f, 0.0f, 0.0f, 1.0f }, 0x80, { 0x80, 0x80, 0x40 }, 1.0f, 800.0f, 1.5f, 0.0f, 50.0f,
+                          2,                          0x30, chr->objId,           1,    1,      0,    0,    1 };
+        Vec4 d;
+
+        BtlOpp_GetDelta(chr, &d);
+        eps = 0.001f;
         angle = 0.0f;
-        if (__builtin_fabsf(init.pos.x) > 0.001f || __builtin_fabsf(init.pos.z) > 0.001f) {
-            angle = BtlUtil_WrapAngle(atan2f(init.pos.x, init.pos.z) - chr->camYaw);
+        if (__builtin_fabsf(d.x) > eps || __builtin_fabsf(d.z) > eps) {
+            angle = BtlUtil_WrapAngle(atan2f(d.x, d.z) - chr->camYaw);
         }
         arg.unk20 = __builtin_fabsf(angle) / 3.14159265f * 0.5f + 0.3f;
-        arg.unk2C = -20.0f - Vec3_Length(&init.pos) * 0.1f;
+        arg.unk2C = -20.0f - Vec3_Length(&d) * 0.1f;
         if (arg.unk2C < -50.0f) {
             arg.unk2C = -50.0f;
         }
         EftRay_CreateByValue(&arg);
     }
 }
-#endif
-LIT4_WORD(D_002FD1E4, 0x3A83126E); /* 0.001f */
-LIT4_WORD(D_002FD1E8, 0x40490FDA); /* pi */
-LIT4_WORD(D_002FD1EC, 0x3E999999); /* 0.3f */
-LIT4_WORD(D_002FD1F0, 0x3DCCCCCC); /* 0.1f */
-INCLUDE_ASM("asm/nonmatchings/battle/btl_char_fx", BtlFx_SpawnSpeedLines);
 
 /*
  * Fighter effect requests, part 2: 0x1D0B60..0x1D1EC8 (formerly btl_char_fx_b.c).
@@ -1309,11 +1285,11 @@ void BtlFx_UpdateObjFlag80(FxChr *chr) {
  * sideways (2) or along the hit vector by the opponent distance.
  */
 /*
- * Not matching: register allocation only. The original keeps the object in s3 and the count in s4 (here swapped),
- * spills `code` to the stack (sp + 0x70, frame 0x10 bigger) and keeps the constant 2 in fp; here `code` gets fp and
- * the constant 2 is reloaded at its two uses. Every instruction is otherwise the same, including the jump table.
+ * Matching notes: every case of the size switch has its own body (the compiler merges the identical ones after
+ * register allocation; written with shared bodies the function has fewer instructions in front of the loop, the
+ * hit count and `code` then outrank the object pointer and the hoisted constant 2 for a saved register, and the
+ * registers come out differently). The two owner stores are in the order objId2, objId.
  */
-#if 0 /* BTLFX_NONMATCHING */
 void BtlFx_FireKiBlast(FxChr *chr) {
     FxHitArg2 arg;
     Vec4 hitPos;
@@ -1330,12 +1306,12 @@ void BtlFx_FireKiBlast(FxChr *chr) {
         code = BtlObjAnim_MaskToNode(BtlObjAnim_GetEventArg(obj, 4));
         Vec4_Copy(&hitPos, &chr->hitPos);
         count = BtlKiBlast_GetHits(chr);
-        arg.code = code;
-        arg.objId = chr->objId;
         if (count <= 0) {
             count = 1;
         }
+        arg.code = code;
         arg.objId2 = chr->objId;
+        arg.objId = chr->objId;
         arg.unk16 = obj->unkA24;
         arg.type = BtlKiBlast_GetType(chr);
         arg.unk1B = BtlKiBlast_GetUnk3(chr);
@@ -1350,24 +1326,42 @@ void BtlFx_FireKiBlast(FxChr *chr) {
         arg.unk3C = (BtlKiBlast_GetFlags(chr) >> 5) & 1;
         arg.unk41 = BtlObjAnim_QueryEvent(obj, 4, 0, 3);
         switch (arg.level) {
+        case 0:
+            arg.size = 0;
+            break;
         case 1:
-        case 5:
-        case 9:
             arg.size = 1;
             break;
         case 2:
-        case 6:
-        case 10:
             arg.size = 2;
             break;
         case 3:
+            arg.size = 3;
+            break;
+        case 4:
+            arg.size = 0;
+            break;
+        case 5:
+            arg.size = 1;
+            break;
+        case 6:
+            arg.size = 2;
+            break;
         case 7:
+            arg.size = 3;
+            break;
+        case 8:
+            arg.size = 0;
+            break;
+        case 9:
+            arg.size = 1;
+            break;
+        case 10:
+            arg.size = 2;
+            break;
         case 11:
             arg.size = 3;
             break;
-        case 0:
-        case 4:
-        case 8:
         default:
             arg.size = 0;
             break;
@@ -1471,6 +1465,3 @@ void BtlFx_FireKiBlast(FxChr *chr) {
         BtlChar_SetSmallVibration(chr, 0.1f);
     }
 }
-#endif
-RODATA_ALIGN16();
-INCLUDE_ASM("asm/nonmatchings/battle/btl_char_fx", BtlFx_FireKiBlast);

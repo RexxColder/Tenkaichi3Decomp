@@ -328,10 +328,10 @@ s32 EftAim_GetDirKeep(EftHitSrc *src, EftVec *out, s32 arg, s32 objId);
 void EftMath_RotateAboutAxis(EftVec *out, EftVec *v, EftVec *axis, f32 angle);
 void EftAim_Home(EftVec *out, EftVec *pos, EftVec *dir, s32 objId, f32 speed, f32 maxTurn);
 void EftGfx_DrawPolyAvgZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 flip, u64 tex, s32 zOfs);
-void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, s32 tex, s32 z);
+void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex, s32 z);
 void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                               s32 zOfs);
-void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, s32 tex,
+void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                             f32 zScale);
 /* EftGfx_DrawSprite (0x131A20) is left in assembly; its arguments are described in eft_a.c. */
 

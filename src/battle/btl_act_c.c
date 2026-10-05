@@ -765,21 +765,12 @@ s32 BtlAct_ChargeHandler(Chr *chr, s32 phase) {
  * 0xF5 after flag 0x67. A pose change needs three frames of the new input (work[2]); releasing the guard
  * (action input 34) ends the action.
  *
- * NOT MATCHING (2 of 298 instructions): in the recoil case the original loads a1 before a2 for
- * BtlAnim_AdvanceThen (`addiu a1,v0,-1 / jal / move a2,zero`), this C the other way round. The compiler's
- * second scheduling pass orders the two by how many later instructions of the basic block depend on each; the
- * original order is what it gives when only ONE call follows in the block (see the same statement in
- * BtlAct_DashChargedKiBlastHandler, which matches), so the original source had a block boundary between the
- * two BtlChar_SetFlag calls that leaves no trace in the code. Not found.
- * Checked this pass: removing the second BtlChar_SetFlag of the recoil case gives the original order (so the
- * boundary is behind SetFlag(0x95)); `goto` into a shared SetFlag(0x41) gives the order too but leaves a second
- * copy of the head (the cross-jump pass cannot merge it: the compiler puts a dummy `(use 0)` behind a call that
- * ends a block, and that stops the comparison); three identical case bodies (0xF0 / 0xF2 / 0xF4 written out) are
- * merged completely, but only AFTER the scheduling, so the order stays wrong. The scheduler's rule: with equal
- * priority it prefers the instruction more later instructions depend on; `move a2,zero` is depended on by every
- * later call of the block (three), `addiu a1` by the call and the next a1 load (two).
+ * The recoil case tests `phase` (always 1 there) around its second BtlChar_SetFlag with the same call in both
+ * arms: the compiler merges the arms only after its second scheduling pass, and the block boundary that exists
+ * until then is what gives the original order of the two argument loads in front of BtlAnim_AdvanceThen
+ * (`addiu a1,v0,-1 / jal / move a2,zero`; with a plain second call the two come out exchanged). The original
+ * source had some such boundary behind SetFlag(0x95); what it looked like is not known.
  */
-#if 0
 s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {
     s32 *work = &chr->work[2];
     f32 blend;
@@ -818,7 +809,11 @@ s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {
             case 0xF4:
                 BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) - 1, 0, 0.0f);
                 BtlChar_SetFlag(chr, 0x95);
-                BtlChar_SetFlag(chr, 0x41);
+                if (phase) {
+                    BtlChar_SetFlag(chr, 0x41);
+                } else {
+                    BtlChar_SetFlag(chr, 0x41);
+                }
                 break;
             case 0xF5:
                 BtlAnim_AdvanceThen(chr, 0xEF, 0, 0.0f);
@@ -909,15 +904,6 @@ s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {
         }
     }
 }
-#else
-RODATA_ALIGN16();
-LIT4_WORD(D_002FD86C, 0x3E199999); /* 0.15f */
-LIT4_WORD(D_002FD870, 0x40490FDA); /* pi */
-LIT4_WORD(D_002FD874, 0x3F6D0979); /* BTL_KMH(100) */
-LIT4_WORD(D_002FD878, 0x3FED0979); /* BTL_KMH(200) */
-LIT4_WORD(D_002FD87C, 0x3E199999); /* 0.15f */
-INCLUDE_ASM("asm/nonmatchings/battle/btl_act_c", BtlAct_GuardHandler);
-#endif
 
 /* Action 0x39 (forced by flag 0x7B): animation 0xEC, then the evasion attack BtlAct_GetEvasionAttack picks. */
 s32 BtlAct_Action39(Chr *chr, s32 phase) {

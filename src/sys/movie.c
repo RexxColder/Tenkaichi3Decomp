@@ -433,6 +433,8 @@ MovieBuf *Movie_FindBuf(s32 full) {
 }
 
 /* Starts reading the next 0x100 sectors of the file into a buffer; returns the bytes requested. */
+/* Cleanup pass 2: all 120 orders of the five stores, and a `bytes` local set at any point, give exactly the same
+   code: the order comes from the scheduler alone, not from the statements. */
 #if 0
 /* 5 of 44 instructions differ, instruction order / register choice only: the original computes `n << 11` into v0
    before storing `used` (the constant 1 is in v1) and stores startSct before pos. */

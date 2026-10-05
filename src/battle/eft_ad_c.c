@@ -5,8 +5,6 @@
  * 0x1A9D90..0x1AA7E8: two camera-facing sprites written straight into the order table. This is the head of the
  * next source file (it goes on at 0x1AA7E8 with the scalar screen test both functions call); the object before it
  * ends with the out-of-line copy of an inline function at 0x1A9D38.
- * Both functions are still assembly: the attempts below were read from the disassembly and compile, but were not
- * brought to a match.
  */
 
 /* The view being drawn (include/battle/btl_cam.h). */
@@ -74,9 +72,9 @@ extern s32 EftSpr_IsOffScreen(s32 x, s32 y, s32 z);                /* 1 = outsid
 /* Queues an upright camera-facing sprite at pos: w x h (half sizes, in screen units at the reference depth,
    scaled by 4096 * view scale / depth), one colour, uv rectangle (u0, v0)-(u1, v1). Dropped when smaller than
    two units or when any corner is off screen. */
-/* Not matching: 232 of 250 instructions differ (the original is 254); not iterated. */
-#if 0
-void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec4 *pos, u32 w, u32 h, s8 ctx,
+/* r, g, b, a and ctx arrive as ints; ctx goes through an s8 local before it is widened, and the blend bit is a
+   64-bit local (abe = 1) so that 0x40 and 0x14 stay two separate ORs as in the original. */
+void EftSpr_DrawFlat(s32 r, s32 g, s32 b, s32 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec4 *pos, u32 w, u32 h, s32 ctx,
                      s32 layer, u64 *tex0) {
     EftAdScr scr;
     EftSprPkt *p;
@@ -85,6 +83,8 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     u32 k;
     s32 z;
     s32 l;
+    s8 c;
+    s64 abe = 1;
 
     if (w == 0 || h == 0) {
         return;
@@ -110,12 +110,13 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     }
     p = (EftSprPkt *)gOtCur;
     gOtCur = (u8 *)(p + 1);
-    p->prim = ((s64)ctx << 9) | 0x40 | 0x14;
+    c = ctx;
+    p->prim = ((s64)(s8)c << 9) | (abe << 6) | 0x14;
     p->dmaTag = 0x20000007;
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000007;
     p->gifTag = 0xC400000000008001;
-    p->regs = (ctx << 4) + 0xF42424242160;
+    p->regs = (s64)(c << 4) + 0xF42424242160;
     p->next = NULL;
     l = layer;
     if (l >= 2) {
@@ -127,14 +128,14 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     p->b = b;
     p->a = a;
     p->q = 1.0f;
+    p->v[0].s = u0;
+    p->v[0].t = v0;
     p->v[1].s = u0;
+    p->v[1].t = v1;
+    p->v[2].s = u1;
     p->v[2].t = v0;
     p->v[3].s = u1;
     p->v[3].t = v1;
-    p->v[0].s = u0;
-    p->v[0].t = v0;
-    p->v[1].t = v1;
-    p->v[2].s = u1;
     p->v[0].xyz.x = scr.x - w;
     p->v[0].xyz.y = scr.y - h;
     p->v[0].xyz.z = scr.z;
@@ -162,19 +163,17 @@ void EftSpr_DrawFlat(u8 r, u8 g, u8 b, u8 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec
     e->tail->next = p;
     e->tail = (EftAdCOtPrim *)p;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_c", EftSpr_DrawFlat);
 
 /* Queues a camera-facing sprite rotated by rot radians in the screen plane, centred on (x, y, z) plus an offset
    (ofsX, ofsY) in sprite units. Sizes are scaled by size * view scale / depth; the rotated corners are multiplied
    by gEftSprUvScale (y x 7/6, the pixel aspect). Dropped when smaller than two units or when any corner is off
    screen. `unused` is not read. */
-/* Not matching: 325 instructions against 407: the original has the four corners written out one by one (four
-   screen tests and four vertex blocks) where this C uses loops; not iterated. Its float constants compile to the
-   original's bits (pi, 2 pi, -pi, 2 pi at 0x2FCEF4..0x2FCF04). */
-#if 0
+/* The corner conversion reads and writes each component through the address of element 0's field plus the byte
+   offset i << 4 (matching needs this form: c[i].y gives one pointer per array with member offsets). Here r, g, b
+   and a are bytes; ctx is handled as in EftSpr_DrawFlat. Constants: pi, 2 pi, -pi, 2 pi (0x2FCEF4..0x2FCF04). */
+#define EFTSPR_ELEM(type, field0, i) (*(type *)((u8 *)(field0) + ((i) << 4)))
 void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 ofsX,
-                    s32 ofsY, u32 w, u32 h, s32 unused, u32 size, s8 ctx, s32 layer, u64 *tex0) {
+                    s32 ofsY, u32 w, u32 h, s32 unused, u32 size, s32 ctx, s32 layer, u64 *tex0) {
     EftAdScr scr;
     EftAdScr c[4];
     EftAdVec pos;
@@ -189,6 +188,8 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
     s32 i;
     s32 sz;
     s32 l;
+    s8 cc;
+    s64 abe = 1;
 
     Vec4_Set((Vec4 *)&pos, x, y, z, 1.0f);
     Mtx_ProjectPoint(&scr, &gBtlCamView->world2screen, (Vec4 *)&pos);
@@ -220,39 +221,47 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
     c[0].z = 0;
     c[0].w = 1;
     c[1].x = ox - w;
-    c[1].y = oy + h;
+    c[1].y = h + oy;
     c[1].z = 0;
     c[1].w = 1;
-    c[2].x = ox + w;
+    c[2].x = w + ox;
     c[2].y = oy - h;
     c[2].z = 0;
     c[2].w = 1;
-    c[3].x = ox + w;
-    c[3].y = oy + h;
+    c[3].x = w + ox;
+    c[3].y = h + oy;
     c[3].z = 0;
     c[3].w = 1;
     for (i = 0; i < 4; i++) {
-        f[i].x = c[i].x;
-        f[i].y = c[i].y;
-        f[i].z = c[i].z;
-        f[i].w = c[i].w;
+        EFTSPR_ELEM(f32, &f[0].x, i) = EFTSPR_ELEM(s32, &c[0].x, i);
+        EFTSPR_ELEM(f32, &f[0].y, i) = EFTSPR_ELEM(s32, &c[0].y, i);
+        EFTSPR_ELEM(f32, &f[0].z, i) = EFTSPR_ELEM(s32, &c[0].z, i);
+        EFTSPR_ELEM(f32, &f[0].w, i) = EFTSPR_ELEM(s32, &c[0].w, i);
         Mtx_MulVec4((Vec4 *)&f[i], &m, (Vec4 *)&f[i]);
         Vec4_Mul((Vec4 *)&f[i], (Vec4 *)&f[i], (Vec4 *)&gEftSprUvScale);
         Vec4_ToInt(&c[i], (Vec4 *)&f[i]);
     }
-    for (i = 0; i < 4; i++) {
-        if (EftSpr_IsOffScreen(scr.x + c[i].x, scr.y + c[i].y, scr.z)) {
-            return;
-        }
+    if (EftSpr_IsOffScreen(scr.x + c[0].x, scr.y + c[0].y, scr.z)) {
+        return;
+    }
+    if (EftSpr_IsOffScreen(scr.x + c[1].x, scr.y + c[1].y, scr.z)) {
+        return;
+    }
+    if (EftSpr_IsOffScreen(scr.x + c[2].x, scr.y + c[2].y, scr.z)) {
+        return;
+    }
+    if (EftSpr_IsOffScreen(scr.x + c[3].x, scr.y + c[3].y, scr.z)) {
+        return;
     }
     p = (EftSprPkt *)gOtCur;
     gOtCur = (u8 *)(p + 1);
-    p->prim = ((s64)ctx << 9) | 0x40 | 0x14;
+    cc = ctx;
+    p->prim = ((s64)(s8)cc << 9) | (abe << 6) | 0x14;
     p->dmaTag = 0x20000007;
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000007;
     p->gifTag = 0xC400000000008001;
-    p->regs = (ctx << 4) + 0xF42424242160;
+    p->regs = (s64)(cc << 4) + 0xF42424242160;
     p->next = NULL;
     l = layer;
     if (l >= 2) {
@@ -264,20 +273,30 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
     p->b = b;
     p->a = a;
     p->q = 1.0f;
+    p->v[0].s = u0;
+    p->v[0].t = v0;
     p->v[1].s = u0;
+    p->v[1].t = v1;
+    p->v[2].s = u1;
     p->v[2].t = v0;
     p->v[3].s = u1;
     p->v[3].t = v1;
-    p->v[0].s = u0;
-    p->v[0].t = v0;
-    p->v[1].t = v1;
-    p->v[2].s = u1;
-    for (i = 0; i < 4; i++) {
-        p->v[i].xyz.x = scr.x + c[i].x;
-        p->v[i].xyz.y = scr.y + c[i].y;
-        p->v[i].xyz.z = scr.z;
-        p->v[i].xyz.f = 0xFF;
-    }
+    p->v[0].xyz.x = scr.x + c[0].x;
+    p->v[0].xyz.y = scr.y + c[0].y;
+    p->v[0].xyz.z = scr.z;
+    p->v[0].xyz.f = 0xFF;
+    p->v[1].xyz.x = scr.x + c[1].x;
+    p->v[1].xyz.y = scr.y + c[1].y;
+    p->v[1].xyz.z = scr.z;
+    p->v[1].xyz.f = 0xFF;
+    p->v[2].xyz.x = scr.x + c[2].x;
+    p->v[2].xyz.y = scr.y + c[2].y;
+    p->v[2].xyz.z = scr.z;
+    p->v[2].xyz.f = 0xFF;
+    p->v[3].xyz.x = scr.x + c[3].x;
+    p->v[3].xyz.y = scr.y + c[3].y;
+    p->v[3].xyz.z = scr.z;
+    p->v[3].xyz.f = 0xFF;
     sz = scr.z >> 8;
     if (sz < 0) {
         e = &gOtZ[0].layer[l];
@@ -289,5 +308,3 @@ void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0,
     e->tail->next = p;
     e->tail = (EftAdCOtPrim *)p;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_c", EftSpr_DrawRot);

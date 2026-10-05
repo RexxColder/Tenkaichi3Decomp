@@ -6,7 +6,7 @@
 /*
  * Effect code, 0x147050..0x14B108. See include/battle/eft_g.h for the five pieces and their layouts.
  *
- * Eight functions are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
+ * Three functions (EftStorm_DrawBolts, EftSmoke_Draw, EftBound_BuildWall) are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs; turning
  * every `#if 0` into `#if 1` and dropping the INCLUDE_ASM lines gives a file that fdiff can compile.
  *
  * Callees that have no name yet, from a first read of how they are used here:
@@ -222,9 +222,8 @@ static inline s32 EftScr_IsValid(EftScrXyz *p) {
     s32 ok = 0;
 
     if (p->z > 0 && p->x <= 0xFFFF && p->x > 0) {
-        ok = p->y > 0;
-        if (p->y > 0xFFFF) {
-            ok = 0;
+        if (p->y <= 0xFFFF) {
+            if (p->y > 0) ok = 1; else ok = 0;
         }
     }
     return ok;
@@ -394,9 +393,9 @@ s32 EftUtil_IsScreenPosClipped(EftScrXyz *p) {
 }
 
 /* Queues one textured Gouraud triangle: screen positions, colours 0..255, texture coordinates (s, t, q). */
-#if 0 /* two instructions swapped at 0x1474A0: the original computes the new cursor (addiu t4,t8,0x80) before the `ori` halves of the two tag constants, this C after the first one. Everything else is identical. */
 void EftUtil_DrawTri(EftScrXyz *xyz0, EftScrXyz *xyz1, EftScrXyz *xyz2, f32 *col0, f32 *col1, f32 *col2,
                      f32 *st0, f32 *st1, f32 *st2, s32 layer, s32 z, u64 tex0) {
+    u64 gif1 = 0xF42142142160;
     EftTriPkt *p = (EftTriPkt *)gOtCur;
 
     gOtCur = (u32 *)(p + 1);
@@ -405,7 +404,7 @@ void EftUtil_DrawTri(EftScrXyz *xyz0, EftScrXyz *xyz1, EftScrXyz *xyz2, f32 *col
     p->prim = 0x5B;
     p->vif0 = 0x10000000;
     p->gif0 = 0xC400000000008001;
-    p->gif1 = 0xF42142142160;
+    p->gif1 = gif1;
     p->next = 0;
     p->pad = 0;
     p->v[0].rgba[0] = (u32)col0[0];
@@ -444,9 +443,6 @@ void EftUtil_DrawTri(EftScrXyz *xyz0, EftScrXyz *xyz1, EftScrXyz *xyz2, f32 *col
     p->v[2].xyz.f = 0xFF;
     EftOt_Add((OtPrim *)p, z, layer);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftUtil_DrawTri);
-#endif
 
 /* Storm init callback: allocates the work block, loads the textures (stage pack entry 14), spawns everything. */
 void EftStorm_Init(EftTask *task) {
@@ -489,57 +485,67 @@ void EftStorm_Update(void) {
     EftStorm_MoveRain();
 }
 
-/* Fills and queues one lightning sprite: a triangle strip between two projected corners, white scaled by the
-   layer brightness, alpha 128 * life / lifeMax, in the second chain of the depth slot of its z. */
-static inline void EftStorm_DrawSprite(EftStormBolt *bolt, EftScrXyz *a, EftScrXyz *b, u64 tex0, f32 col, u32 *hdr) {
-    EftStripPkt *p = (EftStripPkt *)gOtCur;
-
-    gOtCur = (u32 *)(p + 1);
-    p->prim = 0x54;
-    p->gif1 = 0xF42424242160;
-    p->vif0 = 0x10000000;
-    p->tag = hdr[0];
-    p->next = 0;
-    p->gif0 = 0xC400000000008001;
-    p->vif1 = hdr[1];
-    p->rgba[0] = (u32)col;
-    p->rgba[1] = (u32)col;
-    p->rgba[2] = (u32)col;
-    p->q = 1.0f;
-    p->rgba[3] = (bolt->life << 7) / bolt->lifeMax;
-    p->v[0].xyz.x = a->x;
-    p->v[0].xyz.y = a->y;
-    p->v[0].xyz.z = a->z;
-    p->v[0].xyz.f = 0xFF;
-    p->v[1].xyz.x = b->x;
-    p->v[1].xyz.y = a->y;
-    p->v[1].xyz.z = a->z;
-    p->v[1].xyz.f = 0xFF;
-    p->v[2].xyz.x = a->x;
-    p->v[2].xyz.y = b->y;
-    p->v[2].xyz.z = a->z;
-    p->v[2].xyz.f = 0xFF;
-    p->v[3].xyz.x = b->x;
-    p->v[3].xyz.y = b->y;
-    p->v[3].xyz.z = a->z;
-    p->v[3].xyz.f = 0xFF;
-    p->v[0].s = 0.0f;
-    p->v[0].t = 0.0f;
-    p->v[1].s = 1.0f;
-    p->v[1].t = 0.0f;
-    p->v[2].s = 0.0f;
-    p->v[2].t = 1.0f;
-    p->v[3].s = 1.0f;
-    p->v[3].t = 1.0f;
-    p->tex0 = tex0;
-    EftOt_Add((OtPrim *)p, a->z >> 8, 1);
-}
-
 /* Draws the live lightning bolts as camera-facing sprites. Four corner offsets ((-4, -1.5), (4, 8), (-8, -3),
    (8, -0) times 150) are turned by the camera's world matrix and added to the bolt position; a bolt is skipped
    when any of the four projects off screen. Kind 0 draws two sprites (textures texA and texB), kind 1 only the
    second, larger one. */
-#if 0 /* not matched (506 instructions against 636): the original writes the second sprite twice, once per value of kind, keeps the tag words on the stack and saves two registers with sq/lq around the projection calls. The logic is the same. */
+#if 0 /* not matched: 636 instructions against 636, 116 differ when aligned. Found in the second retry: the body of
+the second sprite exists twice (`if (kind != 0) { B } else { A; B }`); the two tag words are scalars that end up in
+spill slots together with work and i (sp+256 work, 260 i, 264 / 268 the tag words: declaration order work, i, tag,
+vif); the texture word is read where it is stored, after the texture coordinates, so the sprite code is a macro
+(or was written out), not a function taking the value; the packet pointer is one function-level variable filled
+through an inline allocator (that gives the `move v1,a0` copy of the first two expansions and none in the third).
+What still differs is register choice that follows from reload: the original reloads spilled pseudos into a2 where
+this C uses a1 (first Vec4_Scale: `addiu a2,sp,64 / move a0,a2 / move a1,a2`; the loop counter `lw a2,260(sp)`; the
+header constants alternate a2 / v0), the on-screen test keeps 0xFFFF in a0 and the result in a1 (here a1 / a0), and
+the original loads 0x80000000 (t0) before Vu0Cur_LoadMtx and saves it with sq / lq around that call, while
+`tag |= 7`, `vif |= 7` and `i = 3` stay in source order (here the scheduler moves them up across the calls).
+Putting the four locals in a struct (memory) keeps them in place but then they are no longer reloaded into a2. */
+/* Fills and queues one lightning sprite: a triangle strip between two projected corners, white scaled by the
+   layer brightness, alpha 128 * life / lifeMax, in the second chain of the depth slot of its z. */
+#define EFT_STORM_SPRITE(bolt, a, b, texv, col, tagv, vifv) \
+    do { \
+        p = EftOt_Alloc(sizeof(EftStripPkt)); \
+        p->gif1 = 0xF42424242160; \
+        p->vif0 = 0x10000000; \
+        p->tag = (tagv); \
+        p->next = 0; \
+        p->gif0 = 0xC400000000008001; \
+        p->vif1 = (vifv); \
+        p->prim = 0x54; \
+        p->rgba[0] = (u32)(col); \
+        p->rgba[1] = (u32)(col); \
+        p->rgba[2] = (u32)(col); \
+        p->rgba[3] = (bolt->life << 7) / bolt->lifeMax; \
+        p->q = 1.0f; \
+        p->v[0].xyz.x =  (a)->x; \
+        p->v[0].xyz.y =  (a)->y; \
+        p->v[0].xyz.z =  (a)->z; \
+        p->v[0].xyz.f = 0xFF; \
+        p->v[1].xyz.x = (b)->x; \
+        p->v[1].xyz.y =  (a)->y; \
+        p->v[1].xyz.z =  (a)->z; \
+        p->v[1].xyz.f = 0xFF; \
+        p->v[2].xyz.x =  (a)->x; \
+        p->v[2].xyz.y = (b)->y; \
+        p->v[2].xyz.z =  (a)->z; \
+        p->v[2].xyz.f = 0xFF; \
+        p->v[3].xyz.x = (b)->x; \
+        p->v[3].xyz.y = (b)->y; \
+        p->v[3].xyz.z =  (a)->z; \
+        p->v[3].xyz.f = 0xFF; \
+        p->v[0].s = 0.0f; \
+        p->v[0].t = 0.0f; \
+        p->v[1].s = 1.0f; \
+        p->v[1].t = 0.0f; \
+        p->v[2].s = 0.0f; \
+        p->v[2].t = 1.0f; \
+        p->v[3].s = 1.0f; \
+        p->v[3].t = 1.0f; \
+        p->tex0 = (texv); \
+        EftOt_Add((OtPrim *)p,  (a)->z >> 8, 1); \
+    } while (0)
+
 void EftStorm_DrawBolts(EftStormBolt *bolt) {
     Mtx44 cam;
     Vec4 corner[4];
@@ -547,7 +553,9 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
     EftScrXyz xyz[4];
     EftStorm *work = gEftStorm;
     s32 i;
-    u32 hdr[2];
+    u32 tag;
+    u32 vif;
+    EftStripPkt *p;
     f32 col;
     s32 j;
 
@@ -564,15 +572,15 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
     if (gBtlCamView != NULL) {
         Mtx_InverseRT(&cam, &gBtlCamView->view);
     }
-    hdr[0] = 0x20000000;
+    tag = 0x20000000;
     Mtx_MulVec4(&corner[0], &cam, &corner[0]);
-    hdr[1] = 0x50000000;
+    vif = 0x50000000;
     Mtx_MulVec4(&corner[1], &cam, &corner[1]);
     Mtx_MulVec4(&corner[2], &cam, &corner[2]);
     Mtx_MulVec4(&corner[3], &cam, &corner[3]);
     Vu0Cur_Push();
-    hdr[0] |= 7;
-    hdr[1] |= 7;
+    tag |= 7;
+    vif |= 7;
     Vu0Cur_LoadMtx(&gBtlCamView->screen);
     for (i = 3; i >= 0; i--, bolt++) {
         if (bolt->life == 0 || bolt->wait != 0) {
@@ -589,10 +597,12 @@ void EftStorm_DrawBolts(EftStormBolt *bolt) {
         if (j != 4) {
             continue;
         }
-        if (bolt->kind == 0) {
-            EftStorm_DrawSprite(bolt, &xyz[0], &xyz[1], work->tex.entry[bolt->texA].tex0, col, hdr);
+        if (bolt->kind != 0) {
+            EFT_STORM_SPRITE(bolt, &xyz[2], &xyz[3], work->tex.entry[bolt->texB].tex0, col, tag, vif);
+        } else {
+            EFT_STORM_SPRITE(bolt, &xyz[0], &xyz[1], work->tex.entry[bolt->texA].tex0, col, tag, vif);
+            EFT_STORM_SPRITE(bolt, &xyz[2], &xyz[3], work->tex.entry[bolt->texB].tex0, col, tag, vif);
         }
-        EftStorm_DrawSprite(bolt, &xyz[2], &xyz[3], work->tex.entry[bolt->texB].tex0, col, hdr);
     }
     Vu0Cur_Pop();
 }
@@ -622,7 +632,6 @@ void EftStorm_Reset(EftTask *task) {
 
 /* Places a bolt on the horizon (about 5000 away, 700 up) with a life of 16..31 frames; a bolt closer than 700
    to a live one is dropped. Seven or eight rand() calls. */
-#if 0 /* three instructions: the original branches around `kind = 1` (bc1f / b / li v0,1) where this C loads the 1 before the test; the rest is identical. */
 void EftStorm_SpawnBolt(EftStormBolt *bolt) {
     Vec4 d;
     f32 dist;
@@ -651,10 +660,11 @@ void EftStorm_SpawnBolt(EftStormBolt *bolt) {
     bolt->wait = 1;
     if (dist < 5000.0f) {
         r2 = 1;
+        bolt->kind = r2;
     } else {
         r2 = rand() & 1;
+        bolt->kind = r2;
     }
-    bolt->kind = r2;
     for (other = gEftStorm->bolt, i = 0; i < EFT_STORM_BOLTS; other++) {
         i++;
         if (other == bolt) {
@@ -670,9 +680,6 @@ void EftStorm_SpawnBolt(EftStormBolt *bolt) {
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftStorm_SpawnBolt);
-#endif
 
 /* Scatters the 64 rain drops in a 1023-wide cube around the origin, all falling 19.6 per frame. */
 void EftStorm_InitRain(void) {
@@ -702,7 +709,6 @@ void EftStorm_MoveRain(void) {
 }
 
 /* Queues one line per drop, from the drop to drop + streak, in the first depth slot. */
-#if 0 /* the on-screen test compiles to slt/movn instead of slt/movz, and the packet header uses other registers (the original copies the cursor before advancing it). */
 void EftStorm_DrawRainLines(EftStormDrop *drop, s32 count, Vec4 *streak) {
     EftScrXyz xyz[2];
     Vec4 pos[2];
@@ -713,7 +719,7 @@ void EftStorm_DrawRainLines(EftStormDrop *drop, s32 count, Vec4 *streak) {
         Vec4_Copy(&pos[0], &drop->pos);
         Vec4_Add(&pos[1], &drop->pos, streak);
         if (Vu0Cur_ProjectPoints(xyz, pos, 2) != 0 && EftScr_IsValid(&xyz[0]) && EftScr_IsValid(&xyz[1])) {
-        p = EftOt_Alloc(sizeof(EftLinePkt));
+        { u32 *cur = gOtCur; p = (EftLinePkt *)cur; cur += 16; gOtCur = cur; }
         p->prim = 0x41;
         p->tag = 0x20000003;
         p->vif0 = 0x10000000;
@@ -734,14 +740,10 @@ void EftStorm_DrawRainLines(EftStormDrop *drop, s32 count, Vec4 *streak) {
         p->xyz[1].y = xyz[1].y;
         p->xyz[1].z = xyz[1].z;
         p->xyz[1].f = 0xFF;
-        gOtZ[0].layer[0].tail->next = (OtPrim *)p;
-        gOtZ[0].layer[0].tail = (OtPrim *)p;
+        EftOt_Add((OtPrim *)p, 0, 0);
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftStorm_DrawRainLines);
-#endif
 
 /* Keeps the drops inside a 200-wide cube around center: a drop leaving through one face re-enters through the
    opposite one; one that leaves through the top or the bottom also gets a new random x and z (two rand()). */
@@ -926,7 +928,6 @@ void EftSmoke_Reset(void) {
 /* Emitter update callback. Not while time is stopped. With probability 1 / rate starts one free particle at
    the emitter, moving up inside a cone; then moves every live particle and damps its horizontal speed. A
    stopped emitter kills its task once no particle is left. Random: rand() once or twice, Rand_FloatRange twice. */
-#if 0 /* register use only: the original keeps the flag word in v1 and reloads it at the end of every path of the first block, this C reloads it once at the join. */
 void EftSmoke_Update(EftTask *task) {
     EftSmoke *work = task->work;
     EftSmokePart *part;
@@ -934,11 +935,13 @@ void EftSmoke_Update(EftTask *task) {
     s32 n;
     f32 x;
     f32 z;
+    u32 flags;
 
     if (BtlScene_IsTimeStopped()) {
         return;
     }
-    if (!(work->flags & 1)) {
+    flags = work->flags;
+    if (!(flags & 1)) {
         if (rand() % work->arg.rate == 0) {
             part = work->part;
             for (i = 0; i < EFT_SMOKE_PARTS; i++, part++) {
@@ -955,9 +958,9 @@ void EftSmoke_Update(EftTask *task) {
             }
         }
     }
+    part = work->part;
     if (work->flags & 1) {
         n = 0;
-        part = work->part;
         for (i = 0; i < EFT_SMOKE_PARTS; i++, part++) {
             if (part->life != 0) {
                 n++;
@@ -978,13 +981,17 @@ void EftSmoke_Update(EftTask *task) {
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftSmoke_Update);
-#endif
 
 /* Emitter draw callback: one camera-facing sprite per live particle, lit by the stage light direction (ambient
    + diffuse * max(0, n.l), n pointing from 50 above the emitter to the particle), fading over its last 50 frames. */
-#if 0 /* register allocation: the original keeps two more copies of 1.0 and 0.0 (f23, f24) for the sprite call and frames 0x100 bytes; the instructions are otherwise the same sequence. */
+#if 0 /* not matched (25 instructions when aligned, 214 against 215). The original holds 1.0 in f21 and 0.0 in f20 for
+the Vec4_Set calls in front of the loop and makes copies of them (mov.s f23,f21 / mov.s f24,f20) that the loop uses for
+part->pos.w and for the four texture coordinates of the sprite call; 128.0 is f25 and the alpha reuses f20. Assigning
+hi / lo at the top of the loop body reproduces the copies (the loop pass hoists the two sets and the second cse pass
+turns them into copies of the constants already in registers), but gcse's constant propagation then still puts the
+constants straight into f12..f15 at the call (mtc1 zero,$f12 / li.s $f14) and cse lets the three `< 0.0f` clamps use
+lo instead of a fresh 0.0. Assigning them once in front of the loop (first attempt) loses the copies altogether; any
+place later in the loop body, literal arguments, or helper variables one / zero are all further away. */
 void EftSmoke_Draw(EftTask *task) {
     Vec4 base;
     Vec4 light;
@@ -1016,14 +1023,14 @@ void EftSmoke_Draw(EftTask *task) {
     bright = EftStage_GetTintScale();
     Vu0Cur_Push();
     Vu0Cur_LoadMtx(&gBtlCamView->screen);
-    hi = 1.0f;
-    lo = 0.0f;
     BtlStage_GetLightVecB(&light);
     Vec3_Normalize(&light, &light);
     Vec4_Set(&base, work->arg.pos.x, work->arg.pos.y - 50.0f, work->arg.pos.z, 1.0f);
     Vec4_Set(&ambient, work->arg.ambient.x, work->arg.ambient.y, work->arg.ambient.z, 0.0f);
     Vec4_Set(&diffuse, work->arg.diffuse.x, work->arg.diffuse.y, work->arg.diffuse.z, 0.0f);
     for (i = 0; i < EFT_SMOKE_PARTS; i++, part++) {
+        hi = 1.0f;
+        lo = 0.0f;
         if (part->life != 0) {
             life = part->life;
             alpha = work->arg.alpha;
@@ -1061,6 +1068,7 @@ void EftSmoke_Draw(EftTask *task) {
     Vu0Cur_Pop();
 }
 #else
+LIT4_WORD(D_002FC718, 0x3F4CCCCC); /* 0.8f */
 INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftSmoke_Draw);
 #endif
 
@@ -1213,6 +1221,7 @@ void EftBound_BuildWall(EftBoundChar *work, EftBoundChar *src) {
     }
 }
 #else
+LIT4_WORD(D_002FC71C, 0x40C90FDA); /* 6.2831853f */
 INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftBound_BuildWall);
 #endif
 
@@ -1293,7 +1302,6 @@ void EftBound_DrawMesh(EftBoundMesh *mesh) {
 }
 
 /* Per-fighter init callback: reads the fighter's size and the stage's radius and heights. */
-#if 0 /* one store: the original writes wall.active (+0x30) last, after unkC; this C emits it second. */
 void EftBound_Init(EftTask *task, s32 *arg) {
     EftBoundChar *work = task->work;
     EftBoundParam *param = gEftBound->param;
@@ -1310,16 +1318,13 @@ void EftBound_Init(EftTask *task, s32 *arg) {
     work->unk8 = param->unk10 - BtlStage_GetTop();
     h = BtlStage_GetBottom();
     work->unkC = h - work->unk8;
-    work->unk850.active = 0;
     work->wall.scrollS = 0.0f;
     work->wall.scrollT = 0.0f;
     work->unk850.scrollS = 0.0f;
     work->unk850.scrollT = 0.0f;
     work->wall.active = 0;
+    work->unk850.active = 0;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_g", EftBound_Init);
-#endif
 
 /* Per-fighter term callback: nothing. */
 void EftBound_Term(void) {

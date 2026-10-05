@@ -1132,28 +1132,22 @@ void BtlAiSense_NoteOppState(AiActSide *s) {
 
 /* 1 = nothing more to sense this frame: the state has flag bit 0, or the state class is 15..17 and either
    BtlCharApi_CheckUnkCAC is 1 or fewer than 4 frames passed since it was. */
-#if 0
-/* Not matching: 8 of 48 instructions. The original fills the delay slot of the "not in class 15..17" branch from
-   its target (beqzl + move v0,zero, straight to the epilogue); this C gives beqz to the final "move v0,zero"
-   with "li v1,1" hoisted into the slot. Same instructions otherwise, same behaviour.
-   Tried without effect (all give these 8 or more): an early `if (!down) return 0;`, both nestings of the two
-   tests, `return 0` inside the `down` block, the countdown written as `<= 0`, an if / else chain, a `switch`
-   on the class (gives slti chains). The delay-slot pass takes the first instruction of the fall-through path
-   unless it believes v1 is live at the branch target or a label follows the branch; neither can be produced
-   from C forms tried here. */
+/* The class is biased by 15 before the `busy` test and compared after it. With the range test in a variable set
+   in front of `if (busy)`, the compiler's branch prediction sees only `x == 0` at the second branch (predicted
+   not taken, delay slot filled from the fall-through path); with the compare next to its branch it sees an
+   unsigned compare (no prediction, slot filled from the target: the original's `beqzl` + `move v0,zero`). */
 s32 BtlAiSense_IsBusy(AiActSide *s) {
     AiActTables8 *tbl = (AiActTables8 *)((u8 *)gBtlAi->data->tables + 8);
     s32 state = BtlCharApi_GetUnk974(s->side);
     u8 busy = tbl->stateFlags[state] & 1;
-    s32 cls = (s8)tbl->stateClass[state];
+    s32 cls = (s8)tbl->stateClass[state] - 15;
     s32 r = BtlCharApi_CheckUnkCAC(s->side);
     AiActStatus *st = &s->st;
-    s32 down = (u32)(cls - 15) < 3;
 
     if (busy) {
         return 1;
     }
-    if (down) {
+    if ((u32)cls < 3) {
         if (r == 1) {
             st->downTimer = 4;
             return 1;
@@ -1165,8 +1159,6 @@ s32 BtlAiSense_IsBusy(AiActSide *s) {
     }
     return 0;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_act", BtlAiSense_IsBusy);
 
 /* Situation bit 49: state class 6 and the bottom action is not 0x50. */
 s32 BtlAiSense_CheckBit49(AiActSide *s) {

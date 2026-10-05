@@ -710,7 +710,7 @@ void EftVolley_UpdateParts(s32 objId, EftHTask *task, EftSet *set, s32 reset) {
 }
 
 /* Instance init: clears the work, takes the shot parameters of the slot and the group's emitter set. */
-#if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. That is gcse's PRE (dump: "PRE: redundant insn ... in bb 2"); the original has PRE between the second and third test (as here) but not between the first and second, the same thing as in EftBlast_Init (eft_j.c). Compiled with -fno-gcse the first test matches and the third does not. Behaviour is identical (run against the original in an interpreter on random data: same calls, same memory). */
+#if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. That is gcse's PRE (dump: "PRE: redundant insn ... in bb 2"); the original has PRE between the second and third test (as here) but not between the first and second, the same thing as in EftBlast_Init (eft_j.c). Compiled with -fno-gcse the first test matches and the third does not. Behaviour is identical (run against the original in an interpreter on random data: same calls, same memory). Second retry: reading slot->param through a volatile lvalue in the FIRST test stops the PRE and makes EftBlast_Init match, but here it also stops the delay-slot pass from moving `move a0,s1` into the slot of the first branch (any volatile reference between an instruction and the branch blocks the move), so 3 instructions still differ (bnel with the reload in the slot against bne / move a0,s1). A reused pointer variable for one, two or all three tests, a union or array destination for the first load, an unused pure / const call between the tests and casts through s32 / long leave the 6 differences as they are. */
 void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
     EftSet *set = BtlTask_GetParent(task)->data;
     EftVolleyWork *w = task->data;
@@ -1584,7 +1584,16 @@ extern s32 EftBill_SetFront(void *obj);
 extern s32 EftBill_SetType(void *obj, s32 type);
 
 /* Type 16. */
-#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores). Everything else is identical. */
+#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores).
+Everything else is identical. Second retry (local-alloc dump): res, texA and texB are block-local quantities that
+take s0, s1, s2 in order of priority = refs / life, ties going to the one born first. Declared A then B, both live 14
+insns (A is loaded first and stored first) and A wins the tie; declared B then A, B is loaded first but stored
+last (the initialiser stores in field order), lives 15 against 13 and loses. The original gives B the first pick,
+so there B's life is the shorter one: an instruction sits between the two loads after the first scheduling pass
+(or B's store comes first). EftEmit_SpawnType18, the same statements with Vec4_Copy(&arg.dir) moved in front of
+the if / else, matches with A in s1. Tried without effect: the six orders of res / texA / texB (res in the middle
+changes the memset set-up as well, 13 instructions), a shared index or pair pointer, address temporaries,
+the pair read inside the initialiser (75), five spellings of the index sum. */
 void EftEmit_SpawnType16(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                          Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[16];
@@ -1809,7 +1818,14 @@ extern s32 EftAnimPart_SetHold(void *obj, f32 v);
 extern s32 EftAnimPart_SetFade(void *obj, f32 v);
 
 /* Type 14. */
-#if 0 /* 16 instructions, all register choices in the block that computes the resource address: the original holds EftSetDef.res in a2 and the sum in v1 (product in a3), this C the other way round. */
+#if 0 /* 16 instructions, all register choices in the block that computes the resource address: the original holds
+EftSetDef.res in a2 and the sum in v1 (product in a3), this C the other way round. Second retry (local-alloc dump):
+the quantities are {catFirst, sum} (5 refs over 9 insns), {res} (2 refs) and the product {x << 6, + x, << 3} (6 refs
+over 10 insns); the product outranks the sum by a hair (1.20 against 1.11), takes v1 and pushes the sum to a2. In
+the original the sum is allocated first, so the product lives one instruction longer there (11 gives 1.09): the
+first shift is scheduled in front of the pair index add (`sll a3,v1,6` before `addu v0,v0,s7`, the other way
+round here). Declaration order, a named index, operand order, the base added first or last, an unsigned or
+64-bit index and split multiplications all compile to the same 16 differences. */
 void EftEmit_SpawnType14(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                          Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[14];
@@ -1878,7 +1894,16 @@ extern s32 EftPtcl_SetFlag40(void *obj, s32 v);
 extern s32 EftPtcl_SetType(void *obj, s32 type);
 
 /* Type 5. */
-#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores). Everything else is identical. */
+#if 0 /* 4 instructions: texA and texB sit in s2 / s1 in the original and in s1 / s2 here (two loads, two stores).
+Everything else is identical. Second retry (local-alloc dump): res, texA and texB are block-local quantities that
+take s0, s1, s2 in order of priority = refs / life, ties going to the one born first. Declared A then B, both live 14
+insns (A is loaded first and stored first) and A wins the tie; declared B then A, B is loaded first but stored
+last (the initialiser stores in field order), lives 15 against 13 and loses. The original gives B the first pick,
+so there B's life is the shorter one: an instruction sits between the two loads after the first scheduling pass
+(or B's store comes first). EftEmit_SpawnType18, the same statements with Vec4_Copy(&arg.dir) moved in front of
+the if / else, matches with A in s1. Tried without effect: the six orders of res / texA / texB (res in the middle
+changes the memset set-up as well, 13 instructions), a shared index or pair pointer, address temporaries,
+the pair read inside the initialiser (75), five spellings of the index sum. */
 void EftEmit_SpawnType5(EftSet *set, EftSetHandles *handles, s32 flags, s32 type, s32 chr, s32 idx, Vec4 *pos,
                         Vec4 *dir, f32 size, f32 scale, f32 rate) {
     EftSetGroup *g = &set->group[5];

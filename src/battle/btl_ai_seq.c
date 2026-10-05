@@ -1014,7 +1014,13 @@ s32 BtlAiStep_Charged(BtlAiWork *ai) {
  * on it; the second pass then keeps that order and the delay slot takes the last one. The original order needs a
  * dependent of the flag in the first block at that time (one that is gone afterwards). Also tried without
  * effect: an inline helper returning the flag (`if (..) return 0; return 1;` and `!`), a copy through a second
- * variable, a result variable with one `return` at the end (25 differences). */
+ * variable, a result variable with one `return` at the end (25 differences).
+ * Second cleanup pass, also without effect: `kind - 1` and the range flag as locals in every combination, the
+ * flag computed behind the id block (then `li a1,16` is in the slot, but `lw a0` / `sltiu` / `li` come out in
+ * another order: 5 differences), the negation written at the `return` (`!in`, `in == 0`: the same 2), a dead
+ * second statement in the `if` (longer), the class chain nested the other way, an if / else with identical arms
+ * around the flag or the id block (a block boundary until the second jump pass).
+ * Behaviour: identical; the two instructions are independent (v0 against a1). */
 s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
     BtlAiSeqA *seq = SEQA(ai);
     BtlAiSeqActTable *act = AI_DATA->act;
@@ -1253,16 +1259,23 @@ s32 BtlAiStep_WaitNear2(BtlAiWork *ai) {
 
 /* Step handler 17: waits for a skill (plan.unk8) to become affordable or usable against the opponent's action. */
 #if 0
-/* Best attempt (the function comes out 4 instructions longer; compared with the branch targets masked and the
- * shift removed, about 21 instructions differ). What is right now: the last test stays a branch (the three
- * `return 1` of the nested tail share one block, so the compiler cannot turn `if (..) return 0; return 1;` into
- * slt / sltiu). What is still off: (1) the original places the common `return 0` block directly behind
- * `seq->step = 2` and the class tail LAST (falling into the epilogue); here the tail comes first and the
- * `return 0` last; (2) `flags & 0x40` goes to a second register with a branch-likely; (3) the unsigned copy of
- * cls[1] is loaded once in a delay slot (`lbu a3,17(sp)`) instead of in front of the range test. Tried: a flat
- * version with early returns (first half then loads 0 early and uses other registers), a `goto` to the tail
- * behind the `return 0`, explicit `return 0` in either half. Behaviour checked line by line against the
- * disassembly. */
+/* Best attempt: 3 of 156 instructions differ (it was 4 instructions too long). What differs now: the branch of
+ * the class range test (0x1B6524, `bnez v1` to the epilogue) has a `nop` in its delay slot in the original;
+ * here the delay-slot pass takes `ld s1,40(sp)` from the epilogue and moves that branch and the next one one
+ * instruction further. Same instructions otherwise. Behaviour checked line by line against the disassembly.
+ * What made the rest match (cleanup, second pass):
+ * - the layout: the shared `return 0` sits directly behind the stage 4 / 27 block and the class tail is the END
+ *   of the function, so the tail is not an `else`; the only form found that gives it is a `goto` over the
+ *   `return 0` (a flat version with early returns puts `move v0,zero` into the flag update, because the first
+ *   scheduling pass hoists a `return 0` of the same block);
+ * - `if (flags & 0x40) { ... }` falling into the shared `return 0` instead of `if (!(flags & 0x40)) return 0;`
+ *   (keeps v0 free for the test and gives the branch-likely);
+ * - `if (TestPoseBit80() == 0) { seq->step = 2; return 0; }`: on that path the compiler knows v0 is still the
+ *   call's 0 and drops the load, which is what the original does (`li v1,2 / b epilogue / sw`);
+ * - the unsigned copy of cls[1] is a local read in front of the `cls[1] == kind` test;
+ * - `cls[1] != 0x1C` nests the rest instead of an own `return 1`.
+ * Tried for the last slot without effect: each of the three `return 1` as a jump to the final one (8 forms),
+ * the range test joined with `||` / `&&` to its neighbours, inverted with the timer test inside. */
 s32 BtlAiStep_Unk17(BtlAiWork *ai) {
     BtlAiSeq *seq = &ai->seq;
     BtlAiPlan *plan = &ai->plan;
@@ -1275,6 +1288,7 @@ s32 BtlAiStep_Unk17(BtlAiWork *ai) {
     s8 cls[2];
     BtlAiActBody *tbl;
     s8 kind;
+    u8 uc;
 
     if (plan->unk8 == -1) {
         return 1;
@@ -1285,60 +1299,60 @@ s32 BtlAiStep_Unk17(BtlAiWork *ai) {
     cls[0] = tbl->actClass[action[0]];
     cls[1] = tbl->actClass[action[1]];
     if (busy == 0 && !(seq->flags & 0x1000)) {
-        if (!(seq->flags & 0x40)) {
-            return 0;
+        if (seq->flags & 0x40) {
+            if (p->cost[plan->unk8] > BtlSide_GetKi(ai->objId)) {
+                return 1;
+            }
+            seq->flags = (seq->flags ^ 0x800) & ~0x40;
         }
-        if (p->cost[plan->unk8] > BtlSide_GetKi(ai->objId)) {
-            return 1;
-        }
-        seq->flags = (seq->flags ^ 0x800) & ~0x40;
     } else {
         seq->flags |= 0x1000;
         if (*top == 0x3F) {
             return 1;
         }
         seq->unk58 = 0;
-        if (p->unk165[plan->unk8] == 5 && BtlChar_IsStage4Or27() != 0) {
-            if (cls[0] != 0x16) {
-                return 1;
-            }
-            seq->step = 3;
-            if (BtlCharApi_TestPoseBit80(ai->objId, 1) != 0) {
-                return 0;
-            }
-            seq->step = 2;
-        } else {
-            kind = p->unk13E[plan->unk8];
-            if (kind != 2) {
-                return 1;
-            }
-            if (cls[0] != 0x16) {
-                return 1;
-            }
-            if (cls[1] == kind) {
-                return 0;
-            }
-            if (cls[1] == 0x1C) {
-                return 1;
-            }
-            if (cls[1] != cls[0] && cls[1] != 0x17) {
-                if (cls[1] == 0x19) {
-                    return 1;
-                }
-                if (cls[1] == 0x18) {
-                    return 1;
-                }
-                if ((u32)((u8)cls[1] - 0xF) < 3) {
-                    return 1;
-                }
-                if ((s32)(rate * 100.0f) < seq->timer) {
-                    return 0;
-                }
-            }
+        if (!(p->unk165[plan->unk8] == 5 && BtlChar_IsStage4Or27() != 0)) {
+            goto tail;
+        }
+        if (cls[0] != 0x16) {
             return 1;
+        }
+        seq->step = 3;
+        if (BtlCharApi_TestPoseBit80(ai->objId, 1) == 0) {
+            seq->step = 2;
+            return 0;
         }
     }
     return 0;
+tail:
+    kind = p->unk13E[plan->unk8];
+    if (kind != 2) {
+        return 1;
+    }
+    if (cls[0] != 0x16) {
+        return 1;
+    }
+    uc = cls[1];
+    if (cls[1] == kind) {
+        return 0;
+    }
+    if (cls[1] != 0x1C) {
+        if (cls[1] != cls[0] && cls[1] != 0x17) {
+            if (cls[1] == 0x19) {
+                return 1;
+            }
+            if (cls[1] == 0x18) {
+                return 1;
+            }
+            if ((u32)(uc - 0xF) < 3) {
+                return 1;
+            }
+            if ((s32)(rate * 100.0f) < seq->timer) {
+                return 0;
+            }
+        }
+    }
+    return 1;
 }
 #endif
 INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_seq", BtlAiStep_Unk17);

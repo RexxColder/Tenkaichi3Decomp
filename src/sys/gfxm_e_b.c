@@ -300,6 +300,19 @@ s32 ObjShadow_CalcPacketWords(s32 count) {
    header the remaining differences are: the triangle pointer (original: i * 64 kept as the induction variable
    and added to `tris` per triangle) and where `li v0, 1` is scheduled. Behaviour is the same. */
 #if 0
+/* NOT MATCHING (60 of 182 aligned; 31 with the filler described below). What was learned:
+   - The three header constants of the batch loop (0x6C038000, 0x8001, 0x10000000) are hoisted by the SECOND run of
+     the loop pass when the outer loop has 128 RTL instructions or fewer at that point; this C gives 121, the
+     original must have had 129 or more (the limit drops by 3 per register already moved). Eight dead statements at
+     the end of the batch loop (`pad = 0;` in front of the loops and `pad += j; pad ^= i; pad += n; pad -= j;
+     pad ^= n; pad += i; pad -= n; pad ^= j;` behind `*p++ = 0x17000000;`) make the hoisting match exactly, so the
+     original had about eight more instructions there that leave no code: not found what (pointer copies do not
+     count, cse removes them before the loop pass).
+   - The header stores are in this order (pkt[3] first of the last five), the padding loop counts `pad = 4 - pad`
+     directly, and tag[0] is written before tag[4]: each verified against the original with the filler in place.
+   - Still open with the filler: the registers of the triangle loop (the original has the triangle base in v1, the
+     vertex pointer in a0, k in t2, the k test in t3, i * 64 in t4, j in t5; here t2 / t3 / v1 / t5 / a0 / t4).
+     Declaration order of the locals changes nothing; `tri` / vertex pointer locals make it worse. */
 s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
     u32 *p;
     f32 *f;
@@ -314,11 +327,11 @@ s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
     pkt[0] = 0x60000000;
     pkt[2] = 0x6C018000;
     pkt[4] = 0x302EC000;
+    pkt[3] = 0x8000;
     pkt[5] = 0x412;
     pkt[7] = 0x17000000;
     pkt[1] = 0;
     pkt[6] = 0;
-    pkt[3] = 0x8000;
     p = pkt + 8;
     i = 0;
     do {
@@ -374,14 +387,15 @@ s32 ObjShadow_BuildPacket(u32 *pkt, s32 count, ObjShadowTri *tris, f32 *color) {
         } while (i < count && j < 18);
         p = (u32 *)f;
         n = j * 3;
-        tag[4] = (n << 18) | 0x6C008003;
         tag[0] = n | 0x8000;
+        tag[4] = (n << 18) | 0x6C008003;
         *p++ = 0x17000000;
     } while (i < count);
     n = p - pkt;
     pad = n % 4;
     if (pad != 0) {
-        for (k = 0; k < 4 - pad; k++) {
+        pad = 4 - pad;
+        for (k = 0; k < pad; k++) {
             *p++ = 0;
         }
     }

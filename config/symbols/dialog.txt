@@ -1,8 +1,6 @@
 // --- Two-choice confirmation window (game code, 0x268248-0x269228; src/sys/dialog.c) ---
 gDialog = 0x002FF160; // size:0x4
 // The two label strings Dialog_SetCursor (still assembly) refers to; defined as named objects in dialog.c.
-gDialogLabelOnStart = 0x002F3640; // size:0xC
-gDialogLabelOffStart = 0x002F36E8; // size:0xD
 Dialog_DrawText = 0x00268248; // type:func
 Dialog_DrawTitle = 0x002684E8; // type:func
 Dialog_DrawBody = 0x00268678; // type:func

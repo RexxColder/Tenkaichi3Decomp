@@ -461,6 +461,11 @@ void BObjChainB_StepAll(BObj *obj) {
 }
 
 /* Wraps an angle into -pi..pi (one turn at most); the type A copy. */
+/* The original compiler knew this helper to be free of side effects (it was most likely `static`, which this
+   compiler marks const by itself; nothing outside this file calls it). BObjChainA_Step matches only with that:
+   a call to a const function does not flush the scheduler's list of pending memory reads, which decides the
+   order of two loads in front of the first call of each `parent != NULL` arm. */
+f32 BObjChainA_WrapAngle(f32 a) __attribute__((const));
 f32 BObjChainA_WrapAngle(f32 a) {
     if (a < -3.14159265f) {
         a += 6.2831853f;
@@ -471,18 +476,11 @@ f32 BObjChainA_WrapAngle(f32 a) {
     return a;
 }
 
-#if 0
-/* NOT MATCHING: 2 of 711 instructions, one swapped pair. In the branch `up != NULL` of the swing phases the
-   original loads up->swing[0] and then the constant (lwc1 $f12,0x34(s0) / lwc1 $f20,<1.5707963>); this C gives
-   the constant first. Both loads are independent, so the attempt is behaviourally exact; every other instruction,
-   the frame layout and the 19 constants (values and order checked against 0x2FE718..0x2FE764) agree. The
-   scheduler puts the constant first because three subtractions depend on it and one on the load; the usual
-   forms were tried (a variable for the constant, a second pointer, the branches exchanged, the parent tested
-   without the variable). The 19 constants are the end of the pool and stay in the assembly .lit4 chunk.
-   What made the rest match is the same as for BObjChainB_Step (see there), plus: `stiff` declared before `scale`
-   / `mult` (it ties with `mult` in the allocator's priority and the lower pseudo wins), the order of the spilled
-   variables' declarations (it is the order of their stack slots), `limit` read before `hingeOfs`, a variable of
-   its own for the first sum, and the variables `sum` / `t` / `k` reused as written below. */
+/* Matching notes: what made this match is the same as for BObjChainB_Step (see there), plus: `stiff` declared
+   before `scale` / `mult` (it ties with `mult` in the allocator's priority and the lower pseudo wins), the order
+   of the spilled variables' declarations (it is the order of their stack slots), `limit` read before `hingeOfs`,
+   a variable of its own for the first sum, the variables `sum` / `t` / `k` reused as written below, and
+   BObjChainA_WrapAngle known as const (see above). Emits the 19 constants at 0x2FE718..0x2FE764. */
 /* Steps one link of a type A chain and writes the node's rotation; arguments as BObjChainB_Step. */
 void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Mtx44 inv;
@@ -745,8 +743,7 @@ void BObjChainA_Step(BObj *obj, BObjLink *link, Mtx44 *parent, Mtx44 *out) {
     Quat_ToMtx(&mtx, &rot);
     Mtx_Mul(out, parent, &mtx);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/bobj_b_b", BObjChainA_Step);
+
 
 /* Builds the type A link table, like BObjChainB_Build. */
 void BObjChainA_Build(BObj *obj) {

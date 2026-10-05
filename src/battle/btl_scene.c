@@ -238,18 +238,16 @@ s32 BtlScene_GetPackEntrySize(s32 *base, s32 idx) {
 }
 
 /* Tests bit (bit - 1) of the first word of entry 1 of entry 1 of a character's pack. */
-#if 0
-/* Not matching: the original keeps the mask in $s0 (and `bit` in $s1, frame 0x20) although it is computed after
- * both calls; this computes it after the calls in $v1 (frame 0x10). Written with the mask computed first, the
- * shift is emitted before the calls. Same instructions otherwise. */
+/* Matching note: the mask has to be computed BETWEEN the two calls. It then lives across the second call (saved
+ * register), `bit` across the first, and the second scheduling pass sinks all three instructions below both
+ * calls, which is where the original has them although it uses $s0 / $s1 for them. */
 s32 BtlScene_TestCharPackBit(s32 side, s32 bit) {
-    u32 *flags = (u32 *)BtlScene_GetPackEntry(BtlScene_GetCharPackEntry(side, 1), 1);
+    s32 *pack = BtlScene_GetCharPackEntry(side, 1);
     u32 mask = 1 << (bit - 1);
+    u32 *flags = (u32 *)BtlScene_GetPackEntry(pack, 1);
 
     return (*flags & mask) != 0;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_scene", BtlScene_TestCharPackBit);
 
 /* Returns entry idx of a character's pack (0x2053B0), or NULL when the character has none. */
 s32 *BtlScene_GetCharPackEntry(s32 side, s32 idx) {
@@ -465,14 +463,19 @@ s32 BtlScene_IsEffectStopped(s32 objId, s32 kind) {
 
 /* Second per-kind test of the tasks, on the object's state (0x205DC8) and its fighter's actions. */
 #if 0
-/* Not matching: only the first switch differs. The original has one shared "result = 1" block that cases 0, 1, 3
- * and 6 branch to (bnezl/beqzl with the store in the delay slot, then `b` past it) and the default case falls out
- * of the switch with a conditional move from a register holding 1. Every ordering of the cases tried here either
- * keeps a separate store per case or turns the default's conditional move into a branch. The rest (kind 4, the
- * action test, kind 0) is identical. */
+/* Not matching (12 of 92 after alignment, 90 instructions against 92): only the tails of the first switch differ.
+ * Before delay-slot filling this C gives: case 0 `beqz v0,END / X: s2 = 1 / b END`, case 1 `bnez v0,END / b X`,
+ * cases 3 and 6 `beq -> X`: the final jump pass has cross-jumped the three `result = 1; break;` tails into the
+ * copy of case 0, whose label X then stops the "branch around one instruction" rewrite. The original shows that
+ * rewrite in BOTH case 0 and case 1 (`bnezl v0,END / li s2,1 / b END+4 / li v0,4`, and `beqzl` in case 1), so
+ * there each case still had its own unlabelled `result = 1` and the block of cases 3 / 6 was separate (its
+ * `li s2,1` went into the delay slot of `beq kind,3`, and the block then disappeared). What kept the three
+ * tails from being cross-jumped is not found. Tried: all 24 orders of the four case groups with two forms of
+ * each test, eight statement forms per case (if / break-first / ternary / ++ / |= / else forms), a goto to a
+ * shared label. The default case no longer needs the `one` variable: two plain ifs give the original's
+ * `li s0,1` (in the delay slot of the first call) and `sltu` / `movz`. Behaviour is the same as the original. */
 s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
     s32 result = 0;
-    s32 one;
 
     if (BtlCharApi_IsHidden(objId)) {
         switch (kind) {
@@ -491,10 +494,11 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
             result = 1;
             break;
         default:
-            one = 1;
-            result = BtlCharApi_IsFrozen(objId) != 0;
+            if (BtlCharApi_IsFrozen(objId)) {
+                result = 1;
+            }
             if (!BtlStage_IsReady()) {
-                result = one;
+                result = 1;
             }
             break;
         }

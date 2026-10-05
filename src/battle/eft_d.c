@@ -9,10 +9,19 @@
  * Nothing here touches the simulation: it reads vertices, the clip planes, the split-screen layout and the
  * stage tint, and writes GS packets (ordering table or direct).
  *
- * Idioms the matching functions needed (the non-matching ones are written the same way):
+ * Idioms the matching functions needed:
+ * - EftSurf_DrawTriOtEx is an inline function in the original: EftSurf_DrawPolyOtClipped (once per fan
+ *   triangle) and EftSurf_DrawTriOt contain its whole body. Here the body is the static inline
+ *   EftSurf_QueueTri and EftSurf_DrawTriOtEx is a one-line wrapper, so the out-of-line copy keeps its place
+ *   in the file (a non-static `inline` would be emitted at the end of the object). What gave it away: the
+ *   callers pass `&col[0]` of the inlined local array straight into $a0 at the first Vec4_Copy and compute
+ *   the same address again for the loop pointer, where a hand-written copy of the body shares one register
+ *   (an inlined parameter that is frame base + constant is substituted into each use);
  * - vectors on the stack are 16-byte aligned arrays (EftFVec / EftIVec), copied with 64-bit loads;
  * - GS PRIM is built in a u64 local: constant 0x1B, then the ABE bit stored through a bit-field from an
- *   `abe` variable set at the top of the function (the compiler then keeps 0x40 and 0x1B apart);
+ *   `abe` variable set at the top of the function (the compiler then keeps 0x40 and 0x1B apart). `abe` is
+ *   a u64: with an s32 the loop pass hoists the 0x40 only in its second run and it lands behind the other
+ *   loop constants in EftSurf_DrawPolyOtClipped (the other two functions do not care);
  * - XYZF2 is a bit-field struct (16 / 16 / 24 / 8); RGBA are float-to-u8 conversions;
  * - the ordering-table slot is `&gOtZ[z].layer[l]` with z clamped by an if / else if / else;
  * - the off-screen test is an inline function with the four bounds in local variables shifted at use.
@@ -153,28 +162,67 @@ typedef struct EftTriGs {
     (entry)->tail->next = (OtPrim *)(pkt);                                                                      \
     (entry)->tail = (OtPrim *)(pkt)
 
-#if 0 /* ATTEMPT: not matching (458 instructions against 447). Same statements as EftSurf_DrawTriOt inside the fan
-   loop; the stack-held loop state (count, k, passes, colour pointers) is laid out differently. */
-/* Clips a triangle against the five planes of the surface and queues the resulting polygon as a fan
-   (vertex 0, k - 1, k). Each fan triangle is drawn like EftSurf_DrawTriOt. */
-void EftSurf_DrawPolyOtClipped(EftSurfVtxD *poly, s32 unused, u64 *tex, Vec4 *fog, s32 zBias) {
-    EftIVec scr[9];
-    EftFVec st[9];
+/* Queues one fogged, textured triangle in the ordering table, from separate screen positions, colours and
+   texture coordinates; nothing is queued when the three alphas are 0 or less. With a fog alpha above 0.01 it
+   is queued twice: plain with tex[0], then with the alpha scaled by the fog and tex[1]. This is the body of
+   EftSurf_DrawTriOtEx, which the original inlines into EftSurf_DrawPolyOtClipped and EftSurf_DrawTriOt (the
+   three match only that way; see the notes at the top of the file). */
+static inline void EftSurf_QueueTri(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Vec4 *col0, Vec4 *col1, Vec4 *col2,
+                                    Vec4 *st0, Vec4 *st1, Vec4 *st2, s32 unused, s32 z, u64 *tex, Vec4 *fog, s32 count) {
     Vec4 col[6];
-    Vec4 *plane = gEftSurf->clipPlanes;
-    s32 count = 3;
-    s32 k;
-    s32 passes;
     EftTriPkt *pkt;
     s32 layer;
     s32 l;
     s32 i;
-    s32 z;
     OtEntry *entry;
-    Vec4 *c0;
-    Vec4 *c1;
-    Vec4 *c2;
-    s32 abe = 1;
+    u64 abe = 1;
+
+    if (col0->w <= 0.0f && col1->w <= 0.0f && col2->w <= 0.0f) {
+        return;
+    }
+    if (fog[0].w <= 0.01f && fog[1].w <= 0.01f && fog[2].w <= 0.01f) {
+        count = 1;
+    }
+    Vec4_Copy(&col[0], col0);
+    Vec4_Copy(&col[1], col1);
+    Vec4_Copy(&col[2], col2);
+    Vec4_Copy(&col[3], col0);
+    Vec4_Copy(&col[4], col1);
+    Vec4_Copy(&col[5], col2);
+    col[3].w *= fog[0].w;
+    col[4].w *= fog[1].w;
+    col[5].w *= fog[2].w;
+    layer = 0;
+    for (i = 0; i < count; i++) {
+        Vec4 *c = &col[i * 3];
+        u64 prim;
+
+        if (count == 1 && StgTint_IsOn(0)) {
+            continue;
+        }
+        pkt = (EftTriPkt *)gOtCur;
+        gOtCur = (u32 *)(pkt + 1);
+        EFT_SURF_FILL_PKT(pkt, c, abe, (f32 *)st0, (f32 *)st1);
+        l = layer;
+        pkt->v[2].q = st2->z;
+        if (!(layer < 2)) {
+            l = layer - 2;
+        }
+        pkt->tex0 = tex[i];
+        EFT_SURF_FILL_PKT2(pkt, (s32 *)scr0, (s32 *)scr1, (s32 *)scr2, (f32 *)st0, (f32 *)st1, (f32 *)st2);
+        EFT_SURF_QUEUE(pkt, z, l, entry);
+        layer++;
+    }
+}
+
+/* Clips a triangle against the five planes of the surface and queues the resulting polygon as a fan
+   (vertex 0, k - 1, k), each fan triangle through EftSurf_QueueTri. */
+void EftSurf_DrawPolyOtClipped(EftSurfVtxD *poly, s32 unused, u64 *tex, Vec4 *fog, s32 zBias) {
+    EftIVec scr[9];
+    EftFVec st[9];
+    Vec4 *plane = gEftSurf->clipPlanes;
+    s32 count = 3;
+    s32 k;
 
     for (k = 4; k >= 0; k--) {
         count = ClipPoly_ClipPlane(poly, plane, count);
@@ -183,53 +231,12 @@ void EftSurf_DrawPolyOtClipped(EftSurfVtxD *poly, s32 unused, u64 *tex, Vec4 *fo
     if (count != 0) {
         ClipPoly_ProjectCur(scr, st, poly, count);
         for (k = 2; k < count; k++) {
-            c0 = &poly[0].col;
-            c1 = &poly[k - 1].col;
-            c2 = &poly[k].col;
-            passes = 2;
-            z = (scr[0][2] >> 8) - zBias;
-            if (c0->w <= 0.0f && c1->w <= 0.0f && c2->w <= 0.0f) {
-                continue;
-            }
-            if (fog[0].w <= 0.01f && fog[1].w <= 0.01f && fog[2].w <= 0.01f) {
-                passes = 1;
-            }
-            Vec4_Copy(&col[0], c0);
-            Vec4_Copy(&col[1], c1);
-            Vec4_Copy(&col[2], c2);
-            Vec4_Copy(&col[3], c0);
-            Vec4_Copy(&col[4], c1);
-            Vec4_Copy(&col[5], c2);
-            col[3].w *= fog[0].w;
-            col[4].w *= fog[1].w;
-            col[5].w *= fog[2].w;
-            layer = 0;
-            for (i = 0; i < passes; i++) {
-                Vec4 *c = &col[i * 3];
-                u64 prim;
-
-                if (passes == 1 && StgTint_IsOn(0)) {
-                    continue;
-                }
-                pkt = (EftTriPkt *)gOtCur;
-                gOtCur = (u32 *)(pkt + 1);
-                EFT_SURF_FILL_PKT(pkt, c, abe, st[0], st[k - 1]);
-                l = layer;
-                pkt->v[2].q = st[k][2];
-                if (!(layer < 2)) {
-                    l = layer - 2;
-                }
-                pkt->tex0 = tex[i];
-                EFT_SURF_FILL_PKT2(pkt, scr[0], scr[k - 1], scr[k], st[0], st[k - 1], st[k]);
-                EFT_SURF_QUEUE(pkt, z, l, entry);
-                layer++;
-            }
+            EftSurf_QueueTri((EftScrPos *)scr[0], (EftScrPos *)scr[k - 1], (EftScrPos *)scr[k], &poly[0].col,
+                             &poly[k - 1].col, &poly[k].col, (Vec4 *)st[0], (Vec4 *)st[k - 1], (Vec4 *)st[k], unused,
+                             (scr[0][2] >> 8) - zBias, tex, fog, 2);
         }
     }
 }
-#endif
-LIT4_WORD(D_002FC464, 0x3C23D70A); /* 0.01f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_d", EftSurf_DrawPolyOtClipped);
 
 /* Sets colour A of the surface parameters. No caller. */
 void EftSurf_SetColorA(EftVec16 v) {
@@ -287,135 +294,36 @@ static inline s32 EftSurf_IsOffScreen(s32 *xyz) {
     return ret;
 }
 
-#if 0 /* ATTEMPT: two instructions too long (0x760 against 0x758), everything else in place. The original
-   computes sp + 0x60 (&col[0]) twice, for the first Vec4_Copy and again in the loop preheader; this keeps it in
-   $s7 from the first copy to the loop and shifts every instruction after it. */
 /* Queues one triangle unless all three vertices are off screen (no clipping). With a fog alpha above
    0.01 it is queued twice: plain with tex[0], then with the alpha scaled by the fog and tex[1]. No caller. */
 void EftSurf_DrawTriOt(EftSurfVtxD *tri, s32 unused, u64 *tex, Vec4 *fog, s32 zBias) {
     EftIVec scr[3];
     EftFVec st[3];
-    Vec4 col[6];
-    EftTriPkt *pkt;
-    s32 layer;
-    s32 l;
-    s32 i;
-    s32 z;
-    s32 count;
-    OtEntry *entry;
-    Vec4 *c0;
-    Vec4 *c1;
-    Vec4 *c2;
-    s32 abe = 1;
 
     ClipPoly_ProjectCur(scr, st, tri, 3);
     if (EftSurf_IsOffScreen(scr[0]) && EftSurf_IsOffScreen(scr[1]) && EftSurf_IsOffScreen(scr[2])) {
         return;
     }
-    c0 = &tri[0].col;
-    c1 = &tri[1].col;
-    c2 = &tri[2].col;
-    count = 2;
-    z = (scr[0][2] >> 8) - zBias;
-    if (c0->w <= 0.0f && c1->w <= 0.0f && c2->w <= 0.0f) {
-        return;
-    }
-    if (fog[0].w <= 0.01f && fog[1].w <= 0.01f && fog[2].w <= 0.01f) {
-        count = 1;
-    }
-    Vec4_Copy(&col[0], c0);
-    Vec4_Copy(&col[1], c1);
-    Vec4_Copy(&col[2], c2);
-    Vec4_Copy(&col[3], c0);
-    Vec4_Copy(&col[4], c1);
-    Vec4_Copy(&col[5], c2);
-    col[3].w *= fog[0].w;
-    col[4].w *= fog[1].w;
-    col[5].w *= fog[2].w;
-    layer = 0;
-    for (i = 0; i < count; i++) {
-        Vec4 *c = &col[i * 3];
-        u64 prim;
-
-        if (count == 1 && StgTint_IsOn(0)) {
-            continue;
-        }
-        pkt = (EftTriPkt *)gOtCur;
-        gOtCur = (u32 *)(pkt + 1);
-        EFT_SURF_FILL_PKT(pkt, c, abe, st[0], st[1]);
-        l = layer;
-        pkt->v[2].q = st[2][2];
-        if (!(layer < 2)) {
-            l = layer - 2;
-        }
-        pkt->tex0 = tex[i];
-        EFT_SURF_FILL_PKT2(pkt, scr[0], scr[1], scr[2], st[0], st[1], st[2]);
-        EFT_SURF_QUEUE(pkt, z, l, entry);
-        layer++;
-    }
+    EftSurf_QueueTri((EftScrPos *)scr[0], (EftScrPos *)scr[1], (EftScrPos *)scr[2], &tri[0].col, &tri[1].col,
+                     &tri[2].col, (Vec4 *)st[0], (Vec4 *)st[1], (Vec4 *)st[2], unused, (scr[0][2] >> 8) - zBias, tex,
+                     fog, 2);
 }
-#endif
-LIT4_WORD(D_002FC468, 0x3C23D70A); /* 0.01f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_d", EftSurf_DrawTriOt);
 
-/* Queues one triangle from separate screen positions, colours and texture coordinates. With a fog
-   alpha above 0.01 it is drawn twice: plain, then with the alpha scaled by the fog. No caller. */
+/* Queues one triangle from separate screen positions, colours and texture coordinates (the out-of-line copy
+   of EftSurf_QueueTri). No caller. */
 void EftSurf_DrawTriOtEx(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Vec4 *col0, Vec4 *col1, Vec4 *col2,
                          Vec4 *st0, Vec4 *st1, Vec4 *st2, s32 unused, s32 z, u64 *tex, Vec4 *fog, s32 count) {
-    Vec4 col[6];
-    EftTriPkt *pkt;
-    s32 layer;
-    s32 l;
-    s32 i;
-    OtEntry *entry;
-    s32 abe = 1;
-
-    if (col0->w <= 0.0f && col1->w <= 0.0f && col2->w <= 0.0f) {
-        return;
-    }
-    if (fog[0].w <= 0.01f && fog[1].w <= 0.01f && fog[2].w <= 0.01f) {
-        count = 1;
-    }
-    Vec4_Copy(&col[0], col0);
-    layer = 0;
-    Vec4_Copy(&col[1], col1);
-    i = 0;
-    Vec4_Copy(&col[2], col2);
-    Vec4_Copy(&col[3], col0);
-    Vec4_Copy(&col[4], col1);
-    Vec4_Copy(&col[5], col2);
-    col[3].w *= fog[0].w;
-    col[4].w *= fog[1].w;
-    col[5].w *= fog[2].w;
-    for (; i < count; i++) {
-        Vec4 *c = &col[i * 3];
-        u64 prim;
-
-        if (count == 1 && StgTint_IsOn(0)) {
-            continue;
-        }
-        pkt = (EftTriPkt *)gOtCur;
-        gOtCur = (u32 *)(pkt + 1);
-        EFT_SURF_FILL_PKT(pkt, c, abe, (f32 *)st0, (f32 *)st1);
-        l = layer;
-        pkt->v[2].q = st2->z;
-        if (!(layer < 2)) {
-            l = layer - 2;
-        }
-        pkt->tex0 = tex[i];
-        EFT_SURF_FILL_PKT2(pkt, (s32 *)scr0, (s32 *)scr1, (s32 *)scr2, (f32 *)st0, (f32 *)st1, (f32 *)st2);
-        EFT_SURF_QUEUE(pkt, z, l, entry);
-        layer++;
-    }
+    EftSurf_QueueTri(scr0, scr1, scr2, col0, col1, col2, st0, st1, st2, unused, z, tex, fog, count);
 }
 
-#if 0 /* ATTEMPT: two instructions short (0x3C0 against 0x3C8). The original keeps `abe` on the stack
-   and clears it with a conditional move, and loads the three fog alphas in another order; the packet part is
-   in place. */
 /* Sends one triangle of the reflecting surface at once (not through the ordering table). With a fog alpha
    above 0.01 it is drawn twice: with tex[0] in GS context 1, then with the alpha scaled by the fog and
    tex[1] in context 2. A negative `blend` turns alpha blending off. Callers: EftSurf_DrawReflectTri,
-   EftSurf_DrawReflectTriClipped. */
+   EftSurf_DrawReflectTriClipped.
+   Matching notes: the dead `blend = 0;` is required. With a second statement in the `if` the first jump pass
+   cannot turn it into a conditional move; the store is deleted as dead later and the if-conversion pass
+   (after the second CSE) makes the move, so `abe` is not folded to `blend >= 0`. `p->prim` has to be the
+   first of the header stores. */
 void EftSurf_DrawTriDirect(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Vec4 *col0, Vec4 *col1, Vec4 *col2,
                            Vec4 *st0, Vec4 *st1, Vec4 *st2, s32 blend, u64 *tex, Vec4 *fog, s32 count) {
     u64 tex0[2];
@@ -434,6 +342,7 @@ void EftSurf_DrawTriDirect(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Ve
     tex0[1] = tex[1];
     if (blend < 0) {
         abe = 0;
+        blend = 0;
     }
     Vec4_ToInt(col[0], col0);
     Vec4_ToInt(col[1], col1);
@@ -450,8 +359,8 @@ void EftSurf_DrawTriDirect(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Ve
 
         p = (EftTriGs *)Dma_BeginDirect();
         ctxt = i;
-        p->giftag[0] = 0xC400000000008001;
         p->prim = 0x1B | ((u64)abe << 6) | ((u64)ctxt << 9);
+        p->giftag[0] = 0xC400000000008001;
         p->giftag[1] = 0xF42142142160 + (ctxt << 4); /* TEX0_1 or TEX0_2 */
         p->nop = 0;
         p->v[0].r = c[0];
@@ -491,7 +400,4 @@ void EftSurf_DrawTriDirect(EftScrPos *scr0, EftScrPos *scr1, EftScrPos *scr2, Ve
         Dma_EndDirect((u64 *)(p + 1));
     }
 }
-#endif
-LIT4_WORD(D_002FC470, 0x3C23D70A); /* 0.01f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_d", EftSurf_DrawTriDirect);
 

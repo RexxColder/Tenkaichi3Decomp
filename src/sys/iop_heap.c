@@ -32,14 +32,17 @@ s32 IopHeap_GetMaxFree(void) {
 }
 
 /*
- * Queries both free sizes and drops the results (what used them, presumably a debug print, is compiled out).
- * Not matched: the original saves and restores $s0 without using it and does not tail-call; this version saves
- * only $ra and tail-calls IopHeap_GetMaxFree. The two calls and their order are the same.
+ * Queries both free sizes and drops the results (what used them, presumably a debug print of the sizes in
+ * kilobytes, is compiled out). The conditional with two dead assignments is what makes the compiler save
+ * $s0 without using it and keeps the second call from being a tail call: its branch survives until after
+ * register allocation, so `total` is given a saved register, and only then is everything deleted.
  */
-#if 0
 void IopHeap_PrintFree(void) {
     s32 total = IopHeap_GetTotalFree();
     s32 max = IopHeap_GetMaxFree();
+
+    if (total != 0) {
+        total /= 1024;
+        max /= 1024;
+    }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/iop_heap", IopHeap_PrintFree);

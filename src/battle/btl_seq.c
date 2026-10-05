@@ -378,6 +378,13 @@ void BtlText_DrawList(void *pkt, s32 x0, s32 x1, s32 y0, s32 y1, s32 mode) {
  * `y1` in s3, this C gets them the other way round (and so schedules two instructions and the epilogue restores
  * in another order). Writing the last argument as `half += 0x1B; ... -half` gives the right registers but then
  * the add is done in place (`addiu s2,s2,27` instead of `addiu t0,s2,27`). */
+/* Second cleanup pass (allocator dump): the two are ordered by floor_log2(refs) * refs / live length. `y1` has 9
+ * references over 60 instructions (0.45), `half` 6 over 42 (0.29); the original order needs `half` at 8
+ * references (which is what `half += 0x1B` adds) or `y1` at 6 or 7, with the same code. Tried without effect:
+ * `half` / `h` declared or assigned in other orders, a block-local `h` or `half` in the `over` arm, the last
+ * argument through another variable, `y1` (and `x`, `y0`) continued in new locals after the frame (33 to 56
+ * differences), the last call in both arms (not merged: 120 instructions), `do { } while (0)` around either
+ * half (the loop depth weights the references: 32 to 78 differences). */
 void BtlText_DrawScrollBar(void *pkt, s32 unused, s32 x, s32 y0, s32 y1) {
     s32 visible = 7;
     BtlTextWork *work = BtlMenu_GetWork();

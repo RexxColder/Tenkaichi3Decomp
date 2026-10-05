@@ -255,9 +255,9 @@ void GfxPost_DrawTexRect(u64 tex0, s32 x, s32 y, s32 w, s32 h, s32 fullHeight) {
     Dma_EndDirect(p);
 }
 
-#if 0
-/* NOT MATCHING: 33 of 136 instructions differ, all from one thing: the original keeps the strips' start x (0) in a register and computes `x << 4` in front of the loop (`move v1,zero / sll v1,v1,4 / addiu a1,v1,0x7000 / addiu a0,v1,0x7200`); here the compiler folds it to two constants, so the loop set-up is two instructions shorter and everything after is shifted. The loop body and the packet are the same. */
-/* Draws a blended untextured rectangle over the whole screen (16 strips), depth writes off; colour from four floats. */
+/* Draws a blended untextured rectangle over the whole screen (16 strips), depth writes off; colour from four floats.
+   `x` has to be a second induction variable (not `i * 32`): the compiler then builds the strips' start values from
+   its initial value at run time (`move v1,zero / sll v1,v1,4`) instead of folding them. */
 void GfxPost_DrawTintRect(u64 alpha, Vec4 *color) {
     u64 *p;
     u64 *tag;
@@ -289,17 +289,16 @@ void GfxPost_DrawTintRect(u64 alpha, Vec4 *color) {
     tag = p;
     p += 2;
     for (i = 0; i < 16; i++) {
-        p[0] = (s64)((x << 4) + (i * 32 << 4) + GFX_OFX) | 0x72000000;
-        p[1] = (s64)((x << 4) + ((i * 32 + 32) << 4) + GFX_OFX) | 0x8E000000;
+        p[0] = (s64)((x << 4) + GFX_OFX) | 0x72000000;
+        p[1] = (s64)(((x + 32) << 4) + GFX_OFX) | 0x8E000000;
         p += 2;
+        x += 32;
     }
     tag[0] = GIF_TAG_EX(16, 1, GIF_FLG_REGLIST, 2);
     tag[1] = 0x55;
     Dma_EndDirect(p);
     Dma_AddZbuf(GFX_ZBP, 0);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxPost_DrawTintRect);
 
 /* Clears the flare table and its trailing words. */
 void GfxLens_Init(void) {
@@ -440,6 +439,13 @@ void GfxLens_DrawOne(IVec4 *pt, s32 split, s32 side, u32 rgba, s32 blend) {
     Dma_EndDirect(p);
 }
 
+/* Cleanup pass 2: why the store address is strength-reduced here (loop dump): gcse replaces the third `i * 16` of
+   the body (the one for pos[i].w, behind the join of the two Vec4_Scale arms) by a copy of a register that is set
+   in both arms; the loop pass then cannot see that copy as an induction variable and falls back on its REG_EQUAL
+   note, `i * 16` as a multiplication (cost 12), which makes the address worth a pointer of its own. In the
+   original the address was the cheap `base + i * 16` (not reduced). `Vec4 pos[7]` with `pos[i].w`, casts, a flat
+   float index and byte arithmetic all give the same 10 aligned differences; up to five more instructions in the
+   loop do not change the decision either. */
 #if 0
 /* NOT MATCHING: 15 of 240 instructions differ, in the first inner loop only: the original addresses `pos[i].w` as (sp + 0xBC) + i * 16 with the same index register as `offs[i]` (`addu v0,s4,s1 / swc1 f23,0(v0)`), here the compiler walks a second pointer (`swc1 f23,0(s4) / addiu s4,s4,16`). */
 /* True when a lens is in front of the camera and its box (points 0 and 3) touches the 512x448 screen. */
@@ -529,7 +535,15 @@ INCLUDE_RODATA("asm/nonmatchings/sys/gfxm_b", gGfxLensCornerOfs);
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxLens_DrawAll);
 
 #if 0
-/* NOT MATCHING: about 230 of 299 instructions differ (register allocation and the induction variables of the strip loop: the original keeps `u`, `u + 32`, the destination x of the left edge and two copies of the right edge as five separate counters and saves s0-s7; here four counters and s0-s6). Same packet. */
+/* NOT MATCHING: 25 of 306 instructions (aligned) differ, down from about 130. What the strip loop needs, found
+   from the loop pass's dump: `col` and `x` are two variables; `u` exists only in the two later arms; the first
+   strip's right edge is `x + i * 32 + 32` written out (its own induction variable); the Y halves are
+   `(0x78 + i) << 8` and `(0x79 + i) << 8` (two expressions that do not share `i * 0x100`); the scissor arms each
+   store both words. Still different: (1) in the first strip's arm the original computes the Y word before the
+   `| 0x1C000000` of the X word and stores word 1 before word 0 (which lets the tail merge with the general arm:
+   306 instructions against 310); (2) the last three register writes: the original loads GS_ZBUF_1 (78) into v0
+   before the previous pair's second store, so the ZBUF value goes to a0, and computes the return value last.
+   Both are scheduling order; statement order of the pairs and `return p + 2` change nothing. Same packet. */
 /* Writes the packet that copies the screen (or one half of a split screen) into the 256x256 buffer at page 0x150,
    as 16 strips, and then restores the frame, offset and scissor. Returns the end of the packet. */
 u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
@@ -537,6 +551,7 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
     s32 u;
     s32 sh;
     s32 x;
+    s32 col;
 
     p[0] = GIF_TAG(13, 1, 1);
     p[1] = GIF_REG_AD;
@@ -601,44 +616,46 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
     p[0] = GFX_RGBAQ_NEUTRAL;
     p[1] = GS_RGBAQ;
     p += 2;
-    x = 0;
+    col = 0;
     sh = 4;
     if (split != 0) {
-        x = side == 1 ? 16 : 0;
+        col = side == 1 ? 16 : 0;
         sh = 3;
     }
-    x <<= 5;
+    x = col << 5;
     p[0] = GIF_TAG_EX(16, 1, GIF_FLG_REGLIST, 4);
     p[1] = 0x5353;
     p += 2;
     for (i = 0; i < 16; i++) {
-        u = x + i * 32;
         if (i == 0) {
             if (side == 1) {
                 p[0] = (x + 3) << sh;
-                p[1] = (0x7800 + i * 0x100) | 0x78000000;
+                p[1] = ((0x78 + i) << 8) | 0x78000000;
             } else {
                 p[0] = x << sh;
-                p[1] = (0x7800 + i * 0x100) | 0x78000000;
+                p[1] = ((0x78 + i) << 8) | 0x78000000;
             }
             p += 2;
-            p[0] = ((u + 32) << sh) | 0x1C000000;
-            p[1] = (u64)(0x7900 + i * 0x100) | 0x88000000;
-            p += 2;
-        } else if (i == 15) {
-            p[0] = u << sh;
-            p[1] = (0x7800 + i * 0x100) | 0x78000000;
-            p += 2;
-            p[0] = ((u + 31) << sh) | 0x1C000000;
-            p[1] = (u64)(0x7900 + i * 0x100) | 0x88000000;
+            p[0] = ((x + i * 32 + 32) << sh) | 0x1C000000;
+            p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
             p += 2;
         } else {
-            p[0] = u << sh;
-            p[1] = (0x7800 + i * 0x100) | 0x78000000;
-            p += 2;
-            p[0] = ((u + 32) << sh) | 0x1C000000;
-            p[1] = (u64)(0x7900 + i * 0x100) | 0x88000000;
-            p += 2;
+            u = x + i * 32;
+            if (i == 15) {
+                p[0] = u << sh;
+                p[1] = ((0x78 + i) << 8) | 0x78000000;
+                p += 2;
+                p[0] = ((u + 31) << sh) | 0x1C000000;
+                p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
+                p += 2;
+            } else {
+                p[0] = u << sh;
+                p[1] = ((0x78 + i) << 8) | 0x78000000;
+                p += 2;
+                p[0] = ((u + 32) << sh) | 0x1C000000;
+                p[1] = (u64)((0x79 + i) << 8) | 0x88000000;
+                p += 2;
+            }
         }
     }
     p[0] = GIF_TAG(6, 1, 1);
@@ -653,13 +670,15 @@ u64 *GfxLens_PutCapture(u64 *p, s32 split, s32 side) {
     if (split != 0) {
         if (side == 0) {
             p[0] = GS_SET_SCISSOR(0, 256, 0, 447);
+            p[1] = GS_SCISSOR_1;
         } else {
             p[0] = GS_SET_SCISSOR(256, 511, 0, 447);
+            p[1] = GS_SCISSOR_1;
         }
     } else {
         p[0] = GS_SET_SCISSOR(0, 511, 0, 447);
+        p[1] = GS_SCISSOR_1;
     }
-    p[1] = GS_SCISSOR_1;
     p += 2;
     p[0] = 0x70000;
     p[1] = GS_TEST_1;
@@ -843,7 +862,7 @@ void GfxWater_LoadStageColor(void) {
     }
 }
 
-#if 0
+ASM_STUB_BEGIN(); /* compiled so that GfxWater_Draw sees the definition (it decides a branch-likely there); the assembler skips it */
 /* NOT MATCHING: about 508 of 640 instructions differ: the original keeps nine of the locals on the stack (sp+0x1E0..0x234) and twelve floats in f20-f31; the attempt has the same operations and the same ten .lit4 constants (bits compared) but a different allocation throughout. */
 /* Draws the underwater wobble for one view: advances the view's two phases, builds a 6 x N grid of texel positions
    pushed around two wave centres, copies the view into the half-height buffer at page 0x150 and draws it back over
@@ -1052,15 +1071,13 @@ void GfxWater_DrawView(s32 split, s32 view) {
     p += 2;
     Dma_EndDirect(p);
 }
-#endif
+ASM_STUB_END();
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxWater_DrawView);
 
-#if 0
-/* NOT MATCHING: the split-screen loop differs by one hoisted address: here `&level` is kept in s5 across the loop (frame 0x90), the original recomputes `addiu a0,sp,0x40` in each call's delay slot (frame 0x80). Everything else is the same. */
 /* Draws the underwater wobble for every view whose camera is below the stage's water level. */
 void GfxWater_Draw(void) {
     Mtx44 cam;
-    Vec4 level;
+    f32 level;
     s32 views = 1;
     s32 split = 0;
     s32 i;
@@ -1077,25 +1094,23 @@ void GfxWater_Draw(void) {
         for (i = 0; i < views; i++) {
             GfxLensCam *c = gBtlCam;
 
-            if (BtlStage_GetWaterLevel(&level.x)) {
+            if (BtlStage_GetWaterLevel(&level)) {
                 Mtx_InverseRT(&cam, &c->views[i].mtx40);
-                if (level.x < cam.m[3][1]) {
+                if (level < cam.m[3][1]) {
                     GfxWater_DrawView(split, i);
                 }
             }
         }
     } else {
         v = gBtlCamView;
-        if (BtlStage_GetWaterLevel(&level.x)) {
+        if (BtlStage_GetWaterLevel(&level)) {
             Mtx_InverseRT(&cam, &v->mtx40);
-            if (level.x < cam.m[3][1]) {
+            if (level < cam.m[3][1]) {
                 GfxWater_DrawView(split, 0);
             }
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxWater_Draw);
 
 /* Sets the tint of a view's underwater wobble. */
 void GfxWater_SetColor(s32 view, u8 r, u8 g, u8 b, s32 a) {
@@ -1116,10 +1131,10 @@ void GfxDepthFog_BuildClut(u8 *clut) {
     }
 }
 
-#if 0
-/* NOT MATCHING: 87 of 191 instructions differ, register allocation only: the original keeps the two strip steps (16) in s7 and fp and reloads the strip width 8 as a constant, here one register holds the step and one the width. */
 /* Moves the upper 16 bits of every pixel of the 32-bit buffer at block `tbp` into the top two bits of page `fbp`
-   seen as a 16-bit buffer: 32 sprites of 8 x `h` shifted right by 8 pixels, write mask 0x3FFF. */
+   seen as a 16-bit buffer: 32 sprites of 8 x `h` shifted right by 8 pixels, write mask 0x3FFF.
+   `w` and `tw` are two variables (both 8) and `u` is computed in front of the call: that gives the two strip
+   counters their own step registers (s7, fp) in the original's order. */
 void GfxPost_ShiftHighWord(s32 fbp, s32 tbp, s32 h) {
     GfxQuad q;
     u64 *p;
@@ -1170,7 +1185,9 @@ void GfxPost_ShiftHighWord(s32 fbp, s32 tbp, s32 h) {
     n = 512 / w;
     p += 2;
     for (i = 0; i < n; i += 2) {
-        GfxPostQuad_Set(&q, 0x700, 0x720, i * tw, 0, i * tw + 8, h, (i + 1) * tw, 0, tw, h, 0);
+        s32 u = (i + 1) * tw;
+
+        GfxPostQuad_Set(&q, 0x700, 0x720, i * w, 0, i * w + 8, h, u, 0, tw, h, 0);
         p[0] = (s64)q.u0 | ((s64)q.v0 << 16);
         p[1] = (s64)q.x0 | ((s64)q.y0 << 16);
         p += 2;
@@ -1191,8 +1208,6 @@ void GfxPost_ShiftHighWord(s32 fbp, s32 tbp, s32 h) {
     p += 2;
     Dma_EndDirect(p);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b", GfxPost_ShiftHighWord);
 
 /* Builds the depth fog's CLUT work: the upload packet for block `cbp` and the alpha ramp. */
 void GfxDepthFog_Init(u16 cbp) {

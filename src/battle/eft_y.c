@@ -408,42 +408,39 @@ void EftQuad_ListAppend(EftQuad **head, EftQuad **tail, EftQuad *q) {
 }
 
 /* Unlinks a quad. Its own links are left alone, so a walk can still step to the next one. */
-/* NON-MATCHING: 3 of 25 instructions differ: in the last branch the original keeps `next` in a0 where this C gives a2
-   (register choice only; same operations in the same order). */
-#if 0
-void EftQuad_ListRemove(EftQuad **head, EftQuad **tail, EftQuad *q) {
+void EftQuad_ListRemove(EftQuad **head, EftQuad **tail, EftQuad *p) {
     EftQuad *prev;
-    EftQuad *next;
+    EftQuad *a; /* one variable for the list head and later for a neighbour: needed for the registers */
+    EftQuad *b;
 
-    if (*head == NULL) {
+    a = *head;
+    if (a == NULL) {
         return;
     }
-    prev = q->prev;
+    prev = p->prev;
     if (prev == NULL) {
-        q = q->next;
-        if (q == NULL) {
+        p = p->next;
+        if (p == NULL) {
             *head = NULL;
             *tail = NULL;
         } else {
-            *head = q;
-            q->prev = NULL;
+            *head = p;
+            p->prev = NULL;
         }
     } else {
-        next = q->next;
-        if (next == NULL) {
+        a = p->next;
+        if (a == NULL) {
             *tail = prev;
             prev->next = NULL;
         } else {
-            q = next;
-            next = prev;
-            q->prev = next;
-            next->next = q;
+            b = a;
+            a = prev;
+            b->prev = a;
+            a->next = b;
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_y", EftQuad_ListRemove);
-#endif
+
 
 /* Key animation of the emitter's parameters. At age 0 it sets the two leg lengths and takes the differences key 1
    - key 0; when the age passes the first leg it takes key 2 - key 1 (once). */
@@ -606,10 +603,6 @@ void EftQuad_Animate(EftYTask *task) {
 /* Queues one quad as a textured strip: projects the four corners with their texture coordinates, and links a
    0x90-byte packet into the order table slot of the average depth. Dropped when the projection rejects it.
    `flip` (the emitter's "view only" flag) forces the depth written to the vertices to the nearest value. */
-/* NON-MATCHING: 26 of 271 instructions differ, all in the 27 instructions that build the packet header: the same
-   operations with other temporary registers (the original holds the context bit in a1 and PRIM in v0, this C v0 and
-   v1) and so in another order. Everything before and after is identical. */
-#if 0
 void EftQuad_DrawSprite(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color, s32 layer, s32 texIdx, s32 flip,
                         EftYTex8 *tex) {
     EftYVec st[4];
@@ -632,12 +625,12 @@ void EftQuad_DrawSprite(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color
         gOtCur = (u32 *)(p + 1);
         if (p != NULL) {
             ctx = layer >= 2;
-            p->prim = ((u64)ctx << 9) | ((u64)abe << 6) | 0x1C;
+            p->prim = ((u64)abe << 6) | ((u64)ctx << 9) | 0x1C;
             p->dmaTag = 0x20000008;
             p->vif0 = 0x10000000;
             p->vif1 = 0x50000008;
             p->gifTag = 0xE400000000008001;
-            p->regs = ((u64)ctx << 4) + 0x42142142142160;
+            p->regs = 0x42142142142160 + (ctx << 4);
             p->next = NULL;
             z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
             if (flip) {
@@ -705,9 +698,7 @@ void EftQuad_DrawSprite(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_y", EftQuad_DrawSprite);
-#endif
+
 
 /* Draws one quad as two triangles (corners 0-1-2 and 1-2-3) through the clipping polygon drawer. */
 void EftQuad_DrawFacing(EftYVec *corner, EftYVec uv0, EftYVec uv1, EftYVec color, s32 layer, s32 texIdx, s32 arg6,

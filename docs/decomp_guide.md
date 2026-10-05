@@ -604,3 +604,23 @@ Tools
 - Open: chains of register copies in front of a run of stores (`move a3,v1 / move a2,a3`,
   `Ot_Reset`, `StgPanBlur_UpdateView`): cse making each statement's address temporary the
   canonical one; one link reproduced, not a whole chain.
+- ELEMENT TYPE OF A LOCAL ARRAY: `s32 a[N][4]; a[i][2]` compiles to base + (i*16 + 8); a
+  4-aligned struct element (`a[i].z`) to (base + 8, own register) + i*16, which also changes
+  which induction pointers the loop pass makes. Likewise `s32 t[40]` indexed `i*2` gets a
+  walking pointer where an array of pairs does not. Try this FIRST when the original indexes
+  and the attempt walks a pointer or the reverse (seven functions fell to it).
+- Order of plain stores: among stores ready together the first scheduling pass emits those
+  whose source register dies there first, in source order, then the rest in source order. So
+  plain field-order source produces the "scrambled" original order; do not hand-place
+  statements. For packet headers a hill-climb over statement order works
+  (build/scratch_cleanup2_A/search.py).
+- Parameter order between float and integer parameters changes the order the incoming
+  registers are copied (which saved float register each gets), not the registers.
+- A counted loop is reversed in every structured form unless a value computed from the
+  counter is used after the increment or the loop has a second exit; a count-up loop with
+  separate walking pointers was only reproduced with a backward `goto`
+  (`EftWater_DrawSprayQuad`, commented in the source).
+- A caller that computes `sp + K` straight into `$a0` twice where hand-written code would
+  share a saved register: the body is an inline function (`static inline EftSurf_QueueTri`).
+- A late conditional move (`lw / slti / movn / sw`): a second, dead statement in the `if`.
+- A `{0, 0, 0, 1}` local initialiser compiles to memset plus stores.

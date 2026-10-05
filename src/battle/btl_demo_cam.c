@@ -138,6 +138,11 @@ void DemoCam_SetAnim(DemoCamAnim *anim) {
 /* 11 of 384 instructions differ, all in the fixed-pose branch: the registers holding &pos and &rot are swapped
  * ($s0 / $s1). The animation branch, the frame layout and every call match. (Routing the tail through a shared
  * `Vec4 *eye` fixes that swap but swaps the registers of from/to/hit in the collision part instead.) */
+/* Second cleanup pass (allocator dump): both addresses live in one basic block and tie exactly in the local
+ * allocator's priority (&pos 5 references over 120 instructions, &rot 4 over 96: 2 * 5 / 120 = 2 * 4 / 96); the
+ * original has &pos first, so one instruction more or less at that stage decides it. Tried without effect: the
+ * offset additions of rot in front of those of pos (29 differences), `rot.w` / `pos.w` set behind the next
+ * call (15, 16). */
 s32 DemoCam_Update(void) {
     if (gDemoCam->fixed != 0) {
         Vec4 posOfs;

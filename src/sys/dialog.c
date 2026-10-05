@@ -18,8 +18,6 @@ typedef struct DialogResHdr {
 } DialogResHdr;
 
 extern DialogProgress *gProgress;
-extern const char gDialogLabelOnStart[];
-extern const char gDialogLabelOffStart[];
 
 /* The one window; NULL while none exists. Defined here: it is this object's .sdata (0x2FF160). */
 Dialog *gDialog = NULL;
@@ -276,9 +274,6 @@ void Dialog_Term(void) {
     }
 }
 
-/* The two cursor-plate labels are named objects, defined where the original's string pool has them (first use), only
- * because Dialog_SetCursor is still assembly and refers to them by symbol. Once it matches they can be literals again. */
-const char gDialogLabelOnStart[] __attribute__((aligned(8))) = "fl_on_start";
 
 /* Per frame: advances the animation, shows / hides the choice plates, prints the texts and draws the window. */
 void Dialog_Draw(s32 visible) {
@@ -294,7 +289,7 @@ void Dialog_Draw(s32 visible) {
         gDialog->flags |= DIALOG_FLAG_CLOSED;
     }
     if (!(gDialog->flags & DIALOG_FLAG_CURSOR_ON) && (gDialog->flash[0].flags & 2)) {
-        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
+        Dialog_PlayCursorPlate(0, "fl_on_start");
         gDialog->flags |= DIALOG_FLAG_CURSOR_ON;
     }
     flash = gDialog->flash;
@@ -380,7 +375,6 @@ void Dialog_Start(s32 cmd) {
     }
 }
 
-const char gDialogLabelOffStart[] __attribute__((aligned(8))) = "fl_off_start";
 
 /*
  * Reads the operating controller: game-button repeat bits 1 / 2 move the cursor (wrapping, SE 0),
@@ -400,20 +394,20 @@ s32 Dialog_Input(s32 allowCancel) {
         return 0;
     }
     if (gPad[gDialog->port].gameRepeat & 1) {
-        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
+        Dialog_PlayCursorPlate(0, "fl_off_start");
         gDialog->cursor--;
         if (gDialog->cursor < 0) {
             gDialog->cursor = 1;
         }
-        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
+        Dialog_PlayCursorPlate(0, "fl_on_start");
         Snd_PlaySe(1, 0);
     } else if (gPad[gDialog->port].gameRepeat & 2) {
-        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
+        Dialog_PlayCursorPlate(0, "fl_off_start");
         gDialog->cursor++;
         if (gDialog->cursor >= 2) {
             gDialog->cursor = 0;
         }
-        Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
+        Dialog_PlayCursorPlate(0, "fl_on_start");
         Snd_PlaySe(1, 0);
     } else if (gPad[gDialog->port].gamePressed & 0x200) {
         switch (gDialog->cursor) {
@@ -430,7 +424,7 @@ s32 Dialog_Input(s32 allowCancel) {
         Snd_PlaySe(1, 1);
     } else if (gPad[gDialog->port].gamePressed & 0x400) {
         if (allowCancel != 0) {
-            Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
+            Dialog_PlayCursorPlate(0, "fl_off_start");
             result = DIALOG_RESULT_CANCEL;
             Snd_PlaySe(1, 2);
         }
@@ -473,22 +467,24 @@ void Dialog_SetTitle(s32 idx) {
  * other choice its plate plays fl_off_start first; then cursor = defCursor = choice and the plate plays
  * fl_on_start.
  *
- * NON-MATCHING: 7 of 22 instructions, registers only (same instructions, order and branches). The
- * original keeps gDialog in v1, `choice ^ 1` in v0 and the old cursor in a1; this compiles to a2 / v1 / v0.
- * Tried without effect: operands swapped, locals for either or both values (any declaration order),
- * `register`, a local Dialog pointer, comma / goto / inverted forms of the test, an unused second
- * parameter, separate stores (those also add a reload of gDialog between the two stores).
+ * The `else if` is dead code and is what makes this match: its body is deleted as dead, but the empty branch
+ * survives until after register allocation, so the old cursor is live in two blocks and is allocated after
+ * gDialog (gDialog in v1, the old cursor in a1). What the original had there is unknown (something compiled
+ * out); only a body the early jump pass cannot remove works, such as a signed division by a power of two of
+ * a variable that is used elsewhere. The comparison with defCursor is one of several that give the right
+ * allocation priority, not something the code shows.
  */
-#if 0
 void Dialog_SetCursor(s32 choice) {
-    if (gDialog->cursor == (choice ^ 1)) {
-        Dialog_PlayCursorPlate(0, gDialogLabelOffStart);
+    s32 old = gDialog->cursor;
+
+    if (old == (choice ^ 1)) {
+        Dialog_PlayCursorPlate(0, "fl_off_start");
+    } else if (old != gDialog->defCursor) {
+        old /= 2;
     }
     gDialog->cursor = gDialog->defCursor = choice;
-    Dialog_PlayCursorPlate(0, gDialogLabelOnStart);
+    Dialog_PlayCursorPlate(0, "fl_on_start");
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/dialog", Dialog_SetCursor);
 
 /* 1 once the close animation has finished. */
 s32 Dialog_IsClosed(void) {

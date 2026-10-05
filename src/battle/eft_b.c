@@ -12,10 +12,11 @@
  * camera is under water draws one rand() per frame plus five per bubble it spawns, and nothing in split-screen
  * (EftBubble_UpdateAmbient). rand() is shared with the rest of the game.
  *
- * Six functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftPrim_DrawBillboard,
- * EftPrim_DrawQuadDepthScaled, EftPrim_DrawTriangle, EftBubble_EmitBody, EftBubble_Add, EftGeyser_DrawColumn.
+ * Three functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftPrim_DrawBillboard,
+ * EftPrim_DrawTriangle, EftGeyser_DrawColumn.
  * With every attempt enabled the file's .lit4 (0x2FC368..0x2FC400) and .rodata (0x2EC620..0x2EC720) come out
- * identical to the original; as shipped, the C emits .lit4 0x2FC398..0x2FC3FC and the jump table at 0x2EC6C0.
+ * identical to the original; as shipped, the C emits .lit4 0x2FC370..0x2FC3FC (EftBubble_EmitBody's ten constants
+ * come first), the bone table at 0x2EC620 and the jump table at 0x2EC6C0.
  */
 
 /* ---- local views of other modules ---- */
@@ -289,9 +290,19 @@ typedef struct EftBStripPkt {
    (scaled by the perspective of pos), rot turns it about the view axis, zScale scales its depth slot. Dropped when
    smaller than 2 pixels or when any corner leaves the GS drawing area. Sets pos->w to 1. */
 #if 0
-/* NON-MATCHING: about 50 instructions differ, all register allocation and scheduling of the corner
-   coordinates and the UV stores (the original keeps u0 / v0 in f27 / f28 and the first corner in t0 / t2); same
-   length, same operations. No caller in the executable. */
+/* NON-MATCHING: 27 instructions differ (was 51), same length, same operations. No caller in the executable.
+   Second pass: the corner coordinates are computed in plain order (x0, y0, x1, y1, x2, y2, x3, y3, then the
+   depth), declared in that order with the depth after y0, and the UV / fog / TEX0 stores are in plain source order
+   (st0.s .. st3.t, xyz0.f .. xyz3.f, tex0): the four offsets now load into a1, a2, a3, a0 and the stores come out
+   in the original's order (the scheduler emits the last use of each value first). Left:
+   - u0 / v0 are in f28 / f27 here and f27 / f28 in the original: u0's life is one instruction longer than v0's at
+     register allocation (its copy from $f14 is scheduled two instructions before v0's, it dies one before). No
+     order of the parameters changes that (41 tried; for EftPrim_DrawQuadDepthScaled that was the fix).
+   - the depth is in t0 and the first corner in t2 / t4 here; the original has the corner in t0 / t2 and the depth
+     in t4 (the depth's life is the shorter one here). Every position of `zz = scr.z` was tried.
+   - the header constants: the original loads 0x10000000 (vif0) last and reuses a0 three times; here it is loaded
+     early and holds a0 (the same difference as in EftPrim_DrawTriangle). A hill-climb over the header stores
+     reaches 25 with prim, dmaTag, vif0, vif1, regs, gifTag, next. */
 void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 tex0, f32 w, f32 h, f32 u0, f32 v0,
                            f32 u1, f32 v1, f32 rot, f32 zScale) {
     Mtx44 m;
@@ -305,9 +316,8 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     s32 sw;
     s32 sh;
     s32 z;
-    s32 zz;
     s32 oz;
-    s32 x0, y0, x1, y1, x2, y2, x3, y3;
+    s32 x0, y0, zz, x1, y1, x2, y2, x3, y3;
     s32 abe = 1;
     s32 ctx;
     s32 l;
@@ -360,12 +370,12 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     x0 = scr.x - ia.x;
     y0 = scr.y - ia.y;
     x1 = scr.x + ib.x;
-    zz = scr.z;
-    x2 = scr.x - ib.x;
-    y3 = scr.y + ia.y;
     y1 = scr.y + ib.y;
+    x2 = scr.x - ib.x;
     y2 = scr.y - ib.y;
     x3 = scr.x + ia.x;
+    y3 = scr.y + ia.y;
+    zz = scr.z;
     if (p == NULL) {
         return;
     }
@@ -400,19 +410,19 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     }
     p->rgbaq.a = alpha;
     p->rgbaq.q = 1.0f;
+    p->st0.s = u0;
+    p->st0.t = v0;
     p->st1.s = u0;
+    p->st1.t = v1;
+    p->st2.s = u1;
     p->st2.t = v0;
     p->st3.s = u1;
     p->st3.t = v1;
-    p->xyz3.f = 0xFF;
-    p->tex0 = tex0;
-    p->st0.s = u0;
-    p->st0.t = v0;
-    p->st1.t = v1;
-    p->st2.s = u1;
     p->xyz0.f = 0xFF;
     p->xyz1.f = 0xFF;
     p->xyz2.f = 0xFF;
+    p->xyz3.f = 0xFF;
+    p->tex0 = tex0;
     if (oz < 0) {
         e = &gOtZ[0].layer[l];
     } else if (oz >= 0x1000) {
@@ -477,12 +487,13 @@ void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, s32 arg2, s32 arg3, u64 tex0,
     }
 }
 
-/* Same as EftPrim_DrawQuadDepth with the depth slot multiplied by zScale. */
-#if 0
-/* NON-MATCHING: 8 instructions differ: u0 and v1 are held in f29 / f30 in the original and in
-   f30 / f29 here; everything else is identical. */
-void EftPrim_DrawQuadDepthScaled(Vec4 *pos, Vec4 *color, s32 arg2, s32 arg3, u64 tex0, f32 w, f32 h, f32 u0, f32 v0,
-                                 f32 u1, f32 v1, f32 rot, f32 zScale) {
+/* Same as EftPrim_DrawQuadDepth with the depth slot multiplied by zScale.
+   The float parameters are declared BEFORE arg2 / arg3 / tex0 (integer and float arguments use separate
+   registers, so callers are not affected): only with that order are the incoming float registers copied before
+   the integer ones, which decides whether u0 or v1 gets $f29. The callers' local prototypes list the integers
+   first; both forms pass every argument in the same register. */
+void EftPrim_DrawQuadDepthScaled(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot,
+                                 s32 arg2, s32 arg3, u64 tex0, f32 zScale) {
     EftBVert vert[9];
     Mtx44 m;
     Mtx44 inv;
@@ -521,16 +532,16 @@ void EftPrim_DrawQuadDepthScaled(Vec4 *pos, Vec4 *color, s32 arg2, s32 arg3, u64
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_b", EftPrim_DrawQuadDepthScaled);
-#endif
 
 /* Queues one gouraud textured triangle from projected vertices, float colours (0..255) and (s, t, q) texture
    coordinates. Skipped when all three alphas are 0.01 or less. A negative layer means layer 0 without blending;
    layers 2 and 3 are layers 0 and 1 drawn with GS context 2. */
 #if 0
 /* NON-MATCHING: 12 instructions differ: the loads of the constants 0x1B and 0x10000000 are scheduled a
-   few instructions later in the original; everything else is identical. */
+   few instructions later in the original; everything else is identical (same registers).
+   Second pass: every position of the prim / vif0 statements among the header stores (72 combinations), 2500
+   random orders of the nine header statements, and the GS_SET_PRIM-style spellings of the PRIM value (constant
+   first, parenthesised groups, `+`) give 12 or more. */
 void EftPrim_DrawTriangle(EftBIVec *v0, EftBIVec *v1, EftBIVec *v2, Vec4 *c0, Vec4 *c1, Vec4 *c2, Vec4 *uv0, Vec4 *uv1,
                           Vec4 *uv2, s32 unk1, s32 unk2, s32 layer, s32 z, u64 tex0) {
     s32 abe = 1;
@@ -721,19 +732,38 @@ void EftBubble_Draw(void) {
     }
 }
 
-/* Emits small bubbles along the body of a fighter: each point of 20 bone segments has a 1 in `chance` chance. */
-#if 0
-/* NON-MATCHING: the original does not strength-reduce the bone table index (it recomputes i * 8 and
-   indexes from sp + 0x20 and sp + 0x24 each time, keeping `view` in a register); this version walks a pointer and
-   spills `view`. Same calls, same constants, same random draws in the same order. */
+/* A pair of model nodes: a segment from the first to the second, or one point when the second is -1. */
+typedef struct EftBubbleBone {
+    /* 0x0 */ s32 from;
+    /* 0x4 */ s32 to;
+} EftBubbleBone;
+
+/* Emits small bubbles along the body of a fighter: each point of 20 bone segments has a 1 in `chance` chance.
+   The table is an array of pairs (structs): as a flat `s32 bones[40]` indexed with i * 2 the compiler walks a
+   pointer through it, which the original does not (it recomputes i * 8 for each access). */
 void EftBubble_EmitBody(s32 objId, s32 chance, s32 view) {
     /* Pairs of model nodes: a segment from the first to the second, or one point when the second is -1. */
-    s32 bones[40] = {
-        0x0B, 0x0A, 0x0A, 0x09, 0x09, 0x08, 0x08, -1,
-        0x0F, 0x0E, 0x0E, 0x0D, 0x0D, 0x0C, 0x0C, -1,
-        0x12, 0x13, 0x13, 0x14, 0x14, 0x15, 0x15, -1,
-        0x20, 0x21, 0x21, 0x22, 0x22, 0x23, 0x23, -1,
-        0x03, 0x10, 0x10, 0x11, 0x11, 0x30, 0x30, -1,
+    EftBubbleBone bones[20] = {
+        { 0x0B, 0x0A },
+        { 0x0A, 0x09 },
+        { 0x09, 0x08 },
+        { 0x08, -1 },
+        { 0x0F, 0x0E },
+        { 0x0E, 0x0D },
+        { 0x0D, 0x0C },
+        { 0x0C, -1 },
+        { 0x12, 0x13 },
+        { 0x13, 0x14 },
+        { 0x14, 0x15 },
+        { 0x15, -1 },
+        { 0x20, 0x21 },
+        { 0x21, 0x22 },
+        { 0x22, 0x23 },
+        { 0x23, -1 },
+        { 0x03, 0x10 },
+        { 0x10, 0x11 },
+        { 0x11, 0x30 },
+        { 0x30, -1 },
     };
     Vec4 a;
     Vec4 dir;
@@ -757,10 +787,10 @@ void EftBubble_EmitBody(s32 objId, s32 chance, s32 view) {
         spacing = 6.0f;
     }
     for (i = 0; i < 20; i++) {
-        BtlCharApi_GetNodePos(objId, bones[i * 2], &a);
+        BtlCharApi_GetNodePos(objId, bones[i].from, &a);
         Vec4_Copy(&base, &a);
-        if (bones[i * 2 + 1] >= 0) {
-            BtlCharApi_GetNodePos(objId, bones[i * 2 + 1], &b);
+        if (bones[i].to >= 0) {
+            BtlCharApi_GetNodePos(objId, bones[i].to, &b);
             Vec4_Sub(&b, &b, &a);
             len = Vec3_Length(&b);
             if (spacing < len) {
@@ -793,10 +823,6 @@ void EftBubble_EmitBody(s32 objId, s32 chance, s32 view) {
         }
     }
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_b", D_002EC620);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_b", EftBubble_EmitBody);
-#endif
 
 /* Emits `count` big bubbles around a fighter (the burst after it dives in). */
 void EftBubble_EmitBurst(s32 objId, s32 count) {
@@ -948,10 +974,6 @@ EftBubble *EftBubble_AllocSlot(void) {
 }
 
 /* Adds a bubble at the tail of the list. life > 0 fades it out over that many seconds. */
-#if 0
-/* NON-MATCHING: 5 instructions differ: the original stores `layer` just before the count increment, this
-   version just after it (writing the two statements the other way round moves the store to the top of the block
-   and changes the registers). */
 void EftBubble_Add(EftBVec pos, EftBVec vel, f32 drag, f32 size, f32 alpha, f32 rot, f32 rise, f32 riseGrow, f32 phase,
                    f32 amp, u8 r, u8 g, u8 b, s32 objId, s32 view, u8 tex, f32 phaseStep, f32 life, u8 layer) {
     EftBubble *bub = EftBubble_AllocSlot();
@@ -991,7 +1013,6 @@ void EftBubble_Add(EftBVec pos, EftBVec vel, f32 drag, f32 size, f32 alpha, f32 
             bub->riseGrow = 1.0f / riseGrow;
         }
         bub->phase = phase;
-        bub->active = 1;
         bub->amp = amp;
         bub->phaseStep = phaseStep;
         bub->r = r;
@@ -1000,13 +1021,11 @@ void EftBubble_Add(EftBVec pos, EftBVec vel, f32 drag, f32 size, f32 alpha, f32 
         bub->objId = objId;
         bub->view = view;
         bub->tex = tex;
-        gEftBubble->count++;
         bub->layer = layer;
+        bub->active = 1;
+        gEftBubble->count++;
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_b", EftBubble_Add);
-#endif
 
 /* Moves every bubble and unlinks the ones that ended. Does nothing while the battle is paused. */
 void EftBubble_UpdateList(EftBubble **head, EftBubble **tail) {

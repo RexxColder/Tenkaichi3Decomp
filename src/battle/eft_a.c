@@ -857,7 +857,14 @@ f32 EftHit_GetScale(EftHitRec *rec) {
  * disappeared because it sat in the same register. About 60 forms tried (locals for each value, in the block or at
  * function level, a variable set twice, early returns, && / nested, inline helpers, loop / goto / switch around the
  * test): all give these 3 instructions or more. The C is exact in behaviour (checked by running both versions in
- * an interpreter on random records, build/scratch_cleanup_eft/emu_generic.py). */
+ * an interpreter on random records, build/scratch_cleanup_eft/emu_generic.py).
+ * Second pass (cleanup 2, about 70 more forms: inline accessors returning the definition / the count / a flag,
+ * result variables, casts of the count, do-while / switch shapes): unchanged. What decides it: the definition
+ * and the count are both local to the middle block with 2 references and a life of one instruction, so their
+ * priorities tie and the one born first (the definition) is allocated first and takes $v0; local-alloc's first
+ * try widens each life by one instruction, so the count cannot share $v0 and takes $v1. The original needs the
+ * count allocated first: a third reference to it, or one more instruction between the two loads, in the RTL
+ * before register allocation that leaves no instruction behind. */
 void EftHit_InitMultiHit(EftHitRec *rec) {
     s32 n;
 
@@ -1080,10 +1087,6 @@ void EftGfx_LightClutDiffuse(u8 *dst, u8 *nrm, EftVec light, u8 r, u8 g, u8 b) {
 }
 
 /* Adds a specular highlight to a 256-entry palette from the table of normals: view matrix, light matrix, eye vector. */
-#if 0
-/* Not matching (22 of 198 instructions, register allocation only): the three bytes of the normal are loaded and
- * converted in the registers $f2/$f1/$f0 in the original and $f1/$f2/$f0 here, and the palette bytes use
- * $v1/$a3/$a1/$a2 against $v0/$a2/$a3/$a1. No statement order tried changes it. */
 void EftGfx_LightClutSpecular(u8 *dst, u8 *nrm, EftMtx view, EftMtx light, EftVec eye, f32 power) {
     EftVec h;
     EftVec r;
@@ -1119,7 +1122,6 @@ void EftGfx_LightClutSpecular(u8 *dst, u8 *nrm, EftMtx view, EftMtx light, EftVe
         r.w = 1.0f;
         Mtx_MulVec4(&h, &inv, &r);
         v = Vec3_Dot(&c, &h) * (power * 255.0f);
-        dst[i * 4 + 3] += 0x80;
         if (v < 0) {
             v = 0;
         }
@@ -1129,10 +1131,9 @@ void EftGfx_LightClutSpecular(u8 *dst, u8 *nrm, EftMtx view, EftMtx light, EftVe
         dst[i * 4] += v;
         dst[i * 4 + 1] += v;
         dst[i * 4 + 2] += v;
+        dst[i * 4 + 3] += 0x80;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_LightClutSpecular);
 
 /* Blends two 256-entry palettes: dst = a * t + b * (1 - t), t clamped to 0..1 (no caller). */
 void EftGfx_LerpClut(u8 *dst, u8 *a, u8 *b, f32 t) {
@@ -1540,189 +1541,132 @@ void EftAim_Home(EftVec *out, EftVec *pos, EftVec *dir, s32 objId, f32 speed, f3
     Vec3_Normalize(out, out);
 }
 
+/* One projected vertex as ClipPoly_ProjectCur writes it (fixed-point screen x, y, depth, w). */
+typedef struct EftGfxScr {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} EftGfxScr;
+
 /*
  * Draws a polygon (3 vertices on entry, up to 9 after clipping against the five view planes) as a fan of textured
  * triangles (0x132E80). The sort depth of each triangle is the average of its three projected depths >> 8
  * (mirrored to 0x1000 - z when flip is set) plus zOfs; depths are clamped to 0xFFFFFF.
  */
-#if 0
-/* Not matching (7 of 115 instructions): the original walks a pointer to scr[i - 1][2] (offsets 0 and 16); this
- * walks a pointer to scr[i][2] (offsets -16 and 0). */
 void EftGfx_DrawPolyAvgZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 flip, u64 tex, s32 zOfs) {
-    s32 scr[9][4];
+    EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
     s32 count = 3;
     s32 i;
     s32 z;
-
+    
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
         count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        ClipPoly_ProjectCur(scr, col, verts, count);
+        ClipPoly_ProjectCur((void *)scr, col, verts, count);
         for (i = 2; i < count; i++) {
-            z = ((scr[0][2] + scr[i - 1][2] + scr[i][2]) / 3) >> 8;
-            if (flip) {
-                z = 0x1000 - z;
-            }
-            if (scr[0][2] > 0xFFFFFF) {
-                scr[0][2] = 0xFFFFFF;
-            }
-            if (scr[i - 1][2] > 0xFFFFFF) {
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            if (scr[i][2] > 0xFFFFFF) {
-                scr[i][2] = 0xFFFFFF;
-            }
-            EftPrim_DrawTriangle(scr[0], scr[i - 1], scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
+            z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
+            if (flip) { z = 0x1000 - z; }
+            if (scr[0].z > 0xFFFFFF) { scr[0].z = 0xFFFFFF; }
+            if (scr[i - 1].z > 0xFFFFFF) { scr[i - 1].z = 0xFFFFFF; }
+            if (scr[i].z > 0xFFFFFF) { scr[i].z = 0xFFFFFF; }
+            EftPrim_DrawTriangle((void *)&scr[0], (void *)&scr[i - 1], (void *)&scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
                           &col[i - 1], &col[i], arg2, arg3, arg1, z + zOfs, tex);
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_DrawPolyAvgZ);
 
 /* Same with a fixed sort depth z (mirrored when flip is set); front forces the three depths to 0xFFFFFF. */
-#if 0
-/* Not matching (register allocation and the order of the clamps; the logic was read from the disassembly). */
-void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, s32 tex, s32 z) {
-    s32 scr[9][4];
+void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex, s32 z) {
+    EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
     s32 count = 3;
     s32 i;
-
+    
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
         count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        ClipPoly_ProjectCur(scr, col, verts, count);
+        ClipPoly_ProjectCur((void *)scr, col, verts, count);
         for (i = 2; i < count; i++) {
-            if (scr[0][2] > 0xFFFFFF) {
-                scr[0][2] = 0xFFFFFF;
-            }
-            if (flip) {
-                z = 0x1000 - z;
-            }
-            if (scr[i - 1][2] > 0xFFFFFF) {
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            if (scr[i][2] > 0xFFFFFF) {
-                scr[i][2] = 0xFFFFFF;
-            }
-            if (front) {
-                scr[0][2] = 0xFFFFFF;
-                scr[i - 1][2] = 0xFFFFFF;
-                scr[i][2] = 0xFFFFFF;
-            }
-            EftPrim_DrawTriangle(scr[0], scr[i - 1], scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
+            if (flip) { z = 0x1000 - z; }
+            if (scr[0].z > 0xFFFFFF) { scr[0].z = 0xFFFFFF; }
+            if (scr[i - 1].z > 0xFFFFFF) { scr[i - 1].z = 0xFFFFFF; }
+            if (scr[i].z > 0xFFFFFF) { scr[i].z = 0xFFFFFF; }
+            if (front) { scr[0].z = 0xFFFFFF; scr[i - 1].z = 0xFFFFFF; scr[i].z = 0xFFFFFF; }
+            EftPrim_DrawTriangle((void *)&scr[0], (void *)&scr[i - 1], (void *)&scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
                           &col[i - 1], &col[i], arg2, arg3, arg1, z, tex);
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_DrawPolyFixedZ);
 
 /* Same as EftGfx_DrawPolyAvgZ with the option to force the three depths to 0xFFFFFF (front). */
-#if 0
-/* Not matching (20 of 122 instructions): same induction pointer difference as EftGfx_DrawPolyAvgZ. */
 void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                               s32 zOfs) {
-    s32 scr[9][4];
+    EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
     s32 count = 3;
     s32 i;
     s32 z;
-    s32 zPrev;
-
+    
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
         count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        ClipPoly_ProjectCur(scr, col, verts, count);
+        ClipPoly_ProjectCur((void *)scr, col, verts, count);
         for (i = 2; i < count; i++) {
-            zPrev = scr[i - 1][2];
-            z = ((scr[0][2] + zPrev + scr[i][2]) / 3) >> 8;
-            if (flip) {
-                z = 0x1000 - z;
-            }
-            if (scr[0][2] > 0xFFFFFF) {
-                scr[0][2] = 0xFFFFFF;
-            }
-            if (scr[i - 1][2] > 0xFFFFFF) {
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            if (scr[i][2] > 0xFFFFFF) {
-                scr[i][2] = 0xFFFFFF;
-            }
-            if (front) {
-                scr[0][2] = 0xFFFFFF;
-                scr[i][2] = 0xFFFFFF;
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            EftPrim_DrawTriangle(scr[0], scr[i - 1], scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
+            z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
+            if (flip) { z = 0x1000 - z; }
+            if (scr[0].z > 0xFFFFFF) { scr[0].z = 0xFFFFFF; }
+            if (scr[i - 1].z > 0xFFFFFF) { scr[i - 1].z = 0xFFFFFF; }
+            if (scr[i].z > 0xFFFFFF) { scr[i].z = 0xFFFFFF; }
+            if (front) { scr[0].z = 0xFFFFFF; scr[i - 1].z = 0xFFFFFF; scr[i].z = 0xFFFFFF; }
+            EftPrim_DrawTriangle((void *)&scr[0], (void *)&scr[i - 1], (void *)&scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
                           &col[i - 1], &col[i], arg2, arg3, arg1, z + zOfs, tex);
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_DrawPolyAvgZFront);
 
 /* Same with the average depth multiplied by zScale. */
-#if 0
-/* Not matching (register allocation; same induction pointer difference as EftGfx_DrawPolyAvgZ). */
-void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, s32 tex,
-                            f32 zScale) {
-    s32 scr[9][4];
+void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
+                              f32 zScale) {
+    EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
     s32 count = 3;
     s32 i;
     s32 z;
-    s32 zPrev;
-
+    
     plane = EftGfx_GetClipPlanes();
     for (i = 0; i < 5; i++) {
         count = ClipPoly_ClipPlane(verts, plane, count);
         plane++;
     }
     if (count != 0) {
-        ClipPoly_ProjectCur(scr, col, verts, count);
+        ClipPoly_ProjectCur((void *)scr, col, verts, count);
         for (i = 2; i < count; i++) {
-            zPrev = scr[i - 1][2];
-            z = ((scr[0][2] + zPrev + scr[i][2]) / 3) >> 8;
-            if (flip) {
-                z = 0x1000 - z;
-            }
-            if (scr[0][2] > 0xFFFFFF) {
-                scr[0][2] = 0xFFFFFF;
-            }
-            if (scr[i - 1][2] > 0xFFFFFF) {
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            if (scr[i][2] > 0xFFFFFF) {
-                scr[i][2] = 0xFFFFFF;
-            }
-            if (front) {
-                scr[0][2] = 0xFFFFFF;
-                scr[i][2] = 0xFFFFFF;
-                scr[i - 1][2] = 0xFFFFFF;
-            }
-            EftPrim_DrawTriangle(scr[0], scr[i - 1], scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
+            z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
+            if (flip) { z = 0x1000 - z; }
+            if (scr[0].z > 0xFFFFFF) { scr[0].z = 0xFFFFFF; }
+            if (scr[i - 1].z > 0xFFFFFF) { scr[i - 1].z = 0xFFFFFF; }
+            if (scr[i].z > 0xFFFFFF) { scr[i].z = 0xFFFFFF; }
+            if (front) { scr[0].z = 0xFFFFFF; scr[i - 1].z = 0xFFFFFF; scr[i].z = 0xFFFFFF; }
+            EftPrim_DrawTriangle((void *)&scr[0], (void *)&scr[i - 1], (void *)&scr[i], &verts[0].uv, &verts[i - 1].uv, &verts[i].uv, &col[0],
                           &col[i - 1], &col[i], arg2, arg3, arg1, (s32)(z * zScale), tex);
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftGfx_DrawPolyScaledZ);
 
 /*
  * Draws a camera-facing textured quad at a world position, written straight into the display list. Left in

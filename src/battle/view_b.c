@@ -77,6 +77,13 @@ void TextBox_SetSpacing(TextBox *box, s32 x, s32 y) {
    copy), this C narrows it with `andi v1,v0,0xff` (eight times, so the function is one instruction longer).
    An `s32` helper gives the plain copy but then the compiler turns the outer test into a branch around, or
    stores in both arms; some 40 shapes of the clamp were tried. Everything else is identical. */
+/* Second cleanup pass: on this compiler `move` is also what an int-to-long sign extension compiles to
+   (`(s64)u0 << 4` in BtlText_PutSprite), and a helper returning s64 / long does give a move in the arm
+   (`move v0,v0`), but the narrowing then moves to the join (`andi v0,v0,0xff` in front of the `sb`): 48
+   differences. A `u8` result local in a macro is promoted to a full register and has its zero hoisted in front
+   of the branch (204 instructions). So the original copy is most likely a plain copy between two int
+   registers that the allocator could not merge (the next statement's `lbu` already sits in v0 at the join),
+   in a shape where the compiler does not hoist the `= 0` arm; not found (15 more shapes tried here). */
 #if 0
 /* Clamps a colour component to a byte. */
 static inline u8 TextBox_ClampByte(s32 c) {

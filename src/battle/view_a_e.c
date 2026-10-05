@@ -437,6 +437,9 @@ s32 Num_CountDigits(s32 value) {
  * of the first digit shows cell 10 when the value is not zero. */
 #if 0
 /* Not matching, 29 of 179 instructions: register allocation only. The original keeps the digit in s5, the movie in s6 and the name buffer address in s7 (here s7 / s5 / s6), and loads style->count into v0 before copying it to s0 (here straight into s0). The code is otherwise identical, branch for branch. */
+/* Second cleanup pass, without effect: the count through a conditional expression, a block-local or another
+ * variable (29 to 59 differences), a 64-bit `count` (the copy is then there but everything else moves), every
+ * order of the four initialised locals. */
 void Num_DrawEx(Flash *flash, NumStyle *style, char *a, char *b, s32 value) {
     FlashRef ref;
     char name[0x40];
@@ -928,6 +931,13 @@ void StgGrid_ApplyUnlocks(s32 *count, s32 *ids) {
  * BGMLIST_ID_LOCKED. In mode 0x3E the random entry (0x18) is removed as well. */
 #if 0
 /* Not matching, 9 of 40 instructions: two registers are swapped (the original has i in t0 and the constant 0x19 in t1). */
+/* Second cleanup pass (allocator dump): `i` has 7 references over 58 instructions (priority 2413), the hoisted
+ * constant 5 over 40 (2500), and a tie would go to `i`, so `i` needs a live range 2 instructions shorter at
+ * that stage. A `do / while` behind an explicit `if (*count > 0)` gives the right registers but puts
+ * `move t0,zero` behind the `blez` (5 differences); a variable for the constant set inside the loop gives the
+ * registers too but the constant is then hoisted one place early (2 or 3 differences, also with variables for
+ * 0x18 and 1 in every order). Without effect: a `switch` with an `id` local as in StgGrid_ApplyUnlocks, a
+ * `while`, `continue` forms, `i` / `flags` declared or initialised the other way round. */
 void BgmList_ApplyUnlocks(s32 *count, s32 *ids) {
     s32 flags = 0;
     s32 i;

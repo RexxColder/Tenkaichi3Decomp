@@ -547,3 +547,25 @@ apply the yaml changes it lists (.lit4 / .rodata moves), then `.venv/bin/python 
 + ninja gate; the gate is only conclusive when no agent is mid-edit, so commit after all (or
 after isolating one agent's files). Not yet done / user has not answered: setting up
 decomp-permuter for the register-only near-misses.
+
+## Twelfth step done 2026-10-05: cleanup round 2 linked
+
+All nine cleanup agents reported; gate passed here after a fresh configure + ninja (both
+images identical); fdiff sweep over every linked file of both binaries: 7157 functions OK, 0
+not OK. Main executable 91.48% (was 86.91%), 97 INCLUDE_ASM (was 174); overlay 99.02%, 6
+INCLUDE_ASM. 80 functions matched this round (A 16, B 10, C 14, D 9, E 3, F 14, G 8, H 3,
+I 3). One link-time error: eft_e.c called `EftUtil_IsCamBelowLevel`, a name that never
+existed (real: `EftUtil_IsCamUnderWater`, 0x1473E8); it had been hidden inside `#if 0`.
+Fake matches (byte-identical through a stand-in, marked in the sources and the guide):
+`EftLink_DrawBillboard` (empty `__asm__("")`), `EftBlast_Init` (volatile read),
+`EftChain_DrawStrand` (volatile alias of gOtCur), `Dialog_SetCursor` (invented dead branch);
+`EftWater_DrawSprayQuad` uses a backward goto.
+One behavioural error found and fixed in an old attempt: `EftGlow_SpawnPart` colour step.
+Yaml .lit4 moves applied: eft_b (0x1FC370), eft_g (0x1FC708..0x1FC728), eft_ad_b / eft_ad_c
+(0x1FCEEC / 0x1FCEF4), btl_char_fx (chunk 0x1FD200 removed), bobj_b_b (chunk 0x1FE718
+removed).
+TODO: docs/open_questions.md rows are stale for the 80 matched functions (rebuild from the
+INCLUDE_ASM lines); `ColObb_Contact` needs a from-scratch decompile (dead code, 17 KB);
+`EftGfx_DrawSprite` and `StgBlur_Draw` have no attempt; the EftPart10 / EftLink key functions
+need nested track structs. Next (user agreed): set up decomp-permuter for the register-only
+near-misses.

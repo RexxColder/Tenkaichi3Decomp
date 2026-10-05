@@ -996,7 +996,7 @@ void ScrXfade_Capture(void) {
 }
 
 /* Reads w x h pixels at frame block `sbp` into buffer `index` and builds the packet that uploads them again. */
-#if 0 /* 4 of 121 instructions differ: before the first call the original emits `sra a1,a0,16` / `move a0,sp` ahead of the two `addu` that form p and e; this C emits the two `addu` first. Everything else is identical. */
+#if 0 /* 4 of 121 instructions differ: before the first call the original emits `sra a1,a0,16` / `move a0,sp` ahead of the two `addu` that form p and e; this C emits the two `addu` first. Everything else is identical. Second cleanup, about 30 more variants, none changed the four instructions: declaration / assignment order of p, e, tag; xf as a local or gScrXfade at each use; `&xf->chain[index]` (53 differ); sbp as s32 with a cast at the call, a local copy of sbp or si; other prototypes for sceGsSetDefStoreImage; `&p[14]` for the image address; p or e assigned after the call (34+ differ). In the second scheduling pass the two `addu` and the two argument loads have equal priority, so the order comes from the first pass, where this C schedules the `addu` of p early (it feeds the load of buf[index], which is on the path to sceGsExecStoreImage); the original must have had that chain one step shorter or the argument chain one step longer. */
 void ScrXfade_StoreHalf(s16 sbp, u16 w, u16 h, s32 index) {
     u8 si[0x70];
     ScrXfade *xf = gScrXfade;
@@ -1055,22 +1055,25 @@ INCLUDE_ASM("asm/nonmatchings/battle/stg_b", ScrXfade_StoreHalf);
 #endif
 
 /* Uploads the captured halves as a 512 x 448 texture at block `tbp` and draws it over the frame. */
-#if 0 /* same instructions, but the original keeps 0x700 in a register hoisted out of the loop (`li s3,0x700` ... `addu s1,s2,s3`) and so numbers the three loop constants s3/s4/s5 where this C gets `addiu s1,s2,0x700` and s3/s4 (25 of 145 differ, all of them this register shift). Writing `tbp + bw * 0xE0` gives the `addu` but the constants land in s5/s3/s4. */
 void ScrXfade_Draw(s32 unused, s32 tbp, u8 alpha) {
     u64 *p;
     s32 i;
     s32 dbp;
     s32 bw;
+    s32 w, h;
 
+    /* w and h as variables: `w * h / 64` keeps 0x700 in a register (hoisted by the second loop pass) */
+    w = 0x200;
+    h = 0xE0;
     dbp = 0;
-    bw = 8;
+    bw = w >> 6;
     for (i = 0; i < 2; i++) {
         switch (i) {
         case 0:
             dbp = tbp;
             break;
         case 1:
-            dbp = tbp + 0x700;
+            dbp = tbp + w * h / 64;
             break;
         }
         gScrXfade->buf[i][4] = ((u64)dbp << 32) | ((u64)bw << 48) | 0x0100000001000000UL;
@@ -1099,9 +1102,6 @@ void ScrXfade_Draw(s32 unused, s32 tbp, u8 alpha) {
     Dma_PutTexStrips((GsQword **)&p, 0, 0, 0x200, 0x1C0, 0, 0, 0, 0, 0x200, 0x1C0, 8, 8, (alpha << 24) | 0x808080, 1);
     Dma_EndDirect(p);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/stg_b", ScrXfade_Draw);
-#endif
 
 /* Allocates and clears the cross-fade state. */
 void ScrXfade_Init(void) {
@@ -1368,7 +1368,6 @@ void ScrWarp_Step(ScrWarpObj *o) {
 }
 
 /* Draws the rings of one view (or of both when not split): two strips of 21 vertex pairs per ring. */
-#if 0 /* 148 instructions against 150. The original keeps a second copy of j + 1 (`move s5,s3`) for the vertex index, which leaves no register for rgb (it lives at sp+0x20, frame 0x80); here rgb gets s8 and the frame is 0x70. The x0 setup also differs (`li v1,256 / move a1,v1 / movn a1,zero / addu a2,a1,v1` in the original). */
 void ScrWarp_Draw(s32 split, s32 view) {
     s32 alpha[3];
     u64 *p;
@@ -1383,17 +1382,19 @@ void ScrWarp_Draw(s32 split, s32 view) {
     s32 jn;
     s32 k;
     s32 m;
+    s32 j1 = 0; /* dead initialiser: keeps j1 a separate register from jn (the original has `move s5,s3`) */
+    s32 n;
 
     x0 = 0;
     w = 0x200;
     tw = 0x100;
     x1 = 0x200;
     if (split) {
-        w = 0x100;
+        w /= 2;
         x0 = w;
-        tw = 0x80;
+        tw /= 2;
         if (view != 1) {
-            x0 = 0;
+            x0 -= w; /* not `x0 = 0`: the original copies w and then clears it with movn */
         }
         x1 = x0 + w;
     }
@@ -1406,21 +1407,24 @@ void ScrWarp_Draw(s32 split, s32 view) {
         if (split != 0 && o->view != view) {
             continue;
         }
+        j = 0; /* j and n are set ahead of the alpha values: decides the registers of n and the alpha pointers */
+        n = SCRWARP_DIRS;
         rgb = 0x808080;
         alpha[1] = o->alpha * 255.0f;
         alpha[0] = alpha[1] / 8;
         alpha[2] = alpha[1] / 8;
-        for (j = 0; j < 2; j = jn) {
+        for (; j < 2; j++) {
             jn = j + 1;
             ScrWarp_BeginStrip(&p, (SCRWARP_DIRS + 1) * 2);
             for (k = 0; k < SCRWARP_DIRS + 1; k++) {
                 s32 *a0 = &alpha[j];
                 s32 *a1 = &alpha[jn];
+                j1 = jn;
 
-                m = k % SCRWARP_DIRS;
+                m = k % n;
                 ScrWarp_PutVertex(&p, o->xy[m][j][0], o->xy[m][j][1], o->uv[m][j][0], o->uv[m][j][1],
                                   (*a0 << 24) | rgb);
-                ScrWarp_PutVertex(&p, o->xy[m][jn][0], o->xy[m][jn][1], o->uv[m][jn][0], o->uv[m][jn][1],
+                ScrWarp_PutVertex(&p, o->xy[m][j1][0], o->xy[m][j1][1], o->uv[m][j1][0], o->uv[m][j1][1],
                                   (*a1 << 24) | rgb);
             }
             ScrWarp_EndStrip(&p);
@@ -1428,9 +1432,6 @@ void ScrWarp_Draw(s32 split, s32 view) {
     }
     ScrWarp_EndPacket(&p);
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/stg_b", ScrWarp_Draw);
-#endif
 
 /* Allocates the manager and its objects and fills the direction table. */
 void ScrWarp_Init(void) {
@@ -1619,7 +1620,7 @@ void StgFog_ResetColor(void) {
 
 /* Draws the depth tone: the table turns depth into the frame's alpha, the frame is copied at half size into the
    work buffer, and the copy is blended back over the frame through that alpha (a blur that grows with depth). */
-#if 0 /* same instructions in a different schedule: the original loads 0x4E, 0x80808080, 0x30000, 0x47, the TEX0 constant and 448 into s3..s8 at the top and keeps the first call's result in s0; this C puts 0xE in s8 and swaps s0 / s1 and s3 / s4 (156 of 229 differ). */
+#if 0 /* same instructions in a different schedule: the original loads 0x4E, 0x80808080, 0x30000, 0x47, the TEX0 constant and 448 into s3..s8 at the top and keeps the first call's result in s0; this C puts 0xE in s8 and swaps s0 / s1 and s3 / s4 (156 of 229 differ). Second cleanup: the saved registers are not shared constants. 0x4E, 0x30000, 0x47 and the TEX0 constant are single-use values that local register allocation pushes into s-registers because every temporary is busy while the packet is built (the second scheduling pass then lifts their `li` to the top); 0xE, 0x4C and 6 are the constants cse shares between the two packets, they live across the calls, and only one saved register (s8) is left for them. The original gives s8 to 448 (used once, as the stack argument of the first Dma_PutTexStrips) and re-materialises 0xE twice (230 instructions); this C gives it to 0xE (229). A variable `s32 h = 0x1C0` for both calls does put 448 in a saved register, but local allocation then takes s7 for it, 0x4E drops to a temporary and 0xE still gets s8 (102 differ). No effect: order of tw / th, fbw as s32, if / else or `v -= 0xE00` forms for the three frame-parity values, where h is declared. Reordering the TEX0 operands (`tbp | fbw << 14 | tw << 26 | th << 30`) gives 80 of 229. */
 void StgFog_Draw(void) {
     StgFog *tone = gStgFog;
     u64 *p;

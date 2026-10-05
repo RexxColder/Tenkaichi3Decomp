@@ -34,6 +34,11 @@ void TexChain_WriteTags(TexChain chain) {
     chain.tags[n++] = 0;
 }
 
+/* Cleanup pass 2: 27 loop shapes tried (while(1) / for(;;) / goto / do-while, with and without a `next` local,
+   the three spellings of the final add, the walk in an inline helper with the offset by reference or returned):
+   none keeps `ofs` unknown on the first-chunk path; the ones with `next` as a local stay at 3 of 96, all others
+   are worse. For the original's `addu s0,v0,s0` cse must not know that `ofs` is still 0x10 there, i.e. the test
+   of the first chunk was not in the same extended block as `ofs = 0x10` when cse ran. */
 #if 0
 /* NOT MATCHING: 3 of 94 instructions differ: on the path where the first chunk is the last, the original adds its size to the offset register (`addu s0,v0,s0`), here the compiler knows the offset is still 0x10 (`addiu s0,v0,16`); the temporary of the alignment test follows (v1 / v0). */
 /* Builds the chunk list and the DMA chain of a whole chunked file, in the free space behind its chunks. */
@@ -375,13 +380,15 @@ void TexFile_UploadAt(TexFile *file, s32 index, s32 tbp, s32 cbp) {
 }
 
 #if 0
-/* NOT MATCHING: 7 of 76 instructions differ: three constants sit in other registers (the REF tag in a2, 0x50 in a3, 0x51 in t0 in the original); the 46 stores are the same and in the same order. */
+/* NOT MATCHING: 5 of 80 instructions differ, two registers swapped: the original has GIF_EOP | 4 (word 4) in v1 and
+   the REF tag in a2, here a2 and v1. Writing the REF tag as a constant in the last statement (not as a local set at
+   the top) fixed the other two constants (0x50 in a3, 0x51 in t0). Moving the statement for word 3, word 4 or the
+   REF tag to any other position does not help; the 46 stores are the same and in the same order. */
 /* Builds the upload packet of a 256-colour CLUT that the caller fills in afterwards: BITBLTBUF to block `cbp`,
    a 16x16 transfer, 0x400 bytes of image data and a TEXFLUSH, plus the REF / END tags that send it. */
 void GfxClut_InitPacket(GfxClutWork *work, u16 cbp) {
     u32 *w = (u32 *)work;
     u64 blt = (u64)cbp << 32;
-    u32 ref = DMA_TAG_REF | 0x49;
 
     work->cbp = cbp;
     w[0] = 0;
@@ -428,7 +435,7 @@ void GfxClut_InitPacket(GfxClutWork *work, u16 cbp) {
     work->end[1] = 0;
     work->end[2] = 0;
     work->end[3] = 0;
-    work->ref[0] = ref;
+    work->ref[0] = DMA_TAG_REF | 0x49;
 }
 #endif
 INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b_b", GfxClut_InitPacket);

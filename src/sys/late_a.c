@@ -486,6 +486,8 @@ void Shen_SetupGetWin(ShenWork *work) {
  * arm, and s4, a copy made after ShenList_Build. The original passes the copy to ShenList_Find in the loop and
  * stores s2 to work->out / work->top; this attempt passes s2 and stores the copy to work->top. Everything else
  * is identical. Some 4000 arrangements of the three arms were tried (build/scratch_late_a/bl*.py).
+ * Second cleanup pass, 14 more without effect (`&work->list` written out at the stores, at the helper call or
+ * both; `list` set in front of ShenList_Build or once for all arms: 29 to 94 differences).
  */
 #if 0
 /* Copies `count` wishes into the nodes of a list. */

@@ -111,15 +111,12 @@ void EftRibbon_UpdateTex(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
 }
 
 /* Fills the animated values from one key of the pack. */
-#if 0
-/* NON-MATCHING: one instruction short (93 of 94 differ by the shift): the original copies `arg` to $v0 at entry (move v0,a1) and
-   computes key * 16 in $a1; here `arg` stays in $a1 and the product goes to $v0. Otherwise identical. */
 void EftRibbon_LoadKey(EftRbnCur *cur, EftRbnArg *arg, s32 key) {
     EftRbnVec r;
     EftRbnVec g;
     EftRbnVec b;
-    EftRbnAnim *anim = arg->anim;
     EftRbnPrm *prm = arg->prm;
+    EftRbnAnim *anim = arg->anim;
     s32 i;
 
     Vec4_Copy(&cur->color, &anim->color[key]);
@@ -146,8 +143,6 @@ void EftRibbon_LoadKey(EftRbnCur *cur, EftRbnArg *arg, s32 key) {
         cur->scroll = prm->scroll[key];
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab_c", EftRibbon_LoadKey);
 
 /* Fills the animated values between two keys: keys 0..1 before animSplit, 1..2 after. */
 #if 0
@@ -360,7 +355,11 @@ void EftRibbon_PlaceTrail1(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
    refreshed. */
 #if 0
 /* NON-MATCHING: 9 of 59 instructions differ: as in EftRibbon_PlaceStrip the original copies `w` into $a1 (move a1,s3) for the
-   head and the colour address, and it sets $a1 before $a0 for the first Vec4_Copy. */
+   head and the colour address, and it sets $a1 before $a0 for the first Vec4_Copy.
+   Cleanup E: here `r = w` survives the first cse pass (r is used later than w, so r stays the canonical register)
+   and is removed by the copy propagation of gcse, which then hoists `w + 0xB0`. Every form of the copy tried gives
+   the same code (initialiser, assignment before / after the first call, twice, in the loop, through a conditional,
+   an array, a union, an integer cast). The original keeps a short-lived second pseudo up to the loop. */
 void EftRibbon_PlaceTrail2(EftRbnPrm *prm, EftRbn *w, EftRbnArg *arg) {
     EftRbnVec cur;
     EftRbnVec old;
@@ -1846,7 +1845,13 @@ void EftZap_SpawnLine(EftZapWork *w) {
    the point count comes out as 0 or the pool runs dry. */
 #if 0
 /* NON-MATCHING: 7 of 567 instructions differ: in the keyA block the registers of def->split and of the constant 1.0f are
-   swapped (f3 / f2); the keyB and keyC blocks, written the same way, match. */
+   swapped (f3 / f2); the keyB and keyC blocks, written the same way, match.
+   Cleanup E: the difference from the matching blocks is the memset of colEnd in the same basic block: its four
+   argument instructions lie inside the live ranges and change the local allocation priorities
+   (log2(refs) * refs / length). The original order (1.0f before split, and the second split load last) needs one
+   more instruction between the second `def->split` load and its subtraction than this C has; statement orders,
+   an explicit memset and the position of the colEnd declaration do not give it. Without the block-local `life`
+   f0 / f1 are swapped as well (13). */
 s32 EftZap_InitLine(EftZapStrand *line, EftZapWork *w) {
     EftZapDef *def = w->arg.def;
     f32 fps = 30.0f;

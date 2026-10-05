@@ -393,8 +393,9 @@ extern void EftLine_DrawClipped(EftZTask *task);                         /* shap
 extern EftGndDustPart *EftGndDust_MoveNode(List *list, List *free, EftGndDustPart *part); /* frees a particle, returns the next */
 extern u64 EftGndDust_GetTex(EftGndDustTex *tex, s32 idx);                        /* TEX0 of a texture */
 extern void EftGndDust_GetLightColors(u8 *colA, u8 *colB);                             /* default colours */
-extern void EftGndDust_SpawnPiece(EftGndDustEmit *w, EftGndDustArg *arg, s32 flags, f32 a, f32 angle);
-extern void EftGndDust_SpawnPieceEx(EftGndDustEmit *w, Vec4 *pos, Vec4 *dir, u8 *colA, u8 *colB, s16 life, s16 fade, s32 size,
+extern EftGndDustPart *EftGndDust_SpawnPiece(EftGndDustEmit *w, EftGndDustArg *arg, s32 flags, f32 a, f32 angle); /* returns the
+   piece (eft_aa.c); the return type matters: EftGndDustSlide_Init matches only with a non-void callee */
+extern EftGndDustPart *EftGndDust_SpawnPieceEx(EftGndDustEmit *w, Vec4 *pos, Vec4 *dir, u8 *colA, u8 *colB, s16 life, s16 fade, s32 size,
                           f32 f12, f32 f13, f32 f14, f32 f15, f32 f16, f32 f17, f32 spin, f32 f19, f32 s0, f32 grow,
                           s32 flags);
 extern void EftGndDust_SpawnBodyDust(EftGndDustEmit *w, EftGndDustArg *arg, f32 a, f32 b);

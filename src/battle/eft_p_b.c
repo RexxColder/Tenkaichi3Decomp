@@ -3,8 +3,8 @@
 #include "sys/gfx_ot.h"
 
 /*
- * Power-up glow, first part of the module: 0x16DCA0..0x170A50 (22 functions, 18 matching; EftGlow_BuildTables,
- * EftGlow_SpawnPart, EftGlow_PairPart and EftGlow_DrawParts are left in assembly with the attempt in `#if 0`). The glow is what the fighter effect
+ * Power-up glow, first part of the module: 0x16DCA0..0x170A50 (22 functions, 21 matching; EftGlow_DrawParts is
+ * left in assembly with the attempt in `#if 0`). The glow is what the fighter effect
  * layer starts with requests 4 / 5 (BtlFx_UpdatePowerUpLook); its tasks, manager and entry points are in eft_q.c
  * (EftGlow*), which calls EftGlow_BuildTables, EftGlow_Begin, EftGlow_Step, EftGlow_StepParts, EftGlow_FreeParts
  * and EftGlow_DrawParts of this file.
@@ -143,10 +143,23 @@ void EftGlow_Spline3(EftPVec *out, EftPVec *p, f32 t) {
     out->w = 1.0f;
 }
 
-/* NON-MATCHING: 23 of 205 instructions, in the last loop only. The original forms the address of dir[i].y / .z as
-   (gEftGlow + 4) + (i * 16 + 0x160) before calling cosf / sinf; this code forms gEftGlow + (i * 16 + 0x164). Same
-   stores, same values. */
-#if 0
+/* The profile directions of gEftGlow seen as four floats WITHOUT the 16-byte alignment of EftPVec. The original
+   forms the address of dir[i].y / .z as (gEftGlow + 4) + (i * 16 + 0x160) in front of the cosf / sinf calls:
+   the compiler adds a member's offset to the base register first only when the alignment it knows for the
+   element equals the alignment of the member's mode (4 for a float), so the element type was not 16-aligned
+   where this was compiled. With EftPVec the offset stays in the store (`swc1 $f0,4(s0)`). */
+typedef struct EftPVecU {
+    /* 0x0 */ f32 x;
+    /* 0x4 */ f32 y;
+    /* 0x8 */ f32 z;
+    /* 0xC */ f32 w;
+} EftPVecU;
+typedef struct EftPGlowDirView {
+    /* 0x000 */ u8 pad[0x160];
+    /* 0x160 */ EftPVecU dir[20];
+} EftPGlowDirView;
+#define GLOWDIR (((EftPGlowDirView *)gEftGlow)->dir)
+
 /* Builds the two profile tables of gEftGlow: 20 spline samples of the scaled control points, 20 directions. */
 void EftGlow_BuildTables(void) {
     EftPVec pts[13];
@@ -184,16 +197,13 @@ void EftGlow_BuildTables(void) {
         tbl[i] = (f32)(i - 6) * 0.5f / 14.0f + 0.5f;
     }
     for (i = 0; i < 20; i++) {
-        gEftGlow->dir[i].x = 0.0f;
-        gEftGlow->dir[i].v[1] = -cosf((yMin + tbl[i] * yRange) * 3.14159265f / 180.0f);
-        gEftGlow->dir[i].v[2] = sinf((zMin + tbl[i] * zRange) * 3.14159265f / 180.0f);
-        gEftGlow->dir[i].w = 1.0f;
+        GLOWDIR[i].x = 0.0f;
+        GLOWDIR[i].y = -cosf((yMin + tbl[i] * yRange) * 3.14159265f / 180.0f);
+        GLOWDIR[i].z = sinf((zMin + tbl[i] * zRange) * 3.14159265f / 180.0f);
+        GLOWDIR[i].w = 1.0f;
         Vec3_Normalize(&gEftGlow->dir[i], &gEftGlow->dir[i]);
     }
 }
-#endif
-LIT4_WORD(D_002FCB30, 0x40490FDA); /* 3.14159265f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_p_b", EftGlow_BuildTables);
 
 /* Profile point idx scaled; its y is scaled again by the configuration. */
 void EftGlow_GetShapePoint(EftPVec *out, s32 objId, s32 idx, f32 scale) {
@@ -402,12 +412,11 @@ EftPGlowPart *EftGlow_AllocPart(void) {
     return p;
 }
 
-/* NON-MATCHING: 73 of 546 instructions (most of them shifted), all in the first colour branch (flags 2): the original
-   has ONE `jal Vec4_Sub` shared by the two arms, with the three arguments set in each arm and the 1.0 loaded last
-   in the second arm; this code has a call in each arm. Everything else matches, including the register of every
-   value. Note the float parameter is reused as the constant 1.0 after it was stored. */
-#if 0
-/* Creates one quad at the emitter's current node. Eleven or more draws of libc rand(). */
+/* Creates one quad at the emitter's current node. Eleven or more draws of libc rand().
+   Notes for the match: in the first colour branch (flags 2) the three statements behind Vec4_Sub stand in BOTH
+   arms (the compiler merges them, and with them the two `jal Vec4_Sub`, into one tail); the float parameter is
+   reused as the constant 1.0 after it was stored; `inv` is 0.0 until a branch gives it the fade rate, and the
+   paired branch (flags 0x20 without 2) passes the OLD value (0.0) as the x / y / z colour steps. */
 EftPGlowPart *EftGlow_SpawnPart(EftPGlow *e, s32 objId, f32 angle, EftPVec *scale, s32 odd, s32 pair) {
     EftPVec d;
     EftPGlowPart *p = EftGlow_AllocPart();
@@ -472,23 +481,31 @@ EftPGlowPart *EftGlow_SpawnPart(EftPGlow *e, s32 objId, f32 angle, EftPVec *scal
             Vec3_Scale(&p->color, &e->color[idx], angle);
             p->color.w = inv;
             Vec4_Sub(&d, &e->color[idx], &p->color);
+            Vec3_Scale(&p->dColor, &d, angle / p->lifeMax);
+            inv = angle / gEftGlowCfg->fadeIn;
+            p->dColor.w = alpha * inv;
         } else {
             p->layer = 0;
             Vec4_Copy(&p->color, &e->colorA);
             p->color.w = inv;
             angle = 1.0f;
             Vec4_Sub(&d, &e->colorB, &p->color);
+            Vec3_Scale(&p->dColor, &d, angle / p->lifeMax);
+            inv = angle / gEftGlowCfg->fadeIn;
+            p->dColor.w = alpha * inv;
         }
-        Vec3_Scale(&p->dColor, &d, angle / p->lifeMax);
-        inv = angle / gEftGlowCfg->fadeIn;
-        p->dColor.w = alpha * inv;
         p->offset.z = p->offset.z * ((f32)rand() / 2147483647.0f * 1.5f + 1.0f);
         p->shape = shape / 2 + rand() % 2;
     } else if (p->flags & 0x20) {
         p->layer = 1;
         Vec4_Copy(&p->color, &e->color[idx]);
         p->color.w = inv;
-        Vec4_Set(&p->dColor, inv, inv, inv, alpha * (inv = 1.0f / gEftGlowCfg->fadeIn));
+        {
+            f32 z = inv;
+
+            inv = 1.0f / gEftGlowCfg->fadeIn;
+            Vec4_Set(&p->dColor, z, z, z, alpha * inv);
+        }
         if ((u32)(e->kind - 3) < 2) {
             p->dist *= 0.3f;
             if (p->node == 0) {
@@ -541,33 +558,19 @@ EftPGlowPart *EftGlow_SpawnPart(EftPGlow *e, s32 objId, f32 angle, EftPVec *scal
     p->animTimer = rand() % (s32)gEftGlowCfg2->animFrames;
     return p;
 }
-#endif
-LIT4_WORD(D_002FCB44, 0x4EFFFFFF); /* 2147483647.0f */
-LIT4_WORD(D_002FCB48, 0x3F666666); /* 0.9f */
-LIT4_WORD(D_002FCB4C, 0x4EFFFFFF); /* 2147483647.0f */
-LIT4_WORD(D_002FCB50, 0x3E999999); /* 0.3f */
-LIT4_WORD(D_002FCB54, 0x3F266666); /* 0.65f */
-LIT4_WORD(D_002FCB58, 0x3F266666); /* 0.65f */
-LIT4_WORD(D_002FCB5C, 0x3DCCCCCC); /* 0.1f */
-LIT4_WORD(D_002FCB60, 0x3FA66666); /* 1.3f */
-LIT4_WORD(D_002FCB64, 0x3E4CCCCC); /* 0.2f */
-LIT4_WORD(D_002FCB68, 0x3FD99999); /* 1.7f */
-LIT4_WORD(D_002FCB6C, 0x3F666666); /* 0.9f */
-LIT4_WORD(D_002FCB70, 0x3F266666); /* 0.65f */
-LIT4_WORD(D_002FCB74, 0x3F266666); /* 0.65f */
-LIT4_WORD(D_002FCB78, 0x3F333333); /* 0.7f */
-LIT4_WORD(D_002FCB7C, 0x3F599999); /* 0.85f */
-LIT4_WORD(D_002FCB80, 0x3FCCCCCC); /* 1.6f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_p_b", EftGlow_SpawnPart);
 
-/* NON-MATCHING: 57 of 120 instructions: the original keeps the emitter in s3 and the colour index in s2 (this code the
-   other way round) and reads the three components of e->color[idx] through three copies of one pointer. */
-#if 0
+/* The emitter's colour table without the 16-byte alignment of EftPVec (see EftPVecU above): the original computes
+   `e + idx * 16 + 0x260` three times, once per component read, which this compiler does only for an element
+   type whose alignment equals the float's. */
+typedef struct EftPGlowColorView {
+    /* 0x000 */ u8 pad[0x260];
+    /* 0x260 */ EftPVecU color[4];
+} EftPGlowColorView;
+#define GLOWCOL(e) (((EftPGlowColorView *)(e))->color)
+
 /* Makes p the partner of a trailing quad: same profile and side, 1.5 times its life, pushed back along its
    direction, fading towards a random colour of the emitter. One draw of libc rand(). */
 void EftGlow_PairPart(EftPGlow *e, EftPGlowPart *p, EftPGlowPart *src) {
-    EftPVec *off = &p->offset;
-    EftPVec *dir = &p->dir;
     s32 idx = rand() % e->layers;
     f32 s;
 
@@ -579,18 +582,16 @@ void EftGlow_PairPart(EftPGlow *e, EftPGlowPart *p, EftPGlowPart *src) {
     p->dLength = (EftGlow_CalcLength(p, 1) - p->length) / (p->life * gEftGlowCfg2->stage);
     p->dist = src->dist;
     p->dirY = src->dirY;
-    Vec4_Copy(dir, &src->dir);
-    Vec4_Copy(off, &src->offset);
+    Vec4_Copy(&p->dir, &src->dir);
+    Vec4_Copy(&p->offset, &src->offset);
     s = e->scale * 4.0f;
     p->offset.x -= p->dir.x * s;
     p->offset.y -= p->dir.y * s;
     p->offset.z -= p->dir.z * s;
-    p->dColor.x = (e->color[idx].x - p->color.x) / p->lifeMax;
-    p->dColor.y = (e->color[idx].y - p->color.y) / p->lifeMax;
-    p->dColor.z = (e->color[idx].z - p->color.z) / p->lifeMax;
+    p->dColor.x = (GLOWCOL(e)[idx].x - p->color.x) / p->lifeMax;
+    p->dColor.y = (GLOWCOL(e)[idx].y - p->color.y) / p->lifeMax;
+    p->dColor.z = (GLOWCOL(e)[idx].z - p->color.z) / p->lifeMax;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_p_b", EftGlow_PairPart);
 
 /* Spawns the emitter's next quad (and sometimes its partner) and advances the node walk. Angles around the
    fighter's axis depend on the node; draws of libc rand(): 1 for the angle, 0..2 for the partner, 4 when the walk
@@ -968,7 +969,15 @@ void EftGlow_MakeFacingMtx(Mtx44 *m, EftPVec *dir, EftPVec *pos) {
 
 /* NON-MATCHING: 9 of 487 instructions, register choice in the three off-screen tests only (the original holds the
    projected x in v1, the limit 0xFFF0 in a1 and the two copies of the record pointer in v0 / a0; this code uses
-   v0, v1, a0, a1). */
+   v0, v1, a0, a1).
+   Second cleanup, from the allocation dumps: the three `sp + i * 16` addresses (one per member read, later turned
+   into copies) and the limit live across the tests' blocks, so global allocation places them; x and its compare
+   result live inside one block and local allocation, which runs first, gives them v0. For the original's result
+   (y address in v0, x in v1, z address in a0, limit in a1) x would have to be allocated globally, after the y
+   address. A variable for the limit (`lim = 0xFFF0;` in front of the first test) puts the limit in a1 (8 of
+   487) but not x. No effect: the range written as `x < 0 || x > 0xFFF0`, `0xFFF0 < x`, `>= 0xFFF1`, else-if
+   chains, inline helpers taking the value or the record, a 16-aligned record type. The same three tests differ
+   the same way in EftAura_DrawFlames (eft_n.c). */
 #if 0
 /* Draws a fighter's quads (not the trailing ones): each is projected, skipped when a corner is off the GS
    coordinate range or behind the near plane, and queued in the order table by its average depth. */

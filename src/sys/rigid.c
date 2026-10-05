@@ -429,6 +429,12 @@ void Rigid_SyncSpheres(RigidBody *body) {
  * The float constant 2.35619449f (0x4016CBE3) of this function is D_002FE818, the last entry of
  * this file's .lit4 pool.
  */
+/* Cleanup pass 2: the scheduler dump (-da, .sched) shows what decides it. In the first scheduling pass the first
+   memset call is issued and `a0 = body` of the second call becomes ready in the same cycle and is issued at
+   once (the insn that the call makes ready last is taken immediately, the others are sorted in the next cycle:
+   size, then zero). The original has size, body, zero: there `a0 = body` was not the one issued with the call.
+   `Vec4 zero = { 0.0f };` + `zero.w = 1.0f;` behind the second memset, an explicit memset of `zero`,
+   __builtin_memset and a local for 1 all leave the order as it is or change far more. */
 #if 0
 void Rigid_Init(RigidBody *body, s32 user, f32 radius, f32 density) {
     Vec4 zero = { 0.0f, 0.0f, 0.0f, 1.0f };

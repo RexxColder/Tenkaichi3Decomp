@@ -1175,7 +1175,8 @@ s32 AiThink_TestMove(AiThWork *ai) {
  * 2i + 16) are this compiler's split of a field offset into a multiple of 16 and a rest, which the plain
  * `skills->kind[i]` gives, so the member accesses are right; (3) reload takes registers up to t1 here, a sign
  * that the choice of spill registers differs from the first instruction that needs one (see AiThink_EvalRules).
- * Behaviour checked line by line against the disassembly. */
+ * Behaviour checked line by line against the disassembly (and again, independently, in the second cleanup
+ * pass: every test, offset, compare direction and the order of the Rand_Range calls agree). */
 s32 AiThink_TestSkill(AiThWork *ai) {
     s32 list[4];
     s32 gauge;
@@ -2179,21 +2180,18 @@ void AiThink_EvalRules(AiThWork *ai, AiThRuleList *list) {
 /* For the fighter's own action: 1 when its class is 15; otherwise, for the actions 0x3C..0x3F, the step to
  * continue at (action - 0x3A with sequence flag 0x100, else action - 0x3B); 0 for anything else. Called by step
  * handler BtlAiPick_ComboBranch (the call is at 0x1B5098). */
-#if 0
-/* Best attempt. 11 of 32 instructions differ: registers only (the original sets v0 = 1 before the class test and has the action id in a2).
- * The original has `li v0,1` (the hoisted `return 1`) scheduled directly behind the copy of the call result, so
- * v0 is taken when the temporaries are allocated; here the first scheduling pass gives that instruction the
- * lowest priority and puts it last. Tried without effect: a result variable (ends in a2 with a move), nested
- * if / else, the range test first, a switch on the action, an inline helper. */
+/* The biased action id is a local set before the class test (as written, the range test's subtraction is
+ * computed in front of the first branch and its compare lands in that branch's delay slot). */
 s32 AiThink_GetBlastStep(AiThWork *ai) {
     AiThActTable *act = gBtlAi->data->act;
     s32 action = BtlCharApi_GetUnk974(ai->objId);
     AiThSeq *seq = &ai->seq;
+    s32 k = action - 0x3C;
 
     if (act->actClass[action] == 15) {
         return 1;
     }
-    if ((u32)(action - 0x3C) >= 4) {
+    if ((u32)k >= 4) {
         return 0;
     }
     if (seq->flags & 0x100) {
@@ -2201,8 +2199,6 @@ s32 AiThink_GetBlastStep(AiThWork *ai) {
     }
     return action - 0x3B;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_cond", AiThink_GetBlastStep);
 
 /* Counts the plan cooldown down. */
 void AiThink_TickCooldown(AiThWork *ai) {

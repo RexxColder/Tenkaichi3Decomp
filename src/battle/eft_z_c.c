@@ -12,17 +12,26 @@
 
 /* Kind 5 init: two particles thrown outwards from the point. */
 #if 0
-/* NON-MATCHING: 68 of 250 instructions, all before the loop (the loop body and the tail are identical). The original
-   keeps &arg->colA / &arg->colB in s0 / s1 for the EftGndDust_GetLightColors call and copies them to sp+0x50 / sp+0x54 later;
-   here each pointer lives in its stack slot from the start, which also shifts the prologue and the order of the
-   argument stores. */
+/* NON-MATCHING: 28 of 250 instructions (20 aligned), all between the Vec4_Set call and the loop plus three argument
+   loads in the loop; registers, prologue and the rest are identical. The original computes &arg->colA / &arg->colB
+   once into s0 / s1 (for EftGndDust_GetLightColors) and later copies them to sp+0x50 / sp+0x54, which the loop
+   reads back. What is known (cleanup E):
+   - With plain locals `colA = arg->colA` (anywhere, also inside the loop, or copied from two earlier locals) gcse and
+     then the loop pass replace the copy by the first computation, and that single pseudo is spilled from the start
+     (the old attempt, 66 instructions).
+   - A two-element array (below) keeps the early s0 / s1 and gives the right stores, but as real memory stores they
+     rank below the stores through `arg` in the scheduler (the call depends on a frame store only as an
+     anti-dependence): `sw s1,0x54(sp)` goes last instead of third, and the 2.0943951f load moves behind rand().
+     In the original the copies behave like register copies of a spilled variable.
+   - Holding the two pointers in `fade` / `life` (variables set again in the loop, so nothing can propagate the copy)
+     reproduces the original store order exactly but allocates arg / colA / colB to s0 / s1 / s2 instead of
+     s2 / s0 / s1. So the original has two extra pseudos that survive copy propagation; how is not found. */
 void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
     EftGndDustEmit *w = task->work;
     Vec4 pos;
     Vec4 dir;
     Vec4 off;
-    u8 *colA;
-    u8 *colB;
+    u8 *col[2];
     s32 i;
     s32 life;
     s32 fade;
@@ -41,11 +50,11 @@ void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
     if (arg->scale < 0.8f) {
         arg->scale = 0.8f;
     }
+    col[0] = arg->colA;
     Vec4_Set(V(&arg->accel), 0.0f, -1.0f, 0.0f, 1.0f);
-    colA = arg->colA;
     arg->pool = 1;
     arg->tex = 2;
-    colB = arg->colB;
+    col[1] = arg->colB;
     arg->grow = 0.1f;
     arg->size = 10;
     arg->life = 15;
@@ -72,7 +81,7 @@ void EftGndDustImpact_Init(EftZTask *task, EftGndDustArg *arg) {
         fade = arg->fade + rand() % 5;
         spin = RANDF() * 6.2831853f;
         grow = (RANDF() * 0.005f + 0.005f) * arg->scale;
-        EftGndDust_SpawnPieceEx(w, &pos, &dir, colA, colB, (f32)life, (f32)fade, rand() % 10 + 25, 1.0f, 1.0f, 0.05f,
+        EftGndDust_SpawnPieceEx(w, &pos, &dir, col[0], col[1], (f32)life, (f32)fade, rand() % 10 + 25, 1.0f, 1.0f, 0.05f,
                       0.05f, arg->scale * 0.3f, 0.8f, spin, 0.3f, 1.0f, grow, 0);
     }
     w->arg = *arg;

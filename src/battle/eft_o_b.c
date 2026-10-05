@@ -13,9 +13,8 @@
  * (A handle whose task was killed and reused by another blast object passes that test: the creators drop
  * their handle when EftBlastObj_IsAlive fails, which they poll every frame.)
  *
- * LIFE OF A BLAST OBJECT (verified by the matching code below, except what EftBlastObj_Init and
- * EftBlastObj_UpdateParts do: those two are left in assembly, 6 and 70 instructions away from their C, and were
- * checked against the disassembly line by line)
+ * LIFE OF A BLAST OBJECT (verified by the matching code below, except what EftBlastObj_Init does: it is left in
+ * assembly, 6 instructions (registers only) away from its C, and was checked against the disassembly line by line)
  *
  * Creation (EftBlastObj_Create / EftBlastObj_CreateWithModel -> EftBlastObj_Init):
  *   - position = *arg->pos (also kept as the record's "start"), direction = *arg->dir (taken as given, not
@@ -286,17 +285,9 @@ void EftBlastObj_TermModel(EftOTask *task) {
 
 /* Drives the parts of the effect pack this object owns: those whose kind and node slot match one of its
    sel[] pairs (a part on node slot 5 matches any pair of its kind). Visual. */
-/* NON-MATCHING: 70 of 115 instructions, same logic: the original branches to the loop exit from both node
-   tests (`beql ..., exit` with `skip = 0` in the delay slot) and falls through to `i++`; this falls through
-   to `skip = 0`. The loop counter and the part count also swap registers (a3 / t0).
-   So in the original the `skip = 0; break;` block stood outside the loop body (one block, reached from both
-   tests, later absorbed into the two delay slots). Tried: `||`, nested ifs, `&&`, continue, a flag tested after
-   the ifs, goto to a label behind the loop (80 of 115), a local part pointer; two separate `skip = 0; break;`
-   blocks make the loop pass give the loop up ("multiple entry points": no walking pointer at all).
-   Checked against the disassembly line by line (reloads of *set->mask per group, of grp[g].first and selCount
-   per part, of the group's count after the calls; argument order of the three calls) and by running both
-   versions in an interpreter on random data (build/scratch_cleanup_eft/emu_generic.py): no difference. */
-#if 0
+/* (The search loop needs this exact shape: `continue` for a kind mismatch, then the two node tests each with its
+   own `skip = 0; break;`. With `||`, or nested in `if (kind == ...)`, the compiler lays the break block out
+   inside the loop instead of branching to the exit from both tests.) */
 void EftBlastObj_UpdateParts(s32 objId, EftOTask *task, EftOSet *set, s32 reset) {
     EftBlastObj *w = task->work;
     s32 g;
@@ -313,11 +304,16 @@ void EftBlastObj_UpdateParts(s32 objId, EftOTask *task, EftOSet *set, s32 reset)
                 s32 f;
 
                 for (i = 0; i < w->selCount; i++) {
-                    if (set->parts[idx].kind == w->sel[i].kind) {
-                        if (set->parts[idx].node == w->sel[i].node || set->parts[idx].node == 5) {
-                            skip = 0;
-                            break;
-                        }
+                    if (set->parts[idx].kind != w->sel[i].kind) {
+                        continue;
+                    }
+                    if (set->parts[idx].node == w->sel[i].node) {
+                        skip = 0;
+                        break;
+                    }
+                    if (set->parts[idx].node == 5) {
+                        skip = 0;
+                        break;
                     }
                 }
                 if (skip) {
@@ -336,9 +332,6 @@ void EftBlastObj_UpdateParts(s32 objId, EftOTask *task, EftOSet *set, s32 reset)
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o_b", EftBlastObj_UpdateParts);
-#endif
 
 /* Init callback: see the notes at the top of the file. */
 /* NON-MATCHING: 6 instructions, register allocation only, in the copy of the node slots: the original keeps
@@ -351,7 +344,12 @@ INCLUDE_ASM("asm/nonmatchings/battle/eft_o_b", EftBlastObj_UpdateParts);
    original both loads became ready together, the one with the longer chain (the node) went first. No source form
    found that does it: reading the node or the nodes pointer before / between the table initialisers changes the
    order of the copies (29 to 130 instructions), a local for the pointer, memcpy and other spellings give these 6.
-   Behaviour is identical (registers only; also run against the original in the interpreter). */
+   Behaviour is identical (registers only; also run against the original in the interpreter). 
+   Second cleanup: the scheduler trace of the attempt is 112 / 120 (the two table copies, cycles 48 / 49), then
+   138 (load of arg->nodes, ready since cycle 48), 123 (load of the node, ready at 51 because it depends on the
+   second copy), 140, 127, 129, 131; the original's order needs 123 in front of 138, i.e. the load through `arg`
+   not ready before cycle 51 (a dependence on the second table copy) or the node load ready at 50. Passing the
+   argument block by value does not do it (the callee copies it: 160 instructions off). */
 #if 0
 void EftBlastObj_Init(EftOTask *task, EftBlastObjArg *arg) {
     EftBlastObj *w = task->work;

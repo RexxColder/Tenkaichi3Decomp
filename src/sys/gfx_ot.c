@@ -89,6 +89,13 @@ void Ot_ResetCursor(void) {
 }
 
 /* Empties the table for the next frame: reselects the three slot pointers, marks every chain empty, rewinds the cursor. Returns 1. */
+/* Cleanup pass 2: the two extra copies are made by cse, not written in the source: each of the three loads
+   recomputes `cur * 4 + gOt` as its own temporary and cse turns the later ones into copies of the one before
+   (`ot = gOt; i = ot->cur; ... ot->slots[i + 1]; ot->slots[i + 2]` reproduces the copy for the third load: 10 of
+   24). What is missing is the first load in the same operand order (`ot->slots[i]` expands to `ot + i * 4`, the
+   other two to `i * 4 + ot`, so the first is a second addu instead of the source of the chain). Not found:
+   `*(i + ot->slots)`, `(&ot->slots[i])[k]`, byte arithmetic, an inline accessor with the index as a parameter,
+   pointer copies (a = b = c), post-increments and a 12-byte struct copy all give other code. */
 #if 0
 /* Differs: the original computes `gOt + gOt->cur * 4` once but then copies it to a new register for each
    of the next two loads (addu v1,a2,v0 / move a3,v1 / move a2,a3), so it is two instructions longer. */

@@ -148,10 +148,9 @@ void EftBurst_DrawQuad(EftBurstPtcl *p) {
     }
 }
 
-#if 0 /* ATTEMPT: 22 of 274 instructions differ, all in the prologue: the two 0x40-byte tables are copied
-   through other temporary registers (the original loads st[1] last and keeps corner[5] in $a1). The loop and
-   the packet match. */
-/* Draws a particle as a quad that can be scaled per axis, rotated by its angles and tinted. */
+/* Draws a particle as a quad that can be scaled per axis, rotated by its angles and tinted. The tables are
+   D_002EC800 (corners) and D_002EC840 (st) in .rodata. `ps` (as in EftBurst_DrawQuad) is needed only for the
+   Mtx_ProjectPoint call: with scr[i] there, the copy of the two tables uses other temporaries. */
 void EftBurst_DrawQuadRot(EftBurstPtcl *p) {
     EftFVec v;
     EftFVec corner[4] = {
@@ -180,8 +179,10 @@ void EftBurst_DrawQuadRot(EftBurstPtcl *p) {
     s32 scaleY;
     s32 rotate;
     s32 scaleX;
+    EftIVec *ps;
 
     vis = 0;
+    ps = scr;
     flags = p->flags;
     scaleX = flags & EFT_BURST_F_SCALE_X;
     scaleY = flags & EFT_BURST_F_SCALE_Y;
@@ -211,7 +212,7 @@ void EftBurst_DrawQuadRot(EftBurstPtcl *p) {
         }
         Vec4_Add((Vec4 *)v, (Vec4 *)v, &p->pos);
         v[3] = 1.0f;
-        Mtx_ProjectPoint((EftScrPos *)scr[i], &gBtlCamView->proj, (Vec4 *)v);
+        Mtx_ProjectPoint((EftScrPos *)ps[i], &gBtlCamView->proj, (Vec4 *)v);
         vis += scr[i][2] > 0;
     }
     if (vis != 0) {
@@ -259,10 +260,6 @@ void EftBurst_DrawQuadRot(EftBurstPtcl *p) {
         Dma_EndDirect(pkt);
     }
 }
-#endif
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_d_b", D_002EC800);
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_d_b", D_002EC840);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_d_b", EftBurst_DrawQuadRot);
 
 /* Draws a particle as an axis-aligned sprite; its two corners are turned by the view's matrix at +0x40. */
 void EftBurst_DrawSprite(EftBurstPtcl *p) {
@@ -494,9 +491,70 @@ void EftBurst_ClearAlphaPlane(void) {
     Dma_EndDirect(p);
 }
 
-#if 0 /* ATTEMPT: not matching (561 instructions against 600): a transcription of the disassembly that
-   compiles, kept as documentation of what the function does. The original holds most loop state on the stack
-   and walks the triangle record with three pointers. */
+#if 0 /* ATTEMPT: not matching: 597 instructions against 599, 44 differ in an aligned listing, all of them register
+   choice and instruction order in three places of the vertex loop; the control flow, the frame (0x240), every stack
+   slot, every call and every packet word are the original's. What differs:
+   - the colour unpack: the original reads rgba[0] and rgba[2] into $v1 and the two high bytes into $v0, and
+     takes the three low parts of the first RGBAQ word from those registers (`move a1,v1`, `move a2,v0 /
+     dsll a2,a2,8`, `move a0,v1 / dsll a0,a0,16`), reloading only rgba[3] from the stack; here the registers
+     alternate the other way round and rgba[2] is reloaded too (2 instructions short). The moves are sign
+     extending loads of rgba[i] that the post-reload CSE turned into copies, so the first scheduling pass of the
+     original must have put the reads of rgba[0] and rgba[1] behind the store of rgba[1] and in front of the load
+     of the third byte, not into the load-delay gaps where they land here. Reading / storing through a pointer
+     that the compiler cannot resolve (`c = rgba;` set outside the vertex loop) gives the original's register
+     pattern but costs two instructions elsewhere; a `do { } while (0)` around the four stores does too but breaks
+     the loop's induction pointers.
+   - the copies of the two constant vectors: the original loads the address of D_002EC8D0 into $v1 and copies it
+     to $t0 for the second half (`move t0,v1 ... ld v0,0(v1) / ld v1,8(t0)`), with the halves in $a3/$a2 and
+     $v0/$v1; here both addresses go through $t0 and the halves sit in $a2/$a3 and $v1/$v0.
+   - the last two argument moves in front of Mtx_ProjectPointStq are swapped (`move t0,s0 / move a3,v0`).
+   Ruled out (about 250 variants): every element type / alignment for the vectors, `static const` tables copied by
+   struct assignment, memcpy, u64 pairs (u128 gives lq / sq and is the only form that keeps the lui / addiu in the
+   block), colour bytes as u8, bit fields, temporaries, one u32, casts, statement permutations, the position of
+   `env`, `pos[3]`, `vis`.
+   What the rewrite established (and the previous attempt had wrong in shape, not in behaviour):
+   - a triangle record is a structure, { s16 vtx[3]; s16 nrm[3][2]; u16 col[3][2]; }: the colour is read as two
+     16-bit words split with `& 0xFF` and `>> 8` (lbu / lhu + srl), and the multiple-of-16 split of the member
+     offsets gives the original's two extra walking pointers (tri + 2, tri + 6);
+   - `((x >> 8) & 0xFF)` with the redundant mask is required: without it the vertex loop is one instruction
+     shorter for the loop pass and `tri->vtx[k]` becomes a walking pointer as well (the test is
+     `lifetime * threshold * benefit < insn_count`, here 264 against 264);
+   - the packing casts are (u64), not (s64): this compiler reassociates `a | b << 8 | c << 16 | d << 24 | q << 32`
+     differently for the two ((a | q) | (c << 16 | b << 8)) | d << 24 is the (u64) form);
+   - TEX0_2 is `tex0 | (y << 37 | x | 0x400000000)` with the parentheses;
+   - the group loop is `for (i = 0; i < n; i++)` (reversed by the compiler into the counter at sp+0x18C), not a
+     loop on n itself; the triangles are written out without a loop, two words at a time;
+   - the visibility test is the inline function Eft_IsScreenPosVisible used as a value (`vis += ...`);
+   - the light vectors are block-scope initialised arrays ({0, 0, 0, 1} is "mostly zero", so it becomes
+     memset + one store). */
+typedef struct EftBurstTri {
+    /* 0x00 */ s16 vtx[3];
+    /* 0x06 */ s16 nrm[3][2];   /* two packed angles per corner (env-map normal) */
+    /* 0x12 */ u16 col[3][2];   /* r | g << 8, b | a << 8 */
+} EftBurstTri; /* 0x1E */
+
+/* Eft_IsScreenPosVisible (0x13F3D8, emitted at the end of the object) as the compiler inlined it here. */
+static inline s32 EftBurst_IsVisible(s32 *pos) {
+    s32 *p = pos;
+
+    if (p[2] <= 0) {
+        return 0;
+    }
+    if (p[0] > 0x97FF) {
+        return 0;
+    }
+    if (p[0] < 0x6801) {
+        return 0;
+    }
+    if (p[1] > 0x94FF) {
+        return 0;
+    }
+    if (p[1] < 0x6B01) {
+        return 0;
+    }
+    return 1;
+}
+
 /* Draws the burst's model in camera space: every vertex is three 16-bit angles / a radius turned into a
    point around (0, 0, -50), every triangle is sent as RGBAQ / ST / XYZ2. Groups with flag 0x800 get a
    second, environment-mapped pass through GS context 2 whose colour is a light that fades with the
@@ -512,30 +570,25 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
     EftFVec st2[3];
     u64 rgbaq[3][2];
     EftIVec rgba;
-    EftFVec light;
-    EftFVec lightDir;
-    EftFVec ambient;
-    EftFVec colF;
     EftBurstGroup *grp;
     EftBurstTex *texs;
     EftBurstTex *envTex;
-    EftBurstTex *tex;
+    s32 i;
     s16 *verts;
-    s16 *tri;
-    u64 *pkt;
-    s32 n;
-    s32 flags;
+    EftBurstTri *tri;
+    EftBurstTex *tex;
     s32 t;
-    s32 k;
     s32 vis;
     s32 env;
+    u64 *pkt;
+    s32 flags;
+    s32 k;
+    s32 n;
     s32 x;
     s32 y;
     f32 fade;
     f32 dist;
     f32 scale;
-    f32 len;
-    f32 lit;
 
     grp = model->groups;
     envTex = &gEftBurstRes.texPack->tex[6];
@@ -551,20 +604,22 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
     EftBurst_SetTexture(NULL, 0, 0);
     EftBurst_ClearAlphaPlane();
     Dma_EndDirect(EftBurst_PutModelEnv(Dma_BeginDirect()));
-    for (; n > 0; n--, grp++) {
+    for (i = 0; i < n; i++, grp++) {
         verts = grp->verts;
-        tri = grp->tris;
+        tri = (EftBurstTri *)grp->tris;
         tex = &texs[grp->texIdx];
         flags = grp->flags;
         scale = grp->scale;
+        x = 0x2D00;
+        y = 0x2A00;
         EftBurst_SetTexture(tex, 0x2D00, 0x2A00);
-        tex->vramX = 0x2D00;
-        tex->vramY = 0x2A00;
-        x = tex->w + 0x2D00;
-        y = tex->h + 0x2A00;
+        tex->vramX = x;
+        tex->vramY = y;
+        x += tex->w;
+        y += tex->h;
         EftBurst_SetTexture(envTex, x, y);
-        envTex->vramY = y;
         envTex->vramX = x;
+        envTex->vramY = y;
         pkt = Dma_BeginDirect();
         pkt[0] = 0x1000000000008004;
         pkt[1] = 0xE;
@@ -581,39 +636,38 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
         pkt[0] = 0x44;
         pkt[1] = 0x43; /* ALPHA_2 */
         pkt += 2;
-        env = flags & 0x800;
-        for (t = 0; t < grp->triCount; t++, tri += 15) {
+        for (t = 0; t < grp->triCount; t++, tri++) {
             vis = 0;
+            env = flags & 0x800;
             for (k = 0; k < 3; k++) {
-                s16 *v = &verts[tri[k] * 3];
-                u8 *c = (u8 *)tri + 0x12 + k * 4;
+                s16 *v = &verts[tri->vtx[k] * 3];
 
                 IVec4_Set(ang, v[0], v[1], v[2], 0);
                 IVec4_ToFloat12(pos, ang);
-                IVec4_Set(ang, tri[3 + k * 2], tri[4 + k * 2], 0, 0);
+                IVec4_Set(ang, tri->nrm[k][0], tri->nrm[k][1], 0, 0);
                 IVec4_ToFloat12(nrm[k], ang);
                 Vec4_Scale((Vec4 *)pos, (Vec4 *)pos, scale);
                 Vec4_Sub((Vec4 *)d, (Vec4 *)origin, (Vec4 *)pos);
                 pos[3] = 1.0f;
                 Mtx_ProjectPointStq(scr[k], st[k], &gBtlCamView->proj, pos, nrm[k]);
-                rgba[0] = c[0];
-                rgba[1] = c[1];
-                rgba[2] = c[2];
-                rgba[3] = c[3];
-                rgbaq[k][0] = (s64)rgba[0] | ((s64)rgba[1] << 8) | ((s64)rgba[2] << 16) | ((s64)rgba[3] << 24) |
+                rgba[0] = tri->col[k][0] & 0xFF;
+                rgba[1] = (tri->col[k][0] >> 8) & 0xFF;
+                rgba[2] = tri->col[k][1] & 0xFF;
+                rgba[3] = (tri->col[k][1] >> 8) & 0xFF;
+                rgbaq[k][0] = (u64)rgba[0] | ((u64)rgba[1] << 8) | ((u64)rgba[2] << 16) | ((u64)rgba[3] << 24) |
                               ((u64)((u32 *)st[k])[2] << 32);
                 if (env) {
                     Vec4_Copy((Vec4 *)st2[k], (Vec4 *)st[k]);
                     st2[k][0] *= 8.0f;
                     st2[k][1] *= 8.0f;
                     if (gEftBurst->frame >= 11) {
-                        static const EftFVec kLightDir = { 1.0f, -0.2f, -0.8f, 0.0f };
-                        static const EftFVec kAmbient = { 127.0f, 127.0f, 127.0f, 0.0f };
+                        EftFVec light = { 0.0f, 0.0f, 0.0f, 1.0f };
+                        EftFVec lightDir = { 1.0f, -0.2f, -0.8f, 0.0f };
+                        EftFVec ambient = { 127.0f, 127.0f, 127.0f, 0.0f };
+                        EftFVec colF;
+                        f32 len;
+                        f32 lit;
 
-                        memset(light, 0, sizeof(light));
-                        *(EftVec16 *)lightDir = *(EftVec16 *)kLightDir;
-                        *(EftVec16 *)ambient = *(EftVec16 *)kAmbient;
-                        light[3] = 1.0f;
                         len = sqrtf(Vec3_Dot((Vec4 *)d, (Vec4 *)d));
                         lit = 255.0f - len / dist * 255.0f;
                         if (lit > 255.0f) {
@@ -624,25 +678,21 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
                         Vec4_Add((Vec4 *)ambient, (Vec4 *)light, (Vec4 *)ambient);
                         Vec4_Clamp(ambient, ambient, 0.0f, 255.0f);
                         Vec4_ToInt(rgba, (Vec4 *)ambient);
-                        rgbaq[k][1] = (s64)rgba[0] | ((s64)rgba[1] << 8) | ((s64)rgba[2] << 16) |
-                                      ((s64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
+                        rgbaq[k][1] = (u64)rgba[0] | ((u64)rgba[1] << 8) | ((u64)rgba[2] << 16) |
+                                      ((u64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
                         if (len < dist) {
                             Vec4_Scale((Vec4 *)lightDir, (Vec4 *)lightDir, lit);
                             Vec4_Add((Vec4 *)ambient, (Vec4 *)lightDir, (Vec4 *)colF);
                             Vec4_Clamp(ambient, ambient, 0.0f, 255.0f);
                             Vec4_ToInt(rgba, (Vec4 *)ambient);
-                            rgbaq[k][0] = (s64)rgba[0] | ((s64)rgba[1] << 8) | ((s64)rgba[2] << 16) |
-                                          ((s64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
+                            rgbaq[k][0] = (u64)rgba[0] | ((u64)rgba[1] << 8) | ((u64)rgba[2] << 16) |
+                                          ((u64)rgba[3] << 24) | ((u64)((u32 *)st[k])[2] << 32);
                         }
                     } else {
                         rgbaq[k][1] = (u64)((u32 *)st[k])[2] << 32;
                     }
                 }
-                /* Eft_IsScreenPosVisible (0x13F3D8), inlined */
-                if (scr[k][2] > 0 && scr[k][0] <= 0x97FF && scr[k][0] >= 0x6801 && scr[k][1] <= 0x94FF &&
-                    scr[k][1] >= 0x6B01) {
-                    vis++;
-                }
+                vis += EftBurst_IsVisible(scr[k]);
             }
             if (vis != 0) {
                 pkt[0] = 0x1000000000008002;
@@ -657,19 +707,26 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
                 pkt[0] = 0x3400000000008003;
                 pkt[1] = 0x521; /* RGBAQ, ST, XYZ2 */
                 pkt += 2;
-                for (k = 0; k < 3; k++) {
-                    pkt[0] = rgbaq[k][0];
-                    pkt[1] = (u64)((u32 *)st[k])[0] | ((u64)((u32 *)st[k])[1] << 32);
-                    pkt[2] = (s64)scr[k][0] | ((s64)scr[k][1] << 16) | ((s64)scr[k][2] << 32);
-                    pkt += 3;
-                }
-                pkt[0] = 0;
-                pkt += 1;
+                pkt[0] = rgbaq[0][0];
+                pkt[1] = (u64)((u32 *)st[0])[0] | ((u64)((u32 *)st[0])[1] << 32);
+                pkt += 2;
+                pkt[0] = (s64)scr[0][0] | ((s64)scr[0][1] << 16) | ((s64)scr[0][2] << 32);
+                pkt[1] = rgbaq[1][0];
+                pkt += 2;
+                pkt[0] = (u64)((u32 *)st[1])[0] | ((u64)((u32 *)st[1])[1] << 32);
+                pkt[1] = (s64)scr[1][0] | ((s64)scr[1][1] << 16) | ((s64)scr[1][2] << 32);
+                pkt += 2;
+                pkt[0] = rgbaq[2][0];
+                pkt[1] = (u64)((u32 *)st[2])[0] | ((u64)((u32 *)st[2])[1] << 32);
+                pkt += 2;
+                pkt[0] = (s64)scr[2][0] | ((s64)scr[2][1] << 16) | ((s64)scr[2][2] << 32);
+                pkt[1] = 0;
+                pkt += 2;
                 if (env) {
                     pkt[0] = 0x1000000000008002;
                     pkt[1] = 0xE;
                     pkt += 2;
-                    pkt[0] = envTex->tex0 | ((u64)(u32)envTex->vramY << 37) | (u64)(u32)envTex->vramX | 0x400000000;
+                    pkt[0] = envTex->tex0 | (((u64)(u32)envTex->vramY << 37) | (u64)(u32)envTex->vramX | 0x400000000);
                     pkt[1] = 7; /* TEX0_2 */
                     pkt += 2;
                     pkt[0] = 0x25B; /* the same PRIM through context 2 */
@@ -678,14 +735,21 @@ void EftBurst_DrawModel(EftBurstModel *model, s32 unused) {
                     pkt[0] = 0x3400000000008003;
                     pkt[1] = 0x521;
                     pkt += 2;
-                    for (k = 0; k < 3; k++) {
-                        pkt[0] = rgbaq[k][1];
-                        pkt[1] = (u64)((u32 *)st2[k])[0] | ((u64)((u32 *)st2[k])[1] << 32);
-                        pkt[2] = (s64)scr[k][0] | ((s64)scr[k][1] << 16) | ((s64)scr[k][2] << 32);
-                        pkt += 3;
-                    }
-                    pkt[0] = 0;
-                    pkt += 1;
+                    pkt[0] = rgbaq[0][1];
+                    pkt[1] = (u64)((u32 *)st2[0])[0] | ((u64)((u32 *)st2[0])[1] << 32);
+                    pkt += 2;
+                    pkt[0] = (s64)scr[0][0] | ((s64)scr[0][1] << 16) | ((s64)scr[0][2] << 32);
+                    pkt[1] = rgbaq[1][1];
+                    pkt += 2;
+                    pkt[0] = (u64)((u32 *)st2[1])[0] | ((u64)((u32 *)st2[1])[1] << 32);
+                    pkt[1] = (s64)scr[1][0] | ((s64)scr[1][1] << 16) | ((s64)scr[1][2] << 32);
+                    pkt += 2;
+                    pkt[0] = rgbaq[2][1];
+                    pkt[1] = (u64)((u32 *)st2[2])[0] | ((u64)((u32 *)st2[2])[1] << 32);
+                    pkt += 2;
+                    pkt[0] = (s64)scr[2][0] | ((s64)scr[2][1] << 16) | ((s64)scr[2][2] << 32);
+                    pkt[1] = 0;
+                    pkt += 2;
                 }
             }
         }

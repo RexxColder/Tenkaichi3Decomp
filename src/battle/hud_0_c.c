@@ -70,6 +70,11 @@ s32 BtlText_IsOnScreen(s32 x0, s32 y0, s32 x1, s32 y1) {
  * operand order of the ORs, locals for the corners / the UVs / the Z constant, helper functions, an early
  * return). The same pattern resists in FontIcon_PutSprite (col_c_b.c). Checked with the attempt enabled:
  * every other function of the file prints OK either way.
+ * Second cleanup pass: the exact condition is u0 one instruction shorter-lived (2 / 32 then ties with y0, which
+ * wins as the older register) or x0 AND y0 one longer (the Z constant scheduled in front of their sign
+ * extensions by the first scheduling pass). Writing the UV word as `((s64)v0 << 20) | ((s64)u0 << 4)` puts x0
+ * in s4 but exchanges u0 and v0 (s5 / s3: 4 differences). Without effect: a local copy of u0 (propagated away),
+ * the colour word written five other ways, a variable for the Z constant at four places, the constant first.
  */
 #if 0
 void BtlText_PutSprite(u64 **pkt, s32 x0, s32 y0, s32 x1, s32 y1, s32 u0, s32 v0, s32 u1, s32 v1, u32 color,

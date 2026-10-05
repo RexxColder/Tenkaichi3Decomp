@@ -642,11 +642,9 @@ inline s32 EftMesh_IsOffScreen(EftAdScr p) {
 
 /* Clips one triangle (v has room for the 9 vertices clipping can produce) against the five view planes,
    projects it and queues the resulting fan, each triangle at the mean depth of its three points. */
-/* Not matching: 160 of 178 instructions differ (the original is 180), same logic. The original keeps zOfs on the stack and
-   walks the fan with a pointer to scr[i - 1].z, a pointer to scr[i - 1], a pointer to v[i] and the byte offset
-   i * 16 (added to scr and stq for the call); this C gets other induction variables. The matching part shows the
-   inlined screen tests. */
-#if 0
+/* The fan's depth values are read through a pointer to scr[0].z plus the byte offset i << 4 (matching needs this
+   form: indexing scr[i].z gives other induction variables). */
+#define EFT_FAN_Z(zp, i) (*(s32 *)((u8 *)(zp) + ((i) << 4)))
 void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 flag2, s32 zflip, u64 tex0, s32 zOfs) {
     EftAdScr scr[9];
     EftAdVec stq[9];
@@ -654,6 +652,7 @@ void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 fl
     s32 n;
     s32 i;
     s32 z;
+    s32 *zp;
 
     plane = EftGfx_GetClipPlanes();
     n = 3;
@@ -665,19 +664,20 @@ void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 fl
         return;
     }
     ClipPoly_ProjectCur(scr, stq, v, n);
+    zp = &scr[0].z;
     for (i = 2; i < n; i++) {
-        z = ((scr[0].z + scr[i - 1].z + scr[i].z) / 3) >> 8;
+        z = ((scr[0].z + EFT_FAN_Z(zp, i - 1) + EFT_FAN_Z(zp, i)) / 3) >> 8;
         if (zflip) {
             z = 0x1000 - z;
         }
         if (scr[0].z > 0xFFFFFF) {
             scr[0].z = 0xFFFFFF;
         }
-        if (scr[i - 1].z > 0xFFFFFF) {
-            scr[i - 1].z = 0xFFFFFF;
+        if (EFT_FAN_Z(zp, i - 1) > 0xFFFFFF) {
+            EFT_FAN_Z(zp, i - 1) = 0xFFFFFF;
         }
-        if (scr[i].z > 0xFFFFFF) {
-            scr[i].z = 0xFFFFFF;
+        if (EFT_FAN_Z(zp, i) > 0xFFFFFF) {
+            EFT_FAN_Z(zp, i) = 0xFFFFFF;
         }
         if (EftMesh_IsOffScreen(scr[0]) && EftMesh_IsOffScreen(scr[i - 1]) && EftMesh_IsOffScreen(scr[i])) {
             continue;
@@ -687,21 +687,17 @@ void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 fl
                          z + zOfs, tex0);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_b", EftMesh_DrawTriClip);
 
 /* The same, with each triangle of the fan sent to the GS at once. */
-/* Not matching: 113 of 149 instructions differ (the original is 147): the same induction variable choice (a pointer
-   to scr[i - 1].z and base + i * 16 for scr[i].z); logic identical. Note the screen tests: this variant tests
-   points 0, 1 and 2 for every triangle of the fan, not 0, i - 1 and i (verified in the disassembly: fixed stack
-   offsets 0x20 / 0x30 / 0x40). */
-#if 0
+/* Note the screen tests: this variant tests points 0, 1 and 2 for every triangle of the fan, not 0, i - 1 and i
+   (fixed stack offsets 0x20 / 0x30 / 0x40 in the original). */
 void EftMesh_DrawNowTriClip(EftMeshOut *v, u64 tex0, s32 abe) {
     EftAdScr scr[9];
     EftAdVec stq[9];
     EftAdVec *plane;
     s32 n;
     s32 i;
+    s32 *zp;
 
     plane = EftGfx_GetClipPlanes();
     n = 3;
@@ -713,15 +709,16 @@ void EftMesh_DrawNowTriClip(EftMeshOut *v, u64 tex0, s32 abe) {
         return;
     }
     ClipPoly_ProjectCur(scr, stq, v, n);
+    zp = &scr[0].z;
     for (i = 2; i < n; i++) {
         if (scr[0].z > 0xFFFFFF) {
             scr[0].z = 0xFFFFFF;
         }
-        if (scr[i - 1].z > 0xFFFFFF) {
-            scr[i - 1].z = 0xFFFFFF;
+        if ((&scr[i - 1].z)[0] > 0xFFFFFF) {
+            (&scr[i - 1].z)[0] = 0xFFFFFF;
         }
-        if (scr[i].z > 0xFFFFFF) {
-            scr[i].z = 0xFFFFFF;
+        if (EFT_FAN_Z(zp, i) > 0xFFFFFF) {
+            EFT_FAN_Z(zp, i) = 0xFFFFFF;
         }
         if (EftMesh_IsOffScreen(scr[0]) && EftMesh_IsOffScreen(scr[1]) && EftMesh_IsOffScreen(scr[2])) {
             continue;
@@ -730,8 +727,6 @@ void EftMesh_DrawNowTriClip(EftMeshOut *v, u64 tex0, s32 abe) {
                         (EftAdVec *)&v[i].color, &stq[0], &stq[i - 1], &stq[i], tex0, abe);
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_b", EftMesh_DrawNowTriClip);
 
 /* ---- effect model objects --------------------------------------------------------------------------------- */
 
@@ -805,16 +800,13 @@ void EftObj_Nop(void) {
    GS context 2; < 0 = list 0 without alpha blending). Nothing when all three alphas are below 0.1. With `repeat`
    a packet that sets CLAMP_1 and CLAMP_2 to 0 (texture repeat) is queued in front. Textured (hasTex) the packet
    is PRIM, TEX0, 3 x (RGBAQ, ST, XYZF2); untextured PRIM, 3 x (RGBAQ, XYZF2). flag2 is not used. */
-/* Not matching: 561 of 644 instructions differ (the original is 654): abe / layer sit in t9 / t8 instead of t8 / t9,
-   which shifts most of the function; the store order of the packet headers also differs. Same packets, same
-   constants, same order table links. */
-#if 0
+/* Matching needs: the list index l and the entry pointer e as block-local variables of each of the three blocks
+   (function-scope ones merge the three order-table tails completely), ctx as an int widened separately for PRIM
+   and shifted as an int for the register list, and the header stores in this order. */
 void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, EftAdVec *c1, EftAdVec *c2,
                       EftAdVec *t0, EftAdVec *t1, EftAdVec *t2, s32 repeat, s32 flag2, s32 hasTex, s32 layer, s32 z,
                       u64 tex0) {
-    EftAdOtEntry *e;
     s64 abe = 1;
-    s32 l;
 
     if (c0->w < 0.1f && c1->w < 0.1f && c2->w < 0.1f) {
         return;
@@ -825,6 +817,8 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
     }
     if (repeat) {
         EftMeshClampPkt *p;
+        s32 l;
+        EftAdOtEntry *e;
 
         l = layer;
         if (l >= 2) {
@@ -854,16 +848,18 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
     }
     if (hasTex) {
         EftMeshTexTriPkt *p = (EftMeshTexTriPkt *)gOtCur;
-        s64 ctx;
+        s32 ctx;
+        s32 l;
+        EftAdOtEntry *e;
 
         gOtCur = (u8 *)(p + 1);
-        ctx = (layer < 2) ^ 1;
-        p->prim = (abe << 6) | (ctx << 9) | 0x1B;
-        p->vif0 = 0x10000000;
+        ctx = layer >= 2;
+        p->prim = ((s64)abe << 6) | ((s64)ctx << 9) | 0x1B;
         p->dmaTag = 0x20000007;
+        p->vif0 = 0x10000000;
         p->vif1 = 0x50000007;
         p->gifTag = 0xC400000000008001;
-        p->regs = (ctx << 4) + 0xF42142142160;
+        p->regs = (s64)(ctx << 4) + 0xF42142142160;
         p->next = NULL;
         p->nop = 0;
         p->v[0].rgbaq.r = c0->x;
@@ -880,10 +876,6 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         p->v[2].rgbaq.g = c2->y;
         p->v[2].rgbaq.b = c2->z;
         p->v[2].rgbaq.a = c2->w;
-        l = layer;
-        if (l >= 2) {
-            l -= 2;
-        }
         p->v[2].rgbaq.q = t2->z;
         p->tex0 = tex0;
         p->v[0].st.s = t0->x;
@@ -904,6 +896,10 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         p->v[2].xyz.y = p2->y;
         p->v[2].xyz.z = p2->z;
         p->v[2].xyz.f = 0xFF;
+        l = layer;
+        if (l >= 2) {
+            l -= 2;
+        }
         if (z < 0) {
             e = &gOtZ[0].layer[l];
         } else if (z >= 0x1000) {
@@ -915,9 +911,11 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         e->tail = (EftAdOtPrim *)p;
     } else {
         EftMeshTriPkt *p = (EftMeshTriPkt *)gOtCur;
+        s32 l;
+        EftAdOtEntry *e;
 
         gOtCur = (u8 *)(p + 1);
-        p->prim = (abe << 6) | 0xB;
+        p->prim = ((s64)abe << 6) | 0xB;
         p->dmaTag = 0x20000005;
         p->vif0 = 0x10000000;
         p->vif1 = 0x50000005;
@@ -938,10 +936,6 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         p->v[2].rgbaq.g = c2->y;
         p->v[2].rgbaq.b = c2->z;
         p->v[2].rgbaq.a = c2->w;
-        l = layer;
-        if (l >= 2) {
-            l -= 2;
-        }
         p->v[2].rgbaq.q = 1.0f;
         p->v[0].xyz.x = p0->x;
         p->v[0].xyz.y = p0->y;
@@ -955,6 +949,10 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         p->v[2].xyz.y = p2->y;
         p->v[2].xyz.z = p2->z;
         p->v[2].xyz.f = 0xFF;
+        l = layer;
+        if (l >= 2) {
+            l -= 2;
+        }
         if (z < 0) {
             e = &gOtZ[0].layer[l];
         } else if (z >= 0x1000) {
@@ -966,23 +964,23 @@ void EftMesh_QueueTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Ef
         e->tail = (EftAdOtPrim *)p;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_b", EftMesh_QueueTri);
 
 /* Sends one textured gouraud triangle to the GS at once (the same packet as the textured case above, built on
    the stack and copied into a direct DMA transfer). Nothing when all three alphas are below 0.1. */
-/* Not matching: 271 of 309 instructions differ (the original is 311): not iterated; store order of the packet. */
-#if 0
+/* abe goes through an s8 local (set after the DMA call) before it is widened: that gives the original's
+   sll / sra ahead of the 64-bit shift pair. */
 void EftMesh_SendTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, EftAdVec *c1, EftAdVec *c2,
                      EftAdVec *t0, EftAdVec *t1, EftAdVec *t2, u64 tex0, s32 abe) {
     EftMeshTexTriPkt pkt;
     u8 *dst;
+    s8 a;
 
     if (c0->w < 0.1f && c1->w < 0.1f && c2->w < 0.1f) {
         return;
     }
     dst = Dma_BeginDirect();
-    pkt.prim = ((s64)(s8)abe << 6) | 0x1B;
+    a = abe;
+    pkt.prim = ((s64)(s8)a << 6) | 0x1B;
     pkt.dmaTag = 0x20000007;
     pkt.vif0 = 0x10000000;
     pkt.vif1 = 0x50000007;
@@ -1027,5 +1025,3 @@ void EftMesh_SendTri(EftAdScr *p0, EftAdScr *p1, EftAdScr *p2, EftAdVec *c0, Eft
     memcpy(dst, &pkt.gifTag, (u16)pkt.dmaTag << 4);
     Dma_EndDirect(dst + ((u16)pkt.dmaTag << 4));
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ad_b", EftMesh_SendTri);

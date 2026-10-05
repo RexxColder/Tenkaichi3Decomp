@@ -190,7 +190,12 @@ void EftLine_Animate(EftLineWork *w) {
    length, where side is perpendicular to dir and to the direction to the camera. */
 /* NON-MATCHING: 26 of 340 instructions differ, one cause: the original fills the delay slot of the branch after
    Vu0Cur_ProjectPoints with the first instruction of the epilogue (ld s0) and this C with the following load of gOtCur, which
-   shifts the 25 instructions up to the next alignment nop by one. Same instructions otherwise. */
+   shifts the 25 instructions up to the next alignment nop by one. Same instructions otherwise.
+   Cleanup E: the delay-slot pass tries the fall-through first for a forward `beqz` and takes `lw s0,gOtCur`; the
+   original took the target's first instruction and retargeted the branch (the second branch still goes to the
+   unshifted label), so there the fall-through was not usable: a label directly behind the branch, or s0 live at the
+   target. Early return, goto, an inverted test, do-while around the body, the tail stores duplicated in the
+   three depth arms and an empty do-while in front of the end label all compile to the same 26. */
 #if 0
 void EftLine_DrawSprite(EftYTask *task) {
     EftYVec p[4];
@@ -430,10 +435,9 @@ void EftLine_DrawClipped(EftYTask *task) {
  * Effect tasks, 0x195EE8..0x198BC0. See include/battle/eft_z.h; continues in eft_z_b.c and eft_z_c.c.
  * Nothing here writes a fighter, a battle object, a hit record or the stage: both modules only build draw data.
  *
- * Two functions are INCLUDE_ASM with the C attempt in `#if 0` above them and a note on what differs
- * (EftBill_SetTexture, EftGndDustSlide_Init); turning every `#if 0` into `#if 1` and dropping the INCLUDE_ASM
- * lines gives a file that fdiff can compile. As shipped the C emits .lit4 0x2FCD80..0x2FCDCC and .rodata
- * 0x2ED310..0x2ED360 (the jump table of EftGndDust_Create and three vector constants).
+ * EftGndDustSlide_Init matches since the EftGndDust_SpawnPiece prototype returns a pointer (see eft_z.h). The C
+ * emits .lit4 0x2FCD80..0x2FCDCC and .rodata 0x2ED310..0x2ED360 (the jump table of EftGndDust_Create and three
+ * vector constants).
  */
 
 /* Item init: copies the argument, loads the first key and randomises angle and spin. */
@@ -1373,10 +1377,6 @@ void EftGndDustPuff_Draw(EftZTask *task) {
 }
 
 /* Kind 1 init: binds to the fighter and emits the first particles. */
-#if 0
-/* NON-MATCHING: 5 instructions, all the same thing: the original stores the free list (`sw v0,0xC8(s1)`) in the delay
-   slot of the EftGndDust_SpawnPiece call, after the argument loads; here the store comes first and `move a1,s2` takes the
-   slot. Nothing else differs. */
 void EftGndDustSlide_Init(EftZTask *task, EftGndDustArg *arg) {
     EftGndDustEmit *w = task->work;
 
@@ -1390,8 +1390,6 @@ void EftGndDustSlide_Init(EftZTask *task, EftGndDustArg *arg) {
     Vec3_Scale(&w->dir, &w->dir, -1.0f);
     Vec3_Normalize(&w->dir, &w->dir);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_z", EftGndDustSlide_Init);
 
 /* Kind 1 term: frees the particles and the fighter's slot. */
 void EftGndDustSlide_Term(EftZTask *task) {

@@ -195,7 +195,9 @@ typedef struct FxDirArg {
 /* Argument of EftRay_CreateByValue (the speed lines of request 0x15). The original's block is 0x60 bytes. */
 typedef struct FxLineArg {
     /* 0x00 */ Vec4 pos;      /* (0, 0, 0, 1) */
-    /* 0x10 */ s32 r, g, b, a;
+    /* 0x10 */ s32 r;         /* colour: r, then g, b, alpha. The callee reads s32 color[4]; the split (a scalar and
+                                 an array of three) is what the initialiser's store order needs to match */
+    /* 0x14 */ s32 gba[3];
     /* 0x20 */ f32 unk20;     /* 0.3 + 0.5 * |angle to the opponent, relative to the camera yaw| / pi */
     /* 0x24 */ f32 unk24;
     /* 0x28 */ f32 unk28;

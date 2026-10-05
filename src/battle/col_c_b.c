@@ -63,32 +63,30 @@ s32 FontIcon_IsOnScreen(s32 x0, s32 y0, s32 x1, s32 y1) {
 
 /*
  * Writes one icon sprite (TEX0_1, RGBAQ, UV, XYZ2, UV, XYZ2) showing a frame of its texture.
- *
- * NOT MATCHING (same operations, different schedule and registers). The attempt computes the same values:
- * cells per row = texture width / cell size; drawn size = (s32)(cell size * scale); corners at
- * (x + 0x700, y + 0x720) and + drawn size; frame -> column = frame % cells, row = frame / cells;
+ * Cells per row = texture width / cell size; drawn size = (s32)(cell size * scale); corners at
+ * (x + 0x700, y + 0x720) and + drawn size; column = frame % cells, row = frame / cells;
  * UV = cell * size .. (cell + 1) * size; Z = 0xFFFFFFF0; Q = 1.0f.
- * What differs: the original does nothing between the visibility test and its branch and builds every
- * 64-bit register value after it (the frame division first), keeping x0, x1, the colour and TEX0 in
- * saved registers and y0, y1 on the stack; this compiler output moves the shifts of x0 / y0 / the colour
- * in front of the call. The original also keeps the cells-per-row value in two registers (one for the
- * division, one for its zero check).
+ *
+ * Matching notes: the column and row are written out at each of their four uses (the four divisions
+ * leave four zero checks in the RTL, which is what pushes the function over the scheduler's 100
+ * instruction limit for a region, so that nothing of the block behind the visibility test is moved
+ * in front of it); the TEX0 word is the raw word with CBP merged in, then `| tbp | TCC` into a
+ * second variable.
  */
-#if 0
 void FontIcon_PutSprite(u64 **pkt, FontCmd *cmd, FontIconDef *icon, s32 frame, s32 x, s32 y, f32 scale,
                         u32 color, s32 vramBase) {
     FontTex *tex;
     s32 size;
     u64 tex0;
+    u64 reg;
+    s32 tbp;
+    s32 cbp;
     s32 drawn;
     s32 perRow;
-    s32 perCol;
     s32 x0;
     s32 y0;
     s32 x1;
     s32 y1;
-    s32 col;
-    s32 row;
     s32 tu0;
     s32 tv0;
     s32 tu1;
@@ -99,20 +97,20 @@ void FontIcon_PutSprite(u64 **pkt, FontCmd *cmd, FontIconDef *icon, s32 frame, s
     tex0 = tex->tex0;
     drawn = (s32)((f32)size * scale);
     perRow = (1 << ((tex0 >> 26) & 0xF)) / size;
-    perCol = perRow;
-    tex0 = tex0 | ((u64)(tex->cbp + vramBase) << 37) | (tex->tbp + vramBase + 0x40) | 0x400000000;
+    tbp = tex->tbp + vramBase + 0x40;
+    cbp = tex->cbp + vramBase;
+    tex0 |= (u64)cbp << 37;
+    reg = tex0 | tbp | 0x400000000;
     x0 = x + 0x700;
     y0 = y + 0x720;
     x1 = x + drawn + 0x700;
     y1 = y + drawn + 0x720;
     if (FontIcon_IsOnScreen(x0, y0, x1, y1)) {
-        col = frame % perRow;
-        row = frame / perCol;
-        tu0 = size * col;
-        tv0 = size * row;
-        tu1 = (col + 1) * size;
-        tv1 = (row + 1) * size;
-        (*pkt)[0] = tex0;
+        tu0 = size * (frame % perRow);
+        tv0 = size * (frame / perRow);
+        tu1 = (frame % perRow + 1) * size;
+        tv1 = (frame / perRow + 1) * size;
+        (*pkt)[0] = reg;
         (*pkt)[1] = (u64)color | ((u64)0x3F800000 << 32);
         *pkt += 2;
         (*pkt)[0] = ((u64)tu0 << 4) | ((u64)tv0 << 20);
@@ -123,10 +121,6 @@ void FontIcon_PutSprite(u64 **pkt, FontCmd *cmd, FontIconDef *icon, s32 frame, s
         *pkt += 2;
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/col_c_b", FontIcon_PutSprite);
-void FontIcon_PutSprite(u64 **pkt, FontCmd *cmd, FontIconDef *icon, s32 frame, s32 x, s32 y, f32 scale,
-                        u32 color, s32 vramBase);
 
 /* Ticks one icon's animation takes. */
 s32 FontIcon_GetAnimLength(FontIconEntry *entry) {

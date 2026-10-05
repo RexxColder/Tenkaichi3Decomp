@@ -338,9 +338,17 @@ s32 EftSprAnim_Step(EftSprAnim *anim) {
    override them. Original bug kept: the layer pointer only advances when a layer is drawn, so a skipped layer
    (camera-facing while the frames could not be built, which never happens: BuildMatrices always returns 1) would
    be drawn again in place of the next one. */
-#if 0 /* 9 of 110 instructions differ, scheduling only: the original loads the constant 2 (mode of
-         EFT_SPR_DRAW_MODE2) into t1 right after reading drawFlags; here it is loaded into v1 just before its
-         movn. Every other instruction is identical. */
+/* Matching note: the two layer-definition flags have to be tested through an inline predicate that returns
+   `!= 0`. Its extra instruction per test disappears in combine, but it is still there when the loop pass counts
+   the loop (63 instructions instead of 61), and that count decides which constants get hoisted: with 62..64 the
+   1 of EFT_SPR_DRAW_MODE1 is moved out of the loop and the 2 of EFT_SPR_DRAW_MODE2 is not (the pass moves a
+   one-instruction constant only while `threshold >= count`, threshold 64 less 3 per move). Which tests went
+   through a helper in the original is not known: one or both layer tests, or up to three of the draw-flag
+   tests, all give the same code. */
+static inline s32 EftSprLayerDef_TestFlag(const EftSprLayerDef *def, s32 flag) {
+    return (def->flags & flag) != 0;
+}
+
 void EftSprAnim_Draw(EftSprAnim *anim) {
     Vec4 color;
     EftAeMtx oriented;
@@ -362,10 +370,10 @@ void EftSprAnim_Draw(EftSprAnim *anim) {
     for (; i < pack->layerCount; i++) {
         m = &oriented;
         mode = 0;
-        if (st->def->flags & EFT_SPR_LAYER_BILLBOARD) {
+        if (EftSprLayerDef_TestFlag(st->def, EFT_SPR_LAYER_BILLBOARD)) {
             m = &billboard;
         }
-        if (st->def->flags & EFT_SPR_LAYER_SLOT_MODE) {
+        if (EftSprLayerDef_TestFlag(st->def, EFT_SPR_LAYER_SLOT_MODE)) {
             mode = anim->slot->flag != 0;
         }
         if (anim->drawFlags & EFT_SPR_DRAW_BILLBOARD) {
@@ -393,9 +401,6 @@ void EftSprAnim_Draw(EftSprAnim *anim) {
     }
     Vu0Cur_Pop();
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ae", EftSprAnim_Draw);
-#endif
 
 /* 1 while any layer has not finished. */
 s32 EftSprAnim_IsPlaying(EftSprAnim *anim) {
@@ -839,7 +844,23 @@ void EftSprAnim_SetGridUv(Vec4 *uv, s32 grid, s32 cell) {
          from 8 bits for PRIM and the last CLAMP (here one s8 is used for all four), (2) it does so after the
          "i < n" entry test of the fan loop (here before it), (3) the two stq pointers swap registers and
          two header stores swap. DrawQuadSubdiv: the head (quarters, uv, 151 instructions) is identical; the
-         rest is the same inlined code with the same differences. */
+         rest is the same inlined code with the same differences.
+         Second pass (cleanup step 12, about 200 variants, scratch in build/scratch_cleanup2_F/eftad/): the insns
+         the original has are reproduced by `s32 ctx = otLayer >= 2;` inside QueueTri with
+         prim = (abe << 6) | ((s64)(s8)ctx << 9) | 0x1B (abe an s64 local = 1) and
+         gif1 = ((s64)ctx << 4) + ((s64)(s8)ctx << 48) + ((s64)ctx << 8) + 0xF8421421421860: the first loop pass
+         hoists the chain into the fan loop's preheader as in the original, but the rerun of the loop pass then
+         moves slti / xori (and what depends on them) out of the j loop as well (456 instructions, 98 differ).
+         The rerun moves the slti when 64 * 2 * (1 + lifetime of the xori result) >= insns of the j loop (363),
+         so it stays only when the xori result has ONE use, in the next insn. Forms with one use (an int copied
+         to an s64, s8 taken from the s64) keep the chain in place (450 instructions, 46..51 differ) but add an
+         `andi 0xff` (DI to QI truncation) the original does not have; an s8 variable or parameter gives SI
+         sll / sra; ctx computed at the call site, at the top of the fan loop body or in an explicit
+         `if (i < n) { ...; do { } while }` preheader is hoisted by the rerun all the same. Not found: a form in
+         which the int has the two uses the original shows (64-bit shift pair on it, and << 4 / << 8) and is
+         still left alone by the rerun. The z caps, the header store order (emitted: vif1, tag, vif0, gif0,
+         clamp, next, prim, pad, gif1, clampEnd) and the t7 / s0 swap of the stq pointers were not settled
+         either (best order tried: prim, tag, vif1, vif0, gif0, clamp, next, pad, gif1, clampEnd). */
 /* Queues one triangle (see above). ctx: 1 for the second GS context. */
 static inline void EftSprAnim_QueueTri(EftAeScr *v0, EftAeScr *v1, EftAeScr *v2, Vec4 *c0, Vec4 *c1, Vec4 *c2,
                                        Vec4 *uv0, Vec4 *uv1, Vec4 *uv2, s32 otLayer, s32 z, u64 tex0, s32 mode, s8 ctx) {

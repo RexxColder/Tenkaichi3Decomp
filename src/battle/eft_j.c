@@ -1228,19 +1228,15 @@ void EftBlast_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
  * and flag 0x800; 0x14B: flag 0x800), binds the manager's emitter set, takes the speed from the set's second
  * width track when it has one (flag 0x200), reads the end time and tags the task with its character's reset bit.
  *
- * NON-MATCHING: 9 of 104 instructions, register choice only. The three `src->def->id == C` tests keep
- * {src->def, id, C} in {v0, v1, a0} in the original; this C gives {a0, v0, v1} / {a0, v1, v0}, because gcse
- * makes one pseudo of the three loads of src->def, which then goes to the global allocator. Compiled with
- * -fno-gcse the C below matches exactly (checked with a private copy of fdiff), and with the pointer read
- * through a volatile cast all but the first branch's delay slot match, so the statements are right.
- * In detail (gcse dump): gcse's PRE finds the load of src->def in front of the 0x2CD test redundant on the edge
- * that skips the 0x268 block and makes one value of it; the original shows no PRE there (its first branch skips
- * both loads of the second test, which is the delay-slot pass removing them as redundant). The third test is not
- * touched because two stores precede its load in its block. A switch, a local for the id, `w->src->def` and
- * `def->id` do not change it. EftVolley_Init (eft_h.c) has the same difference.
- * Behaviour is identical: run against the original in an interpreter on random data, no difference.
+ * The first id test reads src->def through a volatile-qualified lvalue. That is a stand-in, not a claim about the
+ * source: written plainly, gcse's PRE makes one pseudo of the loads of src->def in front of the 0x268 and 0x2CD
+ * tests (the load is partially redundant on the edge that skips the 0x268 block) and the registers of all three
+ * tests change; the original shows no PRE there. A volatile read is not entered in gcse's expression table, so the
+ * second load stays in its block, and the delay-slot pass still finds it redundant on the skipping branch, which
+ * is what the original has (bnel with `li a0,717` in the slot, target behind both loads). Only the FIRST test
+ * may be volatile: on the second one the delay-slot pass no longer removes the loads. The cause in the original
+ * source is unknown (the same thing happens in EftVolley_Init, eft_h.c, where this stand-in does not work).
  */
-#if 0
 void EftBlast_Init(EftJTask *task, EftJSrc *src) {
     EftJTask *parent = BtlTask_GetParent(task);
     EftBlast *w = task->work;
@@ -1252,7 +1248,7 @@ void EftBlast_Init(EftJTask *task, EftJSrc *src) {
     def = src->def;
     w->speed = def->speed;
     w->scale = def->scale;
-    if (src->def->id == 0x268) {
+    if ((*(EftJDef *volatile *)&src->def)->id == 0x268) {
         f32 ratio = BtlCharApi_GetUnkE5CRatio(src->objId);
 
         w->ratio = ratio;
@@ -1285,11 +1281,6 @@ void EftBlast_Init(EftJTask *task, EftJSrc *src) {
     w->life = EftEmit_GetEndFrames(w->set);
     BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
-#endif
-LIT4_WORD(D_002FC7B0, 0x3E999999); /* 0.3f */
-LIT4_WORD(D_002FC7B4, 0x3F333333); /* 0.7f */
-LIT4_WORD(D_002FC7B8, 0x3F4CCCCC); /* 0.8f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_j", EftBlast_Init);
 
 /* Term callback of an item. */
 void EftBlast_Term(EftJTask *task) {

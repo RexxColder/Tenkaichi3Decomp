@@ -82,8 +82,6 @@ s32 Flash_GetRecordCount(u8 *data, u8 code) {
     return count;
 }
 
-#if 0
-/* NOT MATCHING: 16 of 28 instructions differ: the original holds the block size in v0 and loads the NULL result in the delay slot of the jump out (`bnez v0 / addu a2,a2,v0 / b / move v0,zero`), here the result is zeroed before the test and the size sits in v1. */
 /* Skips `count` named blocks (a NUL-terminated name, a 16-bit size, the data); NULL when a block has size 0. */
 u8 *Flash_SkipNamed(u8 *p, u32 count) {
     u32 i;
@@ -95,15 +93,14 @@ u8 *Flash_SkipNamed(u8 *p, u32 count) {
         }
         memcpy(&size, p + ofs, 2);
         ofs += 2;
-        ofs += size;
-        if (size == 0) {
+        if (size != 0) {
+            ofs += size;
+        } else {
             return NULL;
         }
     }
     return p + ofs;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b_c", Flash_SkipNamed);
 
 /* Returns the index of the named block called `name` in a list of named blocks, or -1. */
 s32 Flash_FindName(u8 *p, char *name) {

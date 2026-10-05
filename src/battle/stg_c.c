@@ -412,9 +412,21 @@ void StgHaze_Step(StgHaze *haze, s32 split, s32 view) {
  * target (y, in sixteenths; the target is one field, 224 lines); column `col` is at
  * col * width / (cols - 1). The top vertex is displaced by curX/curY[row][col], the bottom one by
  * curX/curY[row][col + 1] (the next column of the SAME row, not the next row), both clamped to the
- * view. Not matched: the attempt below has the same statements and inner loop, but the original
- * keeps rows - 1 in a second register (lw t0 / move s1,t0), reloads d.cols and d.nextRow from the
- * stack where this C reuses a register, and stores the first four fields in another order.
+ * view. Not matched (96 of 186 instructions differ; same length since the second cleanup). What the
+ * attempt now reproduces: the row loop is entered through an explicit test with `n = d.lastRow` and
+ * `d.nVerts = d.cols * 2` behind it (`lw t0 / blez / move s1,t0`), the two row pointers are taken
+ * BEFORE the four y / v values, and the column loop's accumulators are cleared behind its own
+ * entry test. What still differs:
+ *   - split arm: the original halves d.cols as `(lw 20(sp)) + (haze->cols >> 31)`, i.e. the add
+ *     reads d.cols back from the stack while the sign comes from the register that still holds
+ *     haze->cols; this C forwards the stored value for both (cse sees the store). The x offset is
+ *     `move a2,a1 / movn a2,zero,v0` (copy 256, clear when view != 1) against `movz` here; the
+ *     `x0 = w; if (view != 1) x0 -= w;` form that fixed ScrWarp_Draw does not help here.
+ *   - the first four stores (haze, width, widthPx, xOffset) are emitted in source order in the
+ *     original and rotated here;
+ *   - row set-up: the original loads 224 and 448 once each and reads d.nextRow twice (once for
+ *     y1, once for v1); this C loads d.nextRow once and each constant twice;
+ *   - registers of the column loop (s1 / s2, a0..a3) follow from the above.
  */
 #if 0
 void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
@@ -454,21 +466,24 @@ void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
     }
     d.lastRow = rows - 1;
     StgHaze_BeginDraw(&d, d.haze, d.xOffset, x1, d.width, srcH, d.widthPx, h);
-    n = d.lastRow;
-    d.nVerts = d.cols * 2;
-    for (row = 0; row < d.lastRow; row = d.nextRow) {
+    row = 0;
+    if (row < d.lastRow) {
+        n = d.lastRow;
+        d.nVerts = d.cols * 2;
+        do {
         d.nextRow = row + 1;
         StgHaze_PutStripTag(&d, d.haze, d.nVerts);
+        cx = d.haze->curX[row];
+        cy = d.haze->curY[row];
         d.y0 = (h * row / n) << 4;
         d.y1 = (h * d.nextRow / n) << 4;
         d.v0 = srcH * row / n;
         d.v1 = srcH * d.nextRow / n;
-        cx = d.haze->curX[row];
-        cy = d.haze->curY[row];
         cols = d.cols;
-        accX = 0;
-        accU = 0;
-        for (col = 0; col < cols; col++) {
+        if (cols > 0) {
+            accX = 0;
+            accU = 0;
+            for (col = 0; col < cols; col++) {
             px = (accX / (cols - 1)) << 4;
             u = accU / (cols - 1) + d.xOffset;
             x = px + cx[0];
@@ -486,7 +501,10 @@ void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
             accX += d.widthPx;
             accU += d.width;
         }
+        }
         StgHaze_EndStrip(&d);
+        row = d.nextRow;
+        } while (row < d.lastRow);
     }
     StgHaze_EndDraw(&d);
 }

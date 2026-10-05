@@ -165,7 +165,15 @@ s32 EftGeyser_GetSteamWork(EftTask *task) {
  * but the stores are scheduled in another order: the original emits them in field order except colorA.y (after
  * colorA.z) and colorB.y (last), this emits the last store of each shared constant first and the others at the
  * end; 2.0 and 0.985 then swap $f4 / $f5. Tried: field order permutations, chained assignments, an inline
- * setter, float-array fields, an initializer list. */
+ * setter, float-array fields, an initializer list.
+ * Second pass (cleanup 2): the order is the first scheduling pass's, and it follows a simple rule that the natural
+ * code obeys elsewhere (EftPrim_DrawBillboard's UV stores): among stores that are ready together, those whose
+ * source register DIES there go first in source order, then the others in source order. With one register per
+ * constant (which is what CSE makes of any spelling tried) that rule cannot give the original order: it would
+ * need the x store of each vector (colorA.x, colorB.x, and pos.w / colorA.w) to be the last use of its own value.
+ * So in the original the first component of each vector did not share its value with the others at that point.
+ * A hill-climb over all orders of the 19 statements (build/scratch_cleanup2_A/search.py) stops at 11 differing
+ * instructions, with an order that is not credible as source; the field-order attempt is kept. */
 void EftGeyser_StartSmoke(EftTask *task) {
     EftGeyserSmokeArg arg;
     EftGeyserSmokeArg init;
@@ -224,7 +232,12 @@ INCLUDE_ASM("asm/nonmatchings/battle/eft_c", EftGeyser_StartSmoke);
 #if 0
 /* Not matching: 19 of 126 instructions, the same store-order problem as EftGeyser_StartSmoke: the original stores
  * color.x right after unk10.w and color.y / color.z / unk44 last; this stores color.x with them. The three
- * position loads then alternate $f1 / $f0 the other way round. */
+ * position loads then alternate $f1 / $f0 the other way round.
+ * Second pass: see EftGeyser_StartSmoke. Here the original order is exactly "color.x has a value of its own,
+ * color.y / z / w share another": then x and w are both last uses and go first, y / z / unk44 wait. No spelling
+ * found gives two values (chained assignments in every grouping, copies of color.x, a brace initialiser: that one
+ * also clears the tail and is 19 instructions longer). The memset + unk10.w pair does look like the compiler's
+ * own expansion of a mostly-zero `{ 0, 0, 0, 1 }` constructor. The search over statement orders stops at 12. */
 void EftGeyser_StartSteam(EftTask *task) {
     EftGeyserSteamArg arg;
     EftGeyserSteamArg init;

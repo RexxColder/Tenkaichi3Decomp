@@ -568,6 +568,11 @@ void BtlInput_Sample(BtlInputChr *chr) {
  * attempt's. Both at once need the loads and the stores as separate statements (locals): searched (all 40320
  * orders of the eight loads for one store order, hill climbing from several starts, the forms that read back
  * `in->prev` / `in->held`): best 10 differences with the store order right and v0 / v1 exchanged. */
+/* Second cleanup pass: the plain order (stickPrev, stickRawPrev, pressed, released, cmdPressed, cmdReleased,
+ * prev, cmdPrev, held, cmdHeld) gives the original STORE order exactly but other registers (24 differences).
+ * Behaviour re-checked against the disassembly: both versions do the same eight loads, the same four
+ * `and` / `nor` pairs and the same twelve stores, all loads in front of all stores; the rest of the function
+ * is instruction for instruction the original. No behavioural difference. */
 #if 0
 void BtlInput_Update(BtlInputChr *chr) {
     u8 stick[2];

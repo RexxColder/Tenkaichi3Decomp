@@ -849,9 +849,6 @@ void EftShotFx_SpawnAppearColumn(s32 objId, f32 life) {
 
 /* 1 when a projected vertex (GS coordinates, 12.4 fixed, centre 2048) is in front of the camera and within a
    box around the screen centre: margin 0 = the 512 x 448 screen, 1..3 = wider boxes, else the whole GS range. */
-#if 0 /* equivalent; 26 of 100 differ, all at the end of each case: the original tests `y < min + 1`, reaches `return 1` through a
-         branch-likely into the shared exit and returns 0 in line; this compiles to the inverse layout. Same shape as
-         EftWater_IsOnScreen, which is also unmatched. */
 s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
     switch (margin) {
     case 0:
@@ -867,8 +864,8 @@ s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
         if (v->y > 0x8DFF) {
             return 0;
         }
-        if (v->y > 0x7200) {
-            return 1;
+        if (v->y <= 0x7200) {
+            return 0;
         }
         break;
     case 1:
@@ -884,8 +881,8 @@ s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
         if (v->y > 0x917F) {
             return 0;
         }
-        if (v->y > 0x6E80) {
-            return 1;
+        if (v->y <= 0x6E80) {
+            return 0;
         }
         break;
     case 2:
@@ -901,8 +898,8 @@ s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
         if (v->y > 0x94FF) {
             return 0;
         }
-        if (v->y > 0x6B00) {
-            return 1;
+        if (v->y <= 0x6B00) {
+            return 0;
         }
         break;
     case 3:
@@ -918,8 +915,8 @@ s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
         if (v->y > 0x9BFF) {
             return 0;
         }
-        if (v->y > 0x6400) {
-            return 1;
+        if (v->y <= 0x6400) {
+            return 0;
         }
         break;
     default:
@@ -935,12 +932,10 @@ s32 EftShotFx_IsOnScreen(EftUIVec *v, s32 margin) {
         if (v->y > 0xFFEF) {
             return 0;
         }
-        if (v->y > 0) {
-            return 1;
+        if (v->y <= 0) {
+            return 0;
         }
         break;
     }
-    return 0;
+    return 1;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_t_c", EftShotFx_IsOnScreen);

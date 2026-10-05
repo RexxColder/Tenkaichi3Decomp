@@ -5,12 +5,9 @@
 /*
  * Effect tasks, 0x1637A0..0x167E68. See include/battle/eft_n.h.
  *
- * 42 of 47 functions are C. Five are INCLUDE_ASM with the attempt in `#if 0` above them: EftAura_DrawFlames,
- * EftAura_SetType, EftBolt_Shape, EftBolt_Draw and EftBolt_Spawn. EftAura_ChangeType matches only while the
- * compiler has seen a definition of EftAura_SetType above it, so the attempt of EftAura_SetType is compiled
- * inside ASM_STUB_BEGIN / ASM_STUB_END (the assembler skips its output; see include/include_asm.h) instead of
- * `#if 0`. Their float constants are emitted in place with LIT4_WORD, so the file's .lit4 is the whole
- * of 0x2FC97C..0x2FCAAC whichever way they are built.
+ * 44 of 47 functions are C. Three are INCLUDE_ASM with the attempt in `#if 0` above them: EftAura_DrawFlames,
+ * EftBolt_Shape and EftBolt_Draw. Their float constants are emitted in place with LIT4_WORD, so the file's .lit4
+ * is the whole of 0x2FC97C..0x2FCAAC whichever way they are built.
  *
  * Nothing here is simulation: no hit record, fighter, battle object or battle event is written. The fighter is
  * only read through BtlCharApi_* getters. libc rand() is drawn by the lightning (EftBolt_Shape, EftBolt_Step,
@@ -200,8 +197,16 @@ f32 EftAura_GetNodeFade(s32 objId, Vec4 *pos, Vec4 *nodes, f32 scale) {
    (EftAura_BuildFlameMtx), its two far corners stretched by the flame's end ratio. Corner alpha falls off near the
    body (EftAura_GetNodeFade), and the two near corners get a tenth of it. Flames with flag 0x800 are skipped.
    The quad goes into the order table slot of its average depth, in the layer given by the flame's `alt`.
-   Not matching: the statements and the frame (0x270 bytes) are right, the register allocation of the corner loop
-   and the order of some loads differ (147 instructions out of place after alignment). */
+   Not matching (128 instructions out of place after alignment; it was 137 before the absolute value became
+   __builtin_fabsf, which is the original's `abs.s`). What is left, from the aligned diff: (1) the flame pointer
+   and the loop counters are in s1 / s2 in the original, here s2 / s1; the original loads `f->next` into v0 at
+   each of the three `continue` points and copies it at the loop end (here `lw s2,192(s2)`), the form
+   `for (link = &head; *link != NULL; link = &f->next) { f = *link; ...` (see EftChain_DrawStrand) changes the
+   loads but not the registers; (2) the 0.5f of the lean is loaded where it is used in the original (f4), here it
+   is kept in f25 for the whole loop (one more saved register); (3) the three off-screen tests have the same
+   register difference as EftGlow_DrawParts (eft_p_b.c): x in v1, limit in a1, the two copies of the record
+   address in v0 / a2; (4) `pkt = gOtCur` after the flag 0x800 test wants the volatile read used in eft_s.c
+   (`bnel` + a copy of the loop step in the delay slot). */
 #if 0
 void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
     Mtx44 mtx;
@@ -264,10 +269,7 @@ void EftAura_DrawFlames(EftAuraWork *aura, s32 objId, f32 alpha) {
         dir.z = f->dir.z;
         dir.w = 1.0f;
         if (gData->part[f->part].nodeRef >= 0) {
-            d = Vec3_Dot(&camFwd, &dir);
-            if (d < 0.0f) {
-                d = -d;
-            }
+            d = __builtin_fabsf(Vec3_Dot(&camFwd, &dir));
             Vec4_Sub(&away, &aura->partRef[f->part], &aura->pos);
             away.y = 0.0f;
             Vec3_Normalize(&away, &away);
@@ -451,16 +453,12 @@ void EftAura_UpdateLightning(s32 objId) {
 
 /* Selects the texture pair and the colours for an aura type. Types 8..10 use two textures and the second colour
    table.
-   Not matching (41 instructions out of place after alignment): the original tests `flags & 0x80` twice in a row
-   from one register without merging the two branches, re-reads `aura->type` right after storing it and shares the
-   second Vec4_Scale call of both arms; that points at an inlined helper with a modified parameter, which this
-   attempt imitates (`alt = 0` at its end) without reproducing the register choice. */
-ASM_STUB_BEGIN(); /* compiled so that EftAura_ChangeType sees the definition; the assembler skips it */
-/* Converts a 0..255 colour to 0..1. An inline function in the original: every use loads its own copy of the
-   constant straight into the argument register, which only an inlined call produces. */
-static inline void EftAura_ScaleColor(Vec4 *dst, Vec4 *src) {
-    Vec4_Scale(dst, src, 1.0f / 255.0f);
-}
+   Notes for the match: `colorEnd.w = 0.0f` stands in both arms of the helper (the compiler merges the two
+   tails, and with them the second Vec4_Scale call); the colour count is decided by testing the flag word
+   itself and `multi` is taken from it again afterwards (the original tests the same register twice in a row);
+   the three plain stores are in this order. */
+/* Converts a 0..255 colour to 0..1. */
+#define EftAura_ScaleColor(dst, src) Vec4_Scale(dst, src, 1.0f / 255.0f)
 
 /* Copies the colours of the aura's type from the parameter file. */
 static inline void EftAura_LoadColors(EftAuraWork *aura, s32 alt, s32 multi) {
@@ -470,11 +468,12 @@ static inline void EftAura_LoadColors(EftAuraWork *aura, s32 alt, s32 multi) {
     if (multi) {
         EftAura_ScaleColor(&aura->colorStart, &gData->colorB[alt][0]);
         Vec4_Scale(&aura->colorEnd, &gData->colorB[alt][0], 1.0f / 255.0f);
+        aura->colorEnd.w = 0.0f;
     } else {
         EftAura_ScaleColor(&aura->colorStart, &gData->color[aura->type][0]);
         Vec4_Scale(&aura->colorEnd, &gData->color[aura->type][0], 1.0f / 255.0f);
+        aura->colorEnd.w = 0.0f;
     }
-    aura->colorEnd.w = 0.0f;
     for (i = 0; i < 4; i++) {
         if (aura->flags & 0x80) {
             EftAura_ScaleColor(&aura->colorAlt[i], &gData->colorB[alt][1 + i]);
@@ -520,27 +519,15 @@ void EftAura_SetType(EftAuraWork *aura, s32 objId, s32 type, s32 paramFlags) {
         alt = 3;
         break;
     }
-    multi = aura->flags & 0x80;
+    aura->type = type;
     aura->unk14 = type;
     aura->colorCount = 1;
-    aura->type = type;
-    if (multi) {
+    if (aura->flags & 0x80) {
         aura->colorCount = 2;
     }
+    multi = aura->flags & 0x80;
     EftAura_LoadColors(aura, alt, multi);
 }
-ASM_STUB_END();
-LIT4_WORD(D_002FC980, 0x3B808080);
-LIT4_WORD(D_002FC984, 0x3B808080);
-LIT4_WORD(D_002FC988, 0x3B808080);
-LIT4_WORD(D_002FC98C, 0x3B808080);
-LIT4_WORD(D_002FC990, 0x3B808080);
-LIT4_WORD(D_002FC994, 0x3B808080);
-LIT4_WORD(D_002FC998, 0x3B808080);
-LIT4_WORD(D_002FC99C, 0x3B808080);
-LIT4_WORD(D_002FC9A0, 0x3B808080);
-LIT4_WORD(D_002FC9A4, 0x3B808080);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_n", EftAura_SetType);
 
 /* Reads the fighter's aura type and height: called at creation and again every frame. */
 void EftAura_Setup(EftAuraWork *aura, s32 objId) {
@@ -1412,7 +1399,13 @@ s32 EftBolt_Step(EftBolt *bolt, f32 scale) {
 /* Draws a bolt: for each shown joint that has a successor, a camera-facing quad from this joint's width to the
    next one's, coloured per joint, sharing its far edge with the next quad.
    Not matching (142 instructions out of place after alignment): same statements and frame (0x230 bytes), different
-   register allocation. */
+   register allocation. Leads from the second cleanup: in the corner loop the original walks TWO reduced
+   pointers, s1 = &scr[i] (the call argument, .w at 12(s1), .x at 0(s1): everything in front of the first
+   `break`) and s2 = &scr[i].z (.y at -4(s2); the reads behind a `break`), while quad / st / uv stay indexed by
+   i * 16; this attempt indexes scr as well (a local `ps = &scr[i]` gives 137, `ps++` in the loop header is
+   worse). The original also recomputes &prev[0] (sp + 64) at each use and sets &prev[1] (s8 = sp + 80) in both
+   arms of `if (first)`, where this attempt keeps both in saved registers. The `bnel` in front of
+   `pkt = gOtCur` is the volatile read described in eft_s.c (no change in the count by itself). */
 #if 0
 void EftBolt_Draw(EftBoltWork *work, EftBolt *bolt, f32 alpha) {
     Vec4 quad[4];
@@ -1834,12 +1827,28 @@ void EftBolt_DrawFlashes(EftBoltWork *work, f32 alpha) {
 /* Decides whether new bolts appear this frame and starts up to three, alternating between the two sides of the
    body, each with a flash at its root. How often depends on the aura: every frame while the aura is in the rising
    part of a burst or no bolt is alive, otherwise 1 frame in 12 with a visible aura, 1 in 6 while the body glow of the powered-up look is active (EftGlow_IsActive) and
-   1 in 18 without; parameter flag 8 adds another 1 in 20.
-   Not matching, 22 instructions out of place after alignment: (1) the original computes `&work->bolt[0]` before
-   testing its flags and reaches them through it, this attempt hoists `work + 0x1C` out of the outer loop into a
-   stack slot; (2) the original keeps two copies of the pair pointer (node A is read through the copy) and computes
-   `pairs + kind * 0x14` twice after the rand() call with the operands swapped. */
-#if 0
+   1 in 18 without; parameter flag 8 adds another 1 in 20. */
+/* The node pairs as an array inside a structure: the original adds a member's offset to the table pointer
+   before the index (`(pairs + 0x10) + kind * 0x14`, visible as one address computation per member read), which
+   this compiler does for an array member reached through a structure, not for pointer arithmetic. */
+typedef struct EftBoltPairTbl {
+    /* 0x00 */ EftBoltPair p[8];
+} EftBoltPairTbl;
+#define BOLTPAIRS (((EftBoltPairTbl *)gEftBoltPool->pairs)->p)
+
+/* The work block's bolts as 16-byte aligned records (EftBolt holds vectors; the Vec4 of this file's header is
+   not aligned). The free-slot search reads `flags` as 12(&work->bolt[0]) in the original, the form the compiler
+   uses when the record's alignment is larger than the member's. */
+typedef struct EftBoltA {
+    /* 0x00 */ s32 unk0[3];
+    /* 0x0C */ s32 flags;
+    /* 0x10 */ u8 unk10[0x80];
+} __attribute__((aligned(16))) EftBoltA;
+typedef struct EftBoltWorkA {
+    /* 0x000 */ u8 pad[0x10];
+    /* 0x010 */ EftBoltA bolt[EFT_BOLT_COUNT];
+} EftBoltWorkA;
+#define BOLTS_A (((EftBoltWorkA *)work)->bolt)
 void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
     s32 kinds[3];
     s32 pick[4];
@@ -1922,7 +1931,7 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
     while (count != 0) {
         bolt = NULL;
         for (i = 0; i < EFT_BOLT_COUNT; i++) {
-            if (work->bolt[i].flags == 0) {
+            if (BOLTS_A[i].flags == 0) {
                 bolt = &work->bolt[i];
                 break;
             }
@@ -1941,14 +1950,13 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
             dAng = (RANDF() * 0.35f + 0.05f) * 3.14159265f;
             turn = RANDF() * EFT_DEG(36.0f) + EFT_DEG(90.0f);
         }
-        node = (s32 *)&gEftBoltPool->pairs[kind];
-        nodeA = *node++;
-        nodeB = *node;
-        follow = gEftBoltPool->pairs[kind].follow + gEftBoltPool->pairs[kind].followRange * RANDF();
+        nodeA = BOLTPAIRS[kind].nodeA;
+        nodeB = BOLTPAIRS[kind].nodeB;
+        follow = BOLTPAIRS[kind].follow + BOLTPAIRS[kind].followRange * RANDF();
         if (EftGlow_IsActive(objId)) {
-            length = gEftBoltPool->pairs[kind].length * 1.4f * work->scale;
+            length = BOLTPAIRS[kind].length * 1.4f * work->scale;
         } else {
-            length = gEftBoltPool->pairs[kind].length * work->scale;
+            length = BOLTPAIRS[kind].length * work->scale;
         }
         a.x = 0.0f;
         a.y = 1.0f;
@@ -2028,32 +2036,3 @@ void EftBolt_Spawn(EftBoltWork *work, s32 objId) {
         }
     }
 }
-#else
-LIT4_WORD(D_002FCA44, 0x4EFFFFFF);
-LIT4_WORD(D_002FCA48, 0x40490FDA);
-LIT4_WORD(D_002FCA4C, 0x40C90FDA);
-LIT4_WORD(D_002FCA50, 0x3EB33333);
-LIT4_WORD(D_002FCA54, 0x3D4CCCCC);
-LIT4_WORD(D_002FCA58, 0x3F20D97A);
-LIT4_WORD(D_002FCA5C, 0x3FC90FDA);
-LIT4_WORD(D_002FCA60, 0x3EB33333);
-LIT4_WORD(D_002FCA64, 0x3D4CCCCC);
-LIT4_WORD(D_002FCA68, 0x3F20D97A);
-LIT4_WORD(D_002FCA6C, 0x3FC90FDA);
-LIT4_WORD(D_002FCA70, 0x3FB33333);
-LIT4_WORD(D_002FCA74, 0x3E999999);
-LIT4_WORD(D_002FCA78, 0xBF666666);
-LIT4_WORD(D_002FCA7C, 0x3DCCCCCC);
-LIT4_WORD(D_002FCA80, 0xBF199999);
-LIT4_WORD(D_002FCA84, 0xC0490FDA);
-LIT4_WORD(D_002FCA88, 0x3ECCCCCC);
-LIT4_WORD(D_002FCA8C, 0x3E4CCCCC);
-LIT4_WORD(D_002FCA90, 0xC0490FDA);
-LIT4_WORD(D_002FCA94, 0x3F4CCCCC);
-LIT4_WORD(D_002FCA98, 0x3F333333);
-LIT4_WORD(D_002FCA9C, 0x3ED70A3D);
-LIT4_WORD(D_002FCAA0, 0x3FB33333);
-LIT4_WORD(D_002FCAA4, 0x3F333333);
-LIT4_WORD(D_002FCAA8, 0x3ED70A3D);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_n", EftBolt_Spawn);
-#endif

@@ -64,6 +64,13 @@ void PadWatch_SetEnabled(s32 enable) {
  * Same instructions, registers and branch targets otherwise. Tried without effect: early returns in
  * every combination of the four arms, goto forms, `port == NULL` tests, a variable for the 1.
  */
+/* Cleanup pass 2: read from the delay-slot pass (reorg.c). The `li v0,1` in the slot of the preceding
+   `bnez v0,<exit>` makes the copy of `li v0,1` at the target redundant for `beqz s0`, so this compiler skips it
+   and takes the next instruction of the target (`ld s0`, annulled: beqzl). The original has `beqz` + nop, which
+   is what is left when `beqz s0` took `li v0,1` first and lost it again as redundant in the relax step: the
+   preceding branch got its `li v0,1` only later (second round), i.e. it did not point at the `return 1` block
+   directly when the slots were filled first. Eight more arrangements of the `*port = 1` arm (returns, inverted
+   tests, a local for the 1) give the same two instructions or more differences. */
 #if 0
 s32 PadWatch_GetMissing(s32 *port) {
     if ((gPadWatch->valid[0] == 0 && gPadWatch->valid[1] == 0) || gPadWatch->message < 0) {

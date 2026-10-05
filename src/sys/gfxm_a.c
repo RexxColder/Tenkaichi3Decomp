@@ -11,8 +11,8 @@
  * Full-screen post effects, 0x102F28..0x106D60. See include/sys/gfxm_a.h for the overview.
  * Everything here is drawing: nothing reads a pad, the clock or a random generator.
  *
- * Four functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
- * StgPanBlur_UpdateView, StgPanBlur_DrawView, GfxPost_DrawGlow, StgDepthTint_Draw.
+ * Three functions are INCLUDE_ASM with a behaviourally exact attempt in `#if 0` above them:
+ * StgPanBlur_UpdateView, StgPanBlur_DrawView, StgDepthTint_Draw.
  */
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -191,6 +191,14 @@ void StgPanBlur_BuildClut(u8 *clut) {
    callee-saved registers holds &move and &view->prev.m[3] and in float register numbers; in the loop the
    original recomputes view + i * 0x30 for each of the eight stores (a chain of register copies, offsets
    0xB0..0xCC), this attempt gets one pointer. The attempt computes the same values. */
+/* Cleanup pass 2, layer loop: the address form of the original (`i * 48 + view` once, displacements 176..204) is
+   what indexing a two-dimensional float array gives (`(*(f32 (*)[2][12])view->layer)[i][k]`, or
+   `((f32 *)view)[i * 12 + 44 + k]`): a constant in the subscript stays a displacement, while a member offset that
+   is a multiple of 16 is added to the index (the `addiu v0,v0,176` of the attempt below). The chain of register
+   copies in front of the stores (t3 -> v1 -> a1 -> a2 -> a3 -> t1 -> t0 -> v0, last store through t3 again) is cse
+   making each statement's own address temporary the canonical one; with the array form this compiler still
+   uses one register for all eight stores (52 of 197 aligned, against 49 for the attempt below), so something in
+   the original keeps cse from folding the eight temporaries (the same thing as in Ot_Reset, gfx_ot.c). */
 #if 0
 s32 StgPanBlur_UpdateView(StgPanBlurView *view) {
     Vec4 side;
@@ -571,10 +579,10 @@ void StgPanBlur_RestoreEnv(void) {
  *   4. back up to 128x128 tinted with `glow`, to 256x256, and added to the frame (ALPHA 0x68);
  *   5. restore the frame environment.
  */
-/* NOT MATCHING (20 of 966 instructions): in the two up-scaling loops (4 and 8 strips) the original steps the
-   two texel coordinates as 64-bit values (daddiu) and creates the four induction variables in another order;
-   every other instruction is identical. Same packet. */
-#if 0
+/* The two up-scaling loops (4 and 8 strips) are written the way the induction variables require: the two texel
+   coordinates go through `s64` temporaries (so that the `|` with the V half is not narrowed to 32 bits and they
+   step as 64-bit values), and the first corner's X comes from `i`, not from `x` (so the loop cannot be reversed
+   before the second loop pass, which puts the counter's initial value behind that corner's). */
 void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     u64 *p;
     s32 i;
@@ -914,10 +922,13 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p += 2;
     x = 0;
     for (i = 0; i < 4; i++) {
-        p[0] = (s64)((x << 4) + 8) | ((u64)8 << 16);
-        p[1] = ((x * 2 + 0x780) << 4) | (0x7800 << 16);
+        s64 u0 = (x << 4) + 8;
+        s64 u1 = ((x + 32) << 4) + 8;
+
+        p[0] = u0 | ((u64)8 << 16);
+        p[1] = ((i * 64 + 0x780) << 4) | (0x7800 << 16);
         p += 2;
-        p[0] = (s64)(((x + 32) << 4) + 8) | ((u64)0x808 << 16);
+        p[0] = u1 | ((u64)0x808 << 16);
         p[1] = (s64)((x * 2 + 0x7C0) << 4) | ((u64)0x8800 << 16);
         p += 2;
         x += 32;
@@ -960,10 +971,13 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p += 2;
     x = 0;
     for (i = 0; i < 8; i++) {
-        p[0] = (s64)((x << 4) + 8) | ((u64)8 << 16);
-        p[1] = ((x * 2 + 0x700) << 4) | (0x7200 << 16);
+        s64 u0 = (x << 4) + 8;
+        s64 u1 = ((x + 32) << 4) + 8;
+
+        p[0] = u0 | ((u64)8 << 16);
+        p[1] = ((i * 64 + 0x700) << 4) | (0x7200 << 16);
         p += 2;
-        p[0] = (s64)(((x + 32) << 4) + 8) | ((u64)0x1008 << 16);
+        p[0] = u1 | ((u64)0x1008 << 16);
         p[1] = (s64)((x * 2 + 0x740) << 4) | ((u64)0x8E00 << 16);
         p += 2;
         x += 32;
@@ -991,8 +1005,6 @@ void GfxPost_DrawGlow(s32 passes, u32 color, u32 glow) {
     p += 2;
     Dma_EndDirect(p);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_a", GfxPost_DrawGlow);
 
 /* Draws a 16-bit texture over the screen, one line up, with the given blend. */
 void GfxPost_DrawTex16(s32 tbp, u64 alpha) {
@@ -1617,6 +1629,13 @@ void StgDepthTint_Term(void) {
 /* NOT MATCHING (51 of 59 instructions): the original keeps a zero in a callee-saved register across
    Battle_IsSplitScreen() and copies it to the medium index on the split-screen path; here the constant is
    propagated, which shifts the register allocation. Same behaviour. */
+/* Cleanup pass 2: with a second variable (`s32 zero = 0;` at the top, `medium` assigned in every arm and
+   `else { medium = zero; }` for the split-screen case) the code is the original's except for one thing: cse
+   folds `medium = zero` to `move v1,zero`, so the zero is not kept in s0 across Battle_IsSplitScreen
+   (28 of 65 aligned by count, but only the `move s0,zero` / `move v1,s0` pair and the registers that follow from
+   it). Needed: a zero that cse cannot see at that point. Tried: a loop that runs once (`for (i = 0; i < 1; i++)`
+   with `medium = i`), an inline helper returning the variable, a dead conditional in front (the trick that
+   matched IopHeap_PrintFree), none keeps the copy. */
 #if 0
 void StgDepthTint_Draw(void) {
     Mtx44 m;

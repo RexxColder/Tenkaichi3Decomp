@@ -88,9 +88,7 @@ extern void *gEftRaysClass[6];
 /* ---- body lightning: task and manager -------------------------------------------------------------------- */
 
 /* Advances the two shared textures once per frame and gives the work block this frame's TEX0. */
-/* NON-MATCHING: 5 instructions in the first branch: the original loads t->tex0 into v0 after saving the call
-   result (li a0,1 first); this loads it into v1 before. Same instructions otherwise. */
-#if 0
+/* (`one` is needed: with the literal 1 in both stores the first branch is scheduled differently.) */
 void EftBolt_UpdateTex(EftOBoltWork *w) {
     EftOTexSet *set = &gEftBoltPool->tex[0].set;
     EftOBoltTex *t = &gEftBoltPool->tex[0];
@@ -99,12 +97,14 @@ void EftBolt_UpdateTex(EftOBoltWork *w) {
     if (!t->ready) {
         u64 base;
         s32 i;
+        s32 one;
 
         t->tex0 = EftVram_AddImage(set, 1, 0);
         frame = EftVram_AddClut(set);
+        one = 1;
         w->tex0 = t->tex0 | (frame << 37);
-        t->flags = 1;
-        t->ready = 1;
+        t->flags = one;
+        t->ready = one;
         t->frame = frame;
         set = &gEftBoltPool->tex[1].set;
         base = EftVram_AddImage(set, 1, 0);
@@ -120,9 +120,6 @@ void EftBolt_UpdateTex(EftOBoltWork *w) {
         w->tex0 = t->tex0 | (frame << 37);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o", EftBolt_UpdateTex);
-#endif
 
 /* Reads what the task needs from the fighter: parameter flags and body scale. */
 void EftBolt_ReadChar(EftOBoltWork *w, s32 objId) {
@@ -527,13 +524,12 @@ void EftRays_Draw(EftOTask *task) {
     }
 }
 
-/* NON-MATCHING: 127 of 296 instructions: the frame is 0x3F0 instead of 0x400 (one more 16-byte local in the
-   original) and -10.0f is not kept in f24; the call sequence and the arithmetic are the same. */
-#if 0
 #define EFT_RAYS_CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : ((hi) < (x) ? (hi) : (x)))
 
 /* Draws one ray: a quad in the camera plane, scaled, turned by the ray's angle and placed at the part's
-   position; its colour is the key colour times the pulse factors, alpha times the part's fade. */
+   position; its colour is the key colour times the pulse factors, alpha times the part's fade.
+   (`grow = 0.0f` has to stand directly in front of the loop: set earlier, the 0.0f stores in between use its
+   register and the frame and the callee-saved float registers change.) */
 void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     Mtx44 m;
     Mtx44 cam;
@@ -562,7 +558,6 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     Vec4_Set(&uv[1], 1.0f, 0.05f, 1.0f, 1.0f);
     Vec4_Set(&uv[2], 0.0f, 1.0f, 1.0f, 1.0f);
     Vec4_Set(&uv[3], 1.0f, 1.0f, 1.0f, 1.0f);
-    grow = 0.0f;
     Mtx_StoreIdentity(&m);
     Mtx_StoreIdentity(&cam);
     pos = &w->pos;
@@ -575,6 +570,7 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     cam.m[3][2] = 0.0f;
     cam.m[3][1] = 0.0f;
     cam.m[3][0] = 0.0f;
+    grow = 0.0f;
     for (; i < 4; i++) {
         Vec4_Copy(&p, &corner[i]);
         Mtx_StoreIdentity(&m);
@@ -591,8 +587,8 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
     }
     color.x = rect->color.r * ray->col[0];
     color.y = rect->color.g * ray->col[1];
-    color.w = rect->color.a * w->alpha;
     color.z = rect->color.b * ray->col[2];
+    color.w = rect->color.a * w->alpha;
     color.x = EFT_RAYS_CLAMP(color.x, 0.0f, 255.0f);
     color.y = EFT_RAYS_CLAMP(color.y, 0.0f, 255.0f);
     color.z = EFT_RAYS_CLAMP(color.z, 0.0f, 255.0f);
@@ -605,16 +601,10 @@ void EftRays_DrawRay(EftRays *w, EftRay *ray) {
         EftGfx_DrawPolyAvgZFront(verts, def->ray[ray->idx].blend, 0, 0, 0, 0, w->tex0, 0);
     }
 }
-#else
-LIT4_WORD(D_002FCABC, 0x3C23D70A); /* 0.01f */
-LIT4_WORD(D_002FCAC0, 0x3D4CCCCC); /* 0.05f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o", EftRays_DrawRay);
-#endif
 
 /* Steps every ray of a part. */
-/* NON-MATCHING: 8 instructions: 1.0f and 2147483647.0f sit in f21 / f22 instead of f22 / f21. Identical
-   otherwise. */
-#if 0
+/* (The re-roll block is written out in both arms: the compiler merges them, but the four uses of 2147483647.0f
+   decide which callee-saved register it gets.) */
 void EftRays_Step(EftRays *w) {
     f32 t = 0.0f;
     f32 d[4];
@@ -644,10 +634,11 @@ void EftRays_Step(EftRays *w) {
             }
             if (ray->flickT >= ray->flickTime) {
                 ray->flickT = ray->flickTime;
-                goto roll;
+                ray->lenA = rd->len.x + rd->len.y * ((f32)rand() / 2147483647.0f);
+                ray->lenB = rd->len.z + rd->len.w * ((f32)rand() / 2147483647.0f);
+                ray->flickDir ^= 1;
             } else if (ray->flickT <= 0.0f) {
                 ray->flickT = 0.0f;
-            roll:
                 ray->lenA = rd->len.x + rd->len.y * ((f32)rand() / 2147483647.0f);
                 ray->lenB = rd->len.z + rd->len.w * ((f32)rand() / 2147483647.0f);
                 ray->flickDir ^= 1;
@@ -681,10 +672,6 @@ void EftRays_Step(EftRays *w) {
         ray = (EftRay *)List_GetNext(&ray->node);
     }
 }
-#else
-LIT4_WORD(D_002FCAC4, 0x4EFFFFFF); /* 2147483647.0f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o", EftRays_Step);
-#endif
 
 /* Takes a ray from the pool and appends it to a part's list. */
 EftRay *EftRays_AllocRay(List *list) {
@@ -737,14 +724,14 @@ void EftRays_SetKey(EftRay *ray, EftRaysDef *def, s32 key) {
 }
 
 /* Advances a ray's key animation: key 0 to 1 over the first part, 1 to 2 over the rest. */
-/* NON-MATCHING: 29 instructions, register allocation only: the original keeps `rect` in a2 and the copy of
-   `def` in a3, this is the other way round, which also moves the conversion temporaries. */
-#if 0
+/* (One int temporary `di` reused for the three colour differences, as `d` is for the two sizes: with the
+   subtraction written inside each expression, or one temporary per channel, the registers come out differently.) */
 void EftRays_LerpKey(EftRay *ray, EftRaysDef *def) {
     EftRaysKeyAnim *anim = &ray->anim;
     EftRaysRayDef *rays = def->ray;
     EftRaysRect *rect = &ray->rect;
     f32 d;
+    s32 di;
     EftRaysKey *a;
     EftRaysKey *b;
     s32 ka;
@@ -767,17 +754,17 @@ void EftRays_LerpKey(EftRay *ray, EftRaysDef *def) {
     }
     a = &rays[ray->idx].key[ka];
     b = &rays[ray->idx].key[kb];
-    rect->color.r = a->color.r + (u32)((f32)(b->color.r - a->color.r) * t);
-    rect->color.g = a->color.g + (u32)((f32)(b->color.g - a->color.g) * t);
-    rect->color.b = a->color.b + (u32)((f32)(b->color.b - a->color.b) * t);
+    di = b->color.r - a->color.r;
+    rect->color.r = a->color.r + (u32)((f32)di * t);
+    di = b->color.g - a->color.g;
+    rect->color.g = a->color.g + (u32)((f32)di * t);
+    di = b->color.b - a->color.b;
+    rect->color.b = a->color.b + (u32)((f32)di * t);
     d = b->width - a->width;
     rect->width = a->width + d * t;
     d = b->height - a->height;
     rect->height = a->height + d * t;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o", EftRays_LerpKey);
-#endif
 
 /* The handle is a live task of this class. */
 s32 EftRays_IsTask(EftOTask *task) {

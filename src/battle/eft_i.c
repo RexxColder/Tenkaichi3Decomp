@@ -129,14 +129,12 @@ extern void EftEmit_SpawnType5(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s3
 typedef struct EftArg9 {
     /* 0x00 */ EftEmitRes res;
     /* 0x08 */ void *tex;
-    /* 0x0C */ s32 padC;
-    /* 0x10 */ Vec4 pos;
-    /* 0x20 */ Vec4 dir;
+    /* 0x10 */ Vec4 pos __attribute__((aligned(16)));
+    /* 0x20 */ Vec4 dir __attribute__((aligned(16)));
     /* 0x30 */ f32 size;
     /* 0x34 */ f32 rate;
     /* 0x38 */ s32 objId;
-    /* 0x3C */ s32 pad3C;
-} EftArg9;
+} EftArg9; /* size 0x40 */
 extern void *EftQuad_Create(EftArg9 *arg);
 extern void EftQuad_Stop(void *h);
 extern void EftQuad_SetFade(void *h, s32 v);
@@ -156,16 +154,14 @@ extern void EftQuad_SetCut(void *h, s32 v);
 typedef struct EftArg10 {
     /* 0x00 */ EftEmitRes res;
     /* 0x08 */ void *tex;
-    /* 0x0C */ s32 padC;
-    /* 0x10 */ Vec4 pos;
-    /* 0x20 */ Vec4 dir;
+    /* 0x10 */ Vec4 pos __attribute__((aligned(16)));
+    /* 0x20 */ Vec4 dir __attribute__((aligned(16)));
     /* 0x30 */ f32 size;
     /* 0x34 */ f32 rate;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 unk3C;
     /* 0x40 */ s32 objId;
-    /* 0x44 */ s32 pad44[3];
-} __attribute__((aligned(8))) EftArg10;
+} EftArg10; /* size 0x50 */
 extern void *EftPart10_Create(EftArg10 *arg);
 extern void EftPart10_Stop(void *h);
 extern void EftPart10_SetFade(void *h, s32 v);
@@ -183,16 +179,14 @@ extern s32 EftPart10_IsAlive(void *h);
 typedef struct EftArg15 {
     /* 0x00 */ EftEmitRes res;
     /* 0x08 */ void *tex;
-    /* 0x0C */ s32 padC;
-    /* 0x10 */ Vec4 pos;
-    /* 0x20 */ Vec4 pos2;
+    /* 0x10 */ Vec4 pos __attribute__((aligned(16)));
+    /* 0x20 */ Vec4 pos2 __attribute__((aligned(16)));
     /* 0x30 */ f32 size;
     /* 0x34 */ f32 rate;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 unk3C;
     /* 0x40 */ s32 objId;
-    /* 0x44 */ s32 pad44[3];
-} __attribute__((aligned(8))) EftArg15;
+} EftArg15; /* size 0x50 */
 extern void *EftLink_Create(EftArg15 *arg);
 extern void EftLink_Stop(void *h);
 extern void EftLink_Kill(void *h);
@@ -210,16 +204,14 @@ extern s32 EftLink_IsAlive(void *h);
 typedef struct EftArg12 {
     /* 0x00 */ EftEmitRes res;
     /* 0x08 */ void *tex;
-    /* 0x0C */ s32 padC;
-    /* 0x10 */ Vec4 dir;
-    /* 0x20 */ Vec4 pos;
+    /* 0x10 */ Vec4 dir __attribute__((aligned(16)));
+    /* 0x20 */ Vec4 pos __attribute__((aligned(16)));
     /* 0x30 */ f32 size;
     /* 0x34 */ f32 rate;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 objId;
-    /* 0x40 */ u8 unk40;
-    /* 0x41 */ u8 pad41[15];
-} __attribute__((aligned(8))) EftArg12;
+    /* 0x40 */ u8 unk40[1];
+} EftArg12; /* size 0x50 */
 extern void *EftZap_Create(EftArg12 *arg);
 extern void EftZap_Kill(void *h);
 extern void EftZap_Stop(void *h);
@@ -260,12 +252,9 @@ extern s32 gEftEmitNodeSlot[8];
 #define EFT_EMIT_TIME(state, n) ((state)->time[n])
 
 /* Starts / moves / stops the particle object of emitter idx of group 9 (module 0x194970). */
-/* Not matching: 17 of 195 instructions differ, all in the block that fills the argument: the original sets up memset's a0 / a1 after the resource and texture loads (using a0-a2 as temporaries), this C sets a0 first. Order only; the rest matches. */
-#if 0
 void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
                         f32 scale, f32 rate, Vec4 *pos, Vec4 *dir) {
     Vec4 p;
-    EftArg9 arg;
     EftEmitGroup *grp = &set->grp[9];
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
@@ -277,15 +266,8 @@ void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32
             void *tex = set->tex17 + (grp->texBase + def->tex) * 0x88;
             s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
             s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+            EftArg9 arg = { { res0, res1 }, tex, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, size, rate, objId };
 
-            arg.res.unk0 = res0;
-            arg.res.unk4 = res1;
-            arg.tex = tex;
-            memset(&arg.pos, 0, sizeof(Vec4));
-            memset(&arg.dir, 0, sizeof(Vec4));
-            arg.objId = objId;
-            arg.rate = rate;
-            arg.size = size;
             Vec4_Copy(&arg.dir, dir);
             if (def->flags & 0x40) {
                 Vec4_Copy(&arg.pos, pos);
@@ -332,17 +314,11 @@ void EftEmit_SpawnType9(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType9);
 
 /* Starts / moves / stops the particle object of emitter idx of group 10 (module 0x190610). */
-/* Not matching: 25 of 207 instructions differ: same block as type 9 (memset's a1 is set before the loads instead of after) and the order of three stores into the argument. The rest matches. */
-#if 0
 void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
                          f32 scale, f32 rate, Vec4 *pos, Vec4 *unused, Vec4 *dir) {
     Vec4 p;
-    EftArg10 arg;
-    EftArg10 tmp;
     EftEmitGroup *grp = &set->grp[10];
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
@@ -354,18 +330,8 @@ void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
             void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
             s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
             s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+            EftArg10 arg = { { res0, res1 }, tex, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, size, rate, def->unk2, def->unk2, objId };
 
-            tmp.tex = tex;
-            tmp.res.unk0 = res0;
-            tmp.res.unk4 = res1;
-            memset(&tmp.pos, 0, sizeof(Vec4));
-            memset(&tmp.dir, 0, sizeof(Vec4));
-            tmp.rate = rate;
-            tmp.size = size;
-            tmp.unk38 = def->unk2;
-            tmp.objId = objId;
-            tmp.unk3C = def->unk2;
-            arg = tmp;
             Vec4_Copy(&arg.dir, dir);
             if (def->flags & 0x40) {
                 Vec4_Copy(&arg.pos, pos);
@@ -408,19 +374,13 @@ void EftEmit_SpawnType10(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType10);
 
 /* Starts / moves / stops the particle object of emitter idx of group 15 (module 0x18BB08), which has two
    end points: pos + dir * offset and pos2 + dir * offset2. */
-/* Not matching: 52 of 229 instructions differ: s3 / s4 swapped between set and handles, and the same argument block ordering as type 9. The rest matches. */
-#if 0
 void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
                          f32 scale, f32 rate, Vec4 *pos, Vec4 *pos2, Vec4 *dir) {
     Vec4 p;
     Vec4 p2;
-    EftArg15 arg;
-    EftArg15 tmp;
     EftEmitGroup *grp = &set->grp[15];
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
@@ -434,18 +394,8 @@ void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
             void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
             s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
             s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+            EftArg15 arg = { { res0, res1 }, tex, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, size, rate, def->unk2, 0, objId };
 
-            tmp.res.unk0 = res0;
-            tmp.res.unk4 = res1;
-            tmp.tex = tex;
-            memset(&tmp.pos, 0, sizeof(Vec4));
-            memset(&tmp.pos2, 0, sizeof(Vec4));
-            tmp.rate = rate;
-            tmp.size = size;
-            tmp.unk3C = 0;
-            tmp.unk38 = def->unk2;
-            tmp.objId = objId;
-            arg = tmp;
             if (def->flags & 0x40) {
                 Vec4_Copy(&arg.pos, pos);
                 Vec4_Copy(&arg.pos2, pos2);
@@ -489,17 +439,11 @@ void EftEmit_SpawnType15(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType15);
 
 /* Starts / moves / stops the particle object of emitter idx of group 12 (module 0x1A6598). */
-/* Not matching: 56 of 205 instructions differ: s2 / s3 swapped between set and the slot offset, and the same argument block ordering as type 9. The rest matches. */
-#if 0
 void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s32 arg3, s32 objId, s32 idx, f32 size,
                          f32 scale, f32 rate, Vec4 *pos, Vec4 *dir) {
     Vec4 p;
-    EftArg12 arg;
-    EftArg12 tmp;
     EftEmitGroup *grp = &set->grp[12];
     s32 n = grp->first + idx;
     EftEmitDef *def = &set->defs[n];
@@ -511,18 +455,8 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
             void *tex = set->tex33 + (grp->texBase + def->tex) * 0x108;
             s32 res0 = EFT_EMIT_RES(set, grp->resFirst + idx).unk0;
             s32 res1 = EFT_EMIT_RES(set, grp->resFirst + idx).unk4;
+            EftArg12 arg = { { res0, res1 }, tex, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, size, rate, def->unk2, objId, { arg3 } };
 
-            tmp.tex = tex;
-            tmp.res.unk0 = res0;
-            tmp.res.unk4 = res1;
-            memset(&tmp.dir, 0, sizeof(Vec4));
-            memset(&tmp.pos, 0, sizeof(Vec4));
-            tmp.rate = rate;
-            tmp.size = size;
-            tmp.objId = objId;
-            tmp.unk38 = def->unk2;
-            tmp.unk40 = arg3;
-            arg = tmp;
             if (def->flags & 0x40) {
                 Vec4_Copy(&arg.pos, pos);
             } else {
@@ -564,8 +498,6 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_i", EftEmit_SpawnType12);
 
 /* EftEmit_Spawn for the set's own fighter: object id and node come from the set's owner, arg7 is 1. */
 void EftEmit_SpawnOwn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 type,
@@ -577,7 +509,15 @@ void EftEmit_SpawnOwn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes,
 /* Gives one part of an effect pack its command: resolves where it is (node slot, opponent, or the caller's
    position, plus a random offset inside the part's spread when it starts), which way it points and how big it
    is, hands that to the part's module, then records started / stopped and advances the part's scale animation. */
-/* Not matching: 66 of 753 instructions differ, every one a register name: the original keeps def / flags / objId in s3 / s4 / s5, this C in s5 / s3 / s4. Instruction for instruction the code is otherwise identical (stack slots, both jump tables, float constants). */
+/* Not matching: 66 of 753 instructions differ, every one a register name: the original keeps def / flags / objId in
+   s3 / s4 / s5, this C in s5 / s3 / s4. Instruction for instruction the code is otherwise identical (stack slots,
+   both jump tables, float constants). Why (global allocation dump): the three are allocated in order of
+   priority = floor(log2(refs)) * refs / live length, with refs weighted by loop depth; here flags has 30 refs over
+   494 insns (0.243), objId 29 over 482 (0.241), def 28 over 515 (0.218), so def comes last. In the original def
+   comes first, which with the same live lengths needs 32 or more weighted refs for def (the log2 factor steps
+   from 4 to 5 there), i.e. four more than this C gives it. Wrapping the rate selection or the scale animation in
+   `do { } while (0)` raises the weight of their def reads but changes the code (the loop pass moves constants):
+   161 and 106 instructions differ. Not found: what gives def the extra references. */
 #if 0
 void EftEmit_Spawn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 objId,
                    s32 node, s32 arg7, s32 type, s32 idx, s32 flags, f32 scale) {

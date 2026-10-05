@@ -12,8 +12,8 @@
  * Drawing only: it reads a fighter's node position, height and "in a technique" state and writes nothing but its
  * own work. Random numbers: the VU0 register (Rand_FloatRange), six per streak each time one is rolled.
  *
- * Three functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftStreak_Draw, EftStreak_Step,
- * EftStreak_DrawScreen. The file's .rodata is 0x2ECE60..0x2ECEC0 (the id table of EftStreakMgr_Init, then the
+ * Two functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftStreak_Draw (2 instructions) and
+ * EftStreak_DrawScreen (registers). The file's .rodata is 0x2ECE60..0x2ECEC0 (the id table of EftStreakMgr_Init, then the
  * two constants of the INCLUDE_ASM functions); its only .lit4 word is 0x2FCCAC (EftStreak_Step).
  */
 
@@ -236,9 +236,11 @@ void EftStreak_PostUpdate(EftTTask *task) {
    a screen field. Every drawn streak is a quad of width x length at (pos, offset), the whole field turned by
    `angle` about the view axis. */
 #if 0
-/* NON-MATCHING: register allocation only (same frame size, same calls in the same order). The original spills w, def,
-   mgr and &w->axis to the stack (0x1D0..0x1DC) and gives fp to the address of corner[0].y in the corner loop;
-   here w gets fp and that address is rebuilt in the loop. */
+/* NON-MATCHING: 2 of 387 instructions: in the argument set-up of the last memset at the top (the `d` initialiser) the
+   original has `addiu s1,sp,0xC0` in front of `move a1,zero`, this C the other way round (scheduling only).
+   Found this round: the "no depth" argument of EftStreak_DrawWorld is a variable built in two steps
+   (`f = flags & AT_CHAR; f = f == 0; if (flags & POS_SET) f = 0;`), which gives `andi / sltiu / movn` and, with it,
+   the original's allocation (w, def, mgr and &w->axis on the stack, fp for &corner[0].y). */
 void EftStreak_Draw(EftTTask *task) {
     EftStreakWork *w = task->work;
     EftStreakDef *def = w->def;
@@ -319,8 +321,15 @@ void EftStreak_Draw(EftTTask *task) {
                     Mtx_MulVec4(&corner[j], &frame, &corner[j]);
                 }
                 if (w->flags & EFT_STREAK_WORLD) {
+                    s32 f = w->flags & EFT_STREAK_AT_CHAR;
+
+                    f = f == 0;
+
+                    if (w->flags & EFT_STREAK_POS_SET) {
+                        f = 0;
+                    }
                     EftStreak_DrawWorld(corner, *(EftTVec *)&uv[0], *(EftTVec *)&uv[1], s->color, def->blend, 0,
-                                        !(w->flags & EFT_STREAK_POS_SET) && !(w->flags & EFT_STREAK_AT_CHAR), mgr);
+                                        f, mgr);
                 } else {
                     EftStreak_DrawScreen(corner, s->color, def->blend, 4,
                                          (w->flags & EFT_STREAK_AT_CHAR) ? scr.z : 0xFFFFFF, mgr->tex[0].tex0);
@@ -422,22 +431,20 @@ void EftStreak_Roll(EftStreak *s, EftStreakWork *w, f32 offset) {
 
 /* Steps every streak: delay, movement, the fade in over the first 40 % of its life and out over the rest, and
    whether it is drawn (not inside the hole, alpha above 0). An expired streak is rolled again in place. */
-#if 0
-/* NON-MATCHING: 96 of 140 instructions. The original computes (1.0f - 0.4f) at run time from the register that holds
-   0.4 (`sub.s f1, f21, f23`) and uses one hoisted 1.0 for every use in the loop; here the compiler folds it
-   to a 0.6 literal and loads 1.0 again, which also moves three float registers. Same logic. */
 void EftStreak_Step(EftStreakWork *w) {
     EftStreakDef *def = w->def;
     EftTVec *colors;
     EftStreak *s;
     f32 half = 0.0f;
-    f32 a = 1.0f;
-    f32 in = 0.4f; /* fraction of the life spent fading in */
+    f32 a;
+    f32 in; /* fraction of the life spent fading in */
     f32 hole;
     f32 r;
 
     colors = w->colors;
     hole = def->hole * w->cover;
+    a = 1.0f;
+    in = 0.4f;
     if (hole < half) {
         r = half;
     } else if (a < hole) {
@@ -469,12 +476,14 @@ void EftStreak_Step(EftStreakWork *w) {
             } else {
                 f32 x = 1.0f - (t - in) / (1.0f - in);
 
+                /* the upper bound is compared through `a`: with a literal the 1.0 of this arm is not hoisted */
                 if (x < 0.0f) {
                     a = 0.0f;
-                } else if (1.0f < x) {
-                    a = 1.0f;
                 } else {
-                    a = x;
+                    a = 1.0f;
+                    if (!(a < x)) {
+                        a = x;
+                    }
                 }
             }
             s->time += 1.0f;
@@ -494,10 +503,6 @@ void EftStreak_Step(EftStreakWork *w) {
         }
     }
 }
-#else
-LIT4_WORD(D_002FCCAC, 0x3ECCCCCC); /* 0.4f: the function's only constant, and the only one of this file */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_t_b", EftStreak_Step);
-#endif
 
 /* A quad in the world: two clipped triangles; uv0 / uv1 hold the texture coordinates of two corners each. */
 void EftStreak_DrawWorld(Vec4 *corner, EftTVec uv0, EftTVec uv1, EftTVec color, s32 blend, s32 tex, s32 flag,
@@ -545,9 +550,12 @@ static inline void EftTOt_Add(OtPrim *p, s32 z, s32 layer) {
 /* A quad on the screen (corners in pixels), cut into `segs` strips; z is its GS depth (0xFFFFFF = the far limit,
    queued in depth slot 0; otherwise the slot is z >> 8). */
 #if 0
-/* NON-MATCHING: register allocation. The original loads 1.0 twice (a temporary for the four w stores, then f20 for
-   the loop once segs has been converted) and advances the corner pointer itself for corner[3]; here one 1.0
-   lives in f21 for the whole function and corner + 3 gets its own register. The packet built is the same. */
+/* NON-MATCHING: 41 of 376 instructions (aligned), registers only; same length. slot ends up in s7 where the original
+   has s4 (its priority, 9 references over 538 instructions = 501, falls just behind the three hoisted addresses at
+   518..526; one more reference would put it in front as in the original), which shifts s4..s7, and the packet
+   header uses a1 / t2 the other way round for the PRIM constant and the layer. Found this round: the far z goes to
+   a second variable (zz) set in both arms; corner itself is advanced by 3 after &corner[2] is taken; the w stores
+   are written 3, 2, 1, 0; the loop is `if (segs > 0) do { } while (--segs != 0)`; the screen x / y are read as u16. */
 void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 z, u64 tex0) {
     Vec4 d[2] = { 0 };
     Vec4 p[4] = { 0 };
@@ -559,17 +567,22 @@ void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 
     f32 fsegs = segs;
     s32 slot = 0;
     EftTQuadPkt *q;
+    s32 zz;
+    Vec4 *c3;
+    Vec4 *c1 = corner + 1;
 
-    Vec3_Sub(&d[0], &corner[0], &corner[1]);
-    Vec3_Sub(&d[1], &corner[2], &corner[3]);
+    Vec3_Sub(&d[0], &corner[0], c1);
+    c3 = corner + 2;
+    corner += 3;
+    Vec3_Sub(&d[1], c3, corner);
     Vec3_Div(&d[0], &d[0], fsegs);
     Vec3_Div(&d[1], &d[1], fsegs);
-    Vec4_Copy(&p[1], &corner[1]);
-    Vec4_Copy(&p[3], &corner[3]);
-    p[0].w = 1.0f;
+    Vec4_Copy(&p[1], c1);
+    Vec4_Copy(&p[3], corner);
     p[3].w = 1.0f;
     p[2].w = 1.0f;
     p[1].w = 1.0f;
+    p[0].w = 1.0f;
     Vec4_ToInt(&col, (Vec4 *)&color);
     t.y = uv[0].w;
     t.w = uv[1].w;
@@ -577,11 +590,11 @@ void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 
     step[1] = (uv[1].y - uv[1].w) / fsegs;
     if (z != 0xFFFFFF) {
         slot = z >> 8;
-        z = slot << 8;
+        zz = slot << 8;
     } else {
-        z = 0xFFFFFF;
+        zz = 0xFFFFFF;
     }
-    for (; segs > 0; segs--) {
+    if (segs > 0) do {
         Vec3_Add(&p[0], &p[1], &d[0]);
         Vec3_Add(&p[2], &p[3], &d[1]);
         t.x = t.y + step[0];
@@ -627,29 +640,29 @@ void EftStreak_DrawScreen(Vec4 *corner, EftTVec color, s32 blend, s32 segs, s32 
         q->v[2].t = t.z;
         q->v[3].s = uv[1].z;
         q->v[3].t = t.w;
-        q->v[0].xyz.x = scr[0].x * 16 + 0x7000;
-        q->v[0].xyz.y = scr[0].y * 16 + 0x7200;
-        q->v[0].xyz.z = z;
+        q->v[0].xyz.x = (u16)scr[0].x * 16 + 0x7000;
+        q->v[0].xyz.y = (u16)scr[0].y * 16 + 0x7200;
+        q->v[0].xyz.z = zz;
         q->v[0].xyz.f = 0xFF;
-        q->v[1].xyz.x = scr[1].x * 16 + 0x7000;
-        q->v[1].xyz.y = scr[1].y * 16 + 0x7200;
-        q->v[1].xyz.z = z;
+        q->v[1].xyz.x = (u16)scr[1].x * 16 + 0x7000;
+        q->v[1].xyz.y = (u16)scr[1].y * 16 + 0x7200;
+        q->v[1].xyz.z = zz;
         q->v[1].xyz.f = 0xFF;
-        q->v[2].xyz.x = scr[2].x * 16 + 0x7000;
-        q->v[2].xyz.y = scr[2].y * 16 + 0x7200;
-        q->v[2].xyz.z = z;
+        q->v[2].xyz.x = (u16)scr[2].x * 16 + 0x7000;
+        q->v[2].xyz.y = (u16)scr[2].y * 16 + 0x7200;
+        q->v[2].xyz.z = zz;
         q->v[2].xyz.f = 0xFF;
-        q->v[3].xyz.x = scr[3].x * 16 + 0x7000;
-        q->v[3].xyz.y = scr[3].y * 16 + 0x7200;
+        q->v[3].xyz.x = (u16)scr[3].x * 16 + 0x7000;
+        q->v[3].xyz.y = (u16)scr[3].y * 16 + 0x7200;
         q->tex0 = tex0;
-        q->v[3].xyz.z = z;
+        q->v[3].xyz.z = zz;
         q->v[3].xyz.f = 0xFF;
         EftTOt_Add((OtPrim *)q, slot, blend);
         Vec4_Copy(&p[1], &p[0]);
         Vec4_Copy(&p[3], &p[2]);
         t.y = t.x;
         t.w = t.z;
-    }
+    } while (--segs != 0);
 }
 #else
 INCLUDE_RODATA("asm/nonmatchings/battle/eft_t_b", D_002ECEA0); /* (0, 0, 0, 1), (1, 0, 1, 1): uv below */

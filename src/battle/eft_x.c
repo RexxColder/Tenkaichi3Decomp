@@ -11,10 +11,10 @@
  * one Rand_IntRange (libc rand(); definition flag 0x10, the texture frame). EftPart10_InitSpin, once per
  * emitter with definition flag 0x40: 3 or 9 Rand_FloatRange. They reach only particle appearance.
  *
- * Five functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftPart10_UnlinkGroup and
- * EftPart10_UnlinkPtcl (3 instructions each, one register), and the three key-frame functions
- * EftPart10_StartKeys, EftPart10_UpdateKeys and EftPart10_SetKey (same operations and length, different
- * register allocation of about fifty shared addresses).
+ * Three functions are INCLUDE_ASM with the attempt in `#if 0` above them: the key-frame functions
+ * EftPart10_StartKeys, EftPart10_UpdateKeys and EftPart10_SetKey (same operations, different register
+ * allocation of about fifty shared addresses; the address arithmetic of the original, bases def + 4 / + 8 / + 0xC
+ * with idx * 4 + a multiple of 16, says the tracks are nested structures that these views do not have yet).
  */
 
 /* The view being drawn (include/battle/btl_cam.h). */
@@ -162,14 +162,13 @@ void EftPart10_LinkGroup(EftPart10Group **head, EftPart10Group **tail, EftPart10
 }
 
 /* Removes a burst group from an emitter's list. */
-#if 0
-/* NON-MATCHING: 3 of 25 instructions: the last case keeps `next` in a0 (the register of `head`) where this
-   keeps it in a2; same operations. */
 void EftPart10_UnlinkGroup(EftPart10Group **head, EftPart10Group **tail, EftPart10Group *p) {
     EftPart10Group *prev;
-    EftPart10Group *next;
+    EftPart10Group *a; /* one variable for the list head and later for a neighbour: needed for the registers */
+    EftPart10Group *b;
 
-    if (*head == NULL) {
+    a = *head;
+    if (a == NULL) {
         return;
     }
     prev = p->prev;
@@ -183,21 +182,19 @@ void EftPart10_UnlinkGroup(EftPart10Group **head, EftPart10Group **tail, EftPart
             p->prev = NULL;
         }
     } else {
-        next = p->next;
-        if (next == NULL) {
+        a = p->next;
+        if (a == NULL) {
             *tail = prev;
             prev->next = NULL;
         } else {
-            p = next;
-            next = prev;
-            p->prev = next;
-            next->next = p;
+            b = a;
+            a = prev;
+            b->prev = a;
+            a->next = b;
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_x", EftPart10_UnlinkGroup);
-#endif
+
 
 /* Takes a free particle, initialises it from the emitter and starts it on the unit sphere at the two angles;
    appends it to the burst group. Does nothing when no particle is free or its life comes out as 0. */
@@ -384,13 +381,13 @@ void EftPart10_LinkPtcl(EftPart10Ptcl **head, EftPart10Ptcl **tail, EftPart10Ptc
 }
 
 /* Removes a particle from a burst group. */
-#if 0
-/* NON-MATCHING: 3 of 25 instructions, the same register difference as EftPart10_UnlinkGroup. */
 void EftPart10_UnlinkPtcl(EftPart10Ptcl **head, EftPart10Ptcl **tail, EftPart10Ptcl *p) {
     EftPart10Ptcl *prev;
-    EftPart10Ptcl *next;
+    EftPart10Ptcl *a; /* one variable for the list head and later for a neighbour: needed for the registers */
+    EftPart10Ptcl *b;
 
-    if (*head == NULL) {
+    a = *head;
+    if (a == NULL) {
         return;
     }
     prev = p->prev;
@@ -404,21 +401,19 @@ void EftPart10_UnlinkPtcl(EftPart10Ptcl **head, EftPart10Ptcl **tail, EftPart10P
             p->prev = NULL;
         }
     } else {
-        next = p->next;
-        if (next == NULL) {
+        a = p->next;
+        if (a == NULL) {
             *tail = prev;
             prev->next = NULL;
         } else {
-            p = next;
-            next = prev;
-            p->prev = next;
-            next->next = p;
+            b = a;
+            a = prev;
+            b->prev = a;
+            a->next = b;
         }
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/battle/eft_x", EftPart10_UnlinkPtcl);
-#endif
+
 
 /* Queues a particle as a textured strip through its four world-space corners (projected with the loaded
    matrix; dropped when the projection clips), at the average depth of the corners. */

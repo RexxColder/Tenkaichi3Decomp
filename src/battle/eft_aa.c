@@ -563,7 +563,11 @@ void EftGndDust_DrawQuad(Vec4 *pos, Vec4 *color, Mtx44 *mtx, u64 tex0, f32 scale
 }
 
 /* Draws one piece: a quad lying along dir, or a camera-facing sprite. */
-#if 0 /* NON-MATCHING: 2 of 57 instructions: the original sets up f15 (width) before a3 (tex0) for the EftGndDust_DrawQuad call, this C after. No parameter order of either function changes it. */
+#if 0 /* NON-MATCHING: 2 of 57 instructions: the original sets up f15 (width) before a3 (tex0) for the EftGndDust_DrawQuad call, this C after. No parameter order of either function changes it.
+   Cleanup E: all 1287 interleavings of EftGndDust_DrawQuad's five integer and eight float parameters were compiled; none gives the
+   original order (175 give these 2, the rest more). It is the first scheduling pass: with `$a3 = tex0`, `$f13 = h`
+   and `$f15 = w` all ready, it takes the one that comes first in the instruction stream; the original took the two
+   float moves first, i.e. the tex0 move ranked lower there (as if tex0 did not die in it). */
 void EftGndDust_DrawPiece(Vec4 *pos, Vec4 *color, Vec4 *dir, s32 layer, u64 tex0, s32 along, f32 w, f32 h, f32 rot) {
     Mtx44 m;
 
@@ -1032,7 +1036,6 @@ static inline u64 EftBlade_MakePrim(s32 type, s32 abe, s32 ctx) {
 }
 
 /* Task draw: the ribbon as two gouraud triangles per ring step, in the character's colour, alpha from the ring. */
-#if 0 /* NON-MATCHING: 6 of 389 instructions: the stack slots of two spilled loop invariants (n << 4 and &t->alpha[n]) are exchanged (0xE4 / 0xE8), and `li fp,-1` is scheduled one instruction earlier. */
 void EftBlade_Draw(EftAaTask *task) {
     EftBladeTrail *t = task->work;
     EftAaVec uv[3] = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } };
@@ -1068,8 +1071,6 @@ void EftBlade_Draw(EftAaTask *task) {
     col.w = def->color.w;
     aScale = (f32)col.w / 255.0f;
     while (i != head) {
-        s32 n;
-
         i = (i + 1) & 0x7F;
         if (i == p1) {
             break;
@@ -1077,7 +1078,6 @@ void EftBlade_Draw(EftAaTask *task) {
         if (t->alpha[i] == 0) {
             continue;
         }
-        n = (i + 1) & 0x7F;
         for (k = 0; k < 2; k++) {
             EftBladeTriPkt *p;
             EftAaOtEntry *e;
@@ -1089,7 +1089,7 @@ void EftBlade_Draw(EftAaTask *task) {
             if (k & 1) {
                 Vec4_Copy((Vec4 *)&pos[0], (Vec4 *)&t->edgeA[i]);
                 Vec4_Copy((Vec4 *)&pos[1], (Vec4 *)&t->edgeB[i]);
-                Vec4_Copy((Vec4 *)&pos[2], (Vec4 *)&t->edgeA[n]);
+                Vec4_Copy((Vec4 *)&pos[2], (Vec4 *)&t->edgeA[(i + 1) & 0x7F]);
                 uv[0].x = 1.0f;
                 uv[0].y = 0.0f;
                 uv[1].x = 0.0f;
@@ -1101,8 +1101,8 @@ void EftBlade_Draw(EftAaTask *task) {
                 alpha[2] = 0;
             } else {
                 Vec4_Copy((Vec4 *)&pos[0], (Vec4 *)&t->edgeB[i]);
-                Vec4_Copy((Vec4 *)&pos[1], (Vec4 *)&t->edgeA[n]);
-                Vec4_Copy((Vec4 *)&pos[2], (Vec4 *)&t->edgeB[n]);
+                Vec4_Copy((Vec4 *)&pos[1], (Vec4 *)&t->edgeA[(i + 1) & 0x7F]);
+                Vec4_Copy((Vec4 *)&pos[2], (Vec4 *)&t->edgeB[(i + 1) & 0x7F]);
                 uv[0].x = 0.0f;
                 uv[0].y = 0.0f;
                 uv[1].x = 1.0f;
@@ -1110,7 +1110,7 @@ void EftBlade_Draw(EftAaTask *task) {
                 uv[2].x = 0.0f;
                 uv[2].y = 0.0f;
                 alpha[0] = t->alpha[i];
-                alpha[2] = t->alpha[n];
+                alpha[2] = t->alpha[(i + 1) & 0x7F];
                 alpha[1] = 0;
             }
             pos[0].w = 1.0f;
@@ -1180,10 +1180,6 @@ void EftBlade_Draw(EftAaTask *task) {
         }
     }
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_aa", D_002ED420);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_aa", EftBlade_Draw);
-#endif
 
 /* Catmull-Rom point between p[1] and p[2] at parameter t (Hermite with tangents (p[2] - p[0]) / 2, (p[3] - p[1]) / 2). */
 void EftBlade_Spline(EftAaVec *out, EftAaVec *p, f32 t) {
@@ -1222,7 +1218,10 @@ u8 *EftBlade_GetColorPtr(void) {
 }
 
 /* The default trail colour as four ints; returns its alpha as 0..1. */
-#if 0 /* NON-MATCHING: 17 of 31 instructions: the original loads the colour pointer into v0, tests it and copies it to a1 in the delay slot (the shape of an inlined EftBlade_GetColorPtr); this C loads it into a1 directly, which shifts the rest by one instruction. */
+#if 0 /* NON-MATCHING: 17 of 31 instructions: the original loads the colour pointer into v0, tests it and copies it to a1 in the delay slot (the shape of an inlined EftBlade_GetColorPtr); this C loads it into a1 directly, which shifts the rest by one instruction.
+   Cleanup E: every way of writing a second pointer variable (static inline getter, explicit `c = r` before or after
+   the test, the getter expanded twice, loops, empty do-while) is folded back into one register by cse; no compiler
+   flag changes it. The original needs two pseudos at allocation time (the tested one in v0, its copy in a1). */
 f32 EftBlade_GetColor(EftAaIVec *out) {
     u8 *c;
 
@@ -1579,7 +1578,11 @@ void EftAnimPart_Update(EftAaTask *task) {
 
 /* Task draw: picks the draw layer from the part's mode; some modes are not drawn in a view that does not
    show the owner (unless a technique camera cut is running). */
-#if 0 /* NON-MATCHING: 16 of 67 instructions, one register exchange: the original has `other` in s2 and `w` in s3, this C the reverse. */
+#if 0 /* NON-MATCHING: 16 of 67 instructions, one register exchange: the original has `other` in s2 and `w` in s3, this C the reverse.
+   Cleanup E: global allocation order here is layer, chr, w, other (priority = log2(refs) * refs / live length:
+   w 7 refs over 43 insns, other 5 over 38). The original needs `other` ahead of `w`: two more references to
+   `other`, or two fewer to `w`. Declaration orders, the forms of the `other` test, separate case bodies and a second
+   pointer for the two draw calls all leave the counts unchanged. */
 void EftAnimPart_Draw(EftAaTask *task) {
     s32 layer = 0;
     EftAnimPart *w = task->work;

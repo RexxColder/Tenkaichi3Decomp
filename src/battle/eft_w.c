@@ -112,9 +112,6 @@ extern EftWView *gBtlCamView;
 
 /* Queues a sprite as a textured strip through its four world-space corners (projected with the loaded
    matrix; dropped when the projection clips), at the average depth of the corners. */
-#if 0
-/* NON-MATCHING: 26 of 271 instructions differ, all in the packet header block (which registers hold the DMA / VIF / GIF
-   constants and where their loads are scheduled); same length, same stores in the same order. */
 void EftLink_DrawQuad(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32 layer, s32 texIdx, s32 noDepth,
                       EftWTexEntry *tex) {
     Vec4 uv[4];
@@ -146,9 +143,9 @@ void EftLink_DrawQuad(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000008;
     p->gifTag = 0xE400000000008001;
-    p->regs = ((u64)ctx << 4) + 0x42142142142160;
+    p->regs = 0x42142142142160 + (ctx << 4);
     p->next = NULL;
-    z = (scr[0].z + scr[2].z + (scr[3].z + scr[1].z)) >> 10;
+    z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
     if (noDepth) {
         scr[0].z = 0xFFFFFF;
         scr[1].z = 0xFFFFFF;
@@ -215,8 +212,7 @@ void EftLink_DrawQuad(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32
     e->tail->next = (OtPrim *)p;
     e->tail = (OtPrim *)p;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_w", EftLink_DrawQuad);
+
 
 /* The same quad through the clipping polygon path: two triangles (corners 0 1 2 and 1 2 3). */
 void EftLink_DrawQuadClipped(Vec4 *corner, EftWVec uv0, EftWVec uv1, EftWVec color, s32 layer, s32 texIdx,
@@ -389,16 +385,13 @@ EftWLinkNode *EftLink_NewNode(EftWLink *w, EftWVec pos, f32 t) {
    VU0 generator (Rand_FloatRange) and up to three from libc rand(): Rand_IntRange with definition flag 0x100
    (spin sign) and 0x80 (start frame of the sheet), rand() with flags 0x20 | 0x40 (colour ramp on or off).
    The mirrored-UV flag 0x80 it sets is cleared again a few lines later (original bug: only the UVs stay mirrored). */
-#if 0
-/* NON-MATCHING: 7 of 369 instructions differ: the direction angle and the distance swap $f20 / $f21 (and the distance base
-   is loaded into $f1 instead of straight into the saved register). Everything else matches. */
 void EftLink_InitNode(EftWLinkNode *p, EftWLink *w) {
     EftWLinkDef *def = w->arg.def;
     s32 flip = 1;
     Vec4 c1;
     f32 sz[3];
     f32 a;
-    f32 r;
+    f32 r = 0.0f; /* dead initialiser: needed for the registers of the angle and the distance */
 
     Vec4_Set(&p->unk70, 0.0f, 0.0f, 1.0f, 1.0f);
     Vec4_Set(&p->ofs, w->ofsX, w->ofsY, 0.0f, 1.0f);
@@ -489,11 +482,6 @@ void EftLink_InitNode(EftWLinkNode *p, EftWLink *w) {
         p->mul0[2] = w->mulB[0];
     }
 }
-#endif
-LIT4_WORD(D_002FCD3C, 0x40C90FDA); /* 2 pi (rotX, rotZ) */
-LIT4_WORD(D_002FCD40, 0x40490FDA); /* pi (spin) */
-LIT4_WORD(D_002FCD44, 0x40C90FDA); /* 2 pi (direction angle) */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_w", EftLink_InitNode);
 
 #define EFTW_CLAMP(x, lo, hi) (((x) < (lo)) ? (lo) : (((hi) < (x)) ? (hi) : (x)))
 #define EFTW_CLAMP01(x) EFTW_CLAMP(x, 0.0f, 1.0f)
@@ -745,9 +733,6 @@ void EftLink_DrawBillboardClipped(Vec4 *pos, f32 w, f32 h, Vec4 *color, Vec4 *sc
 /* Queues a sprite as a screen-aligned textured quad around the projection of `pos`: w x h are half sizes and
    (offX, offY) the centre offset, scaled by the perspective of `pos`; `rot` turns it about the view axis.
    Dropped when smaller than 2 units or when a corner leaves the GS drawing area. */
-#if 0
-/* NON-MATCHING: 20 of 439 instructions differ, all in the packet header block (the DMA tag and VIF code constants swap
-   $a1 / $a2 and the constant loads are scheduled differently); same length, everything else matches. */
 void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 offY, f32 u0, f32 v0, f32 u1,
                            f32 v1, f32 rot, s32 layer, s32 noDepth, u64 tex0) {
     Mtx44 m;
@@ -797,6 +782,11 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
     } else {
         oy = -((-offY * k) >> 12);
     }
+    /* An empty statement that still counts as one instruction for the register allocator: u1 and v1 have the
+       same priority (30000 / 309 and 30000 / 307, both 97) and the tie puts u1 in $f26; one instruction more
+       in their live range (310 and 308: 96 against 97) gives the original's $f27 / $f26. The original source
+       must have differed by one instruction somewhere in the function; that form was not found. */
+    __asm__("");
     if (sw < 2) {
         return;
     }
@@ -855,7 +845,7 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
     p->vif0 = 0x10000000;
     p->vif1 = 0x50000007;
     p->gifTag = 0xC400000000008001;
-    p->regs = ((u64)ctx << 4) + 0xF42424242160;
+    p->regs = 0xF42424242160 + (ctx << 4);
     p->next = NULL;
     p->rgbaq.r = color->x;
     p->rgbaq.g = color->y;
@@ -902,9 +892,6 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
     e->tail->next = (OtPrim *)p;
     e->tail = (OtPrim *)p;
 }
-#endif
-LIT4_WORD(D_002FCD48, 0x3F955555); /* 1.1666667f, the pixel aspect */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_w", EftLink_DrawBillboard);
 
 /* Module entry of effect pack part kind 15: creates an emitter task (class gEftLinkClass) from the argument block. */
 EftWTask *EftLink_Create(EftWLinkArg *arg) {
@@ -1071,8 +1058,12 @@ void EftLink_SetPos2(EftWTask *task, EftWVec pos) {
 /* The module's "warp" entry: does nothing. (The effect pack library calls it for EFT_SPAWN_MOVE | EFT_SPAWN_WARP.) */
 #if 0
 /* NON-MATCHING: the original still copies the by-value vector to its stack (ld / ld / sd / sd, 8 instructions);
-   an empty body lets the compiler delete the copy (3 instructions). No source form that keeps the dead copy
-   was found. */
+   an empty body lets the compiler delete the copy (3 instructions). What is known (cleanup round 2): the copy is
+   two 8-byte moves (not a block-move instruction), and the life pass deletes such frame stores only in the last
+   basic block and only when nothing after them reads memory. A `volatile` parameter keeps them but in source
+   order (ld 0 / sd 0 / ld 8 / sd 8); an empty `__asm__("")` behind them keeps them in the original's order
+   (ld 8 / ld 0 / sd 8 / sd 0) but with v0 / v1 exchanged: the original has the low half in v0, i.e. the first
+   scheduling pass did not reorder the moves and the second did. No source form that does both was found. */
 void EftLink_Warp(EftWTask *task, EftWVec pos) {
 }
 #endif

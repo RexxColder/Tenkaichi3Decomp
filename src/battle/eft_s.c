@@ -20,6 +20,10 @@ typedef struct EftSView {
 } EftSView;
 
 extern EftSView *gBtlCamView;
+/* gOtCur read as a volatile object (same symbol). The original never moves the load `pkt = gOtCur` into the delay
+   slot of the branch in front of it, while the store `gOtCur = pkt + 1` does go into one: a volatile read
+   reproduces exactly that (see EftChain_DrawStrand). */
+extern u32 *volatile gOtCurRead __asm__("gOtCur");
 extern EftArcPool *gEftChain;
 extern void *D_002C3E18[6]; /* task class of the prop ki blast */
 
@@ -281,24 +285,19 @@ void EftKiObj_StepFrags(EftTask *task) {
 }
 
 /* Draws the fragments as sprites turned by the blast's spin. */
-#if 0 /* 3 of 72 instructions: in the loop preheader the original sets the counter (li s2,4) before the 2^31 constant of the unsigned conversion (lui / mtc1 f20), here after it. Everything else is identical. */
 void EftKiObj_DrawFrags(EftTask *task) {
     EftKiProp *w = task->work;
     EftKiPropFrag *f;
     s32 i;
 
+    f = w->frag;
     if (w->flags & EFT_KIPROP_FRAGS_ON) {
-        for (i = 0; i < EFT_KIPROP_FRAGS; i++) {
-            f = &w->frag[i];
+        for (i = 0; i < EFT_KIPROP_FRAGS; i++, f++) {
             EftSpr_DrawRot(f->pos.x, f->pos.y, f->pos.z, 0x80, 0x80, 0x80, 0x80, 0, 0, 0x40, 0x40, 0.0f, 0.0f, 1.0f,
                           1.0f, w->spin, 0, (u32)(w->scale * 0.4f * 4096.0f * f->vel.w), 0, 0, w->tex);
         }
     }
 }
-#else
-LIT4_WORD(D_002FCC4C, 0x3ECCCCCC); /* the function's 0.4f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_s", EftKiObj_DrawFrags);
-#endif
 
 /* ---- chain effect (EftChain; its class callbacks and API continue in the second part)  ---------------------------------- */
 
@@ -800,7 +799,6 @@ static inline void EftChain_OtAdd(OtPrim *p, s32 z, s32 layer) {
 
 /* Draws a chain as a ribbon facing the camera: one textured quad per pair of shown nodes, widened across the
    segment by the nodes' widths, queued by its average depth. A clipped quad is skipped. */
-#if 0 /* 29 of 433 instructions, two causes: (1) the branch after Vu0Cur_ProjectPoints is `beqzl` with a copy of the loop-step load in its delay slot in the original, here a plain `beqz` with the gOtCur load pulled into the slot (which shifts the following 24 instructions by one); (2) the original loads 1.0f into f20 before clearing j, here after. Everything else is identical. */
 void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
     EftVec uv[4] = { { { 0.0f, 0.0f, 1.0f, 0.0f } }, { { 0.0f, 1.0f, 1.0f, 0.0f } }, { { 1.0f, 0.0f, 1.0f, 0.0f } }, { { 1.0f, 1.0f, 1.0f, 0.0f } } };
     EftVec quad[4];
@@ -851,7 +849,7 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
             Vec3_Copy(V(&prevEnd[0]), V(&quad[2]));
             Vec3_Copy(V(&prevEnd[1]), V(&quad[3]));
             if (Vu0Cur_ProjectPoints(scr, V(quad), 4) != 0) {
-                pkt = (EftArcPkt *)gOtCur;
+                pkt = (EftArcPkt *)gOtCurRead;
                 gOtCur = (u32 *)(pkt + 1);
                 if (pkt == NULL) {
                     return;
@@ -863,6 +861,7 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
                     pkt->vif1 = 0x50000008;
                     pkt->gif0 = 0xE400000000008001;
                     pkt->gif1 = 0x42142142142160;
+                    pkt->next = 0;
                 } else {
                     pkt->prim = 0x25C;
                     pkt->tag = 0x20000008;
@@ -870,8 +869,8 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
                     pkt->vif1 = 0x50000008;
                     pkt->gif0 = 0xE400000000008001;
                     pkt->gif1 = 0x42142142142170;
+                    pkt->next = 0;
                 }
-                pkt->next = 0;
                 for (j = 0; j < 4; j++) {
                     f32 q = 1.0f / (f32)scr[j].w;
 
@@ -935,10 +934,6 @@ void EftChain_DrawStrand(EftArc *w, EftArc *w2, EftArcChain *ch) {
         }
     }
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_s", D_002ECD60); /* the function's uv[4] */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_s", EftChain_DrawStrand);
-#endif
 
 /* The same ribbon through the shared polygon clipper: two triangles per segment. */
 void EftChain_DrawStrandClipped(EftArc *w, EftArc *w2, EftArcChain *ch) {
@@ -1003,14 +998,13 @@ void EftChain_DrawStrandClipped(EftArc *w, EftArc *w2, EftArcChain *ch) {
 /* Starts a chain in a free slot: nodes from the pool (fewer than 3: gives up), random life, colours, direction
    (kind 2: random pitch, and a yaw that advances per chain; other kinds: the effect's slot rotation), turn
    steps mirrored on odd slots, then the node layout. */
-#if 0 /* 5 of 350 instructions, register allocation only: the original keeps the chain's time in f4 and the shrink rate in f2, here f2 and f1. */
+#if 0 /* 3 of 350 instructions, one register: the shrink rate (key->shrinkRate, loaded once and used by the test and by the division in the else arm) is in f2 in the original, here in f1. The chain's time is now right (f4): it shares the variable `r` with the random factors, as does the quotient. For f2 the rate would have to conflict with f1 somewhere; tried without effect: a variable of its own for the rate (declared first / last, or one of cx, cy, a, b), loading it earlier (the load and the compare then move up), the compare written the other way round, `ch->life - r`, the quotient written in one expression. Global allocation order here is life (f3, preferred), rate, then r. */
 s32 EftChain_StartStrand(EftTask *task, EftArcChain *ch) {
     EftArc *w = task->work;
     EftArcParam *p = w->arg.param;
     EftArcKey *key = &w->cur;
     f32 r;
     f32 life;
-    f32 t;
     f32 cx;
     f32 cy;
 
@@ -1023,16 +1017,16 @@ s32 EftChain_StartStrand(EftTask *task, EftArcChain *ch) {
     ch->flags |= EFT_ARCCH_ON;
     life = key->lifeBase + key->lifeRange * RANDF();
     ch->time = 0.0f;
-    t = ch->time;
+    r = ch->time;
     ch->life = life;
     ch->f7C = life * key->f8C;
     ch->endAt = life * key->fA4;
     ch->fadeAt = life - key->fadeOut;
-    if (key->shrinkRate <= t) {
+    if (key->shrinkRate <= r) {
         ch->flags |= EFT_ARCCH_SHRUNK;
     } else {
-        t = (f32)ch->count / key->shrinkRate;
-        ch->shrinkAt = life - t;
+        r = (f32)ch->count / key->shrinkRate;
+        ch->shrinkAt = life - r;
     }
     ch->shown = 0.0f;
     ch->width = 1.0f;
@@ -1480,9 +1474,9 @@ void EftChain_Update(EftTask *task) {
  * Nothing here writes a fighter, a battle object or a hit record. Random numbers: libc rand() only, in
  * EftRay_Setup (5 per ray, 6 for a screen burst) and EftRay_Update (1 + one per ray, every frame, modes 1..3).
  *
- * Three functions are INCLUDE_ASM with the attempt in `#if 0` above them: EftChain_SetRes (matches only with
- * 0x1793A8 defined in the same file), EftRay_DrawRays, EftRay_DrawQuad2D. With the attempts enabled the file's
- * .lit4 (0x2FCC84..0x2FCCAC) and .rodata (0x2ECDE0..0x2ECE60) come out identical to the original.
+ * All of this part is C (EftChain_SetRes matches only with 0x1793A8 defined in the same file). Its .lit4
+ * (0x2FCC84..0x2FCCAC) and .rodata (0x2ECDE0..0x2ECE60, the two tables of EftRay_DrawRays and EftRay_DrawQuad2D
+ * included) come out identical to the original.
  */
 
 #define gBtlCamView ((EftTCamView *)gBtlCamView)
@@ -2266,11 +2260,6 @@ void EftRay_Setup(EftRayWork *w, EftRayArg *arg) {
 /* Draws every ray: a quad from the near end (inner + offset from the centre) outwards, turned by the ray's angle
    about the view axis. World bursts are hidden unless the owner's view is drawn (or a camera cut runs) and
    while the owner is in a beam clash; screen bursts of modes 2 / 3 centre on the opponent's node 3. */
-#if 0
-/* NON-MATCHING: 59 of 306 instructions, all from one thing: the inner corner loop. The original keeps j as an
-   up-counter (`slti j, 4`) next to two strength-reduced pointers (base, corner); here the second loop pass
-   turns j into a down-counter (with `-fno-rerun-loop-opt` this source gives the original's loop). Everything
-   else, including the stack layout, is identical. */
 void EftRay_DrawRays(EftRayWork *w) {
     Vec4 off;
     Vec4 corner[4];
@@ -2283,6 +2272,7 @@ void EftRay_DrawRays(EftRayWork *w) {
     Vec4 v2;
     EftRay *ray;
     Vec4 *c;
+    EftTVec *bp;
     s32 i;
     s32 j;
 
@@ -2328,18 +2318,23 @@ void EftRay_DrawRays(EftRayWork *w) {
     Vu0Cur_LoadMtx(&gBtlCamView->screen);
     ray = w->ray;
     for (i = 0; i < w->count; i++, ray++) {
-        c = corner;
-        for (j = 0; j < 4; j++, c++) {
-            v.x = base[j].x * ray->width * w->scale.x;
-            v.y = base[j].y * ray->length * w->scale.y;
-            v.z = base[j].z;
-            v.w = base[j].w;
+        for (j = 0, bp = base, c = corner; j < 4; ) {
+            v.x = bp->x * ray->width * w->scale.x;
+            v.y = bp->y * ray->length * w->scale.y;
+            v.z = bp->z;
+            v.w = bp->w;
             Vec4_Set(&off, 0.0f, -(w->inner + ray->offset), 0.0f, 0.0f);
             Vec4_Add(&v, &v, &off);
             Mtx_StoreIdentity(&m);
             Mtx_RotateZ(&m, &m, ray->angle);
             Mtx_MulVec4(&v2, &m, &v);
             Mtx_MulVec4(c, &w->mtx, &v2);
+            j++;
+            bp++;
+            c++;
+            if (j >= 4) {
+                break;
+            }
         }
         if (w->space == 0) {
             EftRay_DrawQuad3D(corner, ray->r, ray->g, ray->b, (u32)(ray->a * w->alpha), ray->r, ray->g, ray->b,
@@ -2351,10 +2346,6 @@ void EftRay_DrawRays(EftRayWork *w) {
     }
     Vu0Cur_Pop();
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_s", D_002ECDE0); /* the four corner factors (base[] below) */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_s", EftRay_DrawRays);
-#endif
 
 /* A quad in the world: two triangles, each clipped against the view and queued by depth. */
 void EftRay_DrawQuad3D(Vec4 *corner, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u8 g1, u8 b1, u8 a1, s32 blend, EftTTex *tex,
@@ -2397,10 +2388,6 @@ static inline void EftTOt_Add(OtPrim *p, s32 z, s32 layer) {
 
 /* A quad on the screen (corners in pixels), cut into `segs` strips along its length with the alpha running from
    a0 to a1; queued at depth slot z with the GS depth at the far limit. */
-#if 0
-/* NON-MATCHING: register allocation. The original keeps a0, the running alpha and the previous alpha in three
-   callee-saved registers (s4, s5, s6) and spills r1 next to r0 / g0 / b0, so its frame is 0x10 bigger (0x1C0);
-   here a0 and the running alpha share a register. The statements and the packet built are the same. */
 void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u8 g1, u8 b1, u8 a1, s32 blend,
                        EftTTex *tex, f32 segs) {
     Vec4 tv[4];
@@ -2410,12 +2397,12 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
     EftTVec uv[4] = { { 0.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },
                    { 1.0f, 0.0f, 1.0f, 1.0f } };
     s32 aStep;
-    f32 inv = 1.0f / segs;
-    f32 t;
+    f32 t = 1.0f / segs;
+    f32 inv = t;
     f32 vStep0;
     f32 vStep1;
-    s32 aNext = a0;
-    s32 aCur = aNext;
+    s32 aNext;
+    s32 aCur;
     EftTQuadPkt *q;
 
     Vec4_Sub(&d[0], &corner[2], &corner[0]);
@@ -2424,16 +2411,16 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
     Vec3_Div(&d[1], &d[1], segs);
     Vec4_Copy(&p[0], &corner[0]);
     Vec4_Copy(&p[1], &corner[1]);
-    aStep = (f32)(a1 - a0) / segs;
     tv[0].y = uv[0].y;
     tv[1].y = uv[1].y;
     vStep0 = (uv[2].y - uv[0].y) / segs;
     vStep1 = (uv[3].y - uv[1].y) / segs;
+    aStep = (f32)(a1 - a0) / segs;
     p[3].w = 1.0f;
     p[2].w = 1.0f;
     p[1].w = 1.0f;
     p[0].w = 1.0f;
-    for (t = inv; !(1.0f < t); t += inv) {
+    for (aNext = a0, aCur = aNext; !(1.0f < t); t += inv) {
         Vec3_Add(&p[2], &p[0], &d[0]);
         Vec3_Add(&p[3], &p[1], &d[1]);
         aNext += aStep;
@@ -2443,12 +2430,12 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
         Vec4_ToInt(&scr[1], &p[1]);
         Vec4_ToInt(&scr[2], &p[2]);
         Vec4_ToInt(&scr[3], &p[3]);
-        q = (EftTQuadPkt *)gOtCur;
+        q = (EftTQuadPkt *)gOtCurRead;
         gOtCur = (u32 *)(q + 1);
-        q->tag = 0x20000008;
-        q->vif1 = 0x50000008;
         q->prim = 0x5C;
+        q->tag = 0x20000008;
         q->vif0 = 0x10000000;
+        q->vif1 = 0x50000008;
         q->gif0 = 0xE400000000008001;
         q->gif1 = 0x42142142142160;
         q->next = 0;
@@ -2480,20 +2467,20 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
         q->v[2].t = tv[2].y;
         q->v[3].s = uv[3].x;
         q->v[3].t = tv[3].y;
-        q->v[0].xyz.x = scr[0].x * 16 + 0x7000;
-        q->v[0].xyz.y = scr[0].y * 16 + 0x7200;
+        q->v[0].xyz.x = (u16)scr[0].x * 16 + 0x7000;
+        q->v[0].xyz.y = (u16)scr[0].y * 16 + 0x7200;
         q->v[0].xyz.z = 0xFFFFFF;
         q->v[0].xyz.f = 0xFF;
-        q->v[1].xyz.x = scr[1].x * 16 + 0x7000;
-        q->v[1].xyz.y = scr[1].y * 16 + 0x7200;
+        q->v[1].xyz.x = (u16)scr[1].x * 16 + 0x7000;
+        q->v[1].xyz.y = (u16)scr[1].y * 16 + 0x7200;
         q->v[1].xyz.z = 0xFFFFFF;
         q->v[1].xyz.f = 0xFF;
-        q->v[2].xyz.x = scr[2].x * 16 + 0x7000;
-        q->v[2].xyz.y = scr[2].y * 16 + 0x7200;
+        q->v[2].xyz.x = (u16)scr[2].x * 16 + 0x7000;
+        q->v[2].xyz.y = (u16)scr[2].y * 16 + 0x7200;
         q->v[2].xyz.z = 0xFFFFFF;
         q->v[2].xyz.f = 0xFF;
-        q->v[3].xyz.x = scr[3].x * 16 + 0x7000;
-        q->v[3].xyz.y = scr[3].y * 16 + 0x7200;
+        q->v[3].xyz.x = (u16)scr[3].x * 16 + 0x7000;
+        q->v[3].xyz.y = (u16)scr[3].y * 16 + 0x7200;
         q->v[3].xyz.z = 0xFFFFFF;
         q->v[3].xyz.f = 0xFF;
         q->tex0 = tex->tex0;
@@ -2505,10 +2492,6 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
         tv[1].y = tv[3].y;
     }
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_s", D_002ECE20); /* the four texture coordinates (uv[] below) */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_s", EftRay_DrawQuad2D);
-#endif
 
 /* Clips a triangle against the five planes of the view, projects what is left and queues it as a fan with every
    GS depth at the far limit, sorted by the average depth. */

@@ -898,7 +898,13 @@ void EftPtcl_DrawSprites(EftPtclWork *w, EftPtclWork *w2) {
 /* NOT MATCHING: two places, everything else identical (same length). (1) After the projection call the original
    has `beqzl v0, <loop end>` with the load of p->next in its delay slot; this C gives `beqz` with the first
    instruction of the fall-through (the load of gOtCur) in the slot. (2) Before the texture coordinate loop the
-   original loads the constant 1.0 and then clears i; this C clears i first. */
+   original loads the constant 1.0 and then clears i; this C clears i first.
+   Cleanup round 2: (1) is decided in the delay-slot pass. Here the label behind the projection `if` is found in
+   the block table, the load of gOtCur is known not to disturb the loop end and is taken as a plain slot. The
+   original must have had no liveness for that label (it then falls back to the annulled copy of the target's
+   first instruction), while its flag test at the top of the loop, which jumps to the same place, did. Tried
+   without effect: `for` / `while` forms with and without `link`, `continue`, the list link duplicated in every
+   arm, a variable for the 1.0. */
 #if 0
 void EftPtcl_DrawAxisQuads(EftPtclWork *w, EftPtclWork *w2) {
     EftVVec quad[4];

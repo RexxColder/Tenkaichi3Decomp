@@ -269,15 +269,13 @@ void Vu1Node_OrFlags(Vu1Node *node, u32 bits0, u32 bits1) {
 
 /* Poses a node list at `frame`: per node, position and rotation from its key track (the pair of keys around the frame,
    interpolated linearly), then the node matrices through the VU0 matrix stack.
-   Not matched: the C below has the original's shape (each load of the earlier key's frame number repeated, the later
-   key's kept in a register) and is one instruction short. It differs in the induction variables: the original keeps the
-   later key's address in s0 and derives the earlier one at the top of each iteration (s1 = s0 - 0x20), and builds
-   node + 0x10 / node + 0x20 in each exit path instead of once. */
-#if 0
+   The shape the code needs: the later key is a walking pointer stepped at the top of the body, the earlier key is
+   written `(next - 1)` at every use (so its frame number is reloaded in each block while the later key's stays in a
+   register), the key count is a local, and the frame word is read as the fourth float of `pos` when it is copied. */
 void Vu1Node_Animate(Vu1Node *node, Vu1Track *track, void *mtx, f32 frame) {
-    Vu1Key *key;
     Vu1Key *next;
     s32 i;
+    s32 count;
     f32 t;
 
     Vu0Cur_ResetStack();
@@ -285,33 +283,34 @@ void Vu1Node_Animate(Vu1Node *node, Vu1Track *track, void *mtx, f32 frame) {
     while (1) {
         Vu0Cur_Push();
         if (track != NULL) {
-            key = track->key;
-            for (i = 1; i < track->keyCount; i++) {
-                next = &key[i];
-                if ((f32)key[i - 1].frame == frame) {
-                    Vec4_Set(node->pos, key[i - 1].pos[0], key[i - 1].pos[1], key[i - 1].pos[2], *(f32 *)&key[i - 1].frame);
-                    Vec4_Set(node->rot, key[i - 1].rot[0], key[i - 1].rot[1], key[i - 1].rot[2], key[i - 1].rot[3]);
+            count = track->keyCount;
+            next = track->key;
+            for (i = 1; i < count; i++) {
+                next++;
+                if ((f32)(next - 1)->frame == frame) {
+                    Vec4_Set(node->pos, (next - 1)->pos[0], (next - 1)->pos[1], (next - 1)->pos[2], (next - 1)->pos[3]);
+                    Vec4_Set(node->rot, (next - 1)->rot[0], (next - 1)->rot[1], (next - 1)->rot[2], (next - 1)->rot[3]);
                     break;
                 }
-                if ((f32)key[i - 1].frame < frame && frame < (f32)next->frame) {
-                    t = (frame - (f32)key[i - 1].frame) / (f32)(next->frame - key[i - 1].frame);
-                    node->pos[0] = (next->pos[0] - key[i - 1].pos[0]) * t + key[i - 1].pos[0];
-                    node->pos[1] = (next->pos[1] - key[i - 1].pos[1]) * t + key[i - 1].pos[1];
-                    node->pos[2] = (next->pos[2] - key[i - 1].pos[2]) * t + key[i - 1].pos[2];
-                    node->rot[0] = (next->rot[0] - key[i - 1].rot[0]) * t + key[i - 1].rot[0];
-                    node->rot[1] = (next->rot[1] - key[i - 1].rot[1]) * t + key[i - 1].rot[1];
-                    node->rot[2] = (next->rot[2] - key[i - 1].rot[2]) * t + key[i - 1].rot[2];
+                if ((f32)(next - 1)->frame < frame && frame < (f32)next->frame) {
+                    t = (frame - (f32)(next - 1)->frame) / (f32)(next->frame - (next - 1)->frame);
+                    node->pos[0] = (next->pos[0] - (next - 1)->pos[0]) * t + (next - 1)->pos[0];
+                    node->pos[1] = (next->pos[1] - (next - 1)->pos[1]) * t + (next - 1)->pos[1];
+                    node->pos[2] = (next->pos[2] - (next - 1)->pos[2]) * t + (next - 1)->pos[2];
+                    node->rot[0] = (next->rot[0] - (next - 1)->rot[0]) * t + (next - 1)->rot[0];
+                    node->rot[1] = (next->rot[1] - (next - 1)->rot[1]) * t + (next - 1)->rot[1];
+                    node->rot[2] = (next->rot[2] - (next - 1)->rot[2]) * t + (next - 1)->rot[2];
                     break;
                 }
                 if ((f32)next->frame == frame) {
-                    Vec4_Set(node->pos, next->pos[0], next->pos[1], next->pos[2], *(f32 *)&next->frame);
+                    Vec4_Set(node->pos, next->pos[0], next->pos[1], next->pos[2], next->pos[3]);
                     Vec4_Set(node->rot, next->rot[0], next->rot[1], next->rot[2], next->rot[3]);
                     break;
                 }
             }
         }
-        node->rot[3] = 1.0f;
         node->pos[3] = 1.0f;
+        node->rot[3] = 1.0f;
         Vu0Cur_StoreMtx(node->parent);
         Vu0Cur_TranslateLocal(node->pos);
         Vu0Cur_RotateYXZ(node->rot);
@@ -330,8 +329,6 @@ void Vu1Node_Animate(Vu1Node *node, Vu1Track *track, void *mtx, f32 frame) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/vu1_packet", Vu1Node_Animate);
 
 /* Queues one program 8 draw per node that has a mesh, with the node's matrices and vectors. */
 void Vu1Node_Draw(Vu1Node *node) {

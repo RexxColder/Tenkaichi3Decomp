@@ -628,13 +628,13 @@ s32 EftWater_AddBlastTrail(s32 objId, EftWaterBlast *rec) {
 /* A splash at a point of the surface, sized by sqrt(speed) * 0.33. kind EFT_WATER_SPLASH_CHAR: a fighter entering
    or leaving the water (also scaled by height * 0.05), _BLAST: a ki blast (* 0.8, fewer particles), _TECH: a
    technique (height * 0.05 * 1.2). Returns 0 and does nothing in split-screen or without the water task.
-   Not matched: 4 instructions differ, all the register that holds the square root ($f12 in the original, $f1
-   here); everything else is identical. */
-#if 0
+   The square root is assigned to the parameter itself (`speed`, which is why it lives in $f12, the register the
+   parameter arrived in) and the scaled value to a second variable. */
 s32 EftWater_AddSplashFor(s32 objId, EftEVec pos, u8 kind, f32 speed) {
     Vec4 at;
     f32 level;
     f32 raw = speed;
+    f32 scale;
 
     if (gEftDust == NULL) {
         return 0;
@@ -646,30 +646,23 @@ s32 EftWater_AddSplashFor(s32 objId, EftEVec pos, u8 kind, f32 speed) {
     if (EftWater_GetSurfaceY(&level)) {
         at.y = level + -1.0f;
     }
-    speed = sqrtf(raw) * 0.33f;
+    speed = sqrtf(raw);
+    scale = speed * 0.33f;
     switch (kind) {
     case EFT_WATER_SPLASH_CHAR:
         EftWater_AddSplash(&gEftDust->splashList[0], &gEftDust->splashList[1], *(EftEVec *)&at, 7, 4, 3, 2,
-                           BtlCharApi_GetHeight(objId) * 0.05f * speed);
+                           BtlCharApi_GetHeight(objId) * 0.05f * scale);
         break;
     case EFT_WATER_SPLASH_BLAST:
-        EftWater_AddSplash(&gEftDust->splashList[0], &gEftDust->splashList[1], *(EftEVec *)&at, 4, 3, 2, 2, speed * 0.8f);
+        EftWater_AddSplash(&gEftDust->splashList[0], &gEftDust->splashList[1], *(EftEVec *)&at, 4, 3, 2, 2, scale * 0.8f);
         break;
     case EFT_WATER_SPLASH_TECH:
         EftWater_AddSplash(&gEftDust->splashList[0], &gEftDust->splashList[1], *(EftEVec *)&at, 7, 4, 3, 2,
-                           BtlCharApi_GetHeight(objId) * 0.05f * speed * 1.2f);
+                           BtlCharApi_GetHeight(objId) * 0.05f * scale * 1.2f);
         break;
     }
     return 1;
 }
-#else
-LIT4_WORD(D_002FC510, 0x3EA8F5C2); /* 0.33f */
-LIT4_WORD(D_002FC514, 0x3D4CCCCC); /* 0.05f */
-LIT4_WORD(D_002FC518, 0x3F4CCCCC); /* 0.8f */
-LIT4_WORD(D_002FC51C, 0x3D4CCCCC); /* 0.05f */
-LIT4_WORD(D_002FC520, 0x3F999999); /* 1.2f */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_e", EftWater_AddSplashFor);
-#endif
 
 /* A full-size splash at a point (called by the stage code, 0x241DB4). Does nothing in split-screen. */
 s32 EftWater_AddSplashAt(EftEVec pos, f32 scale) {
@@ -1368,7 +1361,7 @@ extern void ClipVtx_SetArray(EftWaterClipVtx *out, EftWaterVec *pos, EftWaterVec
 extern s32 ClipPoly_ClipPlane(EftWaterClipVtx *poly, EftWaterVec *plane, s32 n);  /* clips a polygon, returns its size */
 extern void ClipPoly_ProjectCur(EftWaterIVec *xyz, EftWaterVec *stq, EftWaterClipVtx *poly, s32 n); /* projects it */
 extern EftWaterVec *EftGfx_GetClipPlanes(void);                                    /* the 5 clip planes of the view */
-extern s32 EftUtil_IsCamBelowLevel(void); /* eft_g.c: camera height against the water level; picks the depth bias */
+extern s32 EftUtil_IsCamUnderWater(void); /* eft_g.c: camera height against the water level; picks the depth bias */
 #define EftVram_AddTex ((u64 (*)(void *entry, s32 a1, s32 a2))EftVram_AddTex)                     /* advances a texture, returns TEX0 */
 
 /* GS XYZF2 register value. */
@@ -2514,7 +2507,6 @@ void EftWaterMist_DrawList(EftWaterMist *mist) {
 
 /* 1 when a projected vertex (GS coordinates, 12.4 fixed, centre 2048) is in front of the camera and within a
    box around the screen centre: margin 0 = the 512 x 448 screen, 1..3 = wider boxes, else the whole GS range. */
-#if 0 /* equivalent; differs at the end of each case: the original tests `y < min + 1`, returns 1 through a branch-likely and falls into a shared `return 0`, this compiles to the inverse layout (6 instructions, plus one more at the end) */
 s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
     switch (margin) {
     case 0:
@@ -2531,9 +2523,9 @@ s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
             return 0;
         }
         if (v.y <= 0x7200) {
-            break;
+            return 0;
         }
-        return 1;
+        break;
     case 1:
         if (v.z <= 0) {
             return 0;
@@ -2548,9 +2540,9 @@ s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
             return 0;
         }
         if (v.y <= 0x6E80) {
-            break;
+            return 0;
         }
-        return 1;
+        break;
     case 2:
         if (v.z <= 0) {
             return 0;
@@ -2565,9 +2557,9 @@ s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
             return 0;
         }
         if (v.y <= 0x6B00) {
-            break;
+            return 0;
         }
-        return 1;
+        break;
     case 3:
         if (v.z <= 0) {
             return 0;
@@ -2582,9 +2574,9 @@ s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
             return 0;
         }
         if (v.y <= 0x6400) {
-            break;
+            return 0;
         }
-        return 1;
+        break;
     default:
         if (v.z <= 0) {
             return 0;
@@ -2599,18 +2591,15 @@ s32 EftWater_IsOnScreen(EftWaterIVec v, s32 margin) {
             return 0;
         }
         if (v.y <= 0x0) {
-            break;
+            return 0;
         }
-        return 1;
+        break;
     }
-    return 0;
+    return 1;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_e", EftWater_IsOnScreen);
 
 /* Queues a camera-facing textured quad of side `size` at pos, turned by `rot` degrees. Skipped when a corner is
    outside the wide screen box. A non-zero alphaRef wraps it in alpha-test register packets. */
-#if 0 /* equivalent, same length; 23 instructions differ, all the choice of register for three constants of the XYZF2 stores (original: z mask a0, 0xFFFFFF a3, 0xFF t0; here 0xFF a0, 0xFFFFFF t0, mask a3) */
 void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 size, f32 rot, u8 r, u8 g, u8 b, u8 a,
                            u8 alphaRef, u64 *tex, u8 layer) {
     EftWaterMtx m;
@@ -2647,8 +2636,8 @@ void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 siz
         return;
     }
     p->h.tag = 0x20000007;
-    p->h.vif1 = 0x50000007;
     p->prim = 0x54;
+    p->h.vif1 = 0x50000007;
     p->h.gif0 = 0xC400000000008001;
     p->h.gif1 = 0xF42424242160;
     p->h.next = 0;
@@ -2683,7 +2672,7 @@ void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 siz
     p->v[3].xyz.z = scr[3].z;
     p->v[3].xyz.f = 0xFF;
     z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
-    if (EftUtil_IsCamBelowLevel()) {
+    if (EftUtil_IsCamUnderWater()) {
         z -= 500;
     } else {
         z += 500;
@@ -2697,9 +2686,6 @@ void EftWater_DrawBillboard(EftWaterVec *pos, EftWaterMtx *world2screen, f32 siz
         EFT_WATER_QUEUE_TEST(0x50000, z, layer);
     }
 }
-#endif
-LIT4_WORD(D_002FC6FC, 0x40490FDA); /* the function's pi, between Mist_Update's and DrawGroundQuad's */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_e", EftWater_DrawBillboard);
 
 /* Queues a textured quad of side `size` lying in the ground plane at pos, turned by `rot` degrees about the
    vertical, as two triangles through the clipper. */
@@ -2743,7 +2729,6 @@ void EftWater_DrawGroundQuad(EftWaterVec *pos, EftWaterMtx *world2screen, f32 si
 
 /* Queues a textured quad that lies along `orient`'s z axis from size * near to size * far, size * width wide,
    rolled about its middle by `roll` degrees. The alpha test reference makes it dissolve. */
-#if 0 /* equivalent; 126 of 456 differ: the roll loop counts up in the original (down here, one instruction shorter), and the vertex packet's pointer and XYZF2 constants take other registers */
 void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *world2screen, f32 roll, f32 size,
                             f32 near, f32 far, f32 width, u8 r, u8 g, u8 b, u8 a, u8 alphaRef, u64 *tex,
                             u8 layer) {
@@ -2773,14 +2758,20 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
         mid = (corner[0].z - corner[2].z) * 0.5f;
         Mtx_StoreIdentity(&rollM);
         Mtx_RotateY(&rollM, &rollM, EftMath_WrapAngle(roll * 3.14159265f / 180.0f));
-        c = corner;
+        /* A backward goto, not a `for`: every counted loop form of this body is reversed by the compiler (li 3 /
+           addiu -1 / bgez), while the original counts up with slti and keeps the two pointers apart. */
         zp = &corner[0].z;
-        for (i = 0; i < 4; i++) {
-            *zp -= mid;
-            Mtx_MulVec4(c, &rollM, c);
-            *zp += mid;
-            c++;
-            zp += 4;
+        c = corner;
+        i = 0;
+    roll_next:
+        *zp -= mid;
+        Mtx_MulVec4(c, &rollM, c);
+        *zp += mid;
+        c++;
+        zp += 4;
+        i++;
+        if (i < 4) {
+            goto roll_next;
         }
     }
     Vec4_Set(&uv[0], 0.0f, 0.0f, 1.0f, 0.0f);
@@ -2799,7 +2790,7 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
         }
     }
     z = (scr[0].z + scr[1].z + scr[2].z + scr[3].z) >> 10;
-    if (EftUtil_IsCamBelowLevel()) {
+    if (EftUtil_IsCamUnderWater()) {
         z -= 500;
     } else {
         z += 500;
@@ -2810,13 +2801,13 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
     if (p == NULL) {
         return;
     }
-    p->h.tag = 0x20000008;
-    p->h.vif1 = 0x50000008;
     p->prim = 0x5C;
+    p->h.tag = 0x20000008;
     p->h.vif0 = 0x10000000;
     p->h.gif0 = 0xE400000000008001;
     p->h.gif1 = 0x42142142142160;
     p->h.next = 0;
+    p->h.vif1 = 0x50000008;
     p->v[0].rgba[0] = r;
     p->v[0].rgba[1] = g;
     p->v[0].rgba[2] = b;
@@ -2865,9 +2856,6 @@ void EftWater_DrawSprayQuad(EftWaterVec *pos, EftWaterMtx *orient, EftWaterMtx *
     EftWaterOt_Add((OtPrim *)p, z, layer);
     EFT_WATER_QUEUE_TEST(0x50000, z, layer);
 }
-#endif
-LIT4_WORD(D_002FC704, 0x40490FDA); /* the function's pi, last constant of this file's pool */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_e", EftWater_DrawSprayQuad);
 
 /* Refreshes the TEX0 of the module's five textures (only while particles exist). */
 void EftWater_UpdateTextures(s32 a0, s32 a1) {
@@ -2883,6 +2871,17 @@ void EftWater_UpdateTextures(s32 a0, s32 a1) {
 /* Clips a triangle (three EftWaterClipVtx) against the five planes of the view, projects what is left and queues
    it as a fan of textured triangles. A triangle whose three corners are all unusable is dropped. */
 #if 0 /* equivalent in structure and length (426 instructions, including the 128-bit saves around EftUtil_IsCamUnderWater) but not tuned: registers differ almost everywhere */
+/* Second pass (cleanup 2), leads only, the attempt is unchanged:
+   - the original addresses the depths as (sp + 8) + i * 16 and (sp + 8) + (i * 16 - 16), recomputed from
+     `sll s2,s5,4` in every iteration: that is the form of an array of 4-ALIGNED structs (`scr[i].z`), while the
+     8-aligned EftWaterIVec used here gives walking pointers. With a plain `struct { s32 x, y, z, w; } scr[9]`
+     (stq left 8-aligned) the count drops to 348 of 431, five instructions long.
+   - the original keeps `poly` in memory (sw a0,288(sp), reloaded for every ClipPoly_ClipPlane call and for
+     ClipPoly_ProjectCur), keeps n in s8, hoists only 0xFFFFFF (s7), the vif0 constant (s3), the XYZF2 mask (t7),
+     -1 (t9), poly + 96 (s6) and sp + 160 (t6), and saves three temporaries (t6, t7, t9) with sq / lq around the
+     EftUtil_IsCamUnderWater call where this saves five.
+   - the packet stores should be retried in plain field order with build/scratch_cleanup2_A/search.py once the
+     loop has the right shape (that fixed EftWater_DrawBillboard and EftWater_DrawSprayQuad). */
 /* 1 when a projected vertex cannot be drawn (behind the camera or outside the GS coordinate range). */
 static inline s32 EftWater_IsClipped(EftWaterIVec *v) {
     s32 clipped = 1;
@@ -2914,7 +2913,7 @@ void EftWater_DrawClippedFan(EftWaterClipVtx *poly, s32 layer, u64 tex0) {
         ClipPoly_ProjectCur(scr, stq, poly, n);
         for (i = 2; i < n; i++) {
             z = (scr[0].z + scr[i - 1].z + scr[i].z) / 3 >> 8;
-            if (EftUtil_IsCamBelowLevel()) {
+            if (EftUtil_IsCamUnderWater()) {
                 z -= 500;
             } else {
                 z += 500;
