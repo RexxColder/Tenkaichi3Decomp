@@ -54,9 +54,11 @@ int sceGsSwapDBuff() { return 0; }
 int sceGsSyncPath() { return 0; }
 void *sceGsSyncVCallback(int (*handler)(int)) { void *old = (void *)sVsyncHandler; sVsyncHandler = handler; return old; }
 /* One vertical blank: runs the game's VBlank handler, as the interrupt would. */
+extern void Port_Trace(unsigned vblanks);
 unsigned gPortVBlanks; /* vertical blanks since start: the headless build's clock */
 void Port_VBlank(void) {
     gPortVBlanks++;
+    Port_Trace(gPortVBlanks);
     if (sVsyncHandler != NULL) {
         sVsyncHandler(0);
     }

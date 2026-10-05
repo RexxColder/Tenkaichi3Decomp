@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern void Battle_ClearWork(void);
 extern int BattleReplay_Load(void *buf, int size);
@@ -56,3 +57,36 @@ int sceOpen(char *name, int flags) { (void)name; (void)flags; return 3; }
 int sceLseek(int fd, int offset, int whence) { (void)fd; (void)offset; (void)whence; return 0; }
 int sceRead(int fd, void *buf, int size) { (void)fd; (void)buf; return size; }
 int sceClose(int fd) { (void)fd; return 0; }
+
+/*
+ * BT3_TRACE=<n>: every n vertical blanks, print the state of the fight (sequence state, battle clock words, health
+ * and position of the two fighters). Read-only; called from the vertical blank (plat_stub.c).
+ */
+extern struct { int state; } *gBtlSeq;
+extern int *BtlSeq_GetClock(void);
+extern int BtlCharApi_GetHp(int objId);
+extern void BtlCharApi_GetPos(int objId, float *out);
+
+void Port_Trace(unsigned vblanks) {
+    static int every = -1;
+    float p[2][4] __attribute__((aligned(16)));
+    unsigned u[2][3];
+    int *clock;
+    int i;
+
+    if (every < 0) {
+        every = getenv("BT3_TRACE") != NULL ? atoi(getenv("BT3_TRACE")) : 0;
+    }
+    if (every <= 0 || vblanks % (unsigned)every != 0 || sBattles == 0 || gBtlSeq == NULL || gBtlSeq->state < 2) {
+        return;
+    }
+    clock = BtlSeq_GetClock();
+    for (i = 0; i < 2; i++) {
+        BtlCharApi_GetPos(i, p[i]);
+        memcpy(u[i], p[i], 12);
+    }
+    printf("vb %7u seq %d clock %08x %08x %08x %08x | hp %6d %6d | p0 %08x %08x %08x | p1 %08x %08x %08x\n", vblanks,
+           gBtlSeq->state, clock[0], clock[1], clock[2], clock[3], BtlCharApi_GetHp(0), BtlCharApi_GetHp(1),
+           u[0][0], u[0][1], u[0][2], u[1][0], u[1][1], u[1][2]);
+    fflush(stdout);
+}
