@@ -10,7 +10,7 @@ modulo 16 as on the PS2, so data that must be 16-byte aligned stays aligned.
 
 Usage: port/tools/gen_data.py [--asm DIR]     DIR = the decompilation's generated asm/ (default ../bt3/asm)
 Output: port/build/gen/data/*.s  (generated from the game; never commit)"""
-import argparse, pathlib, re
+import argparse, collections, pathlib, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 KINDS = ("data", "sdata", "rodata", "lit4", "lit8", "bss", "sbss")
@@ -29,10 +29,25 @@ def chunks(yaml):
             out.append((m.group(1), m.group(3), int(m.group(2), 16)))
     return out
 
+def symbols():
+    """name -> PS2 address, from the symbol files and from D_XXXXXXXX names."""
+    out = {}
+    for p in (ROOT / "config/symbols").glob("*.txt"):
+        if not p.name.startswith("menu"):
+            for l in p.read_text().splitlines():
+                m = re.match(r"(\w+)\s*=\s*0x([0-9A-Fa-f]+)", l)
+                if m:
+                    out[m.group(1)] = int(m.group(2), 16)
+    return out
+
 def convert(text, kind, addr):
     out = [f".section {SECTION[kind]}", ".p2align 4"]
     if addr & 15:
         out.append(f".space {addr & 15}")
+    if not addr:
+        m = re.search(r"dlabel D_([0-9A-F]{8})", text)
+        addr = int(m.group(1), 16) if m else 0
+        out = [f".section {SECTION[kind]}", ".p2align 4"] + ([f".space {addr & 15}"] if addr & 15 else [])
     for l in text.splitlines():
         l = re.sub(r"/\*.*?\*/", "", l).rstrip()
         s = l.strip()
@@ -67,6 +82,33 @@ def main():
             raise SystemExit(f"missing {src}: run the decompilation's configure.py first")
         (dst / f"{name.replace('/', '_')}.{kind}.s").write_text(convert(src.read_text(), kind, addr))
         n += 1
-    print(f"{n} data chunks written to {dst.relative_to(ROOT)}")
+    # Tables that C files take from assembly with INCLUDE_RODATA (the PC build turns that macro into nothing).
+    addr_of = symbols()
+    m = 0
+    for c in [ROOT / "src/main.c"] + sorted((ROOT / "src/sys").glob("*.c")) + sorted((ROOT / "src/battle").glob("*.c")):
+        for folder, name in re.findall(r'^INCLUDE_RODATA\("([^"]+)", (\w+)\);', c.read_text(), re.M):
+            if name.startswith("jtbl_"):
+                continue  # jump table of an assembly function: the PC build compiles that function from C
+            src = pathlib.Path(a.asm).parent / folder / f"{name}.s"
+            (dst / f"inc_{name}.rodata.s").write_text(convert(src.read_text(), "rodata", addr_of.get(name, 0)))
+            m += 1
+    # The VU1 microprograms: one binary block with entry labels inside it.
+    for c in sorted((ROOT / "src").rglob("*.c")) + sorted((ROOT / "include").rglob("*.h")):
+        for h in re.findall(r"\bD_([0-9A-F]{8})\b", c.read_text()):
+            addr_of.setdefault("D_" + h, int(h, 16))
+    blob = pathlib.Path(a.asm).parent / "assets/cod/1BF6B0.textbin.bin"
+    start, size = 0x2BF6B0, blob.stat().st_size
+    cuts = sorted({v for v in addr_of.values() if start <= v < start + size} | {start})
+    out = [".section .data", ".p2align 4"]
+    names = collections.defaultdict(list)
+    for k, v in addr_of.items():
+        names[v].append(k)
+    for i, c in enumerate(cuts):
+        for k in sorted(names[c]) or [f"D_{c:08X}"]:
+            out += [f".globl {k}", f"{k}:"]
+        end = cuts[i + 1] if i + 1 < len(cuts) else start + size
+        out.append(f'    .incbin "{blob}", {c - start}, {end - c}')
+    (dst / "vu1_micro.data.s").write_text("\n".join(out) + "\n")
+    print(f"{n} data chunks, {m} included tables and the VU1 microprograms written to {dst.relative_to(ROOT)}")
 
 main()
