@@ -380,6 +380,44 @@ is black in the frames looked at, the picture is slower than real time (about 15
 second: the interpreter, thousands of small draws, and textures decoded again whenever
 their upload generation changes).
 
+## Renderer, step 4: the whole scene in the software reference (2026-10-06)
+
+Verified by looking at it (docs/port/img/reference_full_scene.png): the software reference
+draws a complete battle frame: sky, the plains stage, both fighters, the logo overlay.
+
+What was missing, found by drawing only the first N vertices of a frame (`BT3_GS_STOP`):
+the stage was drawn correctly and then wiped by the game's post-processing. Facts about how
+the game uses the GS, all needed for a correct picture:
+- GS memory map in battle: frame buffer at block 0 (fbp 0x000, 512 x 448, 32-bit), second
+  buffer at fbp 0x070, DEPTH BUFFER at fbp 0x0E0 (ZBUF 0xE0, 24-bit: PSM 0x31), work buffers
+  at fbp 0x150 (256 x 256), 0x170 (128 x 128), 0x1F6 / 0x1F8 (64 x 64): a down-sampling
+  chain (glare / bloom), textures streamed to block 0x2A00 with palettes at 0x32C0.
+- The stage is textured by STREAMING: each material's texture is uploaded to the same
+  address (0x2A00) immediately before the triangles that use it, dozens of times per frame.
+- The depth buffer is cleared by drawing sprites INTO it as a frame buffer (FRAME fbp 0xE0),
+  and it is read as a texture (TEX0 tbp 0x1C00 with the depth formats 0x31 / 0x32 or as
+  PSMT8H, i.e. its top byte as an 8-bit index). So depth must live in GS memory with the
+  real layout: the depth formats are the colour formats with the block index XOR 0x18.
+- FRAME.FBMSK (per-bit write mask) is used constantly: 0x00FFFFFF to write only the alpha
+  byte, 0xFF000000 to protect it, and 0x3FFF with a 16-BIT view of the 32-bit frame buffer
+  (512 x 896, drawn in 8-pixel strips with the texture shifted by 8 pixels: the "channel
+  shuffle" that moves one half of every 32-bit pixel into the other).
+  Ignoring the mask made that pass overwrite the whole picture.
+- Depth clear between stage and fighters: 16 untextured strips, alpha 0, blending on (colour
+  unchanged), depth test ALWAYS.
+- DMA address registers: the game masks addresses to 28 bits (`& 0x0FFFFFFF`), which cuts PC
+  stack addresses: `DMA_PHYS` in the decompilation keeps the pointer on PC. The GIF channel
+  (`Dma_SendGif`, used for uploads outside the frame list) is routed to the front end too.
+
+Still wrong in the reference: the pad fighter's shadow appears as a black shape near the
+horizon, and a fine dark hatch pattern lies over the near fighter. Not examined.
+
+The GPU back end does not have depth-in-memory, depth as a texture, or FBMSK yet, so its
+picture is behind the reference's (stripes, black stage). The post-processing chain reads
+and writes single channels of the same memory in several formats; on the GPU those passes
+need either the same tricks expressed with colour masks and format-converting shaders, or
+native replacements of the effects (depth tint, glare, blur).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

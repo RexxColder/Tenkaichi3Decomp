@@ -46,6 +46,7 @@ static int sGpu; /* 1: the GPU back end draws (BT3_GS=gpu), 0: the software rast
 static Target sTargets[16];
 static int sTargetCount;
 static unsigned sMissingTex;
+static unsigned sPix[5]; /* per frame: outside scissor, failed alpha test, failed depth test, colour written, depth written */
 static int sDrawFrom;       /* BT3_GS_FROM=<frame>: draw only from this frame on (the reference is slow) */
 static int sDumpFrame = -1; /* BT3_GS_DUMP=<frame>: list that frame's primitives */
 static unsigned sStat[8]; /* per frame: DMA tags, VIF codes, DIRECT quadwords, GIF tags, register writes, vertices, image quadwords, unknown VIF */
@@ -57,6 +58,7 @@ static unsigned sStat[8]; /* per frame: DMA tags, VIF codes, DIRECT quadwords, G
 static uint32_t sVram[1 << 20];
 static const uint8_t kBlock32[4][8] = {{0, 1, 4, 5, 16, 17, 20, 21}, {2, 3, 6, 7, 18, 19, 22, 23}, {8, 9, 12, 13, 24, 25, 28, 29}, {10, 11, 14, 15, 26, 27, 30, 31}};
 static const uint8_t kBlock16[8][4] = {{0, 2, 8, 10}, {1, 3, 9, 11}, {4, 6, 12, 14}, {5, 7, 13, 15}, {16, 18, 24, 26}, {17, 19, 25, 27}, {20, 22, 28, 30}, {21, 23, 29, 31}};
+static const uint8_t kBlock16S[8][4] = {{0, 2, 16, 18}, {1, 3, 17, 19}, {8, 10, 24, 26}, {9, 11, 25, 27}, {4, 6, 20, 22}, {5, 7, 21, 23}, {12, 14, 28, 30}, {13, 15, 29, 31}};
 static const uint8_t kCol32[8][8] = {{0, 1, 4, 5, 8, 9, 12, 13}, {2, 3, 6, 7, 10, 11, 14, 15}, {16, 17, 20, 21, 24, 25, 28, 29}, {18, 19, 22, 23, 26, 27, 30, 31},
                                      {32, 33, 36, 37, 40, 41, 44, 45}, {34, 35, 38, 39, 42, 43, 46, 47}, {48, 49, 52, 53, 56, 57, 60, 61}, {50, 51, 54, 55, 58, 59, 62, 63}};
 static const uint8_t kCol16[8][16] = {
@@ -93,12 +95,19 @@ static void tables_init(void) {
 static uint32_t vram_rw(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y, int write, uint32_t v) {
     uint32_t a, *w;
 
+    uint32_t zx = 0; /* the depth formats (0x30..0x3A) are the colour formats with the blocks of a page in another order */
+
     if (bw == 0) {
         bw = 1;
     }
+    if ((psm & 0x30) == 0x30) {
+        zx = 0x18;
+        psm &= 0x0F;
+    }
     switch (psm) {
     case 0x02: case 0x0A: /* 16 bits */
-        a = ((bp + ((y >> 1) & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + kBlock16[(y >> 3) & 7][(x >> 4) & 3]) << 7) + kCol16[y & 7][x & 15];
+        a = ((bp + ((y >> 1) & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) +
+              ((psm == 0x0A ? kBlock16S : kBlock16)[(y >> 3) & 7][(x >> 4) & 3] ^ zx)) << 7) + kCol16[y & 7][x & 15];
         w = &sVram[(a >> 1) & 0xFFFFF];
         if (write) { *w = (*w & ~(0xFFFFu << ((a & 1) * 16))) | (v & 0xFFFF) << ((a & 1) * 16); return 0; }
         return (*w >> ((a & 1) * 16)) & 0xFFFF;
@@ -113,7 +122,7 @@ static uint32_t vram_rw(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint
         if (write) { *w = (*w & ~(0xFu << ((a & 7) * 4))) | (v & 0xF) << ((a & 7) * 4); return 0; }
         return (*w >> ((a & 7) * 4)) & 0xF;
     default: /* 32 bits, and the formats that live inside a 32-bit pixel */
-        a = ((bp + (y & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + kBlock32[(y >> 3) & 3][(x >> 3) & 7]) << 6) + kCol32[y & 7][x & 7];
+        a = ((bp + (y & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + (kBlock32[(y >> 3) & 3][(x >> 3) & 7] ^ zx)) << 6) + kCol32[y & 7][x & 7];
         w = &sVram[a & 0xFFFFF];
         switch (psm) {
         case 0x01: if (write) { *w = (*w & 0xFF000000u) | (v & 0xFFFFFF); return 0; } return *w & 0xFFFFFF;
@@ -147,6 +156,9 @@ static Target *target_get(uint32_t fbp) {
 /* ------------------------------------------------------------------------------------------------ textures */
 
 int Gs_PsmBits(uint32_t psm) {
+    if ((psm & 0x30) == 0x30) {
+        psm &= 0x0F; /* a depth buffer read as a texture: 32, 24 or 16 bits like the colour formats */
+    }
     switch (psm) {
     case 0x00: return 32;
     case 0x01: return 24;
@@ -160,6 +172,10 @@ int Gs_PsmBits(uint32_t psm) {
 /* A stored colour of format psm as R, G, B, A (TEXA supplies alpha where the format has none or one bit). */
 uint32_t Gs_Expand(uint32_t c, uint32_t psm) {
     uint32_t ta0 = gs.texa & 0xFF, ta1 = (gs.texa >> 32) & 0xFF, aem = (gs.texa >> 15) & 1;
+
+    if ((psm & 0x30) == 0x30) {
+        psm &= 0x0F;
+    }
 
     if (psm == 0x00) {
         return c;
@@ -207,11 +223,12 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
     uint64_t test = gs.test[ctx], al = gs.alpha[ctx], zb = gs.zbuf[ctx], pr = gs.prim;
     uint64_t sc = gs.scissor[ctx], fr = gs.frame[ctx];
     uint32_t fbp = (fr & 0x1FF) << 5, fbw = (fr >> 16) & 0x3F, fpsm = (fr >> 24) & 0x3F;
-    uint32_t d, sr, sg, sb, sa, out[3];
+    uint32_t d, sr, sg, sb, sa, out[3], zbp, zpsm, zmax;
     int i, write_rgb = 1, write_z = !((zb >> 32) & 1);
 
     if (x < (int)(sc & 0x7FF) || x > (int)((sc >> 16) & 0x7FF) || y < (int)((sc >> 32) & 0x7FF) || y > (int)((sc >> 48) & 0x7FF) ||
         x < 0 || y < 0 || x >= SURF_W || y >= SURF_H) {
+        sPix[0]++;
         return;
     }
     sa = src >> 24;
@@ -230,20 +247,28 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
         }
         if (!pass) {
             switch ((test >> 12) & 3) {
-            case 0: return;                        /* keep */
+            case 0: sPix[1]++; return;             /* keep */
             case 1: write_z = 0; break;            /* frame buffer only */
             case 2: write_rgb = 0; break;          /* z only */
             default: write_z = 0; break;           /* RGB only */
             }
         }
     }
+    /* The depth buffer lives in GS memory like everything else (the game clears it by drawing into it as a frame
+       buffer and reads it as a texture): ZBUF.ZBP, the frame's width, format 0x30 + ZBUF.PSM. */
+    zbp = (uint32_t)(zb & 0x1FF) << 5;
+    zpsm = 0x30 | (uint32_t)((zb >> 24) & 15);
+    zmax = Gs_PsmBits(zpsm) == 32 ? 0xFFFFFFFFu : Gs_PsmBits(zpsm) == 24 ? 0xFFFFFFu : 0xFFFFu;
+    if (z > zmax) {
+        z = zmax;
+    }
     if ((test >> 16) & 1) { /* depth test */
-        uint32_t zd = sf->z[y * SURF_W + x];
+        uint32_t zd = vram_rw(zbp, fbw, zpsm, (uint32_t)x, (uint32_t)y, 0, 0);
         switch ((test >> 17) & 3) {
-        case 0: return;
+        case 0: sPix[2]++; return;
         case 1: break;
-        case 2: if (z < zd) { return; } break;
-        default: if (z <= zd) { return; } break;
+        case 2: if (z < zd) { sPix[2]++; return; } break;
+        default: if (z <= zd) { sPix[2]++; return; } break;
         }
     }
     d = vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 0, 0);
@@ -267,15 +292,24 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
         }
     }
     if (write_rgb) {
-        uint32_t c = out[0] | out[1] << 8 | out[2] << 16 | sa << 24;
+        /* FRAME.FBMSK: bits that are set are NOT written. The game depends on it (it moves single channels
+           between the depth buffer, the frame's alpha byte and work buffers, sometimes through a 16-bit view
+           of 32-bit memory). The mask is given for 32-bit pixels and narrows with the format. */
+        uint32_t c = out[0] | out[1] << 8 | out[2] << 16 | sa << 24, m = (uint32_t)(fr >> 32), old;
         if (Gs_PsmBits(fpsm) == 16) {
             c = out[0] >> 3 | (out[1] >> 3) << 5 | (out[2] >> 3) << 10 | (sa & 0x80) << 8;
+            m = ((m >> 3) & 0x1F) | ((m >> 6) & 0x3E0) | ((m >> 9) & 0x7C00) | ((m >> 16) & 0x8000);
+        }
+        if (m != 0) {
+            old = vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 0, 0);
+            c = (old & m) | (c & ~m);
         }
         vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 1, c);
         sf->drawn++;
+        sPix[3]++;
     }
     if (write_z) {
-        sf->z[y * SURF_W + x] = z;
+        vram_rw(zbp, fbw, zpsm, (uint32_t)x, (uint32_t)y, 1, z);
     }
 }
 
@@ -405,20 +439,35 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
     }
     gs.strip++;
     sf = target_get(gs.frame[ctx] & 0x1FF);
+    {   /* BT3_GS_STOP=<n>: in the frame named by BT3_GS_FROM, draw only the first n vertices (to find what covers what) */
+        static int stop = -1;
+        static unsigned count, frame = 0xFFFFFFFFu;
+        if (stop < 0) { stop = getenv("BT3_GS_STOP") != NULL ? atoi(getenv("BT3_GS_STOP")) : 0; }
+        if (frame != sFrame) { frame = sFrame; count = 0; }
+        if (stop > 0 && (int)sFrame == sDrawFrom && ++count > (unsigned)stop) { kick = 0; }
+    }
     if ((int)sFrame < sDrawFrom) {
         kick = 0; /* BT3_GS_FROM: uploads and state are processed, nothing is drawn yet */
     }
     if (sDumpFrame == (int)sFrame && kick && gs.vcount >= (type == 6 || type == 1 || type == 2 ? 2 : type == 0 ? 1 : 3)) {
         const Vertex *p0 = &gs.vtx[0], *p1 = &gs.vtx[gs.vcount - 1];
         fprintf(stderr, "  prim %d ctx %d fbp %03x abe %d tme %d fst %d | (%.1f,%.1f)-(%.1f,%.1f) z %08x uv (%d,%d)-(%d,%d) st (%.3f,%.3f) q %.3f "
-                        "rgba %02x%02x%02x%02x | tbp %04x psm %02x tw %d th %d cbp %04x | xyoff %d,%d scis %d..%d,%d..%d alpha %llx test %llx\n",
+                        "rgba %02x%02x%02x%02x | tbp %04x psm %02x tw %d th %d cbp %04x | xyoff %d,%d scis %d..%d,%d..%d alpha %llx test %llx frame %llx zbuf %llx\n",
                 type, ctx, (unsigned)(gs.frame[ctx] & 0x1FF), (int)((gs.prim >> 6) & 1), (int)((gs.prim >> 4) & 1), (int)((gs.prim >> 8) & 1),
                 p0->x, p0->y, p1->x, p1->y, p1->z, p0->u >> 4, p0->v >> 4, p1->u >> 4, p1->v >> 4, p1->s, p1->t, p1->q, p1->r, p1->g, p1->b, p1->a,
                 (unsigned)(gs.tex0[ctx] & 0x3FFF), (unsigned)((gs.tex0[ctx] >> 20) & 0x3F), 1 << ((gs.tex0[ctx] >> 26) & 15),
                 1 << ((gs.tex0[ctx] >> 30) & 15), (unsigned)((gs.tex0[ctx] >> 37) & 0x3FFF),
                 (int)(gs.xyoffset[ctx] & 0xFFFF) >> 4, (int)((gs.xyoffset[ctx] >> 32) & 0xFFFF) >> 4,
                 (int)(gs.scissor[ctx] & 0x7FF), (int)((gs.scissor[ctx] >> 16) & 0x7FF), (int)((gs.scissor[ctx] >> 32) & 0x7FF),
-                (int)((gs.scissor[ctx] >> 48) & 0x7FF), (unsigned long long)gs.alpha[ctx], (unsigned long long)gs.test[ctx]);
+                (int)((gs.scissor[ctx] >> 48) & 0x7FF), (unsigned long long)gs.alpha[ctx], (unsigned long long)gs.test[ctx],
+                (unsigned long long)gs.frame[ctx], (unsigned long long)gs.zbuf[ctx]);
+        if ((gs.prim >> 4) & 1) {
+            uint32_t tx = texel(ctx, 8, 8), cb = (uint32_t)((gs.tex0[ctx] >> 37) & 0x3FFF), cp = (uint32_t)((gs.tex0[ctx] >> 51) & 15);
+            fprintf(stderr, "    tex: tbw %u cpsm %x csm %u csa %u tcc %u tfx %u texa %llx | texel(8,8) %08x | clut[0..3] %08x %08x %08x %08x\n",
+                    (unsigned)((gs.tex0[ctx] >> 14) & 0x3F), cp, (unsigned)((gs.tex0[ctx] >> 55) & 1), (unsigned)((gs.tex0[ctx] >> 56) & 31),
+                    (unsigned)((gs.tex0[ctx] >> 34) & 1), (unsigned)((gs.tex0[ctx] >> 35) & 3), (unsigned long long)gs.texa, tx,
+                    vram_rw(cb, 1, cp, 0, 0, 0, 0), vram_rw(cb, 1, cp, 1, 0, 0, 0), vram_rw(cb, 1, cp, 2, 0, 0, 0), vram_rw(cb, 1, cp, 3, 0, 0, 0));
+        }
     }
     switch (type) {
     case 0: if (kick) { if (sGpu) { GsGpu_Draw(0, ctx, &v); } else { pixel(sf, ctx, (int)v.x, (int)v.y, v.z, vcol(&v)); } } gs.vcount = 0; break;
@@ -441,6 +490,14 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
 /* ------------------------------------------------------------------------------------------------ registers */
 
 static void transfer_begin(void) {
+    if (sDumpFrame == (int)sFrame && (gs.trxdir & 3) != 0) {
+        fprintf(stderr, "  transfer dir %u: sbp %04x sbw %u spsm %02x -> dbp %04x dbw %u dpsm %02x, from %u,%u to %u,%u size %ux%u\n",
+                (unsigned)(gs.trxdir & 3), (unsigned)(gs.bitbltbuf & 0x3FFF), (unsigned)((gs.bitbltbuf >> 16) & 0x3F),
+                (unsigned)((gs.bitbltbuf >> 24) & 0x3F), (unsigned)((gs.bitbltbuf >> 32) & 0x3FFF), (unsigned)((gs.bitbltbuf >> 48) & 0x3F),
+                (unsigned)((gs.bitbltbuf >> 56) & 0x3F), (unsigned)(gs.trxpos & 0x7FF), (unsigned)((gs.trxpos >> 16) & 0x7FF),
+                (unsigned)((gs.trxpos >> 32) & 0x7FF), (unsigned)((gs.trxpos >> 48) & 0x7FF), (unsigned)(gs.trxreg & 0xFFF),
+                (unsigned)((gs.trxreg >> 32) & 0xFFF));
+    }
     gs.transfer = (gs.trxdir & 3) == 0; /* only host -> GS */
     gs.tx = (gs.trxpos >> 32) & 0x7FF;
     gs.ty = (gs.trxpos >> 48) & 0x7FF;
@@ -794,6 +851,10 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
                         "%u image qwords, %d targets\n", sFrame, sStat[0], sStat[1], sStat[2], sStat[3], sStat[4], sStat[5],
                 sStat[6], sTargetCount);
     }
+    if (sDumpFrame == (int)sFrame) {
+        fprintf(stderr, "  pixels: %u outside scissor, %u failed alpha test, %u failed depth test, %u written\n", sPix[0], sPix[1], sPix[2], sPix[3]);
+    }
+    memset(sPix, 0, sizeof(sPix));
     memset(sStat, 0, sizeof(sStat));
     GsVu1_FrameEnd();
     if (sGpu) {
