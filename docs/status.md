@@ -700,3 +700,8 @@ SDL3 GPU suggested for the renderer (not decided).
 RULES: at most 10 agents; local commits, no Claude co-author line; run the gate before EVERY
 commit that touches anything outside docs/ (two slips today: 8f74a33 and 90e054b do not
 build, each fixed by the next commit); document findings.
+
+UPDATE to handoff note 2 (2026-10-05, later): `BtlInput_Update` is DONE (commit 674709e, FAKE
+MATCH via an empty asm with operands, behaviour-tested on 4000 seeds). Main executable 94.96%
+(41 INCLUDE_ASM), overlay 99.24% (4); byte-identical. The fight simulation's core has no
+function left in assembly. Only the permuter's batch 3 is still running; no agents.
