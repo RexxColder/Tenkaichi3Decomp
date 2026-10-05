@@ -69,3 +69,16 @@ purpose. Each is confirmed by C that compiles to the original bytes unless marke
 | `BtlCharSnd_PlayCommonFar` | near = far = 100000, so the attenuation divides by zero. | |
 | Fighter sound requests | A fifth request in one frame is dropped silently. | |
 | `BtlColl_TryGuard` | Allows a guard kind 6 that skips the from-behind test, but the classifier never returns 6. | Dead branch. |
+
+## Found by the differential behaviour test (2026-10-05)
+
+- `EftChain_BlendKeys` (src/battle/eft_s.c, chain effect key blending): the original computes
+  `endAlpha = row20[k0] + (row9[k1] - row9[k0]) * t`, i.e. it interpolates the end alpha with
+  the DELTA OF ROW 9 (the shrink rate) instead of row 20's own delta: a copy-paste slip in
+  the original source. Visual only. Our C attempt had "corrected" it silently; it now
+  reproduces the original (marked `sic` in the source).
+- Uninitialised stack reads in the original that reach outputs (a PC build inherits them
+  unless the locals are initialised): `EftGeyser_StartSmoke` (8 bytes of the 156-byte block
+  passed to `EftSmoke_Create`, from byte +76), `HudGauge_UpdateAura` (u16 locals reaching
+  memory stores). Visual only; a port should zero these and accept that the PS2's result
+  depended on stack junk.

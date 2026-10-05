@@ -500,7 +500,7 @@ void EftChain_BlendKeys(EftArc *w) {
     out->pulseTime = (ROW(17, k0) + d.v[2] * t) * 30.0f;
     d.v[0] = ROW(18, k1) - ROW(18, k0);
     d.v[1] = ROW(19, k1) - ROW(19, k0);
-    d.v[2] = ROW(20, k1) - ROW(20, k0);
+    d.v[2] = ROW(9, k1) - ROW(9, k0); /* sic: the original uses row 9's delta for row 20 (found by the differential test) */
     out->fA4 = ROW(18, k0) + d.v[0] * t;
     out->endWidth = ROW(19, k0) + d.v[1] * t;
     out->endAlpha = ROW(20, k0) + d.v[2] * t;

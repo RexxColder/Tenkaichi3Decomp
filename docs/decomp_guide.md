@@ -802,3 +802,14 @@ alias of gOtCur), `StgPanBlur_UpdateView` (a pointer to a local plus `do { } whi
 `EftSmoke_Draw` (two dead assignments in the loop), `EftBound_BuildWall` (index pointer
 starting at element 1, merged local struct, dead initialiser), `BtlText_DrawScrollBar`
 (two-step height, possibly).
+
+## Behaviour test sweep over all unmatched functions (2026-10-05)
+
+build/scratch_difftest/ (README.md, results.md; driver gdt.py on interpreter emu3.py; 17
+function-specific setups in setups/). 59 unmatched functions tested, 300 generic seeds each
+plus 500 with a setup where one exists; every function reached at least 60 % of the
+original's branches both ways; nine deliberate mutations were all detected. Result: 58
+IDENTICAL; ONE real difference, `EftChain_BlendKeys` (a row index, fixed the same day, now
+IDENTICAL on 200 seeds); `ColObb_Contact` not run (no faithful attempt). Usage:
+`python3 build/scratch_difftest/gdt.py src/<file>.c <Func> <seeds> [--nosetup] [--seed N]`.
+Re-run it on any attempt that is rewritten and stays unmatched.
