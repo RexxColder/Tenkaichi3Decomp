@@ -49,10 +49,23 @@ def main():
             print("FAILED", f.name, r.stderr.splitlines()[0][:150])
         else:
             objs.append(str(o))
-    for f in sorted((ROOT / "port/src/gs").glob("*.c")):  # renderer: ordinary host code, hardware float
+    # renderer: ordinary host code, hardware float. Its shaders are compiled to SPIR-V and embedded.
+    gen = ROOT / "port/build/gen/gs"
+    gen.mkdir(parents=True, exist_ok=True)
+    arrays = []
+    for stage, name in (("vert", "kGsVertSpv"), ("frag", "kGsFragSpv")):
+        spv = gen / f"gs.{stage}.spv"
+        r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(ROOT / f"port/src/gs/shaders/gs.{stage}"), "-o", str(spv)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            print("FAILED shader", stage, r.stderr[:300])
+            continue
+        arrays.append(f"static const unsigned char {name}[] = {{" + ",".join(str(b) for b in spv.read_bytes()) + "};\n")
+    (gen / "shaders.h").write_text("/* generated from port/src/gs/shaders by port/tools/undefined.py */\n" + "".join(arrays))
+    for f in sorted((ROOT / "port/src/gs").glob("*.c")):
         o = OBJ / ("gs_" + f.stem + ".o")
         r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
-                            "-Wall", "-Wno-unused", "-Wno-misleading-indentation", str(f), "-o", str(o)], cwd=ROOT,
+                            "-Wall", "-Wno-unused", "-Wno-misleading-indentation", f"-I{gen}", str(f), "-o", str(o)], cwd=ROOT,
                            capture_output=True, text=True)
         if r.returncode:
             print("FAILED", f.name, "\n".join(l for l in r.stderr.splitlines() if "error" in l)[:400])

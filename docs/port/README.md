@@ -312,6 +312,35 @@ some uploads: not yet routed to the interpreter).
 SDL3: the 64-bit library is installed (3.4.12); the port is a 32-bit program and needs
 `lib32-sdl3` (multilib repository), not installed yet.
 
+## Renderer, step 2: SDL3 GPU back end for the same primitives (2026-10-05, night)
+
+port/src/gs/gs_gpu.c (+ shaders/gs.vert, gs.frag, compiled with glslc and embedded by
+undefined.py). gs_core.c keeps decoding and GS memory and hands every primitive, with the GS
+registers current at that moment, to `GsGpu_Draw`; `GsGpu_FrameEnd` uploads the frame's
+vertices and newly decoded textures in one copy pass, replays the draw list (one render pass
+per run of draws to the same frame-buffer address), shows the buffer that received most
+draws, and paces to 30 frames per second. `BT3_GS=gpu` selects it (`port/run.sh`).
+- Render targets: one per GS frame-buffer address, 1024 x 1024 GS pixels at SCALE = 2, with a
+  D32 depth buffer; GS z is scaled to 0..1 and compared GREATER / GREATER_OR_EQUAL as on the GS.
+- Textures: decoded from GS memory to RGBA and cached by TEX0, TEXA and the upload generation
+  of the pages they occupy. A frame buffer used as a texture is sampled directly, unless
+  something was uploaded over it since it was drawn.
+- Blending: ((A - B) * C >> 7) + D turned into source / destination factors (coefficients
+  0, 1, C, -C, 1 - C; 1 + C is approximated by 1). Alpha is carried with 1.0 = 0x80.
+- Texture function and alpha test are in the fragment shader.
+- SDL GPU's clip space has +Y up on every back end: the vertex shader flips y.
+Verified by reading the render target back (`BT3_SHOT=<n>` writes
+port/build/shots/gpu_NNNNN.ppm): the loading screen and the logo overlay are drawn correctly
+at twice the PS2's resolution, at full speed (docs/port/img/gpu_loading_screen.png).
+The 32-bit SDL3 GPU device works on the development machine (Vulkan, NVIDIA; lib32-sdl3,
+lib32-nvidia-utils).
+
+Known gaps of the GPU back end: a buffer sampled while it is the draw target (skipped);
+region clamp / repeat; destination alpha; frame-buffer masks; the texture cache keys on
+upload generations, so a texture re-uploaded every frame (the loading screen does this for
+every sprite) is decoded again each time (correct, wasteful: hash the contents instead);
+no keyboard / pad input yet; the window shows nothing of the 3D scene (VU1 programs).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

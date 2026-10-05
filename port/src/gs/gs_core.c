@@ -15,12 +15,14 @@
  * draws into memory that it later uses as a texture, so uploads, textures, palettes and frame buffers must all
  * address the same memory the same way.
  *
- * Compiled with the host's float unit (this is not simulation code). Enabled with BT3_GS=1.
+ * Compiled with the host's float unit (this is not simulation code). BT3_GS=1 (or any value) enables the
+ * software rasteriser; BT3_GS=gpu sends the primitives to the GPU back end (gs_gpu.c) and opens a window.
  */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gs_internal.h"
 
 #define SURF_W 1024
 #define SURF_H 1024
@@ -33,30 +35,18 @@ typedef struct Target {
     unsigned drawn; /* pixels written since the last frame end */
 } Target;
 
-typedef struct Vertex {
-    float x, y;
-    uint32_t z;
-    float s, t, q;
-    int u, v;
-    uint8_t r, g, b, a;
-} Vertex;
-
-static struct {
-    uint64_t prim, rgbaq, st, uv, texa, prmodecont, prmode;
-    uint64_t tex0[2], clamp[2], xyoffset[2], scissor[2], alpha[2], test[2], frame[2], zbuf[2];
-    uint64_t bitbltbuf, trxpos, trxreg, trxdir;
-    float q;
-    Vertex vtx[3];
-    int vcount; /* vertices in the queue */
-    int strip;  /* vertices seen since the last PRIM write */
-    /* host -> GS transfer in progress */
-    int transfer;
-    uint32_t tx, ty, tw, th, tpos;
-} gs;
+GsState gGs;
+uint32_t gGsPageGen[512];
+unsigned gGsFrame;
+#define gs gGs
+#define Vertex GsVertex
+#define sFrame gGsFrame
+static int sGpu; /* 1: the GPU back end draws (BT3_GS=gpu), 0: the software rasteriser below */
 
 static Target sTargets[16];
 static int sTargetCount;
-static unsigned sFrame, sMissingTex;
+static unsigned sMissingTex;
+static int sDrawFrom;       /* BT3_GS_FROM=<frame>: draw only from this frame on (the reference is slow) */
 static int sDumpFrame = -1; /* BT3_GS_DUMP=<frame>: list that frame's primitives */
 static unsigned sStat[8]; /* per frame: DMA tags, VIF codes, DIRECT quadwords, GIF tags, register writes, vertices, image quadwords, unknown VIF */
 
@@ -135,6 +125,10 @@ static uint32_t vram_rw(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint
     }
 }
 
+uint32_t Gs_VramRead(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y) {
+    return vram_rw(bp, bw, psm, x, y, 0, 0);
+}
+
 static Target *target_get(uint32_t fbp) {
     int i;
     for (i = 0; i < sTargetCount; i++) {
@@ -152,7 +146,7 @@ static Target *target_get(uint32_t fbp) {
 
 /* ------------------------------------------------------------------------------------------------ textures */
 
-static int psm_bits(uint32_t psm) {
+int Gs_PsmBits(uint32_t psm) {
     switch (psm) {
     case 0x00: return 32;
     case 0x01: return 24;
@@ -164,7 +158,7 @@ static int psm_bits(uint32_t psm) {
 }
 
 /* A stored colour of format psm as R, G, B, A (TEXA supplies alpha where the format has none or one bit). */
-static uint32_t expand(uint32_t c, uint32_t psm) {
+uint32_t Gs_Expand(uint32_t c, uint32_t psm) {
     uint32_t ta0 = gs.texa & 0xFF, ta1 = (gs.texa >> 32) & 0xFF, aem = (gs.texa >> 15) & 1;
 
     if (psm == 0x00) {
@@ -194,17 +188,17 @@ static uint32_t texel(int ctx, int u, int v) {
     if (wmt == 0) { v &= (int)th - 1; } else if (wmt == 1) { v = v < 0 ? 0 : v >= (int)th ? (int)th - 1 : v; }
     else if (wmt == 2) { v = v < minv ? minv : v > maxv ? maxv : v; } else { v = (v & minv) | maxv; }
     c = vram_rw(tbp, tbw, psm, (uint32_t)u, (uint32_t)v, 0, 0);
-    if (psm_bits(psm) > 8) {
-        return expand(c, psm);
+    if (Gs_PsmBits(psm) > 8) {
+        return Gs_Expand(c, psm);
     }
     /* Palette (CSM1): a 16-colour palette is an 8 x 2 block at CBP, a 256-colour one 16 x 16 read in the GS's order.
        CSA only moves a 16-colour palette inside the GS's internal buffer, not in memory. */
     (void)csa;
-    if (psm_bits(psm) == 8) {
+    if (Gs_PsmBits(psm) == 8) {
         c = (c & 0xE7) | ((c & 8) << 1) | ((c & 0x10) >> 1);
-        return expand(vram_rw(cbp, 1, cpsm, c & 15, c >> 4, 0, 0), cpsm);
+        return Gs_Expand(vram_rw(cbp, 1, cpsm, c & 15, c >> 4, 0, 0), cpsm);
     }
-    return expand(vram_rw(cbp, 1, cpsm, c & 7, c >> 3, 0, 0), cpsm);
+    return Gs_Expand(vram_rw(cbp, 1, cpsm, c & 7, c >> 3, 0, 0), cpsm);
 }
 
 /* ------------------------------------------------------------------------------------------------ pixels */
@@ -253,7 +247,7 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
         }
     }
     d = vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 0, 0);
-    if (psm_bits(fpsm) == 16) {
+    if (Gs_PsmBits(fpsm) == 16) {
         d = (d & 31) << 3 | ((d >> 5) & 31) << 11 | ((d >> 10) & 31) << 19 | ((d & 0x8000) ? 0x80000000u : 0);
     } else if (fpsm == 1) {
         d |= 0x80000000u;
@@ -274,7 +268,7 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
     }
     if (write_rgb) {
         uint32_t c = out[0] | out[1] << 8 | out[2] << 16 | sa << 24;
-        if (psm_bits(fpsm) == 16) {
+        if (Gs_PsmBits(fpsm) == 16) {
             c = out[0] >> 3 | (out[1] >> 3) << 5 | (out[2] >> 3) << 10 | (sa & 0x80) << 8;
         }
         vram_rw(fbp, fbw, fpsm, (uint32_t)x, (uint32_t)y, 1, c);
@@ -411,6 +405,9 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
     }
     gs.strip++;
     sf = target_get(gs.frame[ctx] & 0x1FF);
+    if ((int)sFrame < sDrawFrom) {
+        kick = 0; /* BT3_GS_FROM: uploads and state are processed, nothing is drawn yet */
+    }
     if (sDumpFrame == (int)sFrame && kick && gs.vcount >= (type == 6 || type == 1 || type == 2 ? 2 : type == 0 ? 1 : 3)) {
         const Vertex *p0 = &gs.vtx[0], *p1 = &gs.vtx[gs.vcount - 1];
         fprintf(stderr, "  prim %d ctx %d fbp %03x abe %d tme %d fst %d | (%.1f,%.1f)-(%.1f,%.1f) z %08x uv (%d,%d)-(%d,%d) st (%.3f,%.3f) q %.3f "
@@ -424,19 +421,19 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
                 (int)((gs.scissor[ctx] >> 48) & 0x7FF), (unsigned long long)gs.alpha[ctx], (unsigned long long)gs.test[ctx]);
     }
     switch (type) {
-    case 0: if (kick) { pixel(sf, ctx, (int)v.x, (int)v.y, v.z, vcol(&v)); } gs.vcount = 0; break;
-    case 1: if (gs.vcount == 2) { if (kick) { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } gs.vcount = 0; } break;
-    case 2: if (gs.vcount == 2) { if (kick) { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } gs.vtx[0] = gs.vtx[1]; gs.vcount = 1; } break;
-    case 3: if (gs.vcount == 3) { if (kick) { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); } gs.vcount = 0; } break;
-    case 4: if (gs.vcount == 3 && kick) { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); } break;
+    case 0: if (kick) { if (sGpu) { GsGpu_Draw(0, ctx, &v); } else { pixel(sf, ctx, (int)v.x, (int)v.y, v.z, vcol(&v)); } } gs.vcount = 0; break;
+    case 1: if (gs.vcount == 2) { if (kick) { if (sGpu) { GsGpu_Draw(1, ctx, gs.vtx); } else { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } } gs.vcount = 0; } break;
+    case 2: if (gs.vcount == 2) { if (kick) { if (sGpu) { GsGpu_Draw(1, ctx, gs.vtx); } else { draw_line(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } } gs.vtx[0] = gs.vtx[1]; gs.vcount = 1; } break;
+    case 3: if (gs.vcount == 3) { if (kick) { if (sGpu) { GsGpu_Draw(3, ctx, gs.vtx); } else { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); } } gs.vcount = 0; } break;
+    case 4: if (gs.vcount == 3 && kick) { if (sGpu) { GsGpu_Draw(3, ctx, gs.vtx); } else { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); } } break;
     case 5:
         if (gs.vcount == 3) {
-            if (kick) { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); }
+            if (kick) { if (sGpu) { GsGpu_Draw(3, ctx, gs.vtx); } else { draw_triangle(sf, ctx, &gs.vtx[0], &gs.vtx[1], &gs.vtx[2]); } }
             gs.vtx[1] = gs.vtx[2]; /* fan: keep the first vertex */
             gs.vcount = 2;
         }
         break;
-    case 6: if (gs.vcount == 2) { if (kick) { draw_sprite(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } gs.vcount = 0; } break;
+    case 6: if (gs.vcount == 2) { if (kick) { if (sGpu) { GsGpu_Draw(6, ctx, gs.vtx); } else { draw_sprite(sf, ctx, &gs.vtx[0], &gs.vtx[1]); } } gs.vcount = 0; } break;
     default: break;
     }
 }
@@ -463,7 +460,7 @@ static void transfer_data(const uint8_t *p, uint32_t bytes) {
     if (!gs.transfer || gs.tw == 0) {
         return;
     }
-    bits = (uint32_t)psm_bits(dpsm);
+    bits = (uint32_t)Gs_PsmBits(dpsm);
     total = gs.tw * gs.th;
     for (i = 0; i * bits < bytes * 8 && gs.tpos < total; gs.tpos++, i++) {
         uint32_t x = gs.tx + gs.tpos % gs.tw, y = gs.ty + gs.tpos / gs.tw, c;
@@ -476,6 +473,14 @@ static void transfer_data(const uint8_t *p, uint32_t bytes) {
         default: c = (p[i / 2] >> ((i & 1) * 4)) & 15; break;
         }
         vram_rw(dbp, dbw, dpsm, x, y, 1, c);
+    }
+    /* which pages changed: every page the rectangle can touch (pages are 8 KB = 32 blocks) */
+    {
+        uint32_t rowbytes = (dbw ? dbw : 1) * 64 * bits / 8, first = dbp / 32 + (gs.ty * rowbytes) / 8192;
+        uint32_t last = dbp / 32 + ((gs.ty + gs.th) * rowbytes + 8191) / 8192;
+        for (i = first; i <= last; i++) {
+            gGsPageGen[i & 511]++;
+        }
     }
 }
 
@@ -492,6 +497,7 @@ static void reg_write(uint32_t addr, uint64_t d) {
     case 0x08: case 0x09: gs.clamp[addr - 8] = d; break;
     case 0x0C: vertex(d & 0xFFFF, (d >> 16) & 0xFFFF, (uint32_t)((d >> 32) & 0xFFFFFF), 0); break;
     case 0x0D: vertex(d & 0xFFFF, (d >> 16) & 0xFFFF, (uint32_t)(d >> 32), 0); break;
+    case 0x14: case 0x15: gs.tex1[addr - 0x14] = d; break;
     case 0x16: case 0x17: gs.tex0[addr - 0x16] = (gs.tex0[addr - 0x16] & ~0x1FFFFFE003F00000ull) | (d & 0x1FFFFFE003F00000ull); break; /* TEX2: PSM and CLUT fields */
     case 0x18: case 0x19: gs.xyoffset[addr - 0x18] = d; break;
     case 0x1A: gs.prmodecont = d; break;
@@ -664,7 +670,7 @@ static void screenshot(void) {
             best = &sTargets[i];
         }
     }
-    if (every > 0 && best != NULL && sFrame % (unsigned)every == 0) {
+    if (every > 0 && best != NULL && !sGpu && sFrame % (unsigned)every == 0) {
         uint64_t fr = (gs.frame[0] & 0x1FF) == best->fbp ? gs.frame[0] : (gs.frame[1] & 0x1FF) == best->fbp ? gs.frame[1] : shown;
         uint32_t fbw = (fr >> 16) & 0x3F, fpsm = (fr >> 24) & 0x3F;
 
@@ -676,7 +682,7 @@ static void screenshot(void) {
             for (y = 0; y < 448; y++) {
                 for (x = 0; x < 640; x++) {
                     uint32_t c = x < (int)(fbw ? fbw : 10) * 64 ? vram_rw(best->fbp << 5, fbw ? fbw : 10, fpsm, (uint32_t)x, (uint32_t)y, 0, 0) : 0;
-                    if (psm_bits(fpsm) == 16) {
+                    if (Gs_PsmBits(fpsm) == 16) {
                         c = (c & 31) << 3 | ((c >> 5) & 31) << 11 | ((c >> 10) & 31) << 19;
                     }
                     fwrite(&c, 1, 3, fp);
@@ -700,6 +706,10 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     if (on < 0) {
         on = getenv("BT3_GS") != NULL;
         tables_init();
+        if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
+            sGpu = GsGpu_Init(); /* falls back to the software rasteriser when no GPU device can be made */
+        }
+        sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
         sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
     }
     if (!on) {
@@ -735,6 +745,9 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
                 sStat[6], sTargetCount);
     }
     memset(sStat, 0, sizeof(sStat));
+    if (sGpu) {
+        GsGpu_FrameEnd();
+    }
     screenshot();
     if (sMissingTex != 0 && getenv("BT3_GS_VERBOSE") != NULL) {
         fprintf(stderr, "gs: frame %u: %u texel reads from textures that were never uploaded\n", sFrame, sMissingTex);
