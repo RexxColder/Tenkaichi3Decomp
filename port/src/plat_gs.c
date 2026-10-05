@@ -11,8 +11,13 @@
 
 #define REG(a) ((volatile uint32_t *)(uintptr_t)(a))
 
+extern void Port_GsVif1Chain(uint32_t tadr, int tte);
+
 static void Port_DmaTransfer(int channel) {
-    (void)channel; /* headless: nothing is drawn */
+    /* Channel 1 in source-chain mode (CHCR mode bits = 1) is the frame's display list: D1_TADR points at it. */
+    if (channel == 1 && ((*REG(0x10009000u) >> 2) & 3) == 1) {
+        Port_GsVif1Chain(*REG(0x10009030u), (int)((*REG(0x10009000u) >> 6) & 1));
+    }
 }
 
 volatile uint32_t *Port_DmaChcr(int channel) {

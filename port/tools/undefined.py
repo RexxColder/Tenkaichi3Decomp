@@ -49,6 +49,15 @@ def main():
             print("FAILED", f.name, r.stderr.splitlines()[0][:150])
         else:
             objs.append(str(o))
+    for f in sorted((ROOT / "port/src/gs").glob("*.c")):  # renderer: ordinary host code, hardware float
+        o = OBJ / ("gs_" + f.stem + ".o")
+        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
+                            "-Wall", "-Wno-unused", "-Wno-misleading-indentation", str(f), "-o", str(o)], cwd=ROOT,
+                           capture_output=True, text=True)
+        if r.returncode:
+            print("FAILED", f.name, "\n".join(l for l in r.stderr.splitlines() if "error" in l)[:400])
+        else:
+            objs.append(str(o))
     for f in [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"] + sorted((ROOT / "port/src").glob("*.c")):
         o = OBJ / ("pc_" + f.stem + ".o")
         names = ["-include", "vu0_names.h", "-DREF_VU0_EXTERN_ARITH"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
