@@ -31,7 +31,12 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 
 /* btl_facade.h declares (side, type, mode, value); the call here sets up the float before the mode, which is
    the order (side, type, value, mode). Same registers either way. */
+#ifdef PORT /* PC build: the definition's parameter order */
+extern void BtlFacade_PlayCharMotion(s32 side, s32 type, s32 mode, f32 value);
+#define BtlFacade_StartCharMoveF(side, type, value, mode) BtlFacade_PlayCharMotion(side, type, mode, value)
+#else
 extern void BtlFacade_StartCharMoveF(s32 side, s32 type, f32 value, s32 mode) __asm__("BtlFacade_PlayCharMotion");
+#endif
 
 /* the text module's default window (0x23AC50, not decompiled) */
 extern BtlScriptCmdWindow *Font_GetStyle(void);

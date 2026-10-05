@@ -101,7 +101,7 @@ extern s32 BtlParam_GetFlags2(BtlActAChr *chr);
 extern f32 BtlParam_GetChargeRateA(BtlActAChr *chr);
 extern f32 BtlParam_GetChargeRateB(BtlActAChr *chr);
 extern s32 BtlObjAnim_MaskToNode(u32 bit);                                /* event bit -> model node id */
-extern s32 BtlObjAnim_QueryEvent(BtlActAObj *obj, s32 a, s32 b, s32 c);  /* motion event query (mask, layer, what) */
+extern s32 BtlObjAnim_QueryEvent(BtlActAObj *obj, u64 a, s32 b, s32 c);  /* motion event query (mask, layer, what) */
 extern s32 BtlParam_GetDashSound(BtlActAChr *chr);
 extern f32 BtlMoveParam_GetSpeed(BtlActAChr *chr, s32 kind);
 extern f32 BtlMoveParam_GetAngle58(BtlActAChr *chr);

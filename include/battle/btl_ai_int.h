@@ -59,7 +59,7 @@ extern s32 BtlCharApi_IsOppSkillFlag4(s32 objId);
 extern s32 BtlCharApi_TestOppSkillFlags(s32 objId);
 extern s32 BtlCharApi_GetClashCountB(s32 objId);
 extern s32 BtlCharApi_GetClashCountA(s32 objId);
-extern s32 BtlCharApi_IsMoveSlotActive(s32 objId);
+extern s32 BtlCharApi_IsMoveSlotActive(s32 objId, u32 slot);
 extern s32 BtlCharApi_GetStunTimer(s32 objId);
 extern s32 BtlCharApi_GetPromptButtons(s32 objId);
 extern s32 BtlCharApi_GetUnk1290(s32 objId);

@@ -25,7 +25,11 @@ extern void Vec3_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
 extern void Bpe_Decode(void *src, void *dst, s32 *size);
 extern f32 BtlObj_GetUnk44FC4(void);
+#ifdef PORT /* PC build: the full parameter list (see BtlObjMdl_CopyTexAlpha) */
+extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
+#else
 extern void Res_RelocateOffsets(void *out, void *base);
+#endif
 
 /* The battle work block: only the 64-bit flag word is read here (0x100 = pause). */
 typedef struct BobjBattleWork {
@@ -1556,7 +1560,12 @@ void BtlObjMdl_CopyTexAlpha(BobjMdl *mdl, BobjTexTable *src, BobjTexTable *dst) 
     u32 i;
     s32 j;
 
+#ifdef PORT /* the original passes no third argument: a2 still holds this function's own `dst` at the call.
+               Written out, the compiler copies it through v0 (no explicit form reproduces the code). */
+    Res_RelocateOffsets(&hdr, dst, dst);
+#else
     Res_RelocateOffsets(&hdr, dst);
+#endif
     from = *(u8 **)(src->rec + mdl->model->faceTex * 0x40 + 0x3C) + 0x60;
     for (i = 0; i < hdr->count; i++) {
         to = *(u8 **)(hdr->rec + i * 0x40 + 0x3C) + 0x60;

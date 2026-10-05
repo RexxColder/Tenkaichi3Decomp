@@ -53,7 +53,7 @@ extern void *BtlTask_CreateChildList(EftTTask *task, s32 count, s32 workSize);
 extern EftTTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void BtlTask_SetDead(EftTTask *task);                     /* kills the task */
 extern u64 EftVram_AddImage(EftTTex *tex, s32 a, s32 b);          /* steps a texture, returns its TEX0 */
-extern s32 EftVram_AddClut(EftTTex *tex);                        /* steps a texture, returns its CLUT base */
+extern u64 EftVram_AddClut(EftTTex *tex);                        /* steps a texture, returns its CLUT base */
 extern void EftTexSet_Load8(void *tex, s32 *entry);              /* builds a texture set from a pack entry */
 
 extern s32 EftCam_IsActive(void);

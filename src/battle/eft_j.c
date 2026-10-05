@@ -92,7 +92,7 @@ extern f32 BtlCharApi_GetUnkE44(s32 objId);
 extern f32 BtlCharApi_GetUnkE5CRatio(s32 objId);
 extern f32 BtlCharApi_GetUnkE60Ratio(s32 objId);
 extern void EftEmit_UpdateWidth2(EftJSet *set, void *emit);
-extern s32 EftShot_GetAttrKind(s32 objId, s32 evt);
+extern s32 EftShot_GetAttrKind(s32 objId, u64 evt);
 extern u8 EftEmit_GetHead26(void *set);
 extern s32 EftEmit_GetHead25(void *set);
 extern s32 EftEmit_GetPhaseMask(void *set);
@@ -123,7 +123,7 @@ extern void EftEmit_InitState(EftJSet *set, void *emit);
 extern void EftEmit_TermState(EftJSet *set, void *emit);
 extern s32 EftEmit_GetFlagsFromReq(EftJSet *set, void *emit, s32 objId, s32 group, s32 part, s32 f1, s32 f4);
 extern s32 EftEmit_GetResetFlags(EftJSet *set, void *emit, s32 group, s32 part);
-extern void EftEmit_SpawnOwn(f32 scale, EftJSet *set, void *emit, void *a2, void *a3, void *t0, s32 group, s32 part, s32 res);
+extern void EftEmit_SpawnOwn(EftJSet *set, void *emit, void *a2, void *a3, void *t0, s32 group, s32 part, s32 res, f32 scale);
 extern void EftEmit_KillAll(EftJSet *set, void *emit);
 extern void EftEmit_MarkKind6(EftJSet *set, void *emit);
 extern void EftEmit_UpdateAlive(EftJSet *set, void *emit);
@@ -143,7 +143,7 @@ extern void EftHit_SetShapeSpheres(EftJHitRec *rec, void *a, void *b);
 extern void EftHit_SetShapeBoxes(EftJHitRec *rec, void *a, void *b);
 extern void ColSphere_Set(void *shape, void *pos, f32 r);
 extern void ColCapsule_Set(void *shape, void *a, void *b, f32 r);
-extern void EftAim_Home(f32 speed, f32 homing, void *out, void *pos, void *dir, s32 objId);
+extern void EftAim_Home(void *out, void *pos, void *dir, s32 objId, f32 speed, f32 homing);
 extern void StgBlur_SetCenter(s32 light, void *dir, s32 a2);
 extern void StgBlur_SetColor0Rgba(s32 light, s32 r, s32 g, s32 b, s32 a);
 extern void StgBlur_SetColor1Rgba(s32 light, s32 r, s32 g, s32 b, s32 a);
@@ -154,7 +154,12 @@ extern s32 EftAim_GetDir(void *dir, void *from, s32 objId);
 extern void EftAim_GetDirKeep(EftJSrc *src, void *dir, void *from, s32 objId);
 extern void EftTexSet_Load32(void *tex, s32 *entry);
 extern void *EftDisc_Create(EftJPieceArg *arg);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftDisc_Release(void *h, Vec4 dir);
+#define EftDisc_Release(h, dir) EftDisc_Release(h, *(Vec4 *)(dir))
+#else
 extern void EftDisc_Release(void *h, Vec4 *dir);
+#endif
 extern void EftDisc_Kill(void *h);
 extern void EftDisc_SetSpin(void *h, f32 angle);
 extern void EftDisc_SetScale(void *h, f32 v);
@@ -432,7 +437,7 @@ void EftMulti_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
                         res = 2;
                     }
                     if (res != 0) {
-                        EftEmit_SpawnOwn(w->scale, set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res);
+                        EftEmit_SpawnOwn(set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res, w->scale);
                     }
                 }
             }
@@ -862,7 +867,7 @@ void EftPropShot_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) 
                     res = 2;
                 }
                 if (res != 0) {
-                    EftEmit_SpawnOwn(w->scale, set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res);
+                    EftEmit_SpawnOwn(set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res, w->scale);
                 }
             }
         }
@@ -967,7 +972,7 @@ void EftPropShot_Update(EftJTask *task) {
             if (!(w->src->def->flags & 2)) {
                 if (!(w->flags & 0x20)) {
                     if (src->def->homing > 0.0f) {
-                        EftAim_Home(w->speed, src->def->homing, &w->dir, &w->head, &w->dir, src->objId);
+                        EftAim_Home(&w->dir, &w->head, &w->dir, src->objId, w->speed, src->def->homing);
                         Vec3_Scale(&w->vel, &w->dir, w->speed);
                     }
                     Vec3_Add(&w->head, &w->head, &w->vel);
@@ -1215,7 +1220,7 @@ void EftBlast_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
                     res = 2;
                 }
                 if (res != 0) {
-                    EftEmit_SpawnOwn(w->drawScale, set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res);
+                    EftEmit_SpawnOwn(set, w->emit, &w->node[0], &w->head, &w->dir, g, j, res, w->drawScale);
                 }
             }
         }
@@ -1367,7 +1372,7 @@ void EftBlast_Update(EftJTask *task) {
             if (!(w->src->def->flags & 2)) {
                 if (!(w->flags & 0x20)) {
                     if (src->def->homing > 0.0f) {
-                        EftAim_Home(w->speed, src->def->homing, &w->dir, &w->head, &w->dir, src->objId);
+                        EftAim_Home(&w->dir, &w->head, &w->dir, src->objId, w->speed, src->def->homing);
                         Vec3_Scale(&w->vel, &w->dir, w->speed);
                     }
                     Vec3_Add(&w->head, &w->head, &w->vel);
@@ -1764,9 +1769,9 @@ void EftShotTech_UpdateParts(s32 objId, EftJTask *task, EftJSet *set) {
                         alt = set->parts[set->grp[info[0]].base + j].type == 4;
                     }
                     if (alt) {
-                        EftEmit_SpawnOwn(w->scale, set, w->emit, w->nodes, &w->muzzlePos, &w->muzzleDir, g, j, res);
+                        EftEmit_SpawnOwn(set, w->emit, w->nodes, &w->muzzlePos, &w->muzzleDir, g, j, res, w->scale);
                     } else {
-                        EftEmit_SpawnOwn(w->scale, set, w->emit, w->nodes, &w->pos, &w->dir, g, j, res);
+                        EftEmit_SpawnOwn(set, w->emit, w->nodes, &w->pos, &w->dir, g, j, res, w->scale);
                     }
                 }
             }

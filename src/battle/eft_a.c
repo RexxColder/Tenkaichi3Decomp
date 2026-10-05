@@ -62,7 +62,12 @@ extern void BtlTask_SetPos(EftHitTask *task, EftVec pos);     /* task->pos = pos
 extern void EftTechEvt_RequestStop(s32 side);                         /* beam struggle: sets bit 2 in a per-side word */
 extern void EftKiBomb_SetContact(EftHitTask *task, void *mtx);    /* copies a 0x40-byte block into the blast task's work */
 extern f32 BtlStage_GetInnerRadius(void);                              /* stage radius - 100 */
+#ifdef PORT /* PC build: by address, as the definition takes it (it only reads the struct; the PS2 passes a by-value struct of this size by address) */
+extern s32 EftImpact_SpawnBlast(EftImpactArg *arg, f32 scale, f32 unk);
+#define EftImpact_SpawnBlast(arg, scale, unk) EftImpact_SpawnBlast(&(arg), scale, unk)
+#else
 extern s32 EftImpact_SpawnBlast(EftImpactArg arg, f32 scale, f32 unk); /* adds an impact effect task (class 0x2C3F20) */
+#endif
 extern void EftGndDust_SpawnImpact(s32 objId, EftVec *pos, f32 scale);
 extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftVec *out);

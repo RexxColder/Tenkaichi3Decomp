@@ -1299,13 +1299,23 @@ extern void EftPart10_UpdateSpin(EftPart10 *w);
 extern void EftPart10_BuildTex(EftPart10 *w, EftWTexSet *tex);
 extern void EftPart10_DrawBillboardClipped(Vec4 *pos, f32 w, f32 h, Vec4 *color, Vec4 *scale, f32 u0, f32 v0, f32 u1,
                                            f32 v1, f32 rot, s32 layer, s32 noDepth, u64 tex0, f32 zScale);
-extern void EftPart10_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 offY, f32 u0, f32 v0, f32 u1,
-                                    f32 v1, f32 rot, s32 layer, s32 noDepth, u64 tex0);
+extern void EftPart10_DrawBillboard(Vec4 *pos, Vec4 *color, f32 w, s32 offX, s32 offY, f32 h, f32 u0, f32 v0, s32 layer,
+                                    f32 u1, f32 v1, s32 noDepth, u64 tex0, f32 rot);
 /* The three vectors are passed by value (hidden pointers); declared as pointers here. */
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftPart10_DrawQuadClipped(Vec4 *corner, Vec4 uv0, Vec4 uv1, Vec4 col, s32 layer, s32 texIdx, s32 noDepth, EftWTexSet *tex);
+#define EftPart10_DrawQuadClipped(corner, uv0, uv1, col, layer, texIdx, noDepth, tex) EftPart10_DrawQuadClipped(corner, *(Vec4 *)(uv0), *(Vec4 *)(uv1), *(Vec4 *)(col), layer, texIdx, noDepth, tex)
+#else
 extern void EftPart10_DrawQuadClipped(Vec4 *corner, Vec4 *uv0, Vec4 *uv1, Vec4 *col, s32 layer, s32 texIdx, s32 noDepth,
                                       EftWTexSet *tex);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftPart10_DrawQuad(Vec4 *corner, Vec4 uv0, Vec4 uv1, Vec4 col, s32 layer, s32 texIdx, s32 noDepth, EftWTexSet *tex);
+#define EftPart10_DrawQuad(corner, uv0, uv1, col, layer, texIdx, noDepth, tex) EftPart10_DrawQuad(corner, *(Vec4 *)(uv0), *(Vec4 *)(uv1), *(Vec4 *)(col), layer, texIdx, noDepth, tex)
+#else
 extern void EftPart10_DrawQuad(Vec4 *corner, Vec4 *uv0, Vec4 *uv1, Vec4 *col, s32 layer, s32 texIdx, s32 noDepth,
                                EftWTexSet *tex);
+#endif
 extern void EftPart10_UnlinkPtcl(EftPart10Ptcl **head, EftPart10Ptcl **tail, EftPart10Ptcl *p);
 extern void EftPart10_UnlinkGroup(EftPart10Grp **head, EftPart10Grp **tail, EftPart10Grp *g);
 extern void EftPart10_LinkGroup(EftPart10Grp **head, EftPart10Grp **tail, EftPart10Grp *g);
@@ -1498,10 +1508,10 @@ void EftPart10_Draw(EftWTask *task) {
                                                        p->uv1.z, p->uv1.w, p->ang[2], def->blend,
                                                        (w->flags >> 10) & 1, EFTW_TEX0(w->arg.tex, w->texIdx), 2.0f);
                     } else {
-                        EftPart10_DrawBillboard(&pos, half * 16.0f, half * 16.0f, &p->col, (s32)p->unk20.x << 4,
-                                                (s32)p->unk20.y << 4, p->uv0.x, p->uv0.y, p->uv1.z, p->uv1.w,
-                                                p->ang[2], def->blend, (w->flags >> 10) & 1,
-                                                EFTW_TEX0(w->arg.tex, w->texIdx));
+                        EftPart10_DrawBillboard(&pos, &p->col, half * 16.0f, (s32)p->unk20.x << 4, (s32)p->unk20.y << 4,
+                                                half * 16.0f, p->uv0.x, p->uv0.y, def->blend, p->uv1.z,
+                                                p->uv1.w, (w->flags >> 10) & 1, EFTW_TEX0(w->arg.tex, w->texIdx),
+                                                p->ang[2]);
                     }
                 } else if (def->flags & 8) {
                     EftPart10_DrawQuadClipped(&p->corner[0], &p->uv0, &p->uv1, &p->col, def->blend, w->texIdx,

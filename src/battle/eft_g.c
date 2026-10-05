@@ -149,9 +149,14 @@ typedef struct EftClipVtx {
 } EftClipVtx; /* 0x30 */
 
 extern void ClipVtx_Set(EftClipVtx *out, EftVecArg *pos, EftVecArg *st, EftVecArg *col);
-extern void EftGfx_DrawPolyScaledZ(f32 unk, EftClipVtx *v, s32 otZ, s32 a3, s32 a4, s32 a5, s32 a6, u64 tex0);
+extern void EftGfx_DrawPolyScaledZ(EftClipVtx *v, s32 otZ, s32 a3, s32 a4, s32 a5, s32 a6, u64 tex0, f32 unk);
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftSpr_DrawFlat(s32 r, s32 g, s32 b, s32 a, f32 u0, f32 v0, f32 u1, f32 v1, Vec4 *pos, u32 w, u32 h, s32 unk, s32 unkS0, void *tex);
+#define EftSpr_DrawFlat(r, g, b, a, pos, u0, v0, u1, v1, w, h, unk, unkS0, tex) EftSpr_DrawFlat(r, g, b, a, u0, v0, u1, v1, pos, w, h, unk, unkS0, tex)
+#else
 extern void EftSpr_DrawFlat(s32 r, s32 g, s32 b, s32 a, Vec4 *pos, f32 u0, f32 v0, f32 u1, f32 v1, u32 w, u32 h,
                           s32 unk, s32 unkS0, void *tex);
+#endif
 
 /* GS XYZF2 register value. */
 typedef struct EftGsXyzf {
@@ -1274,7 +1279,7 @@ void EftBound_DrawTri(EftMtxArg m, EftVecArg p0, EftVecArg p1, EftVecArg p2, Eft
     v[0].st[1] -= ft;
     v[1].st[1] -= ft;
     v[2].st[1] -= ft;
-    EftGfx_DrawPolyScaledZ(2.0f, v, otZ, 1, 0, 0, 0, tex0);
+    EftGfx_DrawPolyScaledZ(v, otZ, 1, 0, 0, 0, tex0, 2.0f);
 }
 
 /* Draws the quads of a mesh that face the camera, two triangles each. */

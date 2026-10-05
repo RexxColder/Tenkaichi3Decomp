@@ -68,8 +68,13 @@ extern void GfxClut_InitPacket(EftSurfBuf *buf, s32 id);
 /* Sprite draws of the effect core. */
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 a,
                           s32 b, u64 tex0);
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, s32 a, s32 b, u64 tex0, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot);
+#define EftPrim_DrawQuadDepth(pos, color, w, h, u0, v0, u1, v1, rot, a, b, tex0) EftPrim_DrawQuadDepth(pos, color, a, b, tex0, w, h, u0, v0, u1, v1, rot)
+#else
 extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 a,
                           s32 b, u64 tex0);
+#endif
 
 /* The geyser (eft_b.c) and the emitters it starts (eft_g.c smoke, eft_e.c steam). */
 extern void EftGeyser_Update(EftTask *task);
@@ -87,10 +92,20 @@ extern Vec4 *EftGfx_GetClipPlanes(void);
 extern s32 ClipPoly_ClipPlane(EftSurfVtx *poly, Vec4 *plane, s32 count); /* clips in place, returns the new count */
 extern void ClipPoly_ProjectCur(s32 (*xyz)[4], Vec4 *st, EftSurfVtx *poly, s32 count); /* projects count vertices */
 extern void EftMath_CalcTangentFrame(Mtx44 *out, EftVec *a, EftVec *b);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftGfx_LightClutDiffuse(EftSurfClut *dst, EftSurfClut *src, Vec4 light, u8 r, u8 g, u8 b);
+#define EftGfx_LightClutDiffuse(dst, src, light, r, g, b) EftGfx_LightClutDiffuse(dst, src, *(Vec4 *)(light), r, g, b)
+#else
 extern void EftGfx_LightClutDiffuse(EftSurfClut *dst, EftSurfClut *src, Vec4 *light, u8 r, u8 g, u8 b);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftGfx_LightClutSpecular(EftSurfClut *dst, EftSurfClut *src, Mtx44 view, Mtx44 frame, Vec4 light, f32 k);
+#define EftGfx_LightClutSpecular(dst, src, view, frame, light, k) EftGfx_LightClutSpecular(dst, src, *(Mtx44 *)(view), *(Mtx44 *)(frame), *(Vec4 *)(light), k)
+#else
 extern void EftGfx_LightClutSpecular(EftSurfClut *dst, EftSurfClut *src, Mtx44 *view, Mtx44 *frame, Vec4 *light, f32 k);
+#endif
 extern u64 EftVram_AddImage(EftTexEntry *tex, s32 a, s32 b);
-extern s32 EftVram_AddClut(EftTexEntry *tex);
+extern u64 EftVram_AddClut(EftTexEntry *tex);
 
 /* eft_d.c */
 extern void EftSurf_DrawPolyOtClipped(EftSurfVtx *poly, s32 unused, u64 *tex, Vec4 *fog, s32 zBias);

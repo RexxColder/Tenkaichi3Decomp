@@ -92,7 +92,7 @@ extern s32 BtlAnim_GetId(BtlActDChr *chr);
 extern f32 BtlAnim_GetFrame(BtlActDChr *chr);
 extern f32 BtlAnim_GetProgress(BtlActDChr *chr);
 extern s32 BtlAnim_Advance(BtlActDChr *chr, s32 flags);
-extern s32 BtlAnim_AdvanceThen(BtlActDChr *chr, s32 next, s32 flags, f32 blend);
+extern s32 BtlAnim_AdvanceThen(BtlActDChr *chr, s32 next, f32 blend, s32 flags);
 extern void BtlAnim_AdvanceLoop(BtlActDChr *chr, s32 flags);
 extern s32 BtlAnim_PassedRatio(BtlActDChr *chr, f32 ratio);
 extern s32 BtlAnim_IsNew(BtlActDChr *chr);
@@ -125,7 +125,7 @@ extern s32 BtlParam_CanFly(BtlActDChr *chr);   /* can fly: parameter flag 0x1000
 extern s32 BtlKiBlast_GetKiCost(BtlActDChr *chr);   /* ki cost of the current attack */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlCharApi_CalcAimDir(s32 objId, s32 node, Vec4 *pos, Vec4 *out, f32 a, f32 b);
-extern s32 BtlObjAnim_QueryEvent(void *obj, s32 mask, s32 layer, s32 what); /* motion event query: what 0 = first frame, 3 = count */
+extern s32 BtlObjAnim_QueryEvent(void *obj, u64 mask, s32 layer, s32 what); /* motion event query: what 0 = first frame, 3 = count */
 
 /*
  * Action 0xB2: a ki blast (motion 0x7A) paid on entry, aimed 18..45 degrees below the horizon at the opponent when
@@ -189,11 +189,11 @@ s32 BtlAct_KiBlastChargeB3(BtlActDChr *chr, s32 phase) {
     if (phase == PHASE_RUN) {
         switch (BtlAnim_GetId(chr)) {
             case 0x8D:
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 break;
             case 0x8E:
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 chr->unkDEC = BtlAnim_GetProgress(chr);
                 break;
@@ -503,7 +503,7 @@ s32 BtlAct_MoveHandler(BtlActDChr *chr, s32 phase) {
         subPos = 0;
         switch (BtlAnim_GetId(chr)) {
             case 2:
-                BtlAnim_AdvanceThen(chr, 3, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 3, 0.0f, 0);
                 subNeg = 4;
                 subPos = 6;
                 break;
@@ -713,7 +713,7 @@ s32 BtlAct_DashMoveHandler(BtlActDChr *chr, s32 phase) {
         moving = 1;
         switch (BtlAnim_GetId(chr)) {
             case 0xC:
-                BtlAnim_AdvanceThen(chr, 0xD, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0xD, 0.15f, 0);
                 subNeg = 0xF;
                 ratio = BtlAnim_GetProgress(chr);
                 subPos = 0x12;
@@ -1058,7 +1058,7 @@ s32 BtlAct_AscendHandler(BtlActDChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0x2E:
                 BtlAnim_SetDuration(chr, 0.35f);
-                BtlAnim_AdvanceThen(chr, 0x2B, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0x2B, 0.15f, 0);
                 BtlMove_Step(chr, 6, 5, 3, 0.0f, BTL_KMH(50.0f));
                 BtlMove_ApplyGravity(chr);
                 break;
@@ -1115,7 +1115,7 @@ s32 BtlAct_DescendHandler(BtlActDChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0x1F:
                 BtlAnim_SetDuration(chr, 0.35f);
-                BtlAnim_AdvanceThen(chr, 0x2C, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0x2C, 0.15f, 0);
                 break;
             case 0x2C:
                 if (BtlAnim_IsNew(chr)) {
@@ -1233,7 +1233,7 @@ s32 BtlAct_FastAscendHandler(BtlActDChr *chr, s32 phase) {
                 if (chr->work[0] & 1) {
                     BtlAnim_SetDuration(chr, 0.5f);
                 }
-                if (BtlAnim_AdvanceThen(chr, 0x2F, 0, 0.15f)) {
+                if (BtlAnim_AdvanceThen(chr, 0x2F, 0.15f, 0)) {
                     BtlCharSnd_PlayCommon(chr, BtlParam_GetDashSound(chr));
                     BtlChar_Vibrate(chr, 0.8f, 0.3f);
                 }
@@ -1308,7 +1308,7 @@ s32 BtlAct_FastDescendHandler(BtlActDChr *chr, s32 phase) {
                 if (chr->work[0] & 1) {
                     BtlAnim_SetDuration(chr, 0.5f);
                 }
-                if (BtlAnim_AdvanceThen(chr, 0x32, 0, 0.15f)) {
+                if (BtlAnim_AdvanceThen(chr, 0x32, 0.15f, 0)) {
                     BtlCharSnd_PlayCommon(chr, BtlParam_GetDashSound(chr));
                     BtlChar_Vibrate(chr, 0.8f, 0.3f);
                 }
@@ -1439,7 +1439,7 @@ s32 BtlAct_HomingDashHandler(BtlActDChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0x18:
             case 0x2D:
-                BtlAnim_AdvanceThen(chr, 0x19, 0, 0.2f);
+                BtlAnim_AdvanceThen(chr, 0x19, 0.2f, 0);
                 lean = BtlAnim_GetProgress(chr);
                 moving = 0;
                 if (0.5f < BtlAnim_GetProgress(chr)) {

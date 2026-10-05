@@ -30,7 +30,7 @@ extern void Vec3_Div(EftRbnVec *dst, EftRbnVec *src, f32 d);   /* dst.xyz = src.
 extern void Vec3_Copy(EftRbnVec *dst, EftRbnVec *src);          /* copies x, y, z */
 
 extern u64 EftVram_AddImage(EftAbTexEntry *tex, s32 a, s32 b);         /* uploads the image, returns its TEX0 */
-extern s32 EftVram_AddClut(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
+extern u64 EftVram_AddClut(EftAbTexEntry *tex);                       /* uploads the palette, returns its block */
 
 /* Takes a free node from the pool (round-robin) and appends it to the ribbon's list. */
 EftRbnNode *EftRibbon_AllocNode(EftRbn *w) {
@@ -597,8 +597,8 @@ extern void Vu0Cur_LoadMtx(Mtx44 *m);   /* load the matrix */
 extern void Vu0Cur_Pop(void);       /* pop */
 extern void EftGfx_DrawSprite(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 roll,
                               s32 layer, s32 front, u64 tex0);
-extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 roll,
-                                  s32 layer, s32 front, u64 tex0);
+extern void EftPrim_DrawQuadDepth(Vec4 *pos, Vec4 *color, s32 layer, s32 front, u64 tex0, f32 w, f32 h, f32 u0, f32 v0,
+                                  f32 u1, f32 v1, f32 roll);
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern s32 Vu0Cur_ProjectPointsStq(EftAcScr *xyz, Vec4 *stq, Vec4 *pos, Vec4 *uv, s32 n); /* projects n points with the loaded matrix */
@@ -1613,8 +1613,8 @@ void EftZap_Draw(EftAcTask *task) {
                 for (; pt != NULL; pt = pt->next) {
                     Mtx_MulVec4(V(&p0), &line->mtx, V(&pt->pos));
                     if (def->flags & 0x80) {
-                        EftPrim_DrawQuadDepth(V(&p0), V(&line->color), width, width, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f,
-                                              def->blend, (w->flags >> 17) & 1, EFT_TEX0(w->arg.tex, w->texIdx));
+                        EftPrim_DrawQuadDepth(V(&p0), V(&line->color), def->blend, (w->flags >> 17) & 1, EFT_TEX0(w->arg.tex, w->texIdx), width, width, 0.0f, 0.0f,
+                                              1.0f, 1.0f, 0.0f);
                     } else {
                         EftGfx_DrawSprite(V(&p0), V(&line->color), width * 16.0f, width * 16.0f, 0.0f, 0.0f, 1.0f, 1.0f,
                                           0.0f, def->blend, (w->flags >> 17) & 1, EFT_TEX0(w->arg.tex, w->texIdx));

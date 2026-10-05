@@ -81,7 +81,7 @@ extern void BtlOpp_GetTargetPos(BtlMemberChr *chr, Vec4 *out);
 extern f32 BtlOpp_GetRadius(BtlMemberChr *chr);
 extern void EftImpact_SpawnHit(BtlMemberHitFxReq *req);
 extern f32 BtlCharApi_GetHeight(s32 objId);
-extern u32 BtlObjAnim_QueryEvent(BtlMemberObj *obj, s32 a, s32 b, s32 c);
+extern u32 BtlObjAnim_QueryEvent(BtlMemberObj *obj, u64 a, s32 b, s32 c);
 extern s32 BtlObjAnim_MaskToNode(u32 mask);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern void BtlCharSnd_PlayCommon(BtlMemberChr *chr, s32 line);

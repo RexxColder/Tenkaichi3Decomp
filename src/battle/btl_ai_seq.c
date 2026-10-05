@@ -1232,7 +1232,7 @@ s32 BtlAiStep_Unk15(BtlAiWork *ai) {
     case 0xC:
     case 0x33:
     case 0x37:
-        if (BtlCharApi_IsMoveSlotActive(ai->objId) != 0) {
+        if (BtlCharApi_IsMoveSlotActive(ai->objId, step) != 0) {
             return 1;
         }
         break;

@@ -21,7 +21,7 @@ extern void Font_FlushAll(void);
 
 /* text box module, after 0x2600B0 (not decompiled) */
 extern void TextBox_AttachLine(Flash *flash, FlashRef *ref, s32 a, s32 b, s32 line, TextBox *box);
-extern s32 TextBox_SetSpacing(TextBox *box, s32 a, s32 b);
+extern void TextBox_SetSpacing(TextBox *box, s32 a, s32 b);
 
 /* Defined here: this object's .sdata (0x2FF0D8). */
 MsgWin *gMsgWin = NULL;
@@ -102,6 +102,6 @@ void MsgWin_SetSide(s32 side) {
 }
 
 /* Passes two values to TextBox_SetSpacing for the window's text box. */
-s32 MsgWin_SetBoxParam(s32 a, s32 b) {
-    return TextBox_SetSpacing(&gMsgWin->box, a, b);
+void MsgWin_SetBoxParam(s32 a, s32 b) {
+    TextBox_SetSpacing(&gMsgWin->box, a, b);
 }

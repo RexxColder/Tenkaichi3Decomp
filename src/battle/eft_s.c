@@ -62,10 +62,15 @@ extern void EftGfx_DrawPolyScaledZ(void *verts, s32 layer, s32 a2, s32 a3, s32 f
                                    f32 zScale);
 /* The same callee as in eft_m.c; this argument order (registers are assigned per class, so it is the same call)
    is the one that reproduces the order the arguments are set up in. */
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 t0, s32 t1, s32 w, s32 h, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
+#define EftSpr_DrawRot(x, y, z, r, g, b, a, t0, t1, w, h, u0, v0, u1, v1, rot, s0, size, s2, s3, tex) EftSpr_DrawRot(r, g, b, a, x, y, z, u0, v0, u1, v1, rot, t0, t1, w, h, s0, size, s2, s3, tex)
+#else
 extern void EftSpr_DrawRot(f32 x, f32 y, f32 z, u8 r, u8 g, u8 b, u8 a, s32 t0, s32 t1, s32 w, s32 h, f32 u0, f32 v0,
                           f32 u1, f32 v1, f32 rot, s32 s0, u32 size, s32 s2, s32 s3, void *tex);
+#endif
 extern u64 EftVram_AddImage(void *tex, s32 a, s32 b);
-extern s32 EftVram_AddClut(void *tex);
+extern u64 EftVram_AddClut(void *tex);
 extern void EftTexSet_Load4(void *tex, s32 *entry);
 extern void BtlTask_SetDead(EftTask *task);                   /* kills the task */
 extern void EftObj_SetMtx(s32 obj, Mtx44 *m);               /* sets a model object's matrix */

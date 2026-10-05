@@ -154,7 +154,7 @@ void MsgWin_Open(void);
 void MsgWin_Close(void);
 void MsgWin_SetText(void *text);
 void MsgWin_SetSide(s32 side);
-s32 MsgWin_SetBoxParam(s32 a, s32 b);
+void MsgWin_SetBoxParam(s32 a, s32 b);
 
 /* ---- IconWin (view_a_c.c) ---- */
 

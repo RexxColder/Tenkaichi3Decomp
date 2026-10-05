@@ -115,7 +115,7 @@ extern void ColCapsule_Set(void *box, void *from, void *to, f32 radius);
 extern void ColSphere_Set(void *sphere, void *center, f32 radius);
 
 extern s32 EftShot_TestBits(s32 objId, s32 mask);
-extern s32 EftShot_GetAttrKind(s32 objId, s32 bits);
+extern s32 EftShot_GetAttrKind(s32 objId, u64 bits);
 extern void EftEmit_InitState(EftOSet *set, void *state);
 extern void EftEmit_TermState(EftOSet *set, void *state);
 extern s32 EftEmit_GetFlagsFromReq(EftOSet *set, void *state, s32 objId, s32 type, s32 idx, s32 ending, s32 kill);

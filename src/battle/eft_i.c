@@ -45,9 +45,13 @@ extern void BtlTask_CreateChildList(EftTask *task, s32 count, s32 workSize);
 
 /* Layer 1 services (0x14A8C0..0x14DBB8, the file before this one). */
 extern s32 EftShot_TestBits(s32 objId, s32 bit);                 /* is this effect event of the fighter raised */
-extern s32 EftShot_GetAttrKind(s32 objId, s32 bit);                 /* model node of the event */
+extern s32 EftShot_GetAttrKind(s32 objId, u64 bit);                 /* model node of the event */
+#ifdef PORT /* PC build: the definition's types (the PS2 passes both in one 64-bit register) */
+extern s32 EftShot_HasTwoAttrs(s32 objId, u64 bit);
+#else
 extern s32 EftShot_HasTwoAttrs(s32 objId, s32 bit);                 /* does the event have two nodes */
-extern void EftShot_GetAttrPair(s32 objId, s32 bit, s32 *a, s32 *b); /* both nodes of the event */
+#endif
+extern void EftShot_GetAttrPair(s32 objId, u64 bit, s32 *a, s32 *b); /* both nodes of the event */
 extern void EftShot_SetHeldFlagA8(s32 objId);                         /* sets the fighter's held flag 0xA8 */
 extern void EftShot_Nop(s32 size);                          /* empty */
 extern void EftEmit_LoadSet(EftOwner *owner, EftEmitSet *set, s32 a2, s32 *pack, s32 a4, s32 a5);
@@ -113,16 +117,21 @@ typedef struct EftIMarkArg {
     /* 0x24 */ s32 objId;
     /* 0x28 */ s32 unk28;
 } EftIMarkArg; /* size 0x30 */
+#ifdef PORT /* PC build: by address, as the definition takes it (it only reads the struct; the PS2 passes a by-value struct of this size by address) */
+extern s32 EftImpact_SpawnBlast(EftIMarkArg *arg, f32 size, f32 unk);
+#define EftImpact_SpawnBlast(arg, size, unk) EftImpact_SpawnBlast(&(arg), size, unk)
+#else
 extern s32 EftImpact_SpawnBlast(EftIMarkArg arg, f32 size, f32 unk);
+#endif
 
 /* Spawners of the other particle modules (previous file), same shape as the four in this file. */
-extern void EftEmit_SpawnType0(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType2(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType16(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType17(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType18(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType14(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
-extern void EftEmit_SpawnType5(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, f32, f32, f32, Vec4 *, Vec4 *);
+extern void EftEmit_SpawnType0(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, Vec4 *, f32, f32, f32, Vec4 *);
+extern void EftEmit_SpawnType2(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, Vec4 *, Vec4 *, f32, f32, f32);
+extern void EftEmit_SpawnType16(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, Vec4 *, Vec4 *, f32, f32, f32);
+extern void EftEmit_SpawnType17(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, Vec4 *, Vec4 *, Vec4 *, f32, f32, f32);
+extern void EftEmit_SpawnType18(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, s32, Vec4 *, Vec4 *, f32, f32, f32);
+extern void EftEmit_SpawnType14(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, Vec4 *, Vec4 *, f32, f32, f32);
+extern void EftEmit_SpawnType5(EftEmitSet *, EftEmitHandles *, s32, s32, s32, s32, Vec4 *, Vec4 *, f32, f32, f32);
 
 /* Particle modules. Per module: create(arg block), parameter setters, set position (two variants), set size,
    set direction, kill, stop, "is alive". */
@@ -139,9 +148,24 @@ extern void *EftQuad_Create(EftArg9 *arg);
 extern void EftQuad_Stop(void *h);
 extern void EftQuad_SetFade(void *h, s32 v);
 extern void EftQuad_Kill(void *h);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftQuad_SetPos(void *h, Vec4 pos);
+#define EftQuad_SetPos(h, pos) EftQuad_SetPos(h, *(Vec4 *)(pos))
+#else
 extern void EftQuad_SetPos(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftQuad_Warp(void *h, Vec4 pos);
+#define EftQuad_Warp(h, pos) EftQuad_Warp(h, *(Vec4 *)(pos))
+#else
 extern void EftQuad_Warp(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftQuad_SetDir(void *h, Vec4 dir);
+#define EftQuad_SetDir(h, dir) EftQuad_SetDir(h, *(Vec4 *)(dir))
+#else
 extern void EftQuad_SetDir(void *h, Vec4 *dir);
+#endif
 extern void EftQuad_SetSize(void *h, f32 size);
 extern void EftQuad_SetTexPair(void *h, void *tex, s32 a, s32 b);
 extern void EftQuad_SetDelay(void *h, s32 v);
@@ -166,9 +190,24 @@ extern void *EftPart10_Create(EftArg10 *arg);
 extern void EftPart10_Stop(void *h);
 extern void EftPart10_SetFade(void *h, s32 v);
 extern void EftPart10_Kill(void *h);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftPart10_SetPos(void *h, Vec4 pos);
+#define EftPart10_SetPos(h, pos) EftPart10_SetPos(h, *(Vec4 *)(pos))
+#else
 extern void EftPart10_SetPos(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftPart10_Warp(void *h, Vec4 pos);
+#define EftPart10_Warp(h, pos) EftPart10_Warp(h, *(Vec4 *)(pos))
+#else
 extern void EftPart10_Warp(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftPart10_SetDir(void *h, Vec4 dir);
+#define EftPart10_SetDir(h, dir) EftPart10_SetDir(h, *(Vec4 *)(dir))
+#else
 extern void EftPart10_SetDir(void *h, Vec4 *dir);
+#endif
 extern void EftPart10_SetSize(void *h, f32 size);
 extern void EftPart10_SetDelay(void *h, s32 v);
 extern void EftPart10_SetHold(void *h, s32 v);
@@ -191,10 +230,30 @@ extern void *EftLink_Create(EftArg15 *arg);
 extern void EftLink_Stop(void *h);
 extern void EftLink_Kill(void *h);
 extern void EftLink_SetFade(void *h, s32 v);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_SetPos(void *h, Vec4 pos);
+#define EftLink_SetPos(h, pos) EftLink_SetPos(h, *(Vec4 *)(pos))
+#else
 extern void EftLink_SetPos(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_SetPos2(void *h, Vec4 pos2);
+#define EftLink_SetPos2(h, pos2) EftLink_SetPos2(h, *(Vec4 *)(pos2))
+#else
 extern void EftLink_SetPos2(void *h, Vec4 *pos2);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_Warp(void *h, Vec4 pos);
+#define EftLink_Warp(h, pos) EftLink_Warp(h, *(Vec4 *)(pos))
+#else
 extern void EftLink_Warp(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_SetDir(void *h, Vec4 dir);
+#define EftLink_SetDir(h, dir) EftLink_SetDir(h, *(Vec4 *)(dir))
+#else
 extern void EftLink_SetDir(void *h, Vec4 *dir);
+#endif
 extern void EftLink_SetSize(void *h, f32 size);
 extern void EftLink_SetDelay(void *h, s32 v);
 extern void EftLink_SetStopDelay(void *h, s32 v);
@@ -215,9 +274,24 @@ typedef struct EftArg12 {
 extern void *EftZap_Create(EftArg12 *arg);
 extern void EftZap_Kill(void *h);
 extern void EftZap_Stop(void *h);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftZap_SetPos(void *h, Vec4 pos);
+#define EftZap_SetPos(h, pos) EftZap_SetPos(h, *(Vec4 *)(pos))
+#else
 extern void EftZap_SetPos(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftZap_WarpPos(void *h, Vec4 pos);
+#define EftZap_WarpPos(h, pos) EftZap_WarpPos(h, *(Vec4 *)(pos))
+#else
 extern void EftZap_WarpPos(void *h, Vec4 *pos);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftZap_SetDir(void *h, Vec4 dir);
+#define EftZap_SetDir(h, dir) EftZap_SetDir(h, *(Vec4 *)(dir))
+#else
 extern void EftZap_SetDir(void *h, Vec4 *dir);
+#endif
 extern void EftZap_SetSize(void *h, f32 size);
 extern void EftZap_SetDelay(void *h, s32 v);
 extern void EftZap_SetFadeDelay(void *h, s32 v);
@@ -669,25 +743,25 @@ have_rate:
         }
         switch (type) {
         case 0:
-            EftEmit_SpawnType0(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType0(set, handles, flags, arg7, objId, idx, &p, size, scale, rate, &d);
             break;
         case 2:
-            EftEmit_SpawnType2(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType2(set, handles, flags, arg7, objId, idx, &p, &d, size, scale, rate);
             break;
         case 16:
-            EftEmit_SpawnType16(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType16(set, handles, flags, arg7, objId, idx, &p, &d, size, scale, rate);
             break;
         case 17:
-            EftEmit_SpawnType17(set, handles, flags, arg7, objId, node, idx, size, scale, rate, &p, pos, &d);
+            EftEmit_SpawnType17(set, handles, flags, arg7, objId, node, idx, &p, pos, &d, size, scale, rate);
             break;
         case 18:
-            EftEmit_SpawnType18(set, handles, flags, arg7, objId, node, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType18(set, handles, flags, arg7, objId, node, idx, &p, &d, size, scale, rate);
             break;
         case 14:
-            EftEmit_SpawnType14(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType14(set, handles, flags, arg7, objId, idx, &p, &d, size, scale, rate);
             break;
         case 5:
-            EftEmit_SpawnType5(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);
+            EftEmit_SpawnType5(set, handles, flags, arg7, objId, idx, &p, &d, size, scale, rate);
             break;
         case 9:
             EftEmit_SpawnType9(set, handles, flags, arg7, objId, idx, size, scale, rate, &p, &d);

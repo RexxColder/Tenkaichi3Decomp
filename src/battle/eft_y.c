@@ -48,7 +48,7 @@ extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 a
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
 extern u64 EftVram_AddImage(EftYTex *tex, s32 a, s32 b);
-extern s32 EftVram_AddClut(EftYTex *tex);
+extern u64 EftVram_AddClut(EftYTex *tex);
 extern EftYTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern s32 EftQuad_InitQuad(EftQuad *q, EftQuadWork *w); /* fills a new quad from the emitter's current values */
 

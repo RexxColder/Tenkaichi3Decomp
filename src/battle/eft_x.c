@@ -141,7 +141,7 @@ extern void EftGfx_DrawPolyFixedZ(EftXVert *verts, s32 arg1, s32 arg2, s32 arg3,
 extern void EftGfx_DrawPolyScaledZ(EftXVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
 extern u64 EftVram_AddImage(EftXTexEntry *tex, s32 a, s32 b);
-extern s32 EftVram_AddClut(EftXTexEntry *tex);
+extern u64 EftVram_AddClut(EftXTexEntry *tex);
 extern EftXTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void EftPart10_Update(EftXTask *task);                       /* the emitter class's update */
 

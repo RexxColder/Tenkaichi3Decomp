@@ -46,7 +46,7 @@ extern s32 BtlSkill_GetId(FxChr *chr, s32 slot);
 extern s32 BtlChar_GetHitSoundLine(s32 kind);
 extern s32 BtlObjAnim_GetEventArg(FxObj *obj, u64 mask);
 extern s32 BtlObjAnim_MaskToNode(s32 bits);
-extern s32 BtlObjAnim_QueryEvent(FxObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(FxObj *obj, u64 a, s32 b, s32 c);
 extern void BtlObj_GetNodeVelocity(FxObj *obj, s32 part, Vec4 *out);
 extern void Mtx_MulVec4(Vec4 *out, void *mtx, Vec4 *in);
 extern void EftSpdLine_SpawnPartStreaks(s32 objId, Vec4 *pos, s32 part);
