@@ -134,6 +134,10 @@ uint32_t RefVu0_ItofBits(int32_t v, int fracBits) {
 
 #else /* integer model */
 
+/* REF_VU0_EXTERN_ARITH: add, multiply and divide are supplied by the user of this file (the PC port selects its
+   float model in one place, port/src/softfloat_ps2.c); square root, conversion and compare stay here. */
+#ifndef REF_VU0_EXTERN_ARITH
+
 /* a + b. One guard bit, no sticky bit, truncation. */
 uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) {
     uint32_t ea = (a >> 23) & 0xFF;
@@ -255,6 +259,8 @@ uint32_t RefVu0_DivBits(uint32_t a, uint32_t b) {
     }
     return sign | ((uint32_t)e << 23) | (m & 0x7FFFFF);
 }
+
+#endif /* REF_VU0_EXTERN_ARITH */
 
 /* sqrt(|a|), truncated. */
 uint32_t RefVu0_SqrtBits(uint32_t a) {
