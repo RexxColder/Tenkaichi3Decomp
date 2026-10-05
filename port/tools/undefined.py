@@ -7,7 +7,7 @@ import eeconst
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OBJ = ROOT / "port/build/obj"
-CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msoft-float", "-mno-sse", "-mno-mmx", "-malign-double", "-include", "port_libm.h",
+CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O2", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msoft-float", "-mno-sse", "-mno-mmx", "-malign-double", "-include", "port_libm.h",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
@@ -42,7 +42,7 @@ def main():
     # PC-only code: the vector-library references under the game's names, and port/src.
     for f in sorted((ROOT / "port/third_party/newlib_libm").glob("*.c")):  # the PS2's maths library, software float
         o = OBJ / ("nl_" + f.stem + ".o")
-        r = compile_ee(["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-g", "-msoft-float", "-mno-sse", "-mno-mmx",
+        r = compile_ee(["gcc", "-m32", "-std=gnu89", "-c", "-O2", "-g", "-fno-pic", "-msoft-float", "-mno-sse", "-mno-mmx",
                         "-malign-double", "-fno-strict-aliasing", "-ffp-contract=off", "-fno-builtin", "-w",
                         "-Iport/include", f"-I{f.parent}", "-include", "newlib_shim.h"], f, o)
         if r.returncode:
@@ -65,7 +65,7 @@ def main():
     (gen / "shaders.h").write_text("/* generated from port/src/gs/shaders by port/tools/undefined.py */\n" + "".join(arrays))
     for f in sorted((ROOT / "port/src/gs").glob("*.c")):
         o = OBJ / ("gs_" + f.stem + ".o")
-        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
+        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
                             "-Wall", "-Wno-unused", "-Wno-misleading-indentation", f"-I{gen}", str(f), "-o", str(o)], cwd=ROOT,
                            capture_output=True, text=True)
         if r.returncode:
@@ -76,7 +76,7 @@ def main():
         o = OBJ / ("pc_" + f.stem + ".o")
         names = ["-include", "vu0_names.h", "-DREF_VU0_EXTERN_ARITH"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
         soft = [] if f.name == "plat_libm.c" else ["-msoft-float", "-mno-sse", "-mno-mmx", "-include", "math.h", "-include", "stdlib.h", "-include", "port_libm.h"]
-        cmd = ["gcc", "-m32", "-std=gnu99", "-c", "-O1", "-g", "-malign-double", "-fno-strict-aliasing",
+        cmd = ["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-fno-pic", "-malign-double", "-fno-strict-aliasing",
                "-ffp-contract=off", "-fno-builtin", "-w", "-Iinclude", "-Iport/include", "-Iport/src"] + soft + names
         if soft and not names:  # the port's own soft-float code: PS2 constants; the vector references are written for the host
             r = compile_ee(cmd, f, o)

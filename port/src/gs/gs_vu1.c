@@ -43,7 +43,7 @@ static struct {
 static unsigned sUnknown[2][128];
 static unsigned sStatRuns, sStatInstr, sStatKicks;
 
-static float clampf(float v) {
+static inline float clampf(float v) {
     uint32_t u;
     memcpy(&u, &v, 4);
     if ((u & 0x7F800000u) == 0x7F800000u) {
@@ -218,6 +218,9 @@ static void run(uint32_t start) {
 #define EACH for (c = 0; c < 4; c++) if (DEST(c))
 #define TO_FD wr = &vu.vf[fd]; wmask = dest
 #define TO_ACC wacc = 1; wmask = dest
+        if (hi == 0x000002FFu) {
+            goto upper_done; /* NOP: three quarters of the programs' upper instructions */
+        }
         res = op >= 0x3C ? vu.acc : vu.vf[fd];
         if (op < 0x3C) {
             switch (op) {
@@ -303,8 +306,9 @@ static void run(uint32_t start) {
             default: sUnknown[0][64 + (sp & 63)]++; break;
             }
         }
+upper_done:
         /* ---- lower instruction ---- */
-        if (lower) {
+        if (lower && lo != 0x8000033Cu) { /* 0x8000033C: the lower NOP (move vf0, vf0) */
             uint32_t lop = lo >> 25, it = (lo >> 16) & 31, is = (lo >> 11) & 31, id = (lo >> 6) & 31, ld = (lo >> 21) & 15;
             int32_t imm11 = (int32_t)(lo << 21) >> 21;
             uint32_t imm15 = ((lo >> 10) & 0x7800) | (lo & 0x7FF);

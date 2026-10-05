@@ -85,7 +85,6 @@ static Vtx *sVerts;
 static uint32_t sVertCount;
 static Draw *sDraws;
 static uint32_t sDrawCount;
-static uint64_t sNextFrameNs;
 static unsigned sNative; /* native effect markers seen this frame */
 static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
@@ -122,7 +121,18 @@ int GsGpu_Init(void) {
         fprintf(stderr, "bt3: no GPU window: %s\n", SDL_GetError());
         return 0;
     }
-    SDL_SetGPUSwapchainParameters(sDev, sWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
+    /* The game paces itself at 30 frames per second; waiting for the display's own refresh on top of that
+       (VSYNC) costs up to a refresh period per frame. Prefer MAILBOX (no tearing, no wait), then IMMEDIATE. */
+    {
+        SDL_GPUPresentMode mode = SDL_GPU_PRESENTMODE_VSYNC;
+        if (SDL_WindowSupportsGPUPresentMode(sDev, sWindow, SDL_GPU_PRESENTMODE_MAILBOX)) {
+            mode = SDL_GPU_PRESENTMODE_MAILBOX;
+        } else if (SDL_WindowSupportsGPUPresentMode(sDev, sWindow, SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+            mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+        }
+        SDL_SetGPUSwapchainParameters(sDev, sWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode);
+        fprintf(stderr, "bt3: present mode %s\n", mode == SDL_GPU_PRESENTMODE_MAILBOX ? "mailbox" : mode == SDL_GPU_PRESENTMODE_IMMEDIATE ? "immediate" : "vsync");
+    }
     sVs = shader(kGsVertSpv, sizeof(kGsVertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
     sFs = shader(kGsFragSpv, sizeof(kGsFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     if (sVs == NULL || sFs == NULL) {
@@ -798,14 +808,4 @@ void GsGpu_FrameEnd(void) {
     sDrawCount = 0;
     sSkipped = 0;
     sNative = 0;
-    /* the game runs at 30 frames per second (two vertical blanks per frame) */
-    {
-        uint64_t now = SDL_GetTicksNS();
-        if (sNextFrameNs > now && sNextFrameNs - now < 100000000ull) {
-            SDL_DelayPrecise(sNextFrameNs - now);
-            sNextFrameNs += 33366700ull;
-        } else {
-            sNextFrameNs = now + 33366700ull;
-        }
-    }
 }

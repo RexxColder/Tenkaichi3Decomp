@@ -21,7 +21,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <string.h>
+#include <time.h>
 #include "gs_internal.h"
 
 #define SURF_W 1024
@@ -822,6 +824,67 @@ static void screenshot(void) {
     sFrame++;
 }
 
+/* ---- The render thread (GPU back end only).
+   On the PS2 the frame's list is executed by DMA while the CPU already runs the next frame's game logic; the game
+   is built for that (two list buffers, and it waits for the previous list before sending the next one). The PC
+   build does the same: the game thread hands a finished list to this thread and goes on; anything else that
+   touches the GS (uploads on the GIF channel, the per-frame clear) first waits until the thread is idle, which
+   is the game's own sceGsSyncPath point. The window and all drawing belong to this thread. ---- */
+static pthread_t sThread;
+static pthread_mutex_t sLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t sWake = PTHREAD_COND_INITIALIZER, sDone = PTHREAD_COND_INITIALIZER;
+static int sThreaded;
+static int sJob;            /* 0 none, 1 start the GPU back end, 2 run a list */
+static uint32_t sJobTadr;
+static int sJobTte, sInitResult;
+static void run_chain(uint32_t tadr, int tte);
+
+static void *render_thread(void *arg) {
+    (void)arg;
+    pthread_mutex_lock(&sLock);
+    for (;;) {
+        while (sJob == 0) {
+            pthread_cond_wait(&sWake, &sLock);
+        }
+        if (sJob == 1) {
+            sInitResult = GsGpu_Init();
+        } else {
+            uint32_t tadr = sJobTadr;
+            int tte = sJobTte;
+            pthread_mutex_unlock(&sLock);
+            run_chain(tadr, tte);
+            pthread_mutex_lock(&sLock);
+        }
+        sJob = 0;
+        pthread_cond_broadcast(&sDone);
+    }
+    return NULL;
+}
+
+/* Blocks until the render thread has nothing to do. */
+static void render_wait(void) {
+    pthread_mutex_lock(&sLock);
+    while (sJob != 0) {
+        pthread_cond_wait(&sDone, &sLock);
+    }
+    pthread_mutex_unlock(&sLock);
+}
+
+static void render_post(int job, uint32_t tadr, int tte) {
+    pthread_mutex_lock(&sLock);
+    sJob = job;
+    sJobTadr = tadr;
+    sJobTte = tte;
+    pthread_cond_signal(&sWake);
+    pthread_mutex_unlock(&sLock);
+}
+
+static uint64_t now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
 static int gs_on(void) {
     static int on = -1;
 
@@ -835,7 +898,17 @@ static int gs_on(void) {
             sscanf(getenv("BT3_GS_PROBE"), "%d,%d", &sProbeX, &sProbeY);
         }
         if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
-            sGpu = GsGpu_Init(); /* falls back to the software rasteriser when no GPU device can be made */
+            /* BT3_GS_THREAD=1: the back end and the list run on the render thread (experimental: the game was seen
+               to change data a list still refers to, which shows as a jumping camera). Default: this thread. */
+            sThreaded = getenv("BT3_GS_THREAD") != NULL;
+            if (sThreaded) {
+                pthread_create(&sThread, NULL, render_thread, NULL);
+                render_post(1, 0, 0);
+                render_wait();
+                sGpu = sInitResult;
+            } else {
+                sGpu = GsGpu_Init();
+            }
         }
     }
     return on;
@@ -848,6 +921,9 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
 
     if (!gs_on()) {
         return;
+    }
+    if (sThreaded) {
+        render_wait(); /* the GS is one device: this transfer goes after the list that is being drawn */
     }
     if (!chain) {
         Gs_Gif((const uint8_t *)(uintptr_t)addr, qwc);
@@ -872,12 +948,55 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
 
 /* Carries out a source-chain transfer on VIF1 that starts at `tadr` (PS2 address = host address). */
 void Port_GsVif1Chain(uint32_t tadr, int tte) {
-    uint32_t stack[2], sp = 0;
-    int guard;
+    static uint64_t next, start, sum, worst;
+    static unsigned n, over;
+    uint64_t t;
 
     if (!gs_on()) {
         return;
     }
+    if (!sGpu) {
+        run_chain(tadr, tte);
+        return;
+    }
+    if (sThreaded) {
+        render_wait(); /* the previous list must be finished before this one starts (the PS2's sceGsSyncPath) */
+    } else {
+        run_chain(tadr, tte);
+    }
+    /* The frame's work ends here. Time it (BT3_GS_VERBOSE), then keep 30 frames per second. */
+    t = now_ns();
+    if (start != 0) {
+        uint64_t work = t - start;
+        sum += work;
+        if (work > worst) { worst = work; }
+        if (work > 33366700ull) { over++; }
+        if (++n == 60) {
+            if (getenv("BT3_GS_VERBOSE") != NULL) {
+                fprintf(stderr, "time: frame %u: work per frame: average %.1f ms, worst %.1f ms, %u of 60 over the 33.4 ms budget\n",
+                        sFrame, (double)sum / 60e6, (double)worst / 1e6, over);
+            }
+            n = 0; sum = 0; worst = 0; over = 0;
+        }
+    }
+    if (next > t && next - t < 100000000ull) {
+        struct timespec ts = {0, (long)(next - t)};
+        nanosleep(&ts, NULL);
+        next += 33366700ull;
+    } else {
+        next = t + 33366700ull;
+    }
+    start = now_ns();
+    if (sThreaded) {
+        render_post(2, tadr, tte);
+    }
+}
+
+/* Executes one frame's list: the DMA chain at `tadr` on VIF1, then the end-of-frame work of the back end. */
+static void run_chain(uint32_t tadr, int tte) {
+    uint32_t stack[2], sp = 0;
+    int guard;
+
     for (guard = 0; guard < 100000; guard++) {
         const uint32_t *tag = (const uint32_t *)(uintptr_t)tadr;
         uint32_t qwc = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7, addr = tag[1]; /* a host pointer: all 32 bits */

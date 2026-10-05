@@ -508,6 +508,29 @@ Not matched exactly: the PS2 line's thickness and strength (it draws the edge im
 times, one line up, one down and centred, with different alphas); decoded textures keep
 alpha rescaled, so an id passes through a rounding step (looked right, not proven exact).
 
+## Frame time (2026-10-06)
+
+Measured (`BT3_GS_VERBOSE` prints "time:" every 60 frames; `perf record` for the split), on
+the development machine, replay01 in the window:
+- The picture is CPU-bound on one thread; the graphics card is idle. In the fight a frame
+  takes about 23 to 32 ms of work against a budget of 33.4 ms, so 30 frames per second is
+  held most of the time and missed on a quarter to a third of the frames in the heavier
+  stretches.
+- Where it goes (after the fixes below): the VU1 interpreter about 45 % plus UNPACK 9 %,
+  GS front end (GIF decoding, page hashes, GS memory writes for uploads) about 15 %, the GPU
+  back end's recording 4 %, the game with its software float the rest.
+Done: texture cache by content (was 30 %), last-texture shortcut, everything compiled -O2
+and without PIC (the replay still reproduces the console's fight exactly), the upper and
+lower NOPs of the vertex programs skipped, present mode MAILBOX (VSYNC added a wait for the
+display on top of the game's own 30 Hz pacing). Pacing and timing now sit in gs_core.c.
+Tried and switched off: a render thread (BT3_GS_THREAD=1). It is how the PS2 works (DMA
+executes the list while the CPU runs the next frame), but here the list is still being
+interpreted when the game changes data the list refers to; the user saw the camera jump.
+It also gained little, because the renderer's own time (about 25 ms) is what sets the pace.
+Next: the interpreter itself (pre-decoding the microcode when it is uploaded, whole-vector
+operations for the full-mask cases, a straight copy for unmasked V4-32 UNPACK), and later
+the shader versions of the programs, which remove this cost altogether.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
