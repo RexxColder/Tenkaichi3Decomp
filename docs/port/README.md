@@ -79,6 +79,19 @@ Open points for bit-exact simulation, none solved yet:
 - libm (sinf, tanf, asinf, acosf, atanf, atan2f) and libc rand() are the SDK's newlib
   versions on the PS2; the host's give different bits. The PC build needs its own exact copies.
 
+## First link (2026-10-05, late)
+
+`port/tools/link.py` links all objects with generated stubs for the 238 symbols nobody
+provides yet (a stub prints its name and exits) into port/build/bt3, a 32-bit Linux
+executable. It links without duplicate or undefined symbols and runs the game's own `main`
+up to its first SDK call (`sceSifInitRpc`). C library and libm calls go to the host for now.
+Build order: gen_data.py, undefined.py, link.py. Running the executable and implementing
+whatever stub it names next is the working loop for the platform layer.
+The symbols game code itself needs (not only library data tables) are about 130: CRI ADX
+(31), Sony file / CD / SIF / kernel (about 35), GS and MPEG (about 20), pad and vibration
+(8), libc / libm (about 25), the nine VU1 microprograms and a few tables, the menu overlay's
+entry points (the overlay is not part of this link yet), four VU0 assembly routines.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

@@ -6,7 +6,7 @@ import portsrc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OBJ = ROOT / "port/build/obj"
-CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w",
+CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msse2", "-mfpmath=sse",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
