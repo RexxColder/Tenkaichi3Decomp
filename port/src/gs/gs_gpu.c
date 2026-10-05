@@ -1406,6 +1406,18 @@ static void frame_end(void) {
         if (every < 0) {
             every = getenv("BT3_SHOT") != NULL ? atoi(getenv("BT3_SHOT")) : 0;
         }
+        {   /* BT3_SHOT_VBLANK=<n>: one screenshot at the first frame shown at or after that vertical blank (the
+               clock of the headless traces, so a console save state's tick can be matched) */
+            extern unsigned gPortVBlanks;
+            static int done;
+            if (!done && getenv("BT3_SHOT_VBLANK") != NULL && gPortVBlanks >= (unsigned)atoi(getenv("BT3_SHOT_VBLANK"))) {
+                done = 1;
+                every = 1;
+                fprintf(stderr, "bt3: screenshot at vertical blank %u = frame %u\n", gPortVBlanks, gGsFrame);
+            } else if (getenv("BT3_SHOT_VBLANK") != NULL) {
+                every = 0;
+            }
+        }
         /* BT3_SHOT_FROM / BT3_SHOT_TO limit the frames */
         if (every > 0 && gGsFrame % (unsigned)every == 0 && best >= 0 && sTargets[best].cleared &&
             (getenv("BT3_SHOT_FROM") == NULL || (int)gGsFrame >= atoi(getenv("BT3_SHOT_FROM"))) &&
