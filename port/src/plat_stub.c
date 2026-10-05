@@ -91,15 +91,47 @@ int scePad2GetButtonProfile(int socket, unsigned char *profile) {
    active-low; the sticks rest at 0x80. */
 extern int Port_PadRead(int socket, unsigned char *data);
 
+/* Recording and playing back a whole session's controller input:
+       BT3_PAD_REC=<file>    every pad read of this run is appended to the file (18 bytes per read, both ports)
+       BT3_PAD_PLAY=<file>   the reads are answered from the file instead; after its end the pads are idle
+   The game reads the pads a fixed number of times per vertical blank and everything else is deterministic, so a
+   recording made from the title screen replays the same menus and the same fight, with or without a window
+   (given the same save folder to start from). For reproducing what a player saw. */
+static FILE *sPadRec, *sPadPlay;
+static int sPadFilesTried;
+
 int scePad2Read(int socket, unsigned char *data) {
     int i;
 
-    if (Port_PadRead(socket, data)) {
+    if (!sPadFilesTried) {
+        sPadFilesTried = 1;
+        if (getenv("BT3_PAD_PLAY") != NULL) {
+            sPadPlay = fopen(getenv("BT3_PAD_PLAY"), "rb");
+        } else if (getenv("BT3_PAD_REC") != NULL) {
+            sPadRec = fopen(getenv("BT3_PAD_REC"), "wb");
+        }
+    }
+    if (sPadPlay != NULL) {
+        if (fread(data, 1, 18, sPadPlay) == 18) {
+            return 18;
+        }
+        fclose(sPadPlay);
+        sPadPlay = NULL;
+        fprintf(stderr, "bt3: the recorded input has ended\n");
+    } else if (Port_PadRead(socket, data)) {
+        if (sPadRec != NULL) {
+            fwrite(data, 1, 18, sPadRec);
+            fflush(sPadRec);
+        }
         return 18;
     }
     data[0] = 0xFF; data[1] = 0xFF;
     for (i = 2; i < 6; i++) { data[i] = 0x80; }
     for (i = 6; i < 18; i++) { data[i] = 0; }
+    if (sPadRec != NULL) {
+        fwrite(data, 1, 18, sPadRec);
+        fflush(sPadRec);
+    }
     return 18;
 }
 int sceVibGetProfile() { return 0; }
