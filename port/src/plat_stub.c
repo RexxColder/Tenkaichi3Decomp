@@ -16,16 +16,13 @@ int sceSifQueryTotalFreeMemSize() { return 0x100000; }
 int sceSifQueryMaxFreeMemSize() { return 0x100000; }
 /* The bind is answered at once: sceSifClientData.serve (offset 0x24) becomes non-NULL. */
 int sceSifBindRpc(void *client, int id, int mode) { (void)id; (void)mode; *(void **)((uint8_t *)client + 0x24) = client; return 0; }
-int sceSifCallRpc() { return 0; }      /* the reply buffer stays as the caller left it */
 int func_002B4AF0() { return 0; }      /* sceSifCheckStatRpc: never busy */
-uint32_t sceSifSetDma() { return 1; }
+/* sceSifCallRpc, sceSifSetDma, sceSdRemote: the sound effects, port/src/gs/snd_se.c */
 int sceSifDmaStat() { return -1; }     /* transfer finished */
 
 /* ---- sound driver ---- */
 int sceSdRemoteInit() { return 0; }
 int func_00296B48() { return 0; }      /* sceSdRemoteCallbackInit */
-/* sceSdRemote: the sample-upload status query (rSdVoiceTransStatus, 0x80F0) answers "finished". */
-int func_002967C0(int block, int cmd) { (void)block; return cmd == 0x80F0 ? 1 : 0; }
 
 /* ---- CRI ADXT stream players ---- */
 /* ---- CRI ADXT (streamed music and voices): port/src/gs/snd_adx.c ---- */
