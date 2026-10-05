@@ -39,6 +39,7 @@ typedef struct Target {
     int cleared;
     unsigned draws; /* this frame */
     uint32_t gen;   /* upload generation of its first page when it was last drawn to */
+    int stale;      /* a pass that should have filled it was dropped: its contents are not what the game expects */
 } Target;
 
 typedef struct Tex {
@@ -475,6 +476,8 @@ static void put(const GsVertex *v, float x, float y, float s, float t, float q, 
    tests, scissor). Returns 0 when the primitive belongs to a pass that is not drawn here. `sprite` = the primitive
    is a sprite; `vu` selects the pipeline family (0: GS vertices, 1: vertex program 0's vertices). us / vs: scale
    of texture coordinates when the texture is a frame buffer. */
+extern int gGsMainFbp;
+
 static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us, float *vs) {
     uint64_t prim = gGs.prim, t0 = gGs.tex0[ctx], test = gGs.test[ctx], cl = gGs.clamp[ctx], sc = gGs.scissor[ctx];
     int tme = (prim >> 4) & 1, src;
@@ -494,6 +497,10 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
             return 0;
         }
         if (tme && ((tpsm & 0x30) == 0x30 || tbp / 32 == zbp || tpsm == 0x1B || tpsm == 0x24 || tpsm == 0x2C)) {
+            int t = target_get(fbp, 0);
+            if (t >= 0 && fbp != (uint32_t)gGsMainFbp) {
+                sTargets[t].stale = 1; /* a work buffer missed a pass */
+            }
             sSkipped++;
             return 0;
         }
@@ -504,10 +511,22 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
         return 0;
     }
     d->tex = sWhite;
+    if (!tme && sprite) {
+        sTargets[d->target].stale = 0; /* cleared by the game: what is drawn into it from here on is real */
+    }
     if (tme) {
         src = target_get((uint32_t)((t0 & 0x3FFF) / 32), 0);
         /* a frame buffer used as a texture: only if nothing was uploaded over it since it was drawn */
         if (src >= 0 && (t0 & 0x1F) == 0 && sTargets[src].cleared && sTargets[src].gen == gGsPageGen[sTargets[src].fbp & 511]) {
+            if (sprite && d->target != src && (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp) {
+                sTargets[d->target].stale = 1; /* the copy into this work buffer is dropped below */
+            }
+            if (sTargets[src].stale) {
+                /* The buffer was meant to hold a copy or a step of an effect that was dropped; what it holds now
+                   is whatever was drawn there before (seen as blocks of noise over the picture). */
+                sSkipped++;
+                return 0;
+            }
             if (src == d->target || sprite) {
                 /* A sprite that copies one frame buffer into another (or into itself) is a step of a full-screen
                    effect (glare's shrink / blur / add chain, blur feedback): those get native versions. Triangles
@@ -867,7 +886,10 @@ void GsGpu_FrameEnd(void) {
         if (every < 0) {
             every = getenv("BT3_SHOT") != NULL ? atoi(getenv("BT3_SHOT")) : 0;
         }
-        if (every > 0 && gGsFrame % (unsigned)every == 0 && best >= 0 && sTargets[best].cleared) {
+        /* BT3_SHOT_FROM / BT3_SHOT_TO limit the frames */
+        if (every > 0 && gGsFrame % (unsigned)every == 0 && best >= 0 && sTargets[best].cleared &&
+            (getenv("BT3_SHOT_FROM") == NULL || (int)gGsFrame >= atoi(getenv("BT3_SHOT_FROM"))) &&
+            (getenv("BT3_SHOT_TO") == NULL || (int)gGsFrame <= atoi(getenv("BT3_SHOT_TO")))) {
             SDL_GPUTransferBufferCreateInfo ti;
             SDL_GPUTransferBuffer *tb;
             SDL_GPUTextureRegion src;
