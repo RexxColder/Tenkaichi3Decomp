@@ -80,7 +80,9 @@ def lex(text):
             out.append(("k", parse_hexf(t)))
         elif g == "int":
             digits = re.match(r"0[xX][0-9a-fA-F]+|\d+", t).group(0)
-            out.append(("k", K(Fraction(int(digits, 0)), 'i', t)))
+            # a leading 0 is C's octal (0644, 01), which Python's base 0 rejects
+            val = int(digits, 8) if len(digits) > 1 and digits[0] == '0' and digits[1] not in 'xX' else int(digits, 0)
+            out.append(("k", K(Fraction(val), 'i', t)))
         elif g in ("str", "line", "ws"):
             out.append((g, t))
         elif g == "id":
