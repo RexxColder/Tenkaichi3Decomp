@@ -95,7 +95,7 @@ static Vu0Uniform *sVuUni;
 static uint32_t sVuUniCount;
 static SDL_GPUBuffer *sVuVbuf;
 static SDL_GPUTransferBuffer *sVuXfer;
-static SDL_GPUShader *sVu0Vs;
+static SDL_GPUShader *sVu0Vs, *sVu4Vs;
 static Vtx *sVerts;
 static uint32_t sVertCount;
 static Draw *sDraws;
@@ -173,6 +173,7 @@ int GsGpu_Init(void) {
         sSamplers[i] = SDL_CreateGPUSampler(sDev, &si);
     }
     sVu0Vs = shader(kVu0VertSpv, sizeof(kVu0VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    sVu4Vs = shader(kVu4VertSpv, sizeof(kVu4VertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     bi.size = MAX_VU_VERTS * 48;
     sVuVbuf = SDL_CreateGPUBuffer(sDev, &bi);
     ti.size = MAX_VU_VERTS * 48;
@@ -408,7 +409,7 @@ static int pipeline_get(int ctx, int topo, int vu) {
         cd.blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
         cd.blend_state.enable_color_write_mask = true;
     }
-    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20;
+    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20; /* vu: 0 GS vertices, 1 program 0, 2 program 4 */
     for (i = 0; i < sPipeCount; i++) {
         if (sPipes[i].key == key) {
             return i;
@@ -432,7 +433,7 @@ static int pipeline_get(int ctx, int topo, int vu) {
         at[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[1].offset = 16;
         at[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[2].offset = 32;
     }
-    ci.vertex_shader = vu ? sVu0Vs : sVs;
+    ci.vertex_shader = vu == 2 ? sVu4Vs : vu ? sVu0Vs : sVs;
     ci.fragment_shader = sFs;
     ci.vertex_input_state.vertex_buffer_descriptions = &vb;
     ci.vertex_input_state.num_vertex_buffers = 1;
@@ -619,6 +620,45 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     } else {
         sDraws[sDrawCount++] = d;
     }
+}
+
+/* Vertex program 4 as a shader: one strip of stage geometry (see shaders/vu4.vert). Vertices: position, colour
+   (0..255 floats), texture coordinates, 48 bytes; the screen matrix is VU memory 0..3. */
+void GsGpu_DrawVu4(int ctx, const float *vertices, uint32_t count, const float *consts) {
+    Vu0Uniform u;
+    Draw d, *last;
+    float us, vs;
+    uint32_t i, k;
+
+    if (count < 3 || sVuVertCount + (count - 2) * 3 > MAX_VU_VERTS || sDrawCount == MAX_DRAWS || sVuUniCount == MAX_VU_UNIFORMS) {
+        return;
+    }
+    if (!draw_state(ctx, 0, 0, 2, &d, &us, &vs)) {
+        return;
+    }
+    memset(&u, 0, sizeof(u));
+    memcpy(u.screen, &consts[0], 64);
+    u.misc[0] = (float)(gGs.xyoffset[ctx] & 0xFFFF) / 16.0f;
+    u.misc[1] = (float)((gGs.xyoffset[ctx] >> 32) & 0xFFFF) / 16.0f;
+    u.misc[2] = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
+    d.vu = 2;
+    d.first = sVuVertCount;
+    for (i = 0; i + 2 < count; i++) { /* strip -> list */
+        for (k = 0; k < 3; k++) {
+            memcpy(&sVuVerts[sVuVertCount++ * 12], &vertices[(i + k) * 12], 48);
+        }
+    }
+    d.count = sVuVertCount - d.first;
+    sTargets[d.target].draws++;
+    sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
+    last = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+    if (last != NULL && same_state(last, &d) && memcmp(&sVuUni[last->uniform], &u, sizeof(u)) == 0) {
+        last->count += d.count;
+        return;
+    }
+    d.uniform = (int)sVuUniCount;
+    sVuUni[sVuUniCount++] = u;
+    sDraws[sDrawCount++] = d;
 }
 
 /* Vertex program 0 as a shader: one strip of the fighters' models (see shaders/vu0.vert and gs_vu1.c). The strip
@@ -833,11 +873,11 @@ void GsGpu_FrameEnd(void) {
             cur = d->target;
             bound = -1;
         }
-        if (bound != d->vu) {
+        if (bound != (d->vu != 0)) {
             vb.buffer = d->vu ? sVuVbuf : sVbuf;
             vb.offset = 0;
             SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
-            bound = d->vu;
+            bound = d->vu != 0;
         }
         if (d->vu) {
             SDL_PushGPUVertexUniformData(cmd, 0, &sVuUni[d->uniform], sizeof(Vu0Uniform));

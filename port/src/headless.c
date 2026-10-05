@@ -151,6 +151,51 @@ void Port_Trace(unsigned vblanks) {
         BtlCharApi_GetPos(i, p[i]);
         memcpy(u[i], p[i], 12);
     }
+    /* BT3_CAMCHECK=<vblank>: test the pad fighter's line of sight (camera eye -> camera target) against EVERY
+       triangle of the stage collision mesh, and say what the game's own sweep answers for the same segment. */
+    if (getenv("BT3_CAMCHECK") != NULL && vblanks == (unsigned)atoi(getenv("BT3_CAMCHECK"))) {
+        extern void *BtlChar_FindByObjId(int objId);
+        extern struct { int nodeCount, unk4, unk8, nodeOfs, polyOfs, vtxOfs; } *gStgColMesh;
+        extern void *ColMesh_GetPoly(void *mesh, int idx);
+        extern void ColMesh_GetPolyVerts(void *mesh, void *poly, float *v0, float *v1, float *v2);
+        extern int BtlCam_TraceStage(float *out, float *from, float *to, float *frac, int *hitObj);
+        char *chr = BtlChar_FindByObjId(0);
+        float *eye = (float *)(chr + 0x420), *tgt = (float *)(chr + 0x450);
+        float v0[4] __attribute__((aligned(16))), v1[4] __attribute__((aligned(16))), v2[4] __attribute__((aligned(16)));
+        float out[4] __attribute__((aligned(16))), frac = -1.0f;
+        int n = gStgColMesh->unk4, hits = 0, obj = -1, k, r; /* unk4: taken as the polygon count */
+        double d[3] = {tgt[0] - eye[0], tgt[1] - eye[1], tgt[2] - eye[2]};
+
+        printf("camcheck: vblank %u, eye (%.2f %.2f %.2f) target (%.2f %.2f %.2f), %d polygons (counts in the header: %d, %d)\n", vblanks,
+               (double)eye[0], (double)eye[1], (double)eye[2], (double)tgt[0], (double)tgt[1], (double)tgt[2], n, gStgColMesh->unk4,
+               gStgColMesh->unk8);
+        for (k = 0; k < n; k++) {
+            double e1[3], e2[3], pv[3], tv[3], qv[3], det, u, v, t;
+            int j;
+            ColMesh_GetPolyVerts(gStgColMesh, ColMesh_GetPoly(gStgColMesh, k), v0, v1, v2);
+            for (j = 0; j < 3; j++) { e1[j] = v1[j] - v0[j]; e2[j] = v2[j] - v0[j]; tv[j] = eye[j] - v0[j]; }
+            pv[0] = d[1] * e2[2] - d[2] * e2[1]; pv[1] = d[2] * e2[0] - d[0] * e2[2]; pv[2] = d[0] * e2[1] - d[1] * e2[0];
+            det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
+            if (det > -1e-9 && det < 1e-9) { continue; }
+            u = (tv[0] * pv[0] + tv[1] * pv[1] + tv[2] * pv[2]) / det;
+            qv[0] = tv[1] * e1[2] - tv[2] * e1[1]; qv[1] = tv[2] * e1[0] - tv[0] * e1[2]; qv[2] = tv[0] * e1[1] - tv[1] * e1[0];
+            v = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) / det;
+            t = (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) / det;
+            if (u >= 0 && v >= 0 && u + v <= 1 && t >= 0 && t <= 1) {
+                unsigned flags;
+                memcpy(&flags, ColMesh_GetPoly(gStgColMesh, k), 4);
+                if (hits++ < 6) {
+                    printf("camcheck:   polygon %d crosses the line of sight at %.3f of the way (first word %08x)\n", k, t, flags);
+                }
+            }
+        }
+        r = BtlCam_TraceStage(out, eye, tgt, &frac, &obj);
+        printf("camcheck: %d polygons cross the line of sight; the game's sweep (eye -> target) returns %d, fraction %.3f, zone %d\n", hits, r,
+               (double)frac, obj);
+        r = BtlCam_TraceStage(out, tgt, eye, &frac, &obj);
+        printf("camcheck: the game's sweep the other way (target -> eye) returns %d, fraction %.3f, zone %d\n", r, (double)frac, obj);
+        fflush(stdout);
+    }
     {   /* the pad fighter's camera: eye position (fighter block + 0x420) against the ground height under the fighter */
         extern float BtlCharApi_GetGroundY(int objId);
         extern void *BtlChar_FindByObjId(int objId);

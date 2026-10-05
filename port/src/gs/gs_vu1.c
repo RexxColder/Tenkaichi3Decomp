@@ -473,6 +473,28 @@ static int hle_program0(void) {
     return 1;
 }
 
+/* Program 4 (the stage; 399 instructions uploaded). After MSCALF 0 the first MSCNT only takes a one-quadword
+   object header; every later MSCNT is a batch: +0 GIF tag "one A+D register" with EOP, +1 its data (the texture),
+   +2 the primitive tag (NLOOP = vertices, PRIM in the tag, registers ST, RGBAQ, XYZ2), +3 the vertices, three
+   quadwords each (position, colour as floats, texture coordinates). One batch is one strip. */
+static int sP4Batches; /* MSCNTs since the last MSCALF */
+
+static int hle_program4(void) {
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count;
+
+    memcpy(tag, &vu.mem[(top + 2) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 3 + count * 3 > 1024) {
+        return 0;
+    }
+    Gs_Gif(&vu.mem[top * 16], 2);
+    Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF);
+    GsGpu_DrawVu4((int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 3) * 16], count, (const float *)vu.mem);
+    sStatKicks++;
+    return 1;
+}
+
 /* MSCAL / MSCALF (addr = instruction address) or MSCNT (addr < 0: continue where the last run stopped). */
 void GsVu1_Call(int addr) {
     vu.top = vu.tops;
@@ -500,6 +522,24 @@ void GsVu1_Call(int addr) {
                 fprintf(stderr, "  top+%2u: %08x %08x %08x %08x  %10.4g %10.4g %10.4g %10.4g\n", q, w[0], w[1], w[2], w[3], f[0], f[1], f[2], f[3]);
             }
         }
+    }
+    if (sProgSize == 399 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        if (addr >= 0) {          /* MSCALF 0: constants only */
+            sP4Batches = 0;
+            sHle++;
+            return;
+        }
+        if (sP4Batches++ == 0) {  /* the object header: only the clipper used it */
+            sHle++;
+            return;
+        }
+        if (hle_program4()) {
+            sHle++;
+            return;
+        }
+        /* a batch the shader path cannot take: the interpreter needs the state the skipped calls would have left */
+        run(0);
+        vu.pc = 21;
     }
     if (sProgSize == 127 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         /* MSCALF 0 only prepares derived constants (the shader derives them itself); every MSCNT is one batch */
