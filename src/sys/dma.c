@@ -95,7 +95,12 @@ void *Dma_Alloc(s32 size) {
 u64 *Dma_BeginDirect(void) {
     u128 *tag = (u128 *)gDmaCur;
 
+#ifdef PORT
+    tag->lo = 0;
+    tag->hi = 0;
+#else
     *tag = 0;
+#endif
     return (u64 *)(tag + 1);
 }
 
