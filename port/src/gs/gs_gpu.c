@@ -161,7 +161,20 @@ int GsGpu_Init(void) {
         return 0;
     }
     sDev = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, getenv("BT3_GPU_DEBUG") != NULL, NULL);
-    sWindow = sDev ? SDL_CreateWindow("Budokai Tenkaichi 3 (port)", 512 * SCALE, 448 * SCALE, SDL_WINDOW_RESIZABLE) : NULL;
+    {
+        /* The window has the picture's shape: 448 lines times the multiplier high, 4:3 or 16:9 wide (1195 x 896 or
+           1593 x 896 at 2x), and keeps that shape when it is resized. BT3_WINDOW=WxH gives another start size. */
+        extern int Port_IsWide(void);
+        float want = Port_IsWide() ? 16.0f / 9.0f : 4.0f / 3.0f;
+        int h = 448 * SCALE, w = (int)((float)h * want + 0.5f);
+        if (getenv("BT3_WINDOW") != NULL) {
+            sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h);
+        }
+        sWindow = sDev ? SDL_CreateWindow("Budokai Tenkaichi 3 (port)", w, h, SDL_WINDOW_RESIZABLE) : NULL;
+        if (sWindow != NULL) {
+            SDL_SetWindowAspectRatio(sWindow, want, want);
+        }
+    }
     if (sWindow == NULL || !SDL_ClaimWindowForGPUDevice(sDev, sWindow)) {
         fprintf(stderr, "bt3: no GPU window: %s\n", SDL_GetError());
         return 0;
