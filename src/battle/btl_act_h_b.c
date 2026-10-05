@@ -42,11 +42,11 @@ s32 BtlAct_Throw(BtlActHChr *chr, s32 phase) {
     if (phase == 1) {
         switch (BtlAnim_GetId(chr)) {
         case 0x96:
-            BtlAnim_AdvanceThen(chr, 0x98, 1, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x98, 0.0f, 1);
             BtlChar_SetFlag(chr, 0x8B);
             break;
         case 0x188:
-            BtlAnim_AdvanceThen(chr, 0x18A, 1, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x18A, 0.0f, 1);
             BtlChar_SetFlag(chr, 0x8B);
             break;
         case 0x98:
@@ -167,7 +167,7 @@ void BtlAct_SlamThrow(BtlActHChr *chr, s32 phase) {
         rise = 0;
         switch (BtlAnim_GetId(chr)) {
         case 0x96:
-            BtlAnim_AdvanceThen(chr, 0x99, 1, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x99, 0.0f, 1);
             if (BtlAnim_GetProgress(chr) > 0.9f) {
                 rise = 1;
             }
@@ -289,7 +289,7 @@ s32 BtlAct_SlamThrown(BtlActHChr *chr, s32 phase) {
         rise = 0;
         switch (BtlAnim_GetId(chr)) {
         case 0x97:
-            BtlAnim_AdvanceThen(chr, 0x9A, 1, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x9A, 0.0f, 1);
             BtlChar_SetFlag(chr, 0x97);
             break;
         case 0x9A:
@@ -375,7 +375,7 @@ s32 BtlAct_DragDown(BtlActHChr *chr, s32 phase) {
             BtlMove_MoveVertical(chr, BTL_KMH(2000.0f), 10000.0f);
             break;
         case 0x198:
-            BtlAnim_AdvanceThen(chr, 0x28, 0, 0.15f);
+            BtlAnim_AdvanceThen(chr, 0x28, 0.15f, 0);
             speed = 0.0f;
             lean = 1.0f - BtlAnim_GetProgress(chr);
             BtlMove_MoveVertical(chr, 0.0f, 10000.0f);
@@ -1133,7 +1133,7 @@ s32 BtlAct_Fusion(BtlActHChr *chr, s32 phase) {
         }
         switch (BtlAnim_GetId(chr)) {
         case 0x1F:
-            BtlAnim_AdvanceThen(chr, 0x20, 0, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x20, 0.0f, 0);
             if (BtlAnim_GetProgress(chr) < 0.5f) {
                 BtlMove_MoveVertical(chr, 0.0f, 10000.0f);
             } else {
@@ -1370,7 +1370,7 @@ extern s32 BtlUtil_Clamp(s32 v, s32 lo, s32 hi);
 #define BtlAnim_GetId ((s32 (*)(BtlActIChr *chr))BtlAnim_GetId)
 #define BtlAnim_GetProgress ((f32 (*)(BtlActIChr *chr))BtlAnim_GetProgress)
 #define BtlAnim_Advance ((s32 (*)(BtlActIChr *chr, s32 flags))BtlAnim_Advance)
-#define BtlAnim_AdvanceThen ((s32 (*)(BtlActIChr *chr, s32 next, s32 flags, f32 blend))BtlAnim_AdvanceThen)
+#define BtlAnim_AdvanceThen ((s32 (*)(BtlActIChr *chr, s32 next, f32 blend, s32 flags))BtlAnim_AdvanceThen)
 #define BtlAnim_AdvanceLoop ((void (*)(BtlActIChr *chr, s32 flags))BtlAnim_AdvanceLoop)
 #define BtlAnim_PassedRatio ((s32 (*)(BtlActIChr *chr, f32 ratio))BtlAnim_PassedRatio)
 
@@ -1509,7 +1509,7 @@ s32 BtlAct_SwitchArriveLand(BtlActIChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
         case 0x2D:
             if (++*timer >= 8) {
-                if (BtlAnim_AdvanceThen(chr, 0, 0, 0.15f)) {
+                if (BtlAnim_AdvanceThen(chr, 0, 0.15f, 0)) {
                     BtlChar_SetFxBit(chr, 0xD);
                     BtlCharSnd_PlayCommon(chr, 0x20);
                     BtlChar_PlayVoice(chr, 0xF);
@@ -1643,7 +1643,7 @@ s32 BtlAct_KoSwitchFlyIn(BtlActIChr *chr, s32 phase) {
             BtlChar_SetFxBit(chr, 0x3A);
             break;
         case 0x2D:
-            BtlAnim_AdvanceThen(chr, 0, 1, 0.15f);
+            BtlAnim_AdvanceThen(chr, 0, 0.15f, 1);
             BtlMove_Step(chr, 6, 5, 3, 0.0f, 10000.0f);
             BtlMove_ApplyGravity(chr);
             break;

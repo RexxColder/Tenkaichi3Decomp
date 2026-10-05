@@ -38,8 +38,8 @@ extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 BtlCharApi_GetPartnerObjId(s32 objId);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, EftAbVec *out);
 extern void BtlCharApi_GetNodeMtx(s32 objId, s32 node, Mtx44 *out);
-extern s32 BtlCharApi_ObjTestAttr(s32 objId, s32 mask);
-extern s32 BtlCharApi_ObjGetAttrKind(s32 objId, s32 mask);
+extern s32 BtlCharApi_ObjTestAttr(s32 objId, u64 mask);
+extern s32 BtlCharApi_ObjGetAttrKind(s32 objId, u64 mask);
 extern void BtlCharApi_ObjSetMaskBit3(s32 objId);
 extern void BtlCharApi_ObjClearMaskBit3(s32 objId);
 

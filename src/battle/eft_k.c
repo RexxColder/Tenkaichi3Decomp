@@ -51,7 +51,12 @@ extern void Mtx_RotateXYZ(Mtx44 *dst, Mtx44 *src, Vec4 *angles);
 extern void Mtx_ScaleDiagUniform(Mtx44 *dst, Mtx44 *src, f32 scale);
 extern void Vec3_Copy(Vec4 *dst, Vec4 *src);
 extern void Vec3_Clamp(Vec4 *dst, Vec4 *src, f32 a, f32 b);
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *from, f32 len);
+#define Vec3_ScaleAdd(dst, dir, len, from) Vec3_ScaleAdd(dst, dir, from, len)
+#else
 extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);
+#endif
 
 extern s32 BtlPool_GetCurrent(void);
 extern void *BtlPool_Alloc(s32 slot, s32 size);
@@ -139,7 +144,12 @@ extern void EftGndDust_SpawnLandingScaled(s32 objId, Vec4 *pos, Vec4 *dir, f32 a
 extern void *EftOrbTail_Create(s32 objId, s32 auraType);
 extern void EftOrbTail_Burst(void *fx);
 extern void EftOrbTail_Kill(void *fx);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftOrbTail_SetPos(void *fx, Vec4 pos);
+#define EftOrbTail_SetPos(fx, pos) EftOrbTail_SetPos(fx, *(Vec4 *)(pos))
+#else
 extern void EftOrbTail_SetPos(void *fx, Vec4 *pos);
+#endif
 extern void EftMesh_Init(void *ring, s32 *model);
 extern void EftMesh_SetTex(void *ring, void *tex);
 extern void EftMesh_SetMtx(void *ring, Mtx44 *m);

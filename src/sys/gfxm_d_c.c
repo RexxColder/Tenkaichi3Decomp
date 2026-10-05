@@ -51,7 +51,7 @@ extern ObjDrawPart *BtlObj_FindBound(ObjDrawObj *obj, s32 node);
 extern s32 BtlObj_GetSubState(ObjDrawObj *obj);
 extern TexEntry *BtlObj_GetFaceTexture(ObjDrawObj *obj);
 extern void BtlObjLight_GetDir(Vec4 *out);
-extern s32 BtlObjLight_FindRes1(s32 key);
+extern void BtlObjLight_FindRes1(s32 key);
 extern s32 BtlObjFade_Get(ObjDrawObj *obj, f32 *out);
 extern s32 BtlObjFlash_GetColor(ObjDrawObj *obj, Vec4 *color, f32 *alpha);
 extern void ObjGs_AddFrameMaskOpaque(u32 fbmsk);

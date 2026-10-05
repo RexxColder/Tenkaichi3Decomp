@@ -37,7 +37,12 @@ extern void Vu0Cur_LoadMtx(Mtx44 *m);        /* load the matrix */
 extern void Vu0Cur_Pop(void);            /* pop */
 extern void Vec4_Lerp(Vec4 *dst, Vec4 *a, Vec4 *b, f32 t); /* dst = a * t + b * (1 - t) */
 extern void Mtx_MulVec4(Vec4 *dst, Mtx44 *m, Vec4 *v);
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, Vec4 *from, f32 len);
+#define Vec3_ScaleAdd(dst, dir, len, from) Vec3_ScaleAdd(dst, dir, from, len)
+#else
 extern void Vec3_ScaleAdd(Vec4 *dst, Vec4 *dir, f32 len, Vec4 *from);     /* dst = from + dir * len */
+#endif
 extern f32 Vec3_Dist(Vec4 *a, Vec4 *b);                               /* distance */
 extern s32 Vu0Cur_ProjectPoints(EftQScr *out, Vec4 *pos, s32 count);             /* projects count points */
 extern void ClipVtx_Set(EftQVert *out, Vec4 *pos, Vec4 *uv, Vec4 *col); /* builds one vertex */
@@ -69,7 +74,7 @@ extern void BtlTask_SetOwnerTag(EftQTask *task, s32 flag);    /* ors bits into t
 extern EftQTask *BtlTask_GetParent(EftQTask *task);         /* parent task */
 extern u64 EftVram_AddTex(EftQTex *tex, s32 a, s32 b);   /* GS TEX0 of a texture for this frame */
 extern u64 EftVram_AddImage(EftQTex *tex, s32 a, s32 b);   /* the same for an image with a separate palette */
-extern s32 EftVram_AddClut(EftQTex *tex);                 /* palette address of a texture */
+extern u64 EftVram_AddClut(EftQTex *tex);                 /* palette address of a texture */
 extern void EftTexSet_Load32(EftQTexSet *set, s32 *entry); /* builds a texture set from a pack entry */
 
 extern s32 BtlCharApi_GetChara(s32 objId);

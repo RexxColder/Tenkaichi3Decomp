@@ -75,10 +75,10 @@ s32 BtlAct_GrabDash(BtlActHChr *chr, s32 phase) {
         }
         switch (BtlAnim_GetId(chr)) {
         case 0x94:
-            BtlAnim_AdvanceThen(chr, 0x95, 0, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x95, 0.0f, 0);
             break;
         case 0x186:
-            BtlAnim_AdvanceThen(chr, 0x187, 0, 0.0f);
+            BtlAnim_AdvanceThen(chr, 0x187, 0.0f, 0);
             break;
         case 0x95:
         case 0x9D:

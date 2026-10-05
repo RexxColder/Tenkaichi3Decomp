@@ -65,7 +65,7 @@ extern EftOTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern void BtlTask_SetDead(EftOTask *task);                  /* kill a task */
 extern u64 EftVram_AddTex(void *entry, s32 a, s32 b);        /* advances a texture, returns TEX0 */
 extern u64 EftVram_AddImage(void *set, s32 a, s32 b);
-extern s32 EftVram_AddClut(void *entry);
+extern u64 EftVram_AddClut(void *entry);
 extern void EftTexSet_Load32(void *set, s32 *pack);            /* binds a texture set to a pack */
 
 extern s32 BtlCharApi_ObjGetParamFlags0(s32 objId);

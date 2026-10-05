@@ -114,7 +114,7 @@ extern void EftSpr_DrawRot(u8 r, u8 g, u8 b, u8 a, f32 x, f32 y, f32 z, f32 u0, 
 extern void BtlTask_SetDead(EftNTask *task);                  /* kills the task */
 extern u64 EftVram_AddTex(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 of an entry */
 extern u64 EftVram_AddImage(EftNTexEntry *tex, s32 a, s32 b);  /* TEX0 without the palette */
-extern s32 EftVram_AddClut(EftNTexEntry *tex);                /* palette base of an entry */
+extern u64 EftVram_AddClut(EftNTexEntry *tex);                /* palette base of an entry */
 extern void EftTexSet_Load32(EftNTexSet *set, s32 *data);
 extern void EftBolt_Enable(s32 objId);                       /* creates the fighter's lightning task (eft_o) */
 extern void EftBolt_Disable(s32 objId);                       /* asks it to stop */

@@ -70,8 +70,8 @@ extern f32 BtlAnim_GetFrame(BtlActChr *chr);                      /* obj + 0xC78
 extern f32 BtlAnim_GetProgress(BtlActChr *chr);                      /* motion progress 0..1 */
 extern f32 BtlAnim_GetObjRate(BtlActChr *chr);                      /* obj + 0xCB8 */
 extern s32 BtlAnim_Advance(BtlActChr *chr, s32 arg);             /* motion finished */
-extern s32 BtlAnim_AdvanceThen(BtlActChr *chr, s32 motion, s32 arg, f32 blend); /* chain to motion when finished */
-extern s32 BtlAnim_AdvanceLoop(BtlActChr *chr, s32 arg);
+extern s32 BtlAnim_AdvanceThen(BtlActChr *chr, s32 motion, f32 blend, s32 arg); /* chain to motion when finished */
+extern void BtlAnim_AdvanceLoop(BtlActChr *chr, s32 arg);
 extern s32 BtlAnim_PassedFrame(BtlActChr *chr, f32 frame);
 extern s32 BtlAnim_IsNew(BtlActChr *chr);
 
@@ -141,7 +141,7 @@ extern s32 BtlParam_GetMaxPowerSound(BtlActChr *chr);
 extern f32 BtlMoveParam_GetSpeed(BtlActChr *chr, s32 arg);
 extern f32 BtlStage_GetTop(void);
 extern f32 BtlStage_GetBottom(void);
-extern s32 BtlObjAnim_QueryEvent(void *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(void *obj, u64 a, s32 b, s32 c);
 extern void BtlObj_SetColorMode(void *obj, s32 a, s32 b);
 extern void BtlObj_AddPush(void *obj, Vec4 *v, f32 arg);
 extern void BtlObj_AddSway(void *obj, f32 a, f32 b);
@@ -1224,7 +1224,7 @@ s32 BtlAct_Action01(BtlActChr *chr, s32 phase) {
     if (phase == BTLACT_PHASE_RUN) {
         switch (BtlAnim_GetId(chr)) {
             case 0x180:
-                BtlAnim_AdvanceThen(chr, 0x181, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0x181, 0.0f, 0);
                 break;
             case 0x181:
                 BtlAnim_AdvanceLoop(chr, 0);
@@ -1272,7 +1272,7 @@ s32 BtlAct_Action02(BtlActChr *chr, s32 phase) {
     if (phase == BTLACT_PHASE_RUN) {
         switch (BtlAnim_GetId(chr)) {
             case 0x182:
-                BtlAnim_AdvanceThen(chr, 0x183, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0x183, 0.0f, 0);
                 break;
             case 0x183:
                 BtlAnim_AdvanceLoop(chr, 0);
@@ -1443,7 +1443,7 @@ s32 BtlAct_Action05(BtlActChr *chr, s32 phase) {
         flag = 1;
         switch (BtlAnim_GetId(chr)) {
             case 0x18:
-                BtlAnim_AdvanceThen(chr, 0x19, 0, 0.2f);
+                BtlAnim_AdvanceThen(chr, 0x19, 0.2f, 0);
                 rate = BtlAnim_GetProgress(chr);
                 moving = 0;
                 break;

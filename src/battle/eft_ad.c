@@ -28,8 +28,8 @@ extern void *gEftShockClass[6];
 extern void *memset(void *dst, s32 c, u32 n);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void EftZap_Update(EftAdTask *task);                  /* the zap task's update (file before this one) */
-extern s32 EftVram_AddImage(EftAdTex *tex, s32 a1, s32 a2);     /* TEX0 of a table entry */
-extern s32 EftVram_AddClut(EftAdTex *tex);                     /* palette block of a table entry */
+extern u64 EftVram_AddImage(EftAdTex *tex, s32 a1, s32 a2);     /* TEX0 of a table entry */
+extern u64 EftVram_AddClut(EftAdTex *tex);                     /* palette block of a table entry */
 extern void BtlTask_SetOwnerTag(void *task, s32 flag);             /* tags a task with its character (0x800 / 0x1000) */
 extern EftAdTask *BtlTask_GetParent(EftAdTask *task);            /* the task that owns the list this task is in */
 extern void BtlTask_SetDead(EftAdTask *task);                  /* kills the task */

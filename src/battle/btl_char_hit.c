@@ -130,7 +130,7 @@ extern s32 BtlSkill_GetFrames(HitChr *chr, s32 dir);
 extern f32 BtlCharApi_GetHeight(s32 objId);                             /* body size, obj + 0xFF4 */
 extern f32 BtlCharApi_GetRadius(s32 objId);                             /* body radius */
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);       /* world position of a model node */
-extern s32 BtlObjAnim_QueryEvent(HitObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(HitObj *obj, u64 a, s32 b, s32 c);
 extern void Vec4_Sub(Vec4 *dst, Vec4 *a, Vec4 *b);
 extern f32 Vec3_Length(Vec4 *v);
 extern f32 BtlUtil_WrapAngle(f32 a);

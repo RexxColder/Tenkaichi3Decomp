@@ -78,7 +78,12 @@ extern void BtlCharApi_PlaySoundAt(EftRVec *pos, s32 kind, s32 id, f32 near, f32
 extern void EftTechEvt_RequestExpire(s32 objId);
 extern s32 ScrWarp_Spawn(s32 view, EftRVec *pos, f32 seconds, f32 radius, f32 width, f32 speed, f32 jitter);
 extern f32 EftMath_WrapAngle(f32 angle);
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftAim_Home(EftRVec *out, EftRVec *pos, EftRVec *dir, s32 objId, f32 speed, f32 maxTurn);
+#define EftAim_Home(out, pos, dir, speed, maxTurn, objId) EftAim_Home(out, pos, dir, objId, speed, maxTurn)
+#else
 extern void EftAim_Home(EftRVec *out, EftRVec *pos, EftRVec *dir, f32 speed, f32 maxTurn, s32 objId);
+#endif
 extern EftRRec *EftHit_GetNew(void);
 extern void EftHit_Add(EftRRec *rec);
 extern EftRSphere *EftHitArena_AllocSphere(void);
@@ -106,7 +111,12 @@ extern f32 EftEmit_GetWidth2(EftRState *state);
 
 extern void EftChar_SetList(s32 chr, s32 kind, void *list);  /* registers a sub-manager's child list */
 extern void *EftChar_GetList(s32 objId, s32 kind);           /* the child list of a sub-manager */
+#ifdef PORT /* PC build: by address, as the definition takes it (it only reads the struct; the PS2 passes a by-value struct of this size by address) */
+extern s32 EftImpact_SpawnBlast(EftRBlastFx *arg, f32 scaleA, f32 scaleB);
+#define EftImpact_SpawnBlast(arg, scaleA, scaleB) EftImpact_SpawnBlast(&(arg), scaleA, scaleB)
+#else
 extern s32 EftImpact_SpawnBlast(EftRBlastFx arg, f32 scaleA, f32 scaleB); /* explosion effect */
+#endif
 extern void EftGndDust_SpawnImpact(s32 objId, EftRVec *pos, f32 scale); /* ground impact effect */
 extern void EftCharSlot_Set0(s32 objId, EftRTask *task);      /* per-fighter task slots (0x19BA98..0x19BC58) */
 extern void EftCharSlot_Clear0(s32 objId);

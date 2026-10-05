@@ -133,7 +133,7 @@ extern void BtlColl_Update(void);
 extern void BtlColl_UpdateFrozen(BtlMgrChr *chr);
 extern void BtlColl_UpdateGround(BtlMgrChr *chr);
 extern void BtlColl_ClearActionBits(BtlMgrChr *chr);
-extern void BtlMember_LoadParams(BtlMgrChr *chr, s32 member, s32 init, s32 variant, f32 health);
+extern void BtlMember_LoadParams(BtlMgrChr *chr, s32 member, s32 init, f32 health, s32 variant);
 extern BtlMgrMember *BtlMember_Get(BtlMgrChr *chr, s32 idx);
 extern BtlMgrMember *BtlMember_GetActive(BtlMgrChr *chr);
 extern BtlMgrGauge *BtlMember_GetActiveGauge(BtlMgrChr *chr);
@@ -192,7 +192,7 @@ extern s32 BtlChar_IsFlagRaised(BtlMgrChr *chr, s32 flag);
 extern s32 BtlChar_IsFlagDropped(BtlMgrChr *chr, s32 flag);
 extern void BtlChar_UpdateLockOn(BtlMgrChr *chr);
 extern void BtlChars_UpdateSightFlag(void);
-extern void BtlChar_SetFrameBits(BtlMgrChr *chr, s32 bits);
+extern void BtlChar_SetFrameBits(BtlMgrChr *chr, u64 bits);
 extern s32 BtlOpp_GetPlayer(BtlMgrChr *chr);
 extern void BtlOpp_MirrorFlags(BtlMgrChr *chr);
 extern s32 BtlUtil_Clamp(s32 val, s32 lo, s32 hi);
@@ -343,7 +343,7 @@ void BtlChar_Reset(BtlMgrChr *chr) {
         mem->cpuLevel = BattleSide_GetMember(side, i)->cpuLevel;
         mem->aiType = BattleSide_GetMember(side, i)->aiType;
         m = BattleSide_GetMember(side, i);
-        BtlMember_LoadParams(chr, i, 1, BattleSide_GetMemberVariant(side, i), m->health);
+        BtlMember_LoadParams(chr, i, 1, m->health, BattleSide_GetMemberVariant(side, i));
     }
     chr->unk99C = 0;
     if (BtlMember_HasAbility(chr, 0x1B)) {
@@ -387,7 +387,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
         m->costume = chr->newCostume;
         g->unk20 = chr->new20;
         ratio = BtlMember_GetHealthRatio(chr);
-        BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0, 0.0f);
+        BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0.0f, 0);
         g->health = (f32)g->healthMax * ratio + 0.5f;
         if (BtlParam_GetUnkAD(chr) & 1) {
             g->health += 5000;
@@ -490,7 +490,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
         if (BtlChar_TestFlag(chr, 0xA6)) {
             g->unk30 = 1;
             BtlObj_BindCommonTables(obj);
-            BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0, 0.0f);
+            BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0.0f, 0);
             g->health = g->healthMax;
         }
         break;

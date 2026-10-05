@@ -48,7 +48,7 @@ extern void EftGfx_DrawPolyFixedZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 a
 extern void EftGfx_DrawPolyScaledZ(EftYClipVtx *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                                    f32 zScale);
 extern u64 EftVram_AddImage(EftYTex *tex, s32 a, s32 b);
-extern s32 EftVram_AddClut(EftYTex *tex);
+extern u64 EftVram_AddClut(EftYTex *tex);
 extern EftYTask *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 extern s32 EftQuad_InitQuad(EftQuad *q, EftQuadWork *w); /* fills a new quad from the emitter's current values */
 
@@ -684,7 +684,7 @@ void EftBill_Draw(EftZTask *task) {
         if (def->flags & 2) {
             EftPrim_DrawQuadDepth(V(&w->arg.pos), &w->color, def->blend, w->w * 0.0625f, w->h * 0.0625f, w->u0, w->v0, w->u1, w->v1, w->angle, w->flags & EFT_BILL_FRONT, w->tex);
         } else {
-            EftGfx_DrawSprite(V(&w->arg.pos), &w->color, def->blend, w->w, w->h, w->u0, w->v0, w->u1, w->v1, w->angle, w->flags & EFT_BILL_FRONT, w->tex);
+            EftGfx_DrawSprite(V(&w->arg.pos), &w->color, w->w, w->h, w->u0, w->v0, w->u1, w->v1, w->angle, def->blend, w->flags & EFT_BILL_FRONT, w->tex);
         }
         break;
     case 1:
@@ -1370,7 +1370,7 @@ void EftGndDustPuff_Draw(EftZTask *task) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
         Vec3_Add(&pos, &p->pos, &p->base);
-        EftGfx_DrawSprite(&pos, &color, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, 0, w->tex);
+        EftGfx_DrawSprite(&pos, &color, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, w->arg.blend, 0, w->tex);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
     Vu0Cur_Pop();
@@ -1554,7 +1554,7 @@ void EftGndDustDash_Draw(EftZTask *task) {
         Vec4_Set(&color, p->color.x * w->arg.bright, p->color.y * w->arg.bright, p->color.z * w->arg.bright,
                  p->color.w * p->alpha);
         Vec3_Add(&pos, &p->pos, &p->base);
-        EftGfx_DrawSprite(&pos, &color, w->arg.blend, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, 0, w->tex);
+        EftGfx_DrawSprite(&pos, &color, (f32)p->scale * w->arg.scale * p->size.x, (f32)p->scale * w->arg.scale * p->size.y, 0.0f, 0.0f, 1.0f, 1.0f, p->angle, w->arg.blend, 0, w->tex);
         p = (EftGndDustPart *)List_GetNext(&p->link);
     }
     Vu0Cur_Pop();

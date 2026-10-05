@@ -69,7 +69,7 @@ extern s32 BtlSuper_IsThrow(BtlCharApiChr *chr, s32 slot);
 extern s32 BtlObjAnim_TestEvent(BtlCharApiObj *obj, u64 mask);
 extern s32 BtlObjAnim_GetEventArg(BtlCharApiObj *obj, u64 mask);
 extern s32 BtlObjAnim_MaskToNode(s32 bits);
-extern s32 BtlObjAnim_QueryEvent(BtlCharApiObj *obj, s32 arg1, s32 arg2, s32 arg3);
+extern s32 BtlObjAnim_QueryEvent(BtlCharApiObj *obj, u64 arg1, s32 arg2, s32 arg3);
 extern void BtlObj_SetColorMode(BtlCharApiObj *obj, s32 bit, s32 on);
 
 extern s32 DemoCam_IsActive(void);

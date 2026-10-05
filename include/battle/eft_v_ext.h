@@ -54,8 +54,8 @@ extern void Vec3_ScaleAdd(EftVVec *dst, EftVVec *dir, EftVVec *base, f32 s); /* 
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void EftPrim_DrawQuadDepth(EftVVec *pos, EftVVec *color, s32 layer, s32 front, u64 tex0, f32 w, f32 h, f32 u0,
                                   f32 v0, f32 u1, f32 v1, f32 rot);
-extern void EftGfx_DrawSprite(EftVVec *pos, EftVVec *color, s32 layer, s32 front, u64 tex0, f32 w, f32 h, f32 u0,
-                              f32 v0, f32 u1, f32 v1, f32 rot);
+extern void EftGfx_DrawSprite(EftVVec *pos, EftVVec *color, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1,
+                              f32 rot, s32 layer, s32 front, u64 tex0);
 extern void EftGfx_DrawPolyScaledZ(EftVVert *verts, s32 layer, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex0,
                                    f32 zScale);
 extern s32 BtlPool_GetCurrent(void);
@@ -96,21 +96,46 @@ extern void EftEmit_SetNode(EftVNodes *nodes, s32 slot, s32 node, EftVVec *pos);
 extern void EftEmit_SetNodePos(EftVNodes *nodes, s32 slot, EftVVec *pos);
 
 /* The rest of the sprite chain module (0x1895E8.., another file). */
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_DrawQuad(EftLinkNode *n, EftVVec uv0, EftVVec uv1, EftVVec color, s32 layer, s32 frame, s32 front, EftVTex *tex);
+#define EftLink_DrawQuad(n, uv0, uv1, color, layer, frame, front, tex) EftLink_DrawQuad(n, *(EftVVec *)(uv0), *(EftVVec *)(uv1), *(EftVVec *)(color), layer, frame, front, tex)
+#else
 extern void EftLink_DrawQuad(EftLinkNode *n, EftVVec *uv0, EftVVec *uv1, EftVVec *color, s32 layer, s32 frame, s32 front,
                           EftVTex *tex);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftLink_DrawQuadClipped(EftLinkNode *n, EftVVec uv0, EftVVec uv1, EftVVec color, s32 layer, s32 frame, s32 front, EftVTex *tex);
+#define EftLink_DrawQuadClipped(n, uv0, uv1, color, layer, frame, front, tex) EftLink_DrawQuadClipped(n, *(EftVVec *)(uv0), *(EftVVec *)(uv1), *(EftVVec *)(color), layer, frame, front, tex)
+#else
 extern void EftLink_DrawQuadClipped(EftLinkNode *n, EftVVec *uv0, EftVVec *uv1, EftVVec *color, s32 layer, s32 frame, s32 front,
                           EftVTex *tex);
+#endif
 extern void EftLink_SetKey(EftLinkWork *w, s32 key);                    /* current values = key `key` */
 extern void EftLink_SelectTex(EftLinkWork *w, EftVTex *tex, s32 frame, s32 arg3);
 extern void EftLink_BuildTex(EftLinkWork *w);
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern EftLinkNode *EftLink_NewNode(EftLinkWork *w, EftVVec pos, f32 index);
+#define EftLink_NewNode(w, pos, index) EftLink_NewNode(w, *(EftVVec *)(pos), index)
+#else
 extern EftLinkNode *EftLink_NewNode(EftLinkWork *w, EftVVec *pos, f32 index); /* takes a node from the pool */
+#endif
 extern void EftLink_InitNode(EftLinkNode *n, EftLinkWork *w);             /* initialises a node from the current values */
 extern void EftLink_StepNodes(EftLinkWork *w, f32 fade);                   /* steps the nodes */
 extern void EftLink_UnlinkNode(EftLinkNode **head, EftLinkNode **tail, EftLinkNode *n); /* unlinks a node */
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftLink_DrawBillboardClipped(EftVVec *pos, f32 w, f32 h, EftVVec *color, EftVVec *unk, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 layer, s32 front, u64 tex0, f32 zScale);
+#define EftLink_DrawBillboardClipped(pos, color, unk, w, h, u0, v0, u1, v1, rot, layer, front, tex0, zScale) EftLink_DrawBillboardClipped(pos, w, h, color, unk, u0, v0, u1, v1, rot, layer, front, tex0, zScale)
+#else
 extern void EftLink_DrawBillboardClipped(EftVVec *pos, EftVVec *color, EftVVec *unk, f32 w, f32 h, f32 u0, f32 v0, f32 u1, f32 v1,
                           f32 rot, s32 layer, s32 front, u64 tex0, f32 zScale);
+#endif
+#ifdef PORT /* PC build: parameters in the definition's order; the macro reorders the calls of this file */
+extern void EftLink_DrawBillboard(EftVVec *pos, f32 sx, f32 sy, EftVVec *color, s32 w, s32 h, f32 u0, f32 v0, f32 u1, f32 v1, f32 rot, s32 layer, s32 front, u64 tex0);
+#define EftLink_DrawBillboard(pos, color, w, h, sx, sy, u0, v0, u1, v1, rot, layer, front, tex0) EftLink_DrawBillboard(pos, sx, sy, color, w, h, u0, v0, u1, v1, rot, layer, front, tex0)
+#else
 extern void EftLink_DrawBillboard(EftVVec *pos, EftVVec *color, s32 w, s32 h, f32 sx, f32 sy, f32 u0, f32 v0, f32 u1, f32 v1,
                           f32 rot, s32 layer, s32 front, u64 tex0);
+#endif
 
 /* Locals of the sprite chain module are 4-byte aligned vectors (with the aligned type the compiler clears them
    inline instead of calling memset): the plain Vec4 / Mtx44 in EftLink_Draw, the union EftVVecU in EftLink_Place.

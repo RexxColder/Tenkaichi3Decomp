@@ -44,7 +44,7 @@ extern f32 floorf(f32 x);
 extern void BtlAnim_PlaySub(BtlActEChr *chr, s32 anim);
 extern s32 BtlAct_IsAirMotion(BtlActEChr *chr, s32 useSaved);
 extern s32 BtlParam_GetRecoverKiCost(BtlActEChr *chr);               /* character parameter: a ki cost */
-extern s32 BtlObjAnim_QueryEvent(BtlActEObj *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(BtlActEObj *obj, u64 a, s32 b, s32 c);
 
 extern BtlActEPose *BtlChar_GetPos(BtlActEChr *chr);
 extern BtlActEObj *BtlChar_GetObj(BtlActEChr *chr);
@@ -99,7 +99,7 @@ extern f32 BtlAnim_GetProgress(BtlActEChr *chr);
 extern f32 BtlAnim_GetLength(BtlActEChr *chr);
 extern f32 BtlAnim_GetStep(BtlActEChr *chr);
 extern s32 BtlAnim_Advance(BtlActEChr *chr, s32 flags);
-extern s32 BtlAnim_AdvanceThen(BtlActEChr *chr, s32 next, s32 flags, f32 blend);
+extern s32 BtlAnim_AdvanceThen(BtlActEChr *chr, s32 next, f32 blend, s32 flags);
 extern void BtlAnim_AdvanceLoop(BtlActEChr *chr, s32 flags);
 extern s32 BtlAnim_IsNew(BtlActEChr *chr);
 
@@ -172,7 +172,7 @@ s32 BtlAct_DragonDashHandler(BtlActEChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0x18:
             case 0x2D:
-                BtlAnim_AdvanceThen(chr, 0x19, 0, 0.2f);
+                BtlAnim_AdvanceThen(chr, 0x19, 0.2f, 0);
                 flag = 0;
                 break;
             case 0x19:
@@ -751,7 +751,7 @@ void BtlAct_VanishAttackHandler(BtlActEChr *chr, s32 phase) {
         BtlChar_SetHeldFlag(chr, 0xE);
     }
     if (phase == 1) {
-        BtlAnim_AdvanceThen(chr, 0x26, 0, 0.15f);
+        BtlAnim_AdvanceThen(chr, 0x26, 0.15f, 0);
         chr->nextAttack.unk18 = BtlAct_PlayAttackPart(chr, &chr->nextAttack, chr->actionFrame, chr->nextAttack.unk18);
         switch (*step) {
             case 0:
@@ -791,7 +791,7 @@ void BtlAct_VanishAttackQuickHandler(BtlActEChr *chr, s32 phase) {
         BtlChar_SetHeldFlag(chr, 0xE);
     }
     if (phase == 1) {
-        BtlAnim_AdvanceThen(chr, 0x26, 0, 0.15f);
+        BtlAnim_AdvanceThen(chr, 0x26, 0.15f, 0);
         chr->nextAttack.unk18 = BtlAct_PlayAttackPart(chr, &chr->nextAttack, chr->actionFrame, chr->nextAttack.unk18);
         switch (*step) {
             case 0:
@@ -1063,7 +1063,7 @@ s32 BtlAct_CircleDashHandler(BtlActEChr *chr, s32 phase) {
         lean = 0.0f;
         switch (BtlAnim_GetId(chr)) {
             case 0x2D:
-                BtlAnim_AdvanceThen(chr, 0x19, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0x19, 0.15f, 0);
                 lean = 1.0f;
                 break;
             case 0x19:
@@ -1198,7 +1198,7 @@ void BtlAct_RushDashHandler(BtlActEChr *chr, s32 phase) {
         }
         switch (BtlAnim_GetId(chr)) {
             case 0x23:
-                BtlAnim_AdvanceThen(chr, 0x24, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0x24, 0.15f, 0);
                 break;
             case 0x24:
                 BtlAnim_AdvanceLoop(chr, 0);
@@ -1265,7 +1265,7 @@ s32 BtlAct_VanishDashHandler(BtlActEChr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0xC:
                 BtlAnim_SetDuration(chr, 0.05f);
-                BtlAnim_AdvanceThen(chr, 0xD, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0xD, 0.15f, 0);
                 if (BtlAnim_IsNew(chr)) {
                     flag = 0;
                 }

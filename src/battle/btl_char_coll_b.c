@@ -78,7 +78,7 @@ extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out); /* world posi
 extern s32 BtlParam_GetFlags(BtlCollChr *chr);            /* parameter word +0x10 of the fighter's object */
 extern s32 BtlParam_GetUnk2(BtlCollChr *chr);
 extern f32 BtlParam_GetUnkC7Scale(BtlCollChr *chr);
-extern s32 BtlObjAnim_QueryEvent(BtlCollObj *obj, s32 arg1, s32 arg2, s32 arg3);
+extern s32 BtlObjAnim_QueryEvent(BtlCollObj *obj, u64 arg1, s32 arg2, s32 arg3);
 extern s32 BtlStage_GetWaterLevel(f32 *height);
 extern s32 EftHit_GetHitCount(BtlCollHit *hit);
 

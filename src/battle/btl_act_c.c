@@ -41,7 +41,7 @@ extern void BtlAct_PushDir(Chr *chr, Vec4 *dir, f32 speed, f32 arg);
 
 extern s32 BtlAnim_Advance(Chr *chr, s32 flags);
 extern void BtlAnim_AdvanceLoop(Chr *chr, s32 flags);
-extern s32 BtlAnim_AdvanceThen(Chr *chr, s32 next, s32 flags, f32 blend);
+extern s32 BtlAnim_AdvanceThen(Chr *chr, s32 next, f32 blend, s32 flags);
 extern u32 BtlAnim_GetFlags(u32 anim);
 extern f32 BtlAnim_GetFrame(Chr *chr);
 extern s32 BtlAnim_GetId(Chr *chr);
@@ -121,7 +121,7 @@ extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
 extern void BtlActB_SetReactionFlags(Chr *chr);
 extern s32 BtlActB_TickMemberChange(Chr *chr, s32 *work);
 extern s32 BtlObjAnim_MaskToNode(s32 bits);
-extern s32 BtlObjAnim_QueryEvent(void *obj, s32 a, s32 b, s32 c);
+extern s32 BtlObjAnim_QueryEvent(void *obj, u64 a, s32 b, s32 c);
 extern f32 BtlMoveParam_GetSpeed(Chr *chr, s32 n);
 extern f32 BtlMoveParam_GetTurnRate(Chr *chr, s32 n);
 extern s32 BtlChar_ClearFlagRet(Chr *chr, s32 n) __asm__("BtlChar_ClearFlag");
@@ -599,7 +599,7 @@ s32 BtlAct_SearchHandler(Chr *chr, s32 phase) {
         grow = 0;
         switch (BtlAnim_GetId(chr)) {
             case 0x17F:
-                BtlAnim_AdvanceThen(chr, 0x17E, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, 0x17E, 0.15f, 0);
                 if (0.5f < BtlAnim_GetProgress(chr)) {
                     grow = 1;
                 }
@@ -669,7 +669,7 @@ s32 BtlAct_ChargeHandler(Chr *chr, s32 phase) {
     if (phase == 1) {
         switch (BtlAnim_GetId(chr)) {
             case 0x34:
-                if (BtlAnim_AdvanceThen(chr, 0x35, 1, 0.15f)) {
+                if (BtlAnim_AdvanceThen(chr, 0x35, 0.15f, 1)) {
                     BtlCharSnd_PlayCommon(chr, BtlParam_GetChargeStartSound(chr));
                     BtlChar_PlayVoice(chr, 0xD);
                 }
@@ -807,7 +807,7 @@ s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {
             case 0xF0:
             case 0xF2:
             case 0xF4:
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) - 1, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) - 1, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x95);
                 if (phase) {
                     BtlChar_SetFlag(chr, 0x41);
@@ -816,7 +816,7 @@ s32 BtlAct_GuardHandler(Chr *chr, s32 phase) {
                 }
                 break;
             case 0xF5:
-                BtlAnim_AdvanceThen(chr, 0xEF, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0xEF, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x95);
                 BtlChar_SetFlag(chr, 0x41);
                 if (BtlAnim_IsNew(chr)) {
@@ -1036,7 +1036,7 @@ s32 BtlAct_Action3D(Chr *chr, s32 phase) {
     if (phase == 1) {
         switch (BtlAnim_GetId(chr)) {
             case 0xF9:
-                BtlAnim_AdvanceThen(chr, 0xFA, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0xFA, 0.0f, 0);
                 break;
             case 0xFA:
                 BtlAnim_AdvanceLoop(chr, 0);
@@ -1210,7 +1210,7 @@ s32 BtlAct_Action41(Chr *chr, s32 phase) {
             case 0x193:
             case 0x194:
             case 0x195:
-                BtlAnim_AdvanceThen(chr, idle, 0, 0.15f);
+                BtlAnim_AdvanceThen(chr, idle, 0.15f, 0);
                 break;
             case 0:
             case 0x26:
@@ -1337,7 +1337,7 @@ s32 BtlAct_KiBlastHandler(Chr *chr, s32 phase) {
         switch (BtlAnim_GetId(chr)) {
             case 0x71:
             case 0x72:
-                BtlAnim_AdvanceThen(chr, idle, 0, 0.2f);
+                BtlAnim_AdvanceThen(chr, idle, 0.2f, 0);
                 BtlAct_SetPitchMotion(chr, BtlAnim_GetId(chr) + 2, BtlAnim_GetId(chr) + 4, 1);
                 break;
             case 0:
@@ -1401,11 +1401,11 @@ s32 BtlAct_ChargedKiBlastHandler(Chr *chr, s32 phase) {
     if (phase == 1) {
         switch (BtlAnim_GetId(chr)) {
             case 0x7B:
-                BtlAnim_AdvanceThen(chr, 0x7C, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0x7C, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 break;
             case 0x7C:
-                BtlAnim_AdvanceThen(chr, 0x7D, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, 0x7D, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 chr->unkDEC = BtlAnim_GetProgress(chr);
                 break;
@@ -1598,13 +1598,13 @@ s32 BtlAct_DashChargedKiBlastHandler(Chr *chr, s32 phase) {
             case 0x84:
             case 0x87:
             case 0x8A:
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 break;
             case 0x85:
             case 0x88:
             case 0x8B:
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0, 0.0f);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0.0f, 0);
                 BtlChar_SetFlag(chr, 0x8E);
                 chr->unkDEC = BtlAnim_GetProgress(chr);
                 break;

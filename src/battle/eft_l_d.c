@@ -26,8 +26,18 @@ extern void BtlCharApi_GetDir(s32 objId, Vec4 *out);
 extern void BtlCharApi_GetNodePos(s32 objId, s32 node, Vec4 *out);
 extern f32 BtlCharApi_GetPartUnk5C(s32 objId, s32 part);
 
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftSpdLine_AddTrail(s32 objId, Vec4 pos, Vec4 dir);
+#define EftSpdLine_AddTrail(objId, pos, dir) EftSpdLine_AddTrail(objId, *(Vec4 *)(pos), *(Vec4 *)(dir))
+#else
 extern void EftSpdLine_AddTrail(s32 objId, Vec4 *pos, Vec4 *dir);
+#endif
+#ifdef PORT /* PC build: by value, as the definition takes it (the PS2 passes a struct of this size by address) */
+extern void EftSpdLine_AddStreak(s32 objId, Vec4 from, Vec4 to, Vec4 dir, f32 width, f32 life, f32 fade);
+#define EftSpdLine_AddStreak(objId, from, to, dir, width, life, fade) EftSpdLine_AddStreak(objId, *(Vec4 *)(from), *(Vec4 *)(to), *(Vec4 *)(dir), width, life, fade)
+#else
 extern void EftSpdLine_AddStreak(s32 objId, Vec4 *from, Vec4 *to, Vec4 *dir, f32 width, f32 life, f32 fade);
+#endif
 
 extern void *gEftSpdLine;
 

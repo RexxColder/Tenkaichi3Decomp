@@ -177,7 +177,7 @@ extern s32 BtlAnim_GetId(BtlActHChr *chr);
 extern f32 BtlAnim_GetFrame(BtlActHChr *chr);
 extern f32 BtlAnim_GetProgress(BtlActHChr *chr);
 extern s32 BtlAnim_Advance(BtlActHChr *chr, s32 flags);
-extern s32 BtlAnim_AdvanceThen(BtlActHChr *chr, s32 next, s32 flags, f32 blend);
+extern s32 BtlAnim_AdvanceThen(BtlActHChr *chr, s32 next, f32 blend, s32 flags);
 extern void BtlAnim_AdvanceLoop(BtlActHChr *chr, s32 flags);
 extern s32 BtlAnim_PassedRatio(BtlActHChr *chr, f32 ratio);
 extern s32 BtlAnim_PassedFrame(BtlActHChr *chr, f32 frame);

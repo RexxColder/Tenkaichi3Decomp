@@ -63,8 +63,8 @@ extern void EftEmit_KillAll(EftPSet *set, void *emit);
 extern void EftEmit_TermState(EftPSet *set, void *emit);
 extern s32 EftEmit_GetFlagsFromReq(EftPSet *set, void *emit, s32 objId, s32 group, s32 part, s32 f1, s32 f4);
 extern s32 EftEmit_GetResetFlags(EftPSet *set, void *emit, s32 group, s32 part);
-extern void EftEmit_SpawnOwn(EftPSet *set, f32 scale, void *emit, void *a2, void *a3, void *t0, s32 group, s32 part,
-                             s32 res);
+extern void EftEmit_SpawnOwn(EftPSet *set, void *emit, void *a2, void *a3, void *t0, s32 group, s32 part, s32 res,
+                             f32 scale);
 extern f32 EftEmit_GetTrailWidth(void *emit);
 
 /* A hit record of the scene's list (EftHitRec of eft_a.h); only what this file writes. */
@@ -218,7 +218,7 @@ void EftDisc_SpawnParts(EftPTask *task, s32 mode) {
                         res = EftEmit_GetResetFlags(arg->set, w->emit, g, j);
                     }
                     if (res != 0) {
-                        EftEmit_SpawnOwn(arg->set, arg->scale, w->emit, nodes, &arg->pos, &arg->dir, g, j, res);
+                        EftEmit_SpawnOwn(arg->set, w->emit, nodes, &arg->pos, &arg->dir, g, j, res, arg->scale);
                     }
                 }
             }

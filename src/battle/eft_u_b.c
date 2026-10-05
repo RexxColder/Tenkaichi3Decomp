@@ -35,7 +35,7 @@ extern void Mtx_RotateZ(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Z 
 extern void Mtx_RotateX(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about X */
 extern void Mtx_RotateY(Mtx44 *dst, Mtx44 *src, f32 angle);   /* rotate about Y */
 extern u64 EftVram_AddImage(EftUPtclTex *tex, s32 a, s32 b);       /* uploads the image, returns its TEX0 */
-extern s32 EftVram_AddClut(EftUPtclTex *tex);                     /* uploads the palette, returns its block */
+extern u64 EftVram_AddClut(EftUPtclTex *tex);                     /* uploads the palette, returns its block */
 
 /* Copies entries a (image) and b (palette) of a texture set into the work and remembers b as the cache slot. */
 void EftPtcl_PickTexture(EftUPtclWork *w, EftUPtclTex *tex, s32 a, s32 b) {
@@ -865,8 +865,8 @@ void EftPtcl_DrawSquares(EftPtclWork *w, EftPtclWork *w2) {
         while (*list != NULL) {
             p = *list;
             if (p->flags & 0x400) {
-                EftGfx_DrawSprite(&p->pos, &p->color, def->layer, (w->flags >> 4) & 1, w->tex0, p->height, p->height,
-                                  p->u0, p->v0, p->u1, p->v1, p->rot);
+                EftGfx_DrawSprite(&p->pos, &p->color, p->height, p->height, p->u0, p->v0, p->u1,
+                                  p->v1, p->rot, def->layer, (w->flags >> 4) & 1, w->tex0);
             }
             list = &p->next;
         }
@@ -890,8 +890,8 @@ void EftPtcl_DrawSprites(EftPtclWork *w, EftPtclWork *w2) {
         while (*list != NULL) {
             p = *list;
             if (p->flags & 0x400) {
-                EftGfx_DrawSprite(&p->pos, &p->color, def->layer, (w->flags >> 4) & 1, w->tex0, p->width, p->height,
-                                  p->u0, p->v0, p->u1, p->v1, p->rot);
+                EftGfx_DrawSprite(&p->pos, &p->color, p->width, p->height, p->u0, p->v0, p->u1,
+                                  p->v1, p->rot, def->layer, (w->flags >> 4) & 1, w->tex0);
             }
             list = &p->next;
         }

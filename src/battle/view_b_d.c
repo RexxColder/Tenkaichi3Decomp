@@ -68,7 +68,7 @@ extern void StgBlur_SetColor2Rgba(s32 view, u8 r, u8 g, u8 b, u8 a);
 extern void StgBlur_SetColor3Rgba(s32 view, u8 r, u8 g, u8 b, u8 a);
 extern s32 ScrWarp_Spawn(s32 view, Vec4 *pos, f32 seconds, f32 radius, f32 width, f32 speed, f32 jitter);
 extern void ScrXfade_RequestCapture(void);
-extern void ScrXfade_Start(f32 seconds, s32 request); /* stg_b.h lists (request, seconds); this order matches the callers here */
+extern void ScrXfade_Start(s32 request, f32 seconds); /* stg_b.h lists (request, seconds); this order matches the callers here */
 extern void BtlObjDraw_Draw(void);
 extern void Gfx_MarkPass(s32 pass);
 extern void Gfx_AddDefaultEnv(void);
@@ -252,7 +252,7 @@ s32 ShenScene_StepSeq(ShenSeq *seq) {
             ScrWarp_Spawn(0, &p[dragon], 3.8f, 10.0f, 50.0f, 10.0f, half);
         }
         ScrXfade_RequestCapture();
-        ScrXfade_Start(half, 1);
+        ScrXfade_Start(1, half);
         ShenScene_SetState(SHENSCENE_STATE_READY);
         seq->step++;
     }
@@ -281,7 +281,7 @@ s32 ShenScene_StepSeq(ShenSeq *seq) {
         }
         ShenScene_SetState(SHENSCENE_STATE_INTRO);
         ScrXfade_RequestCapture();
-        ScrXfade_Start(1.0f, 1);
+        ScrXfade_Start(1, 1.0f);
         seq->step++;
         break;
     case 4:

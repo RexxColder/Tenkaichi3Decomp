@@ -74,7 +74,7 @@ extern s32 BtlCharApi_GetButtonIcon(BtlTechChr *chr, s32 cmd);  /* button 0..3 t
 extern s32 BtlSuper_GetPromptRowIndex(BtlTechChr *chr, s32 idx);  /* (obj + 0x92C)[0x227 + idx], signed */
 /* Animation events of layer `layer` whose attribute word has a bit of `mask`: what 2 = frame of the last one,
    3 = how many there are. */
-extern s32 BtlObjAnim_QueryEvent(BtlTechObj *obj, s32 mask, s32 layer, s32 what);
+extern s32 BtlObjAnim_QueryEvent(BtlTechObj *obj, u64 mask, s32 layer, s32 what);
 
 /* ---- queries by side -------------------------------------------------------------------------------------------- */
 
