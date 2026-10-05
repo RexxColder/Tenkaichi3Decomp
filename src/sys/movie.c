@@ -433,11 +433,9 @@ MovieBuf *Movie_FindBuf(s32 full) {
 }
 
 /* Starts reading the next 0x100 sectors of the file into a buffer; returns the bytes requested. */
-/* Cleanup pass 2: all 120 orders of the five stores, and a `bytes` local set at any point, give exactly the same
-   code: the order comes from the scheduler alone, not from the statements. */
-#if 0
-/* 5 of 44 instructions differ, instruction order / register choice only: the original computes `n << 11` into v0
-   before storing `used` (the constant 1 is in v1) and stores startSct before pos. */
+/* The six header stores sit in a `do { } while (0)` (presumably a statement macro in the original). Written as
+   plain statements, every order of them compiles to the same wrong store order with `n << 11` computed late: the
+   order comes from the scheduler, and the loop notes of the wrapper change it (found by decomp-permuter). */
 s32 Movie_ReadBuf(MovieBuf *buf, char *tag) {
     Movie *m = gMovie;
     s32 pos;
@@ -453,17 +451,17 @@ s32 Movie_ReadBuf(MovieBuf *buf, char *tag) {
         return n;
     }
     ADXM_ExecMain();
-    buf->used = 1;
-    buf->startSct = pos;
-    buf->pos = 0;
-    buf->sectors = n;
-    buf->bytes = n << 11;
-    buf->seq = m->seq;
+    do {
+        buf->used = 1;
+        buf->startSct = pos;
+        buf->pos = 0;
+        buf->sectors = n;
+        buf->bytes = n << 11;
+        buf->seq = m->seq;
+    } while (0);
     m->seq++;
     return n << 11;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/movie", Movie_ReadBuf);
 
 /* Waits for the disc read (to a sector, or to its end with -1), pausing the sound if the wait drags on. */
 void Movie_WaitRead(s32 sector) {

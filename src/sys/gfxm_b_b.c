@@ -34,13 +34,12 @@ void TexChain_WriteTags(TexChain chain) {
     chain.tags[n++] = 0;
 }
 
-/* Cleanup pass 2: 27 loop shapes tried (while(1) / for(;;) / goto / do-while, with and without a `next` local,
-   the three spellings of the final add, the walk in an inline helper with the offset by reference or returned):
-   none keeps `ofs` unknown on the first-chunk path; the ones with `next` as a local stay at 3 of 96, all others
-   are worse. For the original's `addu s0,v0,s0` cse must not know that `ofs` is still 0x10 there, i.e. the test
-   of the first chunk was not in the same extended block as `ofs = 0x10` when cse ran. */
-#if 0
-/* NOT MATCHING: 3 of 94 instructions differ: on the path where the first chunk is the last, the original adds its size to the offset register (`addu s0,v0,s0`), here the compiler knows the offset is still 0x10 (`addiu s0,v0,16`); the temporary of the alignment test follows (v1 / v0). */
+/* The round-up of the end offset to 64 bytes is INSIDE the `if (next == 0)` that leaves the walk. The compiler
+   copies the loop's exit test, body of the `if` included, in front of the loop, so each exit path has its own
+   copy of the round-up until cross-jumping merges them after register allocation. With the round-up behind the
+   loop, 3 instructions differ: cse then knows the offset is still 0x10 on the first-chunk path
+   (`addiu s0,v0,16` for the original's `addu s0,v0,s0`) and the temporary of the alignment test is alone in its
+   block and takes v0 (v1 in the original, where it shares a block with the size load). */
 /* Builds the chunk list and the DMA chain of a whole chunked file, in the free space behind its chunks. */
 TexChain TexChain_Build(u8 *file) {
     TexChain chain;
@@ -55,15 +54,15 @@ TexChain TexChain_Build(u8 *file) {
 
         if (next == 0) {
             ofs = hdr->size + ofs;
+            if (ofs % 64 != 0) {
+                ofs = ofs / 64 * 64 + 64;
+            }
             break;
         }
         ofs += next;
         n++;
         hdr = (TexChunkHdr *)(file + ofs);
         ofs += 0x10;
-    }
-    if (ofs % 64 != 0) {
-        ofs = ofs / 64 * 64 + 64;
     }
     memset(&chain, 0, sizeof(chain));
     chain.list = (TexChainEnt *)(file + ofs);
@@ -93,8 +92,6 @@ TexChain TexChain_Build(u8 *file) {
     TexChain_WriteTags(chain);
     return chain;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b_b", TexChain_Build);
 
 /* TexChain_Build, then moves every chunk's destination by `cbp` blocks. */
 TexChain TexChain_BuildAt(u8 *file, s32 unused, s32 cbp) {
@@ -105,8 +102,9 @@ TexChain TexChain_BuildAt(u8 *file, s32 unused, s32 cbp) {
     return chain;
 }
 
-#if 0
-/* NOT MATCHING: 31 of 120 instructions differ: the same `addu s0,v0,s0` / `addiu s0,v0,16` as TexChain_Build, and the counters of the two chunk loops sit in a3 where this has a1 / s2. */
+/* Same walk as TexChain_Build. The pair count is a local set once at the top (the constant is then loaded behind
+   the call's argument and the result copy avoids v0), and ONE counter serves the skip loop and the pair loop, a
+   plain `for` (both counters are a3 in the original). */
 /* Builds the list and chain of one pair of chunks (`index`-th pixel + CLUT pair) of a chunked file. Every pair has
    its own 0x20-byte list and 0x40-byte tag area behind the chunks. */
 TexChain TexChain_BuildPair(u8 *file, s32 index) {
@@ -116,6 +114,7 @@ TexChain TexChain_BuildPair(u8 *file, s32 index) {
     s32 n = 1;
     s32 size;
     s32 i;
+    s32 count = 2;
 
     hdr = (TexChunkHdr *)file;
     while (1) {
@@ -123,15 +122,15 @@ TexChain TexChain_BuildPair(u8 *file, s32 index) {
 
         if (next == 0) {
             ofs = hdr->size + ofs;
+            if (ofs % 64 != 0) {
+                ofs = ofs / 64 * 64 + 64;
+            }
             break;
         }
         ofs += next;
         n++;
         hdr = (TexChunkHdr *)(file + ofs);
         ofs += 0x10;
-    }
-    if (ofs % 64 != 0) {
-        ofs = ofs / 64 * 64 + 64;
     }
     memset(&chain, 0, sizeof(chain));
     chain.list = (TexChainEnt *)(file + ofs + index * 0x20);
@@ -151,29 +150,25 @@ TexChain TexChain_BuildPair(u8 *file, s32 index) {
         }
         ofs += hdr->next;
     }
-    n = 0;
-    do {
+    for (i = 0; i < count; i++) {
         hdr = (TexChunkHdr *)(file + ofs);
         ofs += 0x10;
-        chain.list[n].tag = hdr->tag;
+        chain.list[i].tag = hdr->tag;
         if (hdr->next == 0) {
-            chain.list[n].size = hdr->size;
+            chain.list[i].size = hdr->size;
         } else {
-            chain.list[n].size = hdr->next;
+            chain.list[i].size = hdr->next;
         }
-        chain.list[n].data = (u32 *)(file + ofs);
-        n++;
+        chain.list[i].data = (u32 *)(file + ofs);
         if (hdr->next == 0) {
             break;
         }
         ofs += hdr->next;
-    } while (n < 2);
-    chain.count = 2;
+    }
+    chain.count = count;
     TexChain_WriteTags(chain);
     return chain;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b_b", TexChain_BuildPair);
 
 /* Builds the chains of the first `count` pairs of a chunked file and moves each one's destination by `cbp`. */
 void TexChain_BuildPairs(TexChain *out, u8 *file, s32 cbp, s32 count) {
@@ -379,16 +374,13 @@ void TexFile_UploadAt(TexFile *file, s32 index, s32 tbp, s32 cbp) {
     }
 }
 
-#if 0
-/* NOT MATCHING: 5 of 80 instructions differ, two registers swapped: the original has GIF_EOP | 4 (word 4) in v1 and
-   the REF tag in a2, here a2 and v1. Writing the REF tag as a constant in the last statement (not as a local set at
-   the top) fixed the other two constants (0x50 in a3, 0x51 in t0). Moving the statement for word 3, word 4 or the
-   REF tag to any other position does not help; the 46 stores are the same and in the same order. */
 /* Builds the upload packet of a 256-colour CLUT that the caller fills in afterwards: BITBLTBUF to block `cbp`,
    a 16x16 transfer, 0x400 bytes of image data and a TEXFLUSH, plus the REF / END tags that send it. */
 void GfxClut_InitPacket(GfxClutWork *work, u16 cbp) {
     u32 *w = (u32 *)work;
     u64 blt = (u64)cbp << 32;
+    u32 endTag = DMA_TAG_END; /* a local set at the top, while the REF tag is a constant in the last statement:
+                                 with the constant written at its store, a2 and v1 are exchanged */
 
     work->cbp = cbp;
     w[0] = 0;
@@ -431,11 +423,9 @@ void GfxClut_InitPacket(GfxClutWork *work, u16 cbp) {
     work->ref[1] = (u32)work;
     work->ref[2] = 0;
     work->ref[3] = 0;
-    work->end[0] = DMA_TAG_END;
+    work->end[0] = endTag;
     work->end[1] = 0;
     work->end[2] = 0;
     work->end[3] = 0;
     work->ref[0] = DMA_TAG_REF | 0x49;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/gfxm_b_b", GfxClut_InitPacket);

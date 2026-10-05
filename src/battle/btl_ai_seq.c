@@ -1003,24 +1003,22 @@ s32 BtlAiStep_Charged(BtlAiWork *ai) {
  * technique is not of kind 1 or 2; 15 (any other value) = no foreign blast is flying past; 0 = the opponent has
  * stopped attacking (BtlCharApi_CheckUnkCAC) and its state has flag bit 1 clear. For action 0x45 it also picks
  * the step to play from the opponent's state class (0x10 -> 1, 0x11 -> 2, else 0) on every frame. */
-#if 0
-/* Best attempt. 2 of 74 instructions differ: the original has `sltiu v0,v0,1` (the "kind is not 1 or 2" result)
- * in front of the `bne id,0x45` branch and `li a1,0x10` in its delay slot; this C gives them the other way round
- * (an ordering of the first block by the scheduler; everything else, registers included, is the same). Forms that
- * were tried and give 12 or more differences: `ret = !(...)`, an if / else pair, a switch, a ternary, the test
- * written inside the `timer == -1` branch.
- * What decides it (RTL dumps): the first scheduling pass moves `li 16` up from the next block with priority 2 (it
- * feeds that block's branch) and gives the flag instruction priority 1, because nothing in the first block depends
- * on it; the second pass then keeps that order and the delay slot takes the last one. The original order needs a
- * dependent of the flag in the first block at that time (one that is gone afterwards). Also tried without
- * effect: an inline helper returning the flag (`if (..) return 0; return 1;` and `!`), a copy through a second
- * variable, a result variable with one `return` at the end (25 differences).
- * Second cleanup pass, also without effect: `kind - 1` and the range flag as locals in every combination, the
- * flag computed behind the id block (then `li a1,16` is in the slot, but `lw a0` / `sltiu` / `li` come out in
- * another order: 5 differences), the negation written at the `return` (`!in`, `in == 0`: the same 2), a dead
- * second statement in the `if` (longer), the class chain nested the other way, an if / else with identical arms
- * around the flag or the id block (a block boundary until the second jump pass).
- * Behaviour: identical; the two instructions are independent (v0 against a1). */
+/* FAKE MATCH (permuter): two constants held in variables. `hitCls = 0x10` is set at the top (in front of the
+ * flag), and `none = 0` is set behind the id block and compared with the timer. Without them 2 of 74 instructions
+ * differ: `sltiu v0,v0,1` (the "kind is not 1 or 2" result) and `li a1,0x10` in front of / in the delay slot of
+ * the `bne id,0x45` branch come out exchanged. What happens (RTL dumps): written as a literal, the 0x10 is created
+ * in the next block and the first scheduling pass moves it up with priority 2 while the flag has priority 1; as a
+ * variable it is an instruction of the first block (that alone gives 5 differences, the same instructions in
+ * another order). `none = 0` is one more instruction in the timer block that the timer branch depends on until
+ * reload replaces the pseudo by the constant; it changes the order in which the instructions of that block are
+ * moved up (`li a2,-1`). Only the compare `timer != none` needs it; `none` at its declaration, in front of the
+ * id block, or used only in the later returns does not work, nor does `hitCls` set behind the flag.
+ * What the two stand for is unknown (a dependent of the flag in the first block that is gone afterwards would do
+ * the same). Natural forms that were tried and do not match: `ret = !(...)`, an if / else pair, a switch (on the
+ * kind and on the timer), a ternary, the test inside the `timer == -1` branch, an inline helper returning the
+ * flag or picking the step or deciding the result, a result variable with one `return`, `kind - 1` and the range
+ * flag as locals, the class chain nested the other way, 0x11 in a variable as well.
+ * Behaviour is identical in all of them. */
 s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
     BtlAiSeqA *seq = SEQA(ai);
     BtlAiSeqActTable *act = AI_DATA->act;
@@ -1031,13 +1029,15 @@ s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
     BtlAiSeqEntry *top = &SEQ_TOP(seq);
     u8 flags = act->body.stateFlags[state];
     s32 kind = BtlCharApi_GetOppSkillKind(ai->objId);
+    s32 hitCls = 0x10;
     s32 ret = 0;
+    s32 none;
 
     if (!((u32)(kind - 1) < 2)) {
         ret = 1;
     }
     if (top->id == 0x45) {
-        if (cls == 0x10) {
+        if (cls == hitCls) {
             seq->step = 1;
         } else if (cls == 0x11) {
             seq->step = 2;
@@ -1045,10 +1045,11 @@ s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
             seq->step = 0;
         }
     }
+    none = 0;
     if (seq->timer == -1) {
         return ret;
     }
-    if (seq->timer != 0) {
+    if (seq->timer != none) {
         return passing == 0;
     }
     if (flags & 2) {
@@ -1056,8 +1057,6 @@ s32 BtlAiStep_GuardUntilSafe(BtlAiWork *ai) {
     }
     return attacking == 0;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/btl_ai_seq", BtlAiStep_GuardUntilSafe);
 
 /* Step handler 9: finished 30 frames after the opponent stopped attacking (BtlCharApi_CheckUnkCAC; the count
  * restarts while it attacks, and stands still while any fighter has flag 0x128); never while the opponent's

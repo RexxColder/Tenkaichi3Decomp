@@ -420,26 +420,24 @@ void Rigid_SyncSpheres(RigidBody *body) {
  *   mass = radius^3 * 2.3561945 (3 pi / 4) * density;  inertia = (2 / 5) mass radius^2 * 20 on all three axes;
  *   sphere = prevSphere = { centre (0, 0, 0), radius };  flags = 1;  user = second argument.
  *
- * NON-MATCHING: 2 of 72 instructions. Before the second memset the original loads the size first
- * (`li a2,0x220; move a0,s0`) and this compiles to `move a0,s0; li a2,0x220`. Everything else,
- * including the register allocation, is identical. It is an instruction-scheduling tie: the order
- * depends on whether the first memset call is the first or the second instruction issued in its
- * scheduler cycle. Tried without effect: explicit memset + stores for `zero`, a compound literal,
- * an inline clear helper, a local for the size / destination / sphere pointer, bzero.
- * The float constant 2.35619449f (0x4016CBE3) of this function is D_002FE818, the last entry of
- * this file's .lit4 pool.
+ * The float constant 2.35619449f (0x4016CBE3) of this function is D_002FE818, the last entry of this file's
+ * .lit4 pool.
  */
-/* Cleanup pass 2: the scheduler dump (-da, .sched) shows what decides it. In the first scheduling pass the first
-   memset call is issued and `a0 = body` of the second call becomes ready in the same cycle and is issued at
-   once (the insn that the call makes ready last is taken immediately, the others are sorted in the next cycle:
-   size, then zero). The original has size, body, zero: there `a0 = body` was not the one issued with the call.
-   `Vec4 zero = { 0.0f };` + `zero.w = 1.0f;` behind the second memset, an explicit memset of `zero`,
-   __builtin_memset and a local for 1 all leave the order as it is or change far more. */
-#if 0
+/* FAKE MATCH (permuter): `body++; body--;` in front of the clear. The two statements combine to a self-move
+   (`body = body`) that survives until after the first scheduling pass and vanishes later. All it does is add ONE
+   instruction to the instructions issued before the first memset call (the clear of `zero`); the scheduler
+   issues two per cycle, so the call becomes the second instruction of its cycle instead of the first, the three
+   argument loads of the second memset are then sorted together and come out as size, body, zero like the
+   original (without it `a0 = body` is issued in the call's own cycle: `move a0,s0` in front of `li a2,0x220`).
+   It stands for whatever gave the original an odd number of instructions there; no natural form was found
+   (a local copy of `body`, inline identity / clear helpers, a cast through u32, `&body[0]`, an explicit memset
+   of `zero`, a compound literal and a local for 1.0f all leave the pair as it was). */
 void Rigid_Init(RigidBody *body, s32 user, f32 radius, f32 density) {
     Vec4 zero = { 0.0f, 0.0f, 0.0f, 1.0f };
     f32 inertia;
 
+    body++;
+    body--;
     memset(body, 0, sizeof(RigidBody));
     body->flags = 1;
     ColSphere_Set(&body->sphere, &zero, radius);
@@ -453,5 +451,3 @@ void Rigid_Init(RigidBody *body, s32 user, f32 radius, f32 density) {
     body->prevSphere = body->sphere;
     body->user = user;
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/sys/rigid", Rigid_Init);

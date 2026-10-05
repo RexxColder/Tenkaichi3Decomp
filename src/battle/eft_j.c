@@ -2,8 +2,8 @@
 #include "battle/eft_j.h"
 
 /*
- * Technique effect modules of scene layer 1, 0x1532A0..0x157398 (65 functions, 64 matching, EftBlast_Init left in
- * assembly). Layer 1 keeps, per fighter, a few "shot slots"; a slot that fires a technique creates the manager
+ * Technique effect modules of scene layer 1, 0x1532A0..0x157398 (65 functions, all matching). Layer 1 keeps,
+ * per fighter, a few "shot slots"; a slot that fires a technique creates the manager
  * task of the effect type its definition names (row type + 1 of gEftShotClass, 0x2C3700: {manager class, item
  * class, 0}), and the manager creates up to two items. A class is six callbacks in the order update, init, term,
  * post-update, reset, draw (BtlTaskClass). This file holds, in address order:
@@ -1228,18 +1228,17 @@ void EftBlast_UpdateParts(s32 objId, EftJTask *task, EftJSet *set, s32 mode) {
  * and flag 0x800; 0x14B: flag 0x800), binds the manager's emitter set, takes the speed from the set's second
  * width track when it has one (flag 0x200), reads the end time and tags the task with its character's reset bit.
  *
- * The first id test reads src->def through a volatile-qualified lvalue. That is a stand-in, not a claim about the
- * source: written plainly, gcse's PRE makes one pseudo of the loads of src->def in front of the 0x268 and 0x2CD
- * tests (the load is partially redundant on the edge that skips the 0x268 block) and the registers of all three
- * tests change; the original shows no PRE there. A volatile read is not entered in gcse's expression table, so the
- * second load stays in its block, and the delay-slot pass still finds it redundant on the skipping branch, which
- * is what the original has (bnel with `li a0,717` in the slot, target behind both loads). Only the FIRST test
- * may be volatile: on the second one the delay-slot pass no longer removes the loads. The cause in the original
- * source is unknown (the same thing happens in EftVolley_Init, eft_h.c, where this stand-in does not work).
+ * `src` is a local copy of the argument, declared behind the locals that a call initialises (the callback's
+ * argument was presumably untyped in the original). With the parameter used directly, gcse's PRE makes one pseudo
+ * of the loads of src->def in front of the 0x268 and 0x2CD tests (the load is partially redundant on the edge that
+ * skips the 0x268 block) and the registers of all three tests change (9 instructions); the original shows no PRE
+ * there (bnel with `li a0,717` in the slot, target behind both loads). The same form fixes EftVolley_Init
+ * (eft_h.c), where decomp-permuter found it. It replaces the volatile read this function used as a stand-in.
  */
-void EftBlast_Init(EftJTask *task, EftJSrc *src) {
+void EftBlast_Init(EftJTask *task, EftJSrc *arg) {
     EftJTask *parent = BtlTask_GetParent(task);
     EftBlast *w = task->work;
+    EftJSrc *src = arg;
     EftBlastMgr *mgr = parent->work;
     EftJDef *def;
 
@@ -1248,7 +1247,7 @@ void EftBlast_Init(EftJTask *task, EftJSrc *src) {
     def = src->def;
     w->speed = def->speed;
     w->scale = def->scale;
-    if ((*(EftJDef *volatile *)&src->def)->id == 0x268) {
+    if (src->def->id == 0x268) {
         f32 ratio = BtlCharApi_GetUnkE5CRatio(src->objId);
 
         w->ratio = ratio;

@@ -998,7 +998,6 @@ void EftChain_DrawStrandClipped(EftArc *w, EftArc *w2, EftArcChain *ch) {
 /* Starts a chain in a free slot: nodes from the pool (fewer than 3: gives up), random life, colours, direction
    (kind 2: random pitch, and a yaw that advances per chain; other kinds: the effect's slot rotation), turn
    steps mirrored on odd slots, then the node layout. */
-#if 0 /* 3 of 350 instructions, one register: the shrink rate (key->shrinkRate, loaded once and used by the test and by the division in the else arm) is in f2 in the original, here in f1. The chain's time is now right (f4): it shares the variable `r` with the random factors, as does the quotient. For f2 the rate would have to conflict with f1 somewhere; tried without effect: a variable of its own for the rate (declared first / last, or one of cx, cy, a, b), loading it earlier (the load and the compare then move up), the compare written the other way round, `ch->life - r`, the quotient written in one expression. Global allocation order here is life (f3, preferred), rate, then r. */
 s32 EftChain_StartStrand(EftTask *task, EftArcChain *ch) {
     EftArc *w = task->work;
     EftArcParam *p = w->arg.param;
@@ -1017,12 +1016,11 @@ s32 EftChain_StartStrand(EftTask *task, EftArcChain *ch) {
     ch->flags |= EFT_ARCCH_ON;
     life = key->lifeBase + key->lifeRange * RANDF();
     ch->time = 0.0f;
-    r = ch->time;
     ch->life = life;
     ch->f7C = life * key->f8C;
     ch->endAt = life * key->fA4;
     ch->fadeAt = life - key->fadeOut;
-    if (key->shrinkRate <= r) {
+    if (key->shrinkRate <= ch->time) { /* the field read back, not a local (a local puts the rate in f1, not f2) */
         ch->flags |= EFT_ARCCH_SHRUNK;
     } else {
         r = (f32)ch->count / key->shrinkRate;
@@ -1106,15 +1104,6 @@ s32 EftChain_StartStrand(EftTask *task, EftArcChain *ch) {
     w->live++;
     return 1;
 }
-#else
-LIT4_WORD(D_002FCC64, 0x4EFFFFFF); /* the function's six 2147483647.0f */
-LIT4_WORD(D_002FCC68, 0x4EFFFFFF);
-LIT4_WORD(D_002FCC6C, 0x4EFFFFFF);
-LIT4_WORD(D_002FCC70, 0x4EFFFFFF);
-LIT4_WORD(D_002FCC74, 0x4EFFFFFF);
-LIT4_WORD(D_002FCC78, 0x4EFFFFFF);
-INCLUDE_ASM("asm/nonmatchings/battle/eft_s", EftChain_StartStrand);
-#endif
 
 /* One frame of every chain: growth, shrinking, the end phase, width and colour pulses, colour drift, fades,
    visibility, the nodes; a chain whose life is over and whose alpha reached 0 is freed on the next frame. */

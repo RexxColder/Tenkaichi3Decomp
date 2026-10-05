@@ -638,3 +638,33 @@ Tools
 - Reload registers come round-robin from the set of hard regs picked as spill regs anywhere
   in the function: a whole-function "off by one register" in reload temporaries can be caused
   by a single far-away instruction (see `Using reg` lines in the `.greg` dump).
+
+## Lessons from the first decomp-permuter batch (2026-10-05)
+
+Tool: `.venv/bin/python scripts/permute.py <src/file.c> <Func> [--run] [-jN]`; queue driver
+build/permuter/queue.sh; results in build/permuter/results.txt; check a candidate with
+build/permuter/verify.py (a score-10 candidate can already be exact: verify before assuming).
+Only exact candidates may be applied, and SPLIT the permuter's diff first: in five of nine
+functions half of its changes were unnecessary, and in two the rest was a natural form.
+Functions starting at a score of 60 or less were nearly all solved in minutes; those above
+100 mostly did not move (structural causes).
+- Callback argument copied into a typed local (`T *slot = arg;`) declared BEHIND a local that
+  a call initialises: a second pseudo that survives cse, so gcse's PRE no longer merges
+  repeated `slot->param` loads (`EftVolley_Init`, `EftBlast_Init`: natural, the volatile fake
+  is gone).
+- Code behind a `while (1)` loop may belong inside the `if (...) { ...; break; }` body
+  (`TexChain_Build`: cse knowing a constant on the first-iteration path was the symptom).
+  Two loops with counters in the same register are one variable.
+- The first scheduling pass issues two instructions per cycle: one instruction more or fewer
+  in front of a call decides the order of the NEXT call's argument loads.
+- `do { } while (0)` around a run of stores changes their order (reads like a statement
+  macro: `Movie_ReadBuf`); around a block with an inlined loop it changes which `return 0`
+  block survives cross-jumping.
+- FAKE MATCHES kept from this batch (marked in the sources): `Rigid_Init` (`body++; body--;`),
+  `BtlAiStep_GuardUntilSafe` (two constant-holding variables), `EftHit_InitMultiHit` (a field
+  stored back to itself; possibly a vacuous clamp originally), `EftBlastObj_Init`
+  (`(void)&arg;`: an address-taken parameter may alias the frame), `EftOrbTail_Create` and
+  `DcPass_Decode` (`do { } while (0)` around a block). `EftBlast_Init` is no longer a fake.
+- `DcPass_Input` (src/menu/menu_z_d.c) is PATH-SENSITIVE: an unchanged copy of the file under
+  another directory compiles its switch dispatch differently. Scratch copies of that file
+  cannot be trusted for that function.

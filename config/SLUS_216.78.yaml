@@ -695,7 +695,6 @@ segments:
       - [0x1FE7B4, .lit4, sys/loading]
       - [0x1FE7C0, .lit4, sys/adx]
       - [0x1FE7C4, .lit4, sys/rigid]
-      - [0x1FE818, lit4, cod/1FE818]
       - [0x1FE81C, .lit4, sys/ramp]
       - [0x1FE820, lit4, cod/1FE820]
       - [0x1FE880, sdata, cod/1FE880] # .sdata

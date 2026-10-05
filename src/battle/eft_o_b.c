@@ -13,8 +13,8 @@
  * (A handle whose task was killed and reused by another blast object passes that test: the creators drop
  * their handle when EftBlastObj_IsAlive fails, which they poll every frame.)
  *
- * LIFE OF A BLAST OBJECT (verified by the matching code below, except what EftBlastObj_Init does: it is left in
- * assembly, 6 instructions (registers only) away from its C, and was checked against the disassembly line by line)
+ * LIFE OF A BLAST OBJECT (verified by the matching code below; EftBlastObj_Init matches through a stand-in
+ * statement, see its note)
  *
  * Creation (EftBlastObj_Create / EftBlastObj_CreateWithModel -> EftBlastObj_Init):
  *   - position = *arg->pos (also kept as the record's "start"), direction = *arg->dir (taken as given, not
@@ -334,28 +334,26 @@ void EftBlastObj_UpdateParts(s32 objId, EftOTask *task, EftOSet *set, s32 reset)
 }
 
 /* Init callback: see the notes at the top of the file. */
-/* NON-MATCHING: 6 instructions, register allocation only, in the copy of the node slots: the original keeps
-   the end pointer of the block copy in v0 and copies through t1 / v1 / a1 / a2; this keeps it in a1 and
-   copies through t1 / v0 / v1 / a2.
-   Cause (from the -da dumps and -fsched-verbose): the end pointer `arg->nodes + 0x240` gets v0 only when it is
-   computed AFTER `&slots[w->sel[0].node]`; the first scheduling pass here puts it before, because the load of
-   arg->nodes becomes ready two cycles earlier than the load of w->sel[0].node (a load through the parameter
-   `arg` is known not to alias the two table initialisers on the stack, a load through `w` is not). In the
-   original both loads became ready together, the one with the longer chain (the node) went first. No source form
-   found that does it: reading the node or the nodes pointer before / between the table initialisers changes the
-   order of the copies (29 to 130 instructions), a local for the pointer, memcpy and other spellings give these 6.
-   Behaviour is identical (registers only; also run against the original in the interpreter). 
-   Second cleanup: the scheduler trace of the attempt is 112 / 120 (the two table copies, cycles 48 / 49), then
-   138 (load of arg->nodes, ready since cycle 48), 123 (load of the node, ready at 51 because it depends on the
-   second copy), 140, 127, 129, 131; the original's order needs 123 in front of 138, i.e. the load through `arg`
-   not ready before cycle 51 (a dependence on the second table copy) or the node load ready at 50. Passing the
-   argument block by value does not do it (the callee copies it: 160 instructions off). */
-#if 0
+/* FAKE MATCH (permuter): `(void)&arg;`. Taking the parameter's address anywhere in the function is enough (the
+   statement emits nothing and its place does not matter; `*(*&arg)->nodes` at the copy does the same). It stands
+   for something in the original that made `arg` addressable, or not a plain pointer parameter; what, is unknown.
+   Why it works: without it 6 instructions differ, registers only, in the copy of the node slots (the original
+   keeps the end pointer of the block copy in v0 and copies through t1 / v1 / a1 / a2; the plain form keeps it in
+   a1 and copies through t1 / v0 / v1 / a2). The end pointer `arg->nodes + 0x240` gets v0 only when it is computed
+   AFTER `&slots[w->sel[0].node]`. In the plain form the first scheduling pass puts it before, because the load of
+   arg->nodes becomes ready two cycles earlier than the load of w->sel[0].node: a load through a pointer
+   PARAMETER is known not to alias the two table initialisers on the stack, a load through `w` is not. Once the
+   parameter's address is taken, its value reaches the loads through copies with no known base, the load through
+   `arg` also waits for the second table copy, both loads become ready together and the one with the longer chain
+   (the node) goes first, as in the original.
+   Does not do it: the address of `task`, a local copy of `arg` or of the nodes pointer, `arg = arg`, the index
+   read through `arg`, memcpy, reading either value before / between the initialisers, the block by value. */
 void EftBlastObj_Init(EftOTask *task, EftBlastObjArg *arg) {
     EftBlastObj *w = task->work;
     EftOSrc *src;
     s32 slot;
 
+    (void)&arg;
     memset(w, 0, sizeof(EftBlastObj));
     w->set = arg->set;
     w->src = src = arg->src;
@@ -402,11 +400,6 @@ void EftBlastObj_Init(EftOTask *task, EftBlastObjArg *arg) {
     }
     BtlTask_SetOwnerTag(task, src->objId == 0 ? 0x800 : 0x1000);
 }
-#else
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_o_b", D_002ECC60); /* slots[7] = { 0, 1, 3, 4, 5, -1, -1 } */
-INCLUDE_RODATA("asm/nonmatchings/battle/eft_o_b", D_002ECC80); /* bits[6] = { 2, 4, 8, 0x10, 0x20, 0x40 } */
-INCLUDE_ASM("asm/nonmatchings/battle/eft_o_b", EftBlastObj_Init);
-#endif
 
 /* Term callback. */
 void EftBlastObj_Term(EftOTask *task) {

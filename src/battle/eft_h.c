@@ -710,10 +710,16 @@ void EftVolley_UpdateParts(s32 objId, EftHTask *task, EftSet *set, s32 reset) {
 }
 
 /* Instance init: clears the work, takes the shot parameters of the slot and the group's emitter set. */
-#if 0 /* 6 instructions: the original loads slot->param once for the id test (into v0) and again after it for the flag test; this C reuses the first load on the path that skips the `flags |= 0x200` block. That is gcse's PRE (dump: "PRE: redundant insn ... in bb 2"); the original has PRE between the second and third test (as here) but not between the first and second, the same thing as in EftBlast_Init (eft_j.c). Compiled with -fno-gcse the first test matches and the third does not. Behaviour is identical (run against the original in an interpreter on random data: same calls, same memory). Second retry: reading slot->param through a volatile lvalue in the FIRST test stops the PRE and makes EftBlast_Init match, but here it also stops the delay-slot pass from moving `move a0,s1` into the slot of the first branch (any volatile reference between an instruction and the branch blocks the move), so 3 instructions still differ (bnel with the reload in the slot against bne / move a0,s1). A reused pointer variable for one, two or all three tests, a union or array destination for the first load, an unused pure / const call between the tests and casts through s32 / long leave the 6 differences as they are. */
-void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
+/* The slot is a local copy of the argument (`EftHSlot *slot = arg;`, declared behind a local that is initialised
+   by a call): the callback's argument was presumably untyped in the original. With the parameter used directly
+   6 instructions differ: gcse's PRE then merges the load of slot->param for the id test with the one for the
+   flag test (the original reloads it), the same thing as in EftBlast_Init (eft_j.c). Only the LAST use (the
+   owner tag) has to go through the copy; a copy declared in front of the first call is folded away again. Found
+   by decomp-permuter. */
+void EftVolley_Init(EftHTask *task, EftHSlot *arg) {
     EftSet *set = BtlTask_GetParent(task)->data;
     EftVolleyWork *w = task->data;
+    EftHSlot *slot = arg;
     EftShotParam *p;
     s32 id;
 
@@ -740,8 +746,6 @@ void EftVolley_Init(EftHTask *task, EftHSlot *slot) {
     }
     BtlTask_SetOwnerTag(task, slot->arg.chr == 0 ? 0x800 : 0x1000);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_h", EftVolley_Init);
 
 /* Instance term: releases the emitter state and, for a technique, sets the fighter's held flag 0xA8. */
 void EftVolley_Term(EftHTask *task) {

@@ -781,33 +781,33 @@ void EftOrbTail_UpdateTex(EftOrbTail *w) {
 }
 
 /* Creates an orb tail for a fighter; kind is the fighter's aura type. Returns the task or NULL. */
-#if 0
-/* NON-MATCHING: 2 of 45 instructions differ: the original stores unk10.w (swc1 $f0,28(sp)) before kind (sb s0,32(sp)); this
-   stores them the other way round. Everything else is identical.
-   Cleanup E: the first scheduling pass gives the one memory slot per cycle to the two `sw zero` of the initialiser,
-   then to the gEftOrbTail load (it feeds the branch), and only then to the 1.0f load, so the float store becomes
-   ready one cycle after the `kind` store. With the whole structure cleared by one memset (an incomplete
-   initialiser) the 1.0f load goes first and the stores come out in the original order, but then the two `sw zero`
-   and the 16-byte memset are gone (4 differ). Statement orders, explicit memset, nested / array members and the
-   shapes of the three NULL tests do not change it. */
+/* FAKE MATCH (permuter): the manager pointer is read into a local in front of a `do { } while (0)` that holds
+   the two tests on it, and read again through the global afterwards. The wrapper is the artificial part; it
+   stands for a statement macro or a removed loop. Written as three plain tests, 2 of 45 instructions differ: the
+   store of unk10.w (swc1 $f0,28(sp)) and of kind (sb s0,32(sp)) are exchanged, because the first scheduling pass
+   gives its one memory slot per cycle to the load of gEftOrbTail (it feeds the branch) before the 1.0f load.
+   The local alone, the wrapper alone, the wrapper around all three tests, or `mgr` used for the reads behind the
+   tests do not match; the wrapper around the first test on `mgr` alone does. */
 EftAbTask *EftOrbTail_Create(s32 objId, s32 kind) {
     EftOrbTailArg arg = { NULL, NULL, { 0.0f, 0.0f, 0.0f, 1.0f }, kind, objId };
+    EftOrbTailMgr *mgr;
 
     if (gEftOrbTail == NULL) {
         return NULL;
     }
-    if (gEftOrbTail->mgr == NULL) {
-        return NULL;
-    }
-    if (gEftOrbTail->mgr->list == NULL) {
-        return NULL;
-    }
+    mgr = gEftOrbTail->mgr;
+    do {
+        if (mgr == NULL) {
+            return NULL;
+        }
+        if (mgr->list == NULL) {
+            return NULL;
+        }
+    } while (0);
     arg.color = gEftOrbTail->mgr->color;
     arg.param = gEftOrbTail->mgr->param;
     return BtlTaskList_AddTail(gEftOrbTail->mgr->list, gEftOrbTailClass, &arg);
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_ab", EftOrbTail_Create);
 
 /* Asks the task to start its burst emitters. Returns 1 when the task is a live orb tail. */
 s32 EftOrbTail_Burst(EftAbTask *task) {

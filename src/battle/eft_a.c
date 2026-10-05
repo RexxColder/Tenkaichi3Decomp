@@ -848,29 +848,27 @@ f32 EftHit_GetScale(EftHitRec *rec) {
 }
 
 /* Marks the owning task as multi-hit when the definition has a hit limit, and drops a stale "hit a fighter". */
-#if 0
-/* Not matching (3 of 20 instructions, registers only): the original keeps rec->src in $v0 and loads the definition
- * into $v1 (lw v1,0x24(v0); lb v0,0xA(v1)); this reuses $v0 for the definition and puts the count in $v1.
- * What the register dumps say: the definition and the count are values local to the block after the null test, and
- * the allocator gives the first of them $v0 unless a third value local to that block holds $v0 when the definition
- * is loaded, i.e. the original had its own copy (or a second load) of rec->src in that block, which later
- * disappeared because it sat in the same register. About 60 forms tried (locals for each value, in the block or at
- * function level, a variable set twice, early returns, && / nested, inline helpers, loop / goto / switch around the
- * test): all give these 3 instructions or more. The C is exact in behaviour (checked by running both versions in
- * an interpreter on random records, build/scratch_cleanup_eft/emu_generic.py).
- * Second pass (cleanup 2, about 70 more forms: inline accessors returning the definition / the count / a flag,
- * result variables, casts of the count, do-while / switch shapes): unchanged. What decides it: the definition
- * and the count are both local to the middle block with 2 references and a life of one instruction, so their
- * priorities tie and the one born first (the definition) is allocated first and takes $v0; local-alloc's first
- * try widens each life by one instruction, so the count cannot share $v0 and takes $v1. The original needs the
- * count allocated first: a third reference to it, or one more instruction between the two loads, in the RTL
- * before register allocation that leaves no instruction behind. */
+/* FAKE MATCH (permuter): the self-assignment of the definition's count inside the `if`. It emits nothing in the
+ * end, but the store (`sb count,10(def)`) is real RTL until AFTER register allocation: only the cse pass that
+ * follows reload deletes it, as a store of a value the register was just loaded with. Until then the definition
+ * pointer and the count are live into the inner block, so they are no longer two values local to the middle block
+ * with equal priority (2 references, a life of one instruction: the tie went to the first-born, the definition,
+ * which took $v0 and pushed the count to $v1). Without the statement 3 of 20 instructions differ, registers only:
+ * the original keeps rec->src in $v0 and loads the definition into $v1 (lw v1,0x24(v0); lb v0,0xA(v1)).
+ * `+= 0`, `|= 0`, `*= 1` and a clamp the compiler folds away (`x = x > 127 ? 127 : x` on the s8 field) do the
+ * same; a second READ of the field (a dead local, `(void)`, an empty `if`, `n` loaded again) does not, and
+ * `... = n` emits a real store (n is the sign-extended copy).
+ * What it stands for is unknown: a statement of the original that wrote the count back unchanged (a vacuous
+ * clamp or a macro), or anything else that kept the two values alive in the inner block. About 130 natural forms
+ * were tried in the earlier passes (locals for each value, a variable set twice, early returns, && / nested,
+ * inline accessors, result variables, casts, loop / goto / switch shapes): all give those 3 instructions or more. */
 void EftHit_InitMultiHit(EftHitRec *rec) {
     s32 n;
 
     if (rec->src != NULL) {
         n = rec->src->def->maxHits;
         if (n > 0) {
+            rec->src->def->maxHits = rec->src->def->maxHits;
             rec->task->flags |= EFT_TASK_MULTI;
             if (rec->task->flags & EFT_TASK_HIT_CHAR) {
                 rec->task->flags &= ~EFT_TASK_HIT_CHAR;
@@ -878,8 +876,6 @@ void EftHit_InitMultiHit(EftHitRec *rec) {
         }
     }
 }
-#endif
-INCLUDE_ASM("asm/nonmatchings/battle/eft_a", EftHit_InitMultiHit);
 
 /* Spawns the impact effect of a ki blast at the place its task was hit. */
 void EftHit_SpawnBlastImpact(EftHitRec *rec) {

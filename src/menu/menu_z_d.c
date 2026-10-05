@@ -10,11 +10,10 @@
  * menu_za.c 0x3AC440..0x3AE648 = the slot list, init / draw / input / run; merged here.) The work structure is a
  * local variable of DcPass_Run, so there is no work pointer; the object's `.data` is the key table at 0x3BC928
  * (0x8C bytes). Its read-only data is 0x3BD700 ("mc_input_code_%d_%02d") .. 0x3BE16C (the two jump tables of
- * DcPass_Input); with the four `#if 0` attempts compiled in, the strings come out exactly as in the original.
+ * DcPass_Input); with the `#if 0` attempts compiled in, the strings come out exactly as in the original.
  *
- * Four functions are INCLUDE_ASM. What they refer to in the object's data:
+ * Three functions are INCLUDE_ASM. What they refer to in the object's data:
  *   DcPass_WrapPos     nothing
- *   DcPass_Decode      nothing (no string, no table)
  *   DcPass_DrawStatus  its own seven strings, 0x3BD850..0x3BD914 ("mc_status_ability_plus_%d" 0x3BD850,
  *                      "mc_status_ability_base2_1" 0x3BD870, "mc_text_ability_&d" 0x3BD890,
  *                      "mc_status_ability_base1_%d" 0x3BD8A8, "mc_status_ability_minus_%d" 0x3BD8C8,
@@ -452,18 +451,19 @@ static inline s32 DcPass_IsListed(DcPass *pass, s32 chara) {
  * (the character must be unlocked) fills the status page's record and returns 1.
  */
 /*
- * NOT MATCHING: 5 of 118 instructions (was 20), all at the first test: the original keeps the `return 0` of a
- * failed DcPassText_Pack in place behind the test (`beql v0,zero,+ / lw / b end / move v0,zero`), the attempt
- * branches to the end (`bnezl v0,end / move v0,zero`). Calls, arguments and stores are the same.
- * Found in the cleanup: the 34-character branch is `if (decode == 1) { if (!valid) return 0; } else return 0;`
- * (the `else return 0` block is where the loop pass puts the "found" exit of the inlined grid search), and the
- * record's character is stored before the status page's (the two stores are emitted the other way round).
- * The remaining difference: in the attempt the second jump pass merges the Pack test's `v0 = 0; goto end` block
- * into the identical block of the `else return 0` above (cross-jumping), which turns the test into a branch to
- * it; in the original that block survived at the Pack test and the other failures branch to it. A label and
- * `goto` reproduce that layout but disturb the rest (20 differences), so the original's form is still unknown.
+ * FAKE MATCH (permuter): the `do { } while (0)` around the decoding and the grid test. It stands for something
+ * that made that part a block of its own in the original (a statement macro or a loop that lost its condition);
+ * no other form was found: the wrapper has to hold exactly those two parts (starting at the Pack test or the
+ * memset, ending behind the stores, or around the decoding alone, all fail), `for (;;) { ...; break; }` is
+ * equivalent, and an inline helper for the decoding, a switch on the length, and `break` with a result flag do
+ * not match.
+ * What it changes: the grid search (an inline loop) is then nested in a loop, so the loop pass leaves the block
+ * of a failed DcPassText_Pack (`v0 = 0; goto end`) at the test, where the original has it
+ * (`beql v0,zero,+ / lw / b end / move v0,zero`), and the other failures branch to it; without the wrapper the
+ * second jump pass merges that block into the `else return 0` of the 34-character branch.
+ * Also needed: the 34-character branch is `if (decode == 1) { if (!valid) return 0; } else return 0;`, and the
+ * record's character is stored before the status page's.
  */
-#if 0
 s32 DcPass_Decode(DcPass *pass) {
     ChrPassData data;
     OldPassChar old;
@@ -475,29 +475,31 @@ s32 DcPass_Decode(DcPass *pass) {
     if (DcPassText_Pack(&pass->text) != 0) {
         return 0;
     }
-    if (pass->text.len == 32) {
-        memset(&old, 0, sizeof(OldPassChar));
-        if (OldPass_DecodeChar(&old, pass->text.pass) != 1) {
-            return 0;
-        }
-        if (!PassChk_IsOldValid(&old)) {
-            return 0;
-        }
-        PassChk_ConvertOld(&data, &old);
-    } else if (pass->text.len == 34) {
-        if (ChrPass_Decode(&data, pass->text.pass) == 1) {
-            if (!PassChk_IsValid(&data)) {
+    do {
+        if (pass->text.len == 32) {
+            memset(&old, 0, sizeof(OldPassChar));
+            if (OldPass_DecodeChar(&old, pass->text.pass) != 1) {
+                return 0;
+            }
+            if (!PassChk_IsOldValid(&old)) {
+                return 0;
+            }
+            PassChk_ConvertOld(&data, &old);
+        } else if (pass->text.len == 34) {
+            if (ChrPass_Decode(&data, pass->text.pass) == 1) {
+                if (!PassChk_IsValid(&data)) {
+                    return 0;
+                }
+            } else {
                 return 0;
             }
         } else {
             return 0;
         }
-    } else {
-        return 0;
-    }
-    if (!DcPass_IsListed(pass, data.charId)) {
-        return 0;
-    }
+        if (!DcPass_IsListed(pass, data.charId)) {
+            return 0;
+        }
+    } while (0);
     pass->status.rec.chara = data.charId;
     pass->status.chara = data.charId;
     for (i = 0; i < 8; i++) {
@@ -512,9 +514,6 @@ s32 DcPass_Decode(DcPass *pass) {
     DcPassList_Refresh(&pass->list);
     return 1;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/menu/menu_z_d", DcPass_Decode);
-#endif
 
 #define DCPASS_FLAG_OFF(f, b) \
     if ((f) & (b)) { \
