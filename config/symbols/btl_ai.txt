@@ -14,7 +14,7 @@ BtlAiStep_Unk14 = 0x001B6008; // type:func
 BtlAiStep_Unk15 = 0x001B61E8; // type:func
 // Waits (60 frames at most) until range.unk4 * 2 / * 3 reaches the distance between the fighters.
 BtlAiStep_WaitNear2 = 0x001B62C8; // type:func // guess
-BtlAiStep_FireSkill = 0x001B6310; // type:func // guess (was Unk17): runs the skill slot the thinker picked
+BtlAiStep_FireSkill = 0x001B6310; // type:func // guess
 BtlAiStep_Unk18 = 0x001B6580; // type:func
 BtlAiStep_Unk19 = 0x001B66B8; // type:func
 BtlAiStep_Unk20 = 0x001B67F0; // type:func
