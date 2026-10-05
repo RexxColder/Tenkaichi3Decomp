@@ -144,6 +144,53 @@ remaining report, EftTask.unk4 in eft_c.h, not examined).
 The headless build has no real-time pacing: a vertical blank happens whenever the game waits
 for one (`gPortVBlanks` counts them).
 
+## A recorded fight plays through (2026-10-05, late night)
+
+Verified by running it: `BT3_REPLAY=gamedata/validation/replay01.bin port/build/bt3` (a replay
+the user recorded in PCSX2: versus, character 0 on the pad against character 13 as CPU,
+stage 0) loads, runs the intro states, the whole fight and reaches the battle sequence's last
+state. Headless it takes a few seconds.
+
+Comparison with the console (the user's PCSX2 save state taken at the result screen of the
+same fight, gamedata/validation/state01/eeMemory.bin):
+
+| | Console | PC build |
+|---|---|---|
+| address of the sequence object (`gBtlSeq`) | 0x187A420 | 0x187A420 |
+| battle clock at the end | 0x83F ticks, 1:10.366 | 0x843 ticks, 1:10.500 |
+| time left | 170 s | 170 s |
+| pad fighter's health | 23050 | 23400 |
+| CPU fighter's health | 0 (knocked out) | 7490 |
+| heap bytes identical at the end | | 92.1 % of 28.5 MB |
+
+So the heap layout is the console's, the fight follows the recording closely, and it DIVERGES
+somewhere: the PC fight ends when the recording runs out, not by the knock-out. Not yet known
+where it first differs. Known candidates, none examined: the host's libm (sinf, atan2f, ...)
+and libc rand() in place of the PS2's; details of the float model (never checked against a
+console); the unmatched functions' C; remaining PS2-only assumptions like the ones below.
+
+What it took after the first link (lessons, each a class of PS2-versus-PC difference):
+1. PROTOTYPE DISAGREEMENTS (check_protos.py): fixed in the decompilation, 127 declarations.
+2. CALLS THAT RELY ON A LEFTOVER REGISTER: a callback called with no arguments whose target
+   reads its first argument (`HudNode_Update`), a call with two arguments to a function that
+   uses three (`Res_RelocateOffsets`). The checker cannot see calls through pointers; more
+   may exist.
+3. FLOAT SEMANTICS: with host floats the first battle frame produced NaNs (the PS2 has none)
+   and an endless angle wrap. All game code is now compiled `-msoft-float -mno-sse -mno-mmx`
+   and port/src/softfloat_ps2.c implements every float operation with the PS2 model
+   (src/port/vu0_a.c): floats travel as bit patterns in integer registers, nothing of the
+   host's float unit is used. port/src/plat_libm.c (the only hard-float file) bridges libm and
+   double arithmetic. This also removed the 16-byte alignment faults (no SSE moves).
+4. DATA THE C FILES TAKE FROM ASSEMBLY (INCLUDE_RODATA) and the VU1 microprograms: gen_data.py.
+5. PAD: an all-zero pad packet means every button held (buttons are active-low): the headless
+   pads are connected and idle.
+6. `long` is 64 bits on the PS2: literals respelled LL / ULL in the decompilation.
+
+Tools added: port/tools/try.sh (test uncommitted decompilation edits here), where.sh,
+mc_extract.py (PS2 memory card image reader), BT3_TRACE=<n> (fight state every n vertical
+blanks), BT3_DUMP=<file> (heap dump at the end of the battle, for comparison with a console
+memory dump: both use the same addresses).
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).

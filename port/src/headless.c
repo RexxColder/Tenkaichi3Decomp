@@ -77,6 +77,24 @@ void Port_Trace(unsigned vblanks) {
     if (every < 0) {
         every = getenv("BT3_TRACE") != NULL ? atoi(getenv("BT3_TRACE")) : 0;
     }
+    /* BT3_DUMP=<file>: 600 vertical blanks after the battle sequence reaches its last state, write the game heap
+       (PS2 addresses 0x3BE730..0x1EFB014) to the file and stop: to be compared with a console memory dump. */
+    if (sBattles != 0 && gBtlSeq != NULL && gBtlSeq->state == 6 && getenv("BT3_DUMP") != NULL) {
+        static unsigned since;
+
+        if (since == 0) {
+            since = vblanks;
+        } else if (vblanks - since == 600) {
+            FILE *fp = fopen(getenv("BT3_DUMP"), "wb");
+
+            fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
+            fclose(fp);
+            clock = BtlSeq_GetClock();
+            printf("bt3: end of battle: gBtlSeq %p clock %08x %08x %08x %08x hp %d %d; heap dumped\n", (void *)gBtlSeq,
+                   clock[0], clock[1], clock[2], clock[3], BtlCharApi_GetHp(0), BtlCharApi_GetHp(1));
+            exit(0);
+        }
+    }
     if (every <= 0 || vblanks % (unsigned)every != 0 || sBattles == 0 || gBtlSeq == NULL || gBtlSeq->state < 2) {
         return;
     }
