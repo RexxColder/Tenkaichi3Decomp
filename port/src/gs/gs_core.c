@@ -439,12 +439,14 @@ static void vertex(uint32_t x, uint32_t y, uint32_t z, int kick) {
     }
     gs.strip++;
     sf = target_get(gs.frame[ctx] & 0x1FF);
-    {   /* BT3_GS_STOP=<n>: in the frame named by BT3_GS_FROM, draw only the first n vertices (to find what covers what) */
+    {   /* BT3_GS_STOP=<n>: in the frame named by BT3_GS_FROM, draw only the first n primitives (to find what covers what) */
         static int stop = -1;
         static unsigned count, frame = 0xFFFFFFFFu;
         if (stop < 0) { stop = getenv("BT3_GS_STOP") != NULL ? atoi(getenv("BT3_GS_STOP")) : 0; }
         if (frame != sFrame) { frame = sFrame; count = 0; }
-        if (stop > 0 && (int)sFrame == sDrawFrom && ++count > (unsigned)stop) { kick = 0; }
+        /* counted in complete primitives, the unit of the BT3_GS_DUMP listing */
+        if (kick && gs.vcount >= (type == 6 || type == 1 || type == 2 ? 2 : type == 0 ? 1 : 3)) { count++; }
+        if (stop > 0 && (int)sFrame == sDrawFrom && count > (unsigned)stop) { kick = 0; }
     }
     if ((int)sFrame < sDrawFrom) {
         kick = 0; /* BT3_GS_FROM: uploads and state are processed, nothing is drawn yet */
@@ -541,10 +543,20 @@ static void transfer_data(const uint8_t *p, uint32_t bytes) {
     }
 }
 
+/* PRMODECONT.AC = 1: the attributes (shading, texturing, fogging, blending, ...) are PRIM's own; AC = 0: they come
+   from PRMODE and PRIM only gives the primitive type. The game switches to PRMODE for its shadow passes. */
+static void prim_update(void) {
+    gs.prim = (gs.prmodecont & 1) ? gs.primRaw : (gs.primRaw & 7) | (gs.prmode & 0x7F8);
+}
+
 static void reg_write(uint32_t addr, uint64_t d) {
     sStat[4]++;
+    if (sDumpFrame == (int)sFrame && (addr == 0x4C || addr == 0x4D || addr == 0x18 || addr == 0x19 || addr == 0x40 || addr == 0x41 ||
+                                       addr == 0x4E || addr == 0x4F || addr == 0x1A || addr == 0x1B)) {
+        fprintf(stderr, "  reg %02x = %llx\n", addr, (unsigned long long)d);
+    }
     switch (addr) {
-    case 0x00: gs.prim = d; gs.vcount = 0; gs.strip = 0; break;
+    case 0x00: gs.primRaw = d; prim_update(); gs.vcount = 0; gs.strip = 0; break;
     case 0x01: gs.rgbaq = d; { uint32_t q = (uint32_t)(d >> 32); memcpy(&gs.q, &q, 4); } break;
     case 0x02: gs.st = d; break;
     case 0x03: gs.uv = d; break;
@@ -557,8 +569,8 @@ static void reg_write(uint32_t addr, uint64_t d) {
     case 0x14: case 0x15: gs.tex1[addr - 0x14] = d; break;
     case 0x16: case 0x17: gs.tex0[addr - 0x16] = (gs.tex0[addr - 0x16] & ~0x1FFFFFE003F00000ull) | (d & 0x1FFFFFE003F00000ull); break; /* TEX2: PSM and CLUT fields */
     case 0x18: case 0x19: gs.xyoffset[addr - 0x18] = d; break;
-    case 0x1A: gs.prmodecont = d; break;
-    case 0x1B: gs.prmode = d; break;
+    case 0x1A: gs.prmodecont = d; prim_update(); break;
+    case 0x1B: gs.prmode = d; prim_update(); break;
     case 0x3B: gs.texa = d; break;
     case 0x40: case 0x41: gs.scissor[addr - 0x40] = d; break;
     case 0x42: case 0x43: gs.alpha[addr - 0x42] = d; break;
@@ -776,6 +788,7 @@ static int gs_on(void) {
     if (on < 0) {
         on = getenv("BT3_GS") != NULL;
         tables_init();
+        gs.prmodecont = 1; /* the GS starts with the attributes in PRIM */
         sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
         sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
         if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
