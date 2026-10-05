@@ -55,11 +55,27 @@ static uint32_t pack(uint32_t sign, int32_t e, uint32_t m) {
     return sign | ((uint32_t)e << 23) | (m & 0x7FFFFF);
 }
 
-/* a + b, exact then truncated toward zero. */
-uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) {
+/* Rounds a mantissa with 32 extra bits (and "more below" in sticky) to nearest even, renormalising. */
+static uint32_t round_pack(uint32_t sign, int32_t e, uint64_t m, int sticky, int nearest) {
+    uint32_t hi = (uint32_t)(m >> 32);
+    uint32_t lo = (uint32_t)m;
+
+    if (nearest && (lo & 0x80000000u) && ((lo & 0x7FFFFFFFu) || sticky || (hi & 1))) {
+        hi++;
+        if (hi == 0x1000000) {
+            hi >>= 1;
+            e++;
+        }
+    }
+    return pack(sign, e, hi);
+}
+
+/* a + b, exact, then truncated toward zero (nearest = 0) or rounded to nearest even. */
+static uint32_t add_core(uint32_t a, uint32_t b, int nearest) {
     uint64_t ma, mb;
     uint32_t sign;
     int32_t e, d;
+    int sticky = 0;
 
     a = in(a);
     b = in(b);
@@ -86,6 +102,7 @@ uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) {
         /* the bits of b shifted out below 2^-32 make the exact difference smaller: one unit there, then truncate */
         uint64_t lost = d > 32;
 
+        sticky = (int)lost;
         mb = d >= 64 ? 0 : mb >> d;
         ma -= mb + lost;
         if (ma == 0) {
@@ -96,17 +113,19 @@ uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) {
             e--;
         }
     } else {
+        sticky = d > 32;
         ma += d >= 64 ? 0 : mb >> d;
         if (ma & ((uint64_t)1 << 56)) {
+            sticky |= (int)(ma & 1);
             ma >>= 1;
             e++;
         }
     }
-    return pack(sign, e, (uint32_t)(ma >> 32));
+    return round_pack(sign, e, ma, sticky, nearest);
 }
 
-/* a * b, truncated toward zero. */
-uint32_t RefVu0_MulBits(uint32_t a, uint32_t b) {
+/* a * b, truncated toward zero or rounded to nearest even. */
+static uint32_t mul_core(uint32_t a, uint32_t b, int nearest) {
     uint32_t sign = (a ^ b) & SIGN;
     uint64_t m;
     int32_t e;
@@ -119,13 +138,28 @@ uint32_t RefVu0_MulBits(uint32_t a, uint32_t b) {
     m = (uint64_t)MANT(a) * MANT(b);
     e = (int32_t)EXP(a) + (int32_t)EXP(b) - 127;
     if (m & ((uint64_t)1 << 47)) {
-        m >>= 24;
         e++;
+        m <<= 8;  /* 24 result bits above bit 32 */
     } else {
-        m >>= 23;
+        m <<= 9;
     }
-    return pack(sign, e, (uint32_t)m);
+    return round_pack(sign, e, m, 0, nearest);
 }
+
+/* Experiment switches (environment, read once): BT3_VU_NEAREST=1 rounds the vector unit's add / multiply /
+   divide to nearest; BT3_FPU_NEAREST=1 does the same for the FPU's add / multiply. Default: toward zero. */
+#include <stdlib.h>
+static int mode(int which) {
+    static int m[2] = {-1, -1};
+
+    if (m[which] < 0) {
+        const char *e = getenv(which ? "BT3_FPU_NEAREST" : "BT3_VU_NEAREST");
+        m[which] = e != NULL && e[0] == '1';
+    }
+    return m[which];
+}
+uint32_t RefVu0_AddBits(uint32_t a, uint32_t b) { return add_core(a, b, mode(0)); }
+uint32_t RefVu0_MulBits(uint32_t a, uint32_t b) { return mul_core(a, b, mode(0)); }
 
 /* a / b; nearest = 1 rounds to nearest even (the FPU's div.s under PCSX2), 0 truncates (vdiv). */
 static uint32_t divide(uint32_t a, uint32_t b, int nearest) {
@@ -165,7 +199,7 @@ static uint32_t divide(uint32_t a, uint32_t b, int nearest) {
     return pack(sign, e, m);
 }
 
-uint32_t RefVu0_DivBits(uint32_t a, uint32_t b) { return divide(a, b, 0); }
+uint32_t RefVu0_DivBits(uint32_t a, uint32_t b) { return divide(a, b, mode(0)); }
 uint32_t __divsf3(uint32_t a, uint32_t b) { return divide(a, b, 1); }
 
 #else /* PORT_FLOAT_HW: the primitives of src/port/vu0_a.c (compile it without REF_VU0_EXTERN_ARITH) */
@@ -174,9 +208,35 @@ uint32_t __divsf3(uint32_t a, uint32_t b) { return RefVu0_DivBits(a, b); }
 
 #endif
 
+#if PORT_FLOAT_MODEL == PORT_FLOAT_PCSX2
+/*
+ * The FPU's add.s / sub.s. The PS2 adder keeps only ONE bit of the smaller operand below the larger operand's
+ * last place and no sticky bits; PCSX2 reproduces this (its FPU_ADD_SUB step) by clearing the smaller operand's
+ * low bits before an ordinary truncating add: exponent difference d of 1..24 clears d - 1 bits, 25 or more
+ * leaves only the sign. (The vector unit's adds do not get this treatment there.)
+ */
+static uint32_t fpu_add(uint32_t a, uint32_t b) {
+    int32_t d = (int32_t)EXP(a) - (int32_t)EXP(b);
+
+    if (d >= 25) {
+        b &= SIGN;
+    } else if (d > 0) {
+        b &= 0xFFFFFFFFu << (d - 1);
+    } else if (d <= -25) {
+        a &= SIGN;
+    } else if (d < 0) {
+        a &= 0xFFFFFFFFu << (-d - 1);
+    }
+    return add_core(a, b, mode(1));
+}
+uint32_t __addsf3(uint32_t a, uint32_t b) { return fpu_add(a, b); }
+uint32_t __subsf3(uint32_t a, uint32_t b) { return fpu_add(a, b ^ SIGN); }
+uint32_t __mulsf3(uint32_t a, uint32_t b) { return mul_core(a, b, mode(1)); }
+#else
 uint32_t __addsf3(uint32_t a, uint32_t b) { return RefVu0_AddBits(a, b); }
 uint32_t __subsf3(uint32_t a, uint32_t b) { return RefVu0_AddBits(a, b ^ SIGN); }
 uint32_t __mulsf3(uint32_t a, uint32_t b) { return RefVu0_MulBits(a, b); }
+#endif
 uint32_t __negsf2(uint32_t a) { return a ^ SIGN; }
 
 /* Comparisons: every pattern is an ordinary number (c.eq.s / c.lt.s / c.le.s never see "unordered"). */
