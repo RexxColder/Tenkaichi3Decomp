@@ -32,6 +32,10 @@
 #include "battle/battle_work.h"
 #include "battle/stg_a.h"
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
+#endif
+
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 rand(void);
 extern f32 sqrtf(f32 x);
@@ -378,6 +382,10 @@ void StgFrustum_Build(StgView *view, StgFrustum *fr) {
     } else {
         STG_FRUSTUM_PLANES(896.0f / 3.0f);
     }
+#ifdef PORT
+    fr->plane[0].z *= Port_WideFactor(); /* the side planes of a 16:9 view: a third more half width */
+    fr->plane[1].z *= Port_WideFactor();
+#endif
     for (i = 0; i < 4; i++) {
         Vec3_Normalize(&fr->plane[i], &fr->plane[i]);
     }
@@ -391,6 +399,10 @@ void StgFrustum_Build(StgView *view, StgFrustum *fr) {
         right = k * 256.0f * 1.1666667f;
         left = k * -256.0f * 1.1666667f;
     }
+#ifdef PORT
+    right *= Port_WideFactor();
+    left *= Port_WideFactor();
+#endif
     k = 1.0f / (right - left);
     fr->proj.m[0][0] = (view->nearZ + view->nearZ) * k;
     fr->proj.m[1][0] = 0.0f;

@@ -602,8 +602,20 @@ void HudCombo_StoreTextPos(HudCNode *node) {
 }
 
 /* Selects the side the next update / draw of the tree shows. */
+#ifdef PORT
+/* Widescreen on PC: tells the renderer where the 2D pieces that follow belong (port/src/gs_marker.c). */
+#define PORT_2D_LEFT 0x10
+#define PORT_2D_RIGHT 0x11
+#define PORT_2D_CENTER 0x12
+#define PORT_2D_END 0x13
+extern void Port_GsMarker(s32 effect);
+#endif
+
 void HudCombo_SelectSide(s32 side) {
     gHudCombo->side = side;
+#ifdef PORT
+    Port_GsMarker(side ? PORT_2D_RIGHT : PORT_2D_LEFT);
+#endif
 }
 
 /* Starts message picture `message` (0..4) on a side. */

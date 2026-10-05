@@ -2,6 +2,10 @@
 #include "battle/eft_b.h"
 #include "sys/gfx_ot.h"
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
+#endif
+
 /*
  * Effect code 0x132290..0x136760: see include/battle/eft_b.h for the four pieces and their layouts.
  *
@@ -311,7 +315,11 @@ void EftPrim_DrawBillboard(Vec4 *pos, Vec4 *color, s32 layer, s32 noDepth, u64 t
     EftBQuadPkt *p;
     OtEntry *e;
 
+#ifdef PORT
+    Vec4_Set(&aspect, 1.0f, 1.1666667f * Port_WideFactor(), 1.0f, 1.0f); /* pixels are wider still at 16:9 */
+#else
     Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
+#endif
     pos->w = 1.0f;
     Vu0Cur_ProjectPoint(&scr, pos);
     sw = w;

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs the PC build in a window with the GPU renderer, playing a replay (default: the validation replay), with
 # "demo" the game's own attract battle, or with "menu" the game from its menus. Escape or closing the window quits.
-#   port/run.sh [replay-file | demo | menu]
+#   port/run.sh [replay-file | demo | menu]        BT3_WIDE=1 in front: 16:9 widescreen
 cd "$(dirname "$0")/.."
 case "${1:-gamedata/validation/replay01.bin}" in
     demo) unset BT3_REPLAY; export BT3_DEMO=1 ;;

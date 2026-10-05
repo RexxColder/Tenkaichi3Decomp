@@ -311,10 +311,22 @@ s32 HudTeam_DrawFaceB(void) {
 
 /* Makes `side` the side shown by the next update / draw: side 1 is mirrored (with the faces mirrored back),
    and the panel is hidden for a side without reserve members. */
+#ifdef PORT
+/* Widescreen on PC: tells the renderer where the 2D pieces that follow belong (port/src/gs_marker.c). */
+#define PORT_2D_LEFT 0x10
+#define PORT_2D_RIGHT 0x11
+#define PORT_2D_CENTER 0x12
+#define PORT_2D_END 0x13
+extern void Port_GsMarker(s32 effect);
+#endif
+
 void HudTeam_SelectSide(s32 side) {
     s32 mirror = side != 0;
 
     gHudTeam->side = side;
+#ifdef PORT
+    Port_GsMarker(side ? PORT_2D_RIGHT : PORT_2D_LEFT);
+#endif
     gHudTeam->nodes[0].flags = (gHudTeam->nodes[0].flags & ~HUD_NODE_MIRROR) | (mirror << 1);
     HudSprite_SetMirror(&gHudTeam->sprites[8], mirror);
     HudSprite_SetMirror(&gHudTeam->sprites[9], mirror);

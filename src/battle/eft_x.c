@@ -2,6 +2,10 @@
 #include "sys/gfx_ot.h"
 #include "battle/eft_x.h"
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
+#endif
+
 /*
  * Effect tasks, 0x18D618..0x190CC8: the second half of the particle emitter module of effect pack part
  * kind 10 (the first half, 0x18C190..0x18D618, is the end of eft_w.c). See include/battle/eft_x.h.
@@ -623,7 +627,11 @@ void EftPart10_DrawBillboard(Vec4 *pos, Vec4 *color, f32 w, s32 offX, s32 offY, 
     EftXQuadPkt *p;
     OtEntry *e;
 
+#ifdef PORT
+    Vec4_Set(&aspect, 1.0f, 1.1666667f * Port_WideFactor(), 1.0f, 1.0f); /* pixels are wider still at 16:9 */
+#else
     Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
+#endif
     sw = w;
     pos->w = 1.0f;
     Vu0Cur_ProjectPoint(&scr, pos);

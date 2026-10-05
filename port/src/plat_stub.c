@@ -105,3 +105,18 @@ int sceVibGetProfile() { return 0; }
 int sceVibSetActParam() { return 0; }
 
 /* ---- MPEG movies: port/src/plat_movie.c ---- */
+
+/* ---- widescreen ----
+   BT3_WIDE=1 (or port/run.sh wide): a 16:9 picture. The game's projection gets 4/3 more width of view at the same
+   height (View_SetProjection, src/battle/btl_cam.c); the renderer keeps 2D art at its own proportions and shows
+   the picture at 16:9 (port/src/gs/gs_gpu.c). */
+int gPortWide = -1;
+int Port_IsWide(void) {
+    if (gPortWide < 0) {
+        gPortWide = getenv("BT3_WIDE") != NULL && atoi(getenv("BT3_WIDE")) != 0;
+    }
+    return gPortWide;
+}
+float Port_WideFactor(void) {
+    return Port_IsWide() ? 4.0f / 3.0f : 1.0f;
+}

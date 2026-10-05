@@ -131,9 +131,16 @@ void View_BuildProjection(View *view) {
     view->unk100.m[3][3] = 1.0f;
 }
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC (port/src/plat_stub.c) */
+#endif
+
 /* Stores the projection parameters (the larger aspect factor becomes 1) and rebuilds the projection. */
 void View_SetProjection(View *view, Vec4 *screenSize, f32 screenDist, f32 aspectX, f32 aspectY, f32 centerX,
                         f32 centerY, f32 zMin, f32 zMax, f32 nearZ, f32 farZ, f32 unk258) {
+#ifdef PORT
+    aspectY *= Port_WideFactor(); /* 1, or 4/3 for a 16:9 picture: the same height of view, more to the sides */
+#endif
     Vec4_Copy(&view->screenSize, screenSize);
     view->screenDist = screenDist;
     view->centerX = centerX;

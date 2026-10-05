@@ -167,6 +167,15 @@ void HudNode_Update(HudNode *node) {
 
 /* Draws a node tree. The node's position and rotation are multiplied into the current VU0 matrix; with `mirror`
    (or HUD_NODE_MIRROR, inherited by the children) the draw callback runs under x' = 511 - x. */
+#ifdef PORT
+/* Widescreen on PC: tells the renderer where the 2D pieces that follow belong (port/src/gs_marker.c). */
+#define PORT_2D_LEFT 0x10
+#define PORT_2D_RIGHT 0x11
+#define PORT_2D_CENTER 0x12
+#define PORT_2D_END 0x13
+extern void Port_GsMarker(s32 effect);
+#endif
+
 void HudNode_Draw(HudNode *node, s32 mirror) {
     f32 pos[4];
     HudMtx m;
@@ -176,6 +185,11 @@ void HudNode_Draw(HudNode *node, s32 mirror) {
     if (node->flags & HUD_NODE_HIDDEN) {
         return;
     }
+#ifdef PORT
+    if (node == gHud->timer || node == gHud->notice || node == gHud->caption) {
+        Port_GsMarker(PORT_2D_CENTER); /* the parts without a side */
+    }
+#endif
     Vu0Cur_Push();
     pos[0] = node->x + node->ofsX;
     pos[1] = node->y + node->ofsY;
@@ -535,6 +549,9 @@ void Hud_Draw(void) {
     Vu0Cur_ResetStack();
     Vu0Cur_LoadIdentity();
     HudGfx_SetEnv();
+#ifdef PORT
+    Port_GsMarker(PORT_2D_CENTER);
+#endif
     if (Battle_GetMode() == 7) {
         HudNode_Update(gHud->caption);
         HudNode_Draw(gHud->caption, 0);

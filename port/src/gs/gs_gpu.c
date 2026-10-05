@@ -93,6 +93,11 @@ static struct { uint32_t hash, last; SDL_GPUTexture *tex; } sCluts[MAX_CLUTS];
 /* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F5 while running): 1 outline, 2 see-through tint,
    4 depth tint, 8 glare and object glow, 16 blur of distant things. */
 static unsigned sFxOff;
+/* Widescreen: which part of the screen the 2D pieces being drawn belong to (markers 0x10..0x13 from the HUD code:
+   left panel, right panel, centre, end of the HUD). 0 = no group. */
+static int sAnchor;
+extern int Port_IsWide(void);   /* plat_stub.c */
+extern int gPortMenuMode;       /* headless.c: the menus are running */
 /* Strength of glare and glow in percent of what the game's passes give (BT3_GLOW=<percent>; F6 / F7 change it by
    10). Default 60: the user's choice on 2026-10-06 (100 looked too strong at the glare's peaks). */
 #define GLOW_DEFAULT 60
@@ -939,6 +944,40 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             }
         }
     }
+    if (Port_IsWide() && !d.tex_is_target && (type == 6 || fst) && sTargets[d.target].fbp == (uint32_t)gGsMainFbp) {
+        /* Widescreen. The 3D scene is projected for a 16:9 picture by the game itself; 2D art is laid out for
+           4:3 and would come out a third too wide. Each 2D piece is narrowed to 3/4 about a fixed point:
+             - in the menus, the middle of the screen (the whole page stays together, with the scene around it);
+             - in a fight, the left edge, the right edge or the middle for the HUD's left panel, right panel and
+               centre parts (markers from the HUD code), so the panels sit at the screen's edges;
+             - any other sprite, its own middle (it stays where the game put it, e.g. over a fighter).
+           Only what is drawn into the picture itself: the work buffers of the effects and of the shadow are
+           filled with 2D rectangles too, and narrowing those left unfilled bands and stripes in them.
+           Left alone: full-screen fills and fades (untextured, full height), and in a fight sprites as wide as
+           the screen (flashes, speed lines) and 2D triangles outside the HUD. */
+        float x0 = sVerts[d.first].x, x1 = x0, y0 = sVerts[d.first].y, y1 = y0, pivot = -1.0f;
+        uint32_t k;
+        for (k = d.first; k < sVertCount; k++) {
+            if (sVerts[k].x < x0) { x0 = sVerts[k].x; }
+            if (sVerts[k].x > x1) { x1 = sVerts[k].x; }
+            if (sVerts[k].y < y0) { y0 = sVerts[k].y; }
+            if (sVerts[k].y > y1) { y1 = sVerts[k].y; }
+        }
+        if (type == 6 && !d.mode[0] && y1 - y0 >= 400.0f) {
+            pivot = -1.0f;
+        } else if (gPortMenuMode) {
+            pivot = 256.0f;
+        } else if (sAnchor != 0) {
+            pivot = sAnchor == 1 ? 0.0f : sAnchor == 2 ? 512.0f : 256.0f;
+        } else if (type == 6 && x1 - x0 < 480.0f) {
+            pivot = (x0 + x1) * 0.5f;
+        }
+        if (pivot >= 0.0f) {
+            for (k = d.first; k < sVertCount; k++) {
+                sVerts[k].x = pivot + (sVerts[k].x - pivot) * 0.75f;
+            }
+        }
+    }
     d.count = sVertCount - d.first;
     sTargets[d.target].draws++;
     sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];
@@ -1114,6 +1153,10 @@ void GsGpu_Native(int effect) {
 
     /* 1 = outline. 2 (the see-through tint) is drawn by the generic table pass now (depth_clut), from the game's
        own table. */
+    if (effect >= 0x10 && effect <= 0x13) {
+        sAnchor = effect == 0x13 ? 0 : effect - 0x0F; /* 1 left, 2 right, 3 centre */
+        return;
+    }
     if (effect != 1 || sDrawCount == MAX_DRAWS || (sFxOff & 1)) {
         return;
     }
@@ -1486,9 +1529,23 @@ static void frame_end(void) {
         bl.source.w = 512 * SCALE;
         bl.source.h = 448 * SCALE;
         bl.destination.texture = swap;
-        bl.destination.w = sw;
-        bl.destination.h = sh;
-        bl.load_op = SDL_GPU_LOADOP_DONT_CARE;
+        {
+            /* The picture keeps its shape whatever the window's: 4:3, or 16:9 in widescreen, centred, the rest
+               black. (The 512 x 448 buffer is not square-pixelled: it always fills a 4:3 or 16:9 screen.) */
+            float want = Port_IsWide() ? 16.0f / 9.0f : 4.0f / 3.0f;
+            Uint32 w = sw, h = sh;
+            if ((float)sw > (float)sh * want) {
+                w = (Uint32)((float)sh * want + 0.5f);
+            } else {
+                h = (Uint32)((float)sw / want + 0.5f);
+            }
+            bl.destination.x = (sw - w) / 2;
+            bl.destination.y = (sh - h) / 2;
+            bl.destination.w = w;
+            bl.destination.h = h;
+            bl.clear_color.a = 1.0f;
+        }
+        bl.load_op = SDL_GPU_LOADOP_CLEAR;
         bl.filter = SDL_GPU_FILTER_LINEAR;
         SDL_BlitGPUTexture(cmd, &bl);
     }
@@ -1571,6 +1628,7 @@ static void frame_end(void) {
     sVuVertCount = 0;
     sVuUniCount = 0;
     sDrawCount = 0;
+    sAnchor = 0;
     sSkipped = 0;
     sNative = 0;
 }

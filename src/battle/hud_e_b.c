@@ -844,10 +844,22 @@ void HudPrompt_DrawCommand(void) {
 }
 
 /* Selects the side to update / draw; side 1 is drawn mirrored (node 24's mirror bit). */
+#ifdef PORT
+/* Widescreen on PC: tells the renderer where the 2D pieces that follow belong (port/src/gs_marker.c). */
+#define PORT_2D_LEFT 0x10
+#define PORT_2D_RIGHT 0x11
+#define PORT_2D_CENTER 0x12
+#define PORT_2D_END 0x13
+extern void Port_GsMarker(s32 effect);
+#endif
+
 void HudPrompt_SelectSide(s32 side) {
     HudENode *node;
 
     gHudPrompt->side = side;
+#ifdef PORT
+    Port_GsMarker(side ? PORT_2D_RIGHT : PORT_2D_LEFT);
+#endif
     node = &gHudPrompt->node[HUD_PROMPT_NODE_BUTTON];
     node->mirror = side != 0;
 }

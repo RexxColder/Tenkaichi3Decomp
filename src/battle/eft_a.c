@@ -4,6 +4,10 @@
 #include "battle/eft_a.h"
 #include "sys/gfx_ot.h"
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
+#endif
+
 /*
  * Effect core, 0x12DD80..0x132290. The object model is described in include/battle/eft_a.h.
  *
@@ -1368,7 +1372,11 @@ void EftGfx_UpdateClipPlanes(void) {
     EftMtx m;
     EftVec eye;
     f32 angle = 30.0f * 3.14159265f / 180.0f;
+#ifdef PORT
+    f32 aspect = 0.75f / Port_WideFactor(); /* the side planes of a 16:9 view */
+#else
     f32 aspect = 0.75f;
+#endif
     f32 one = 1.0f;
     f32 angle2;
     f32 s;
@@ -1756,7 +1764,11 @@ void EftGfx_DrawSprite(EftVec *pos, EftVec *color, f32 w, f32 h, f32 u0, f32 v0,
     EftGfxStripPkt *p;
     OtEntry *e;
 
+#ifdef PORT
+    Vec4_Set(&aspect, 1.0f, 1.1666667f * Port_WideFactor(), 1.0f, 1.0f); /* pixels are wider still at 16:9 */
+#else
     Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
+#endif
     pos->w = 1.0f;
     Vu0Cur_ProjectPoint(&scr, pos);
     sw = w;

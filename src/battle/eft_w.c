@@ -2,6 +2,10 @@
 #include "sys/gfx_ot.h"
 #include "battle/eft_w.h"
 
+#ifdef PORT
+extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
+#endif
+
 /*
  * Effect tasks, 0x1895E8..0x18D618. Two sprite particle modules of the effect pack library (EftEmit_*, eft_h.c /
  * eft_i.c); see include/battle/eft_w.h. Everything here is presentation: no function touches a fighter, a hit
@@ -764,7 +768,11 @@ void EftLink_DrawBillboard(Vec4 *pos, f32 w, f32 h, Vec4 *color, s32 offX, s32 o
     EftWQuadPkt *p;
     OtEntry *e;
 
+#ifdef PORT
+    Vec4_Set(&aspect, 1.0f, 1.1666667f * Port_WideFactor(), 1.0f, 1.0f); /* pixels are wider still at 16:9 */
+#else
     Vec4_Set(&aspect, 1.0f, 1.1666667f, 1.0f, 1.0f);
+#endif
     pos->w = 1.0f;
     Vu0Cur_ProjectPoint(&scr, pos);
     sw = w;

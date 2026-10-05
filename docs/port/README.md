@@ -736,3 +736,24 @@ with a third of the interpreter's work gone.
   at its own centre, a quarter or three quarters of a texel past where the GS samples, which at a sprite's edge
   is the neighbouring picture. 2D sprites now take the coordinate at the whole GS pixel (gs.frag, misc.w), so
   2D art looks as on the console (2x point-scaled), not sharper. Not yet confirmed by the user.
+
+## 2026-10-06: repository rule, widescreen
+
+- **The decomp holds PS2 code only** (the user's decision). The 82 `#ifdef PORT` blocks and `src/port/` were
+  removed from the decomp; that commit is recorded here with `git merge -s ours`. PC-only changes to game code are
+  made in THIS repository's copy of `src/` and `include/`, inside `#ifdef PORT` so the PS2 text stays visible.
+  Later merges from the decomp can conflict in those files: keep the PC lines.
+- **Widescreen** (`BT3_WIDE=1`): 16:9 with the same height of view and more to the sides.
+  - Game side (all `#ifdef PORT`): `View_SetProjection` multiplies the aspect by `Port_WideFactor()` (4/3); the
+    game's hard-coded 4:3 pieces get the same factor: the stage's culling frustum (`StgFrustum_Build`), the effect
+    clipper's side planes (`EftGfx_UpdateClipPlanes`: the sky stopped short of the edges without it), and the
+    pixel aspect the effect billboards use (four `Vec4_Set(&aspect, 1, 7/6, 1, 1)`).
+  - 2D art is laid out for 4:3: the renderer narrows each 2D piece drawn into the picture to 3/4 about a fixed
+    point (`GsGpu_Draw`): the screen's middle in the menus; the left edge, right edge or middle for the HUD's
+    left panel, right panel and centre parts (display-list markers 0x10..0x13 from the HUD's side selection and
+    node draw); a sprite's own middle otherwise. Not touched: draws into work buffers (effects, shadow page),
+    full-screen fills, in a fight screen-wide sprites and 2D triangles outside the HUD.
+  - The window shows the picture at 4:3 or 16:9 whatever its own shape, with black borders.
+  - The fight's outcome is the same with widescreen on (tick 2111: 23050 / 0). Checked by picture: three replay
+    frames (sky to the edges, fighters and logo not stretched, shadow intact). Not checked: HUD panels at the
+    edges, the menus, other stages, split screen.

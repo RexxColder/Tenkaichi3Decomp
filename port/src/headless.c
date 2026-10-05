@@ -25,12 +25,19 @@ static int sBattles;
 /* Linked with --wrap=Progress_Main: the game's call in Game_Main comes here. BT3_REPLAY or BT3_DEMO: the battle is
    set up without menus (below); otherwise the real menus run (the overlay's Progress_Main, src/menu/menu_a_b.c). */
 extern int __real_Progress_Main(int arg);
+int gPortMenuMode;
 
 int __wrap_Progress_Main(int arg) {
     const char *path = getenv("BT3_REPLAY");
 
     if (path == NULL && getenv("BT3_DEMO") == NULL) {
-        return __real_Progress_Main(arg);
+        {
+            int r;
+            gPortMenuMode = 1; /* the renderer treats all 2D as one centred 4:3 page while the menus run */
+            r = __real_Progress_Main(arg);
+            gPortMenuMode = 0;
+            return r;
+        }
     }
     if (sBattles++ > 0) {
         printf("bt3: battle finished\n");
