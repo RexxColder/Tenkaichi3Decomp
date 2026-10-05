@@ -885,6 +885,19 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             put(&v[i], v[i].x, v[i].y, s[i], t[i], q[i], c->r, c->g, c->b, c->a, zmax);
         }
     }
+    if (d.tex_is_target) {
+        /* The GS evaluates texture coordinates at whole pixel positions, a GPU at pixel centres, half a pixel
+           later. For one buffer drawn into another that half pixel is not cosmetic: the blur steps of the glow
+           chain sample one texel apart on purpose (each step should average two texels and move the picture
+           back and forth by half a texel); evaluated at pixel centres they do not blur and move it a whole texel
+           every round, which showed as a displaced copy of the scenery in the sky. Moving the primitive half a
+           GS pixel puts the pixel centres where the GS samples. */
+        uint32_t k;
+        for (k = d.first; k < sVertCount; k++) {
+            sVerts[k].x += 0.5f;
+            sVerts[k].y += 0.5f;
+        }
+    }
     d.count = sVertCount - d.first;
     sTargets[d.target].draws++;
     sTargets[d.target].gen = gGsPageGen[sTargets[d.target].fbp & 511];

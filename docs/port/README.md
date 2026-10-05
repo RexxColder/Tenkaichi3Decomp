@@ -706,3 +706,18 @@ with a third of the interpreter's work gone.
 - Switches: `BT3_FX_OFF=<mask>` or F1..F4 while running: 1 outline, 2 see-through tint, 4 depth tint, 8 glow
   (glare and object glow: reserved, the glow pass itself is not written yet).
 - Still dropped: the glow pass (shrink, blur, add), pan blur, haze, stage blur, water wobble, lens, cross-fade.
+- **Buffer-to-buffer passes are drawn** (glare, object glow, blur of distant things; `draw_state` in gs_gpu.c):
+  textured sprites from one render target into another, with sampling held inside the buffer's own area (the GS
+  CLAMP register done by hand, since each buffer is a corner of a larger texture). Not drawable and dropped: a
+  buffer sampled while it is the target, and 16-bit views.
+- **Half-pixel rule for those passes.** The GS evaluates texture coordinates at whole pixel positions, a GPU at
+  pixel centres. The glow chain's blur steps sample one texel apart on purpose; at pixel centres they did not blur
+  and moved the picture one texel per round, which the user saw as a displaced ghost of the nearest hill in the
+  sky during the intro (I first explained it away as the distance blur: wrong; the frames showed it at once).
+  Primitives textured from a render target are moved half a GS pixel. Other primitives are left as they were:
+  at 2x, nearest-sampled sprites would pick the neighbouring texel for half their sub-pixels.
+- Switches: F4 glare and glow (the additive pass back to the frame), F5 blur of distant things (the pass mixed in
+  by destination alpha); `BT3_FX_OFF` bits 8 and 16.
+- `BT3_SHOT_VBLANK=<n>`: a screenshot at a vertical blank, to compare with a console save state's tick. At the
+  slot 7 tick, region averages (grass, trees, hill) are within a few units of the console screenshot.
+- The direct replay mode starts no music: the menus that start it are skipped.
