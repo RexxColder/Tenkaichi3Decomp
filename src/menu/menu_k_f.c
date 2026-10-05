@@ -1031,7 +1031,7 @@ void Bracket_GivePrizes(LBracket *b, s32 second) {
                     b->reward[b->rewardCount].kind = 0;
                     b->reward[b->rewardCount].value = value;
                     b->rewardCount++;
-                    LSAVE->charaBits[value / 64] |= 1L << (value % 64);
+                    LSAVE->charaBits[value / 64] |= 1LL << (value % 64);
                 }
                 break;
             case LPRIZE_STAGE:
@@ -1039,7 +1039,7 @@ void Bracket_GivePrizes(LBracket *b, s32 second) {
                     b->reward[b->rewardCount].kind = 1;
                     b->reward[b->rewardCount].value = value;
                     b->rewardCount++;
-                    LSAVE->stageBits |= 1L << value;
+                    LSAVE->stageBits |= 1LL << value;
                 }
                 break;
             case LPRIZE_MONEY_SECOND:

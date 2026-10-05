@@ -1040,7 +1040,7 @@ void ScrXfade_StoreHalf(s16 sbp, u16 w, u16 h, s32 index) {
     p[1] = 0x53; /* TRXDIR: host to local */
     p[0] = 0;
     p += 2;
-    p[0] = (u64)(u32)(qwc | GIF_EOP) | (2UL << 58); /* image data */
+    p[0] = (u64)(u32)(qwc | GIF_EOP) | (2ULL << 58); /* image data */
     p[1] = 0;
     p += 2;
     p += qwc * 2;
@@ -1076,7 +1076,7 @@ void ScrXfade_Draw(s32 unused, s32 tbp, u8 alpha) {
             dbp = tbp + w * h / 64;
             break;
         }
-        gScrXfade->buf[i][4] = ((u64)dbp << 32) | ((u64)bw << 48) | 0x0100000001000000UL;
+        gScrXfade->buf[i][4] = ((u64)dbp << 32) | ((u64)bw << 48) | 0x0100000001000000ULL;
         Dma_AddData(&gScrXfade->chain[i], 0x10);
     }
     p = Dma_BeginDirect();
@@ -1096,7 +1096,7 @@ void ScrXfade_Draw(s32 unused, s32 tbp, u8 alpha) {
     p[0] = 0;
     p[1] = GS_TEXFLUSH;
     p += 2;
-    p[0] = (u64)(u32)tbp | ((u64)bw << 14) | (0xA641UL << 20);
+    p[0] = (u64)(u32)tbp | ((u64)bw << 14) | (0xA641ULL << 20);
     p[1] = GS_TEX0_1;
     p += 2;
     Dma_PutTexStrips((GsQword **)&p, 0, 0, 0x200, 0x1C0, 0, 0, 0, 0, 0x200, 0x1C0, 8, 8, (alpha << 24) | 0x808080, 1);
@@ -1194,7 +1194,7 @@ void ScrWarp_BeginPacket(u64 **pp, s32 x0, s32 x1, s32 w, s32 h, s32 tw, s32 th)
     (*pp)[0] = 0x60;
     (*pp)[1] = GS_TEX1_1;
     *pp += 2;
-    (*pp)[0] = !(gGfx.frame & 1) ? 0x264020E00UL : 0x264020000UL;
+    (*pp)[0] = !(gGfx.frame & 1) ? 0x264020E00ULL : 0x264020000ULL;
     (*pp)[1] = GS_TEX0_1;
     *pp += 2;
     Dma_PutTexStrips((GsQword **)pp, 0, 0, tw, th, 0, 0, x0, 0, w + x0, h, 8, 8, 0x80808080, 0);
@@ -1210,7 +1210,7 @@ void ScrWarp_BeginPacket(u64 **pp, s32 x0, s32 x1, s32 w, s32 h, s32 tw, s32 th)
     (*pp)[0] = GS_SET_CLAMP(2, 2, 0, tw - 1, 0, th - 1);
     (*pp)[1] = GS_CLAMP_1;
     *pp += 2;
-    (*pp)[0] = 0x220012A00UL;
+    (*pp)[0] = 0x220012A00ULL;
     (*pp)[1] = GS_TEX0_1;
     *pp += 2;
 }
@@ -1240,7 +1240,7 @@ void ScrWarp_EndStrip(u64 **pp) {
 /* Adds one strip vertex: frame pixel, texel and colour. */
 void ScrWarp_PutVertex(u64 **pp, s32 x, s32 y, s32 u, s32 v, s32 rgba) {
     (*pp)[0] = 0;
-    (*pp)[1] = (u64)rgba | (0x3F800000UL << 32);
+    (*pp)[1] = (u64)rgba | (0x3F800000ULL << 32);
     (*pp) += 2;
     (*pp)[0] = GS_SET_UV(u << 4, v << 4);
     (*pp)[1] = GS_SET_UV((x << 4) + 0x7000, (y << 4) + 0x7200);
@@ -1640,7 +1640,7 @@ void StgFog_Draw(void) {
     Dma_AddTexFlush();
     Dma_AddFrame(!(gGfx.frame & 1) ? 0x70 : 0, 8, 0xFFFFFF);
     Dma_AddZbuf(0xE0, 1);
-    GfxPost_DrawDepthClut(0, 0x1C00, tone->cbp, (0x80UL << 32) | 0x48);
+    GfxPost_DrawDepthClut(0, 0x1C00, tone->cbp, (0x80ULL << 32) | 0x48);
     Dma_AddZbuf(0xE0, 0);
     {
         u32 tbp[2] = { 0x2A00, 0x2D80 };
@@ -1666,17 +1666,17 @@ void StgFog_Draw(void) {
         p[0] = 0x30000;
         p[1] = GS_TEST_1;
         p += 2;
-        p[0] = !(gGfx.frame & 1) ? 0xA64020E00UL : 0xA64020000UL;
+        p[0] = !(gGfx.frame & 1) ? 0xA64020E00ULL : 0xA64020000ULL;
         p[1] = GS_TEX0_1;
         p += 2;
         Dma_PutTexStrips((GsQword **)&p, 0, 0, half, h, 0, 0, 0, 0, width, srcH, 0, 0, 0x80808080, 1);
         p[0] = GIF_TAG(3, 0, 1);
         p[1] = GIF_REG_AD;
         p += 2;
-        p[0] = !(gGfx.frame & 1) ? 0xFF00000000080070UL : 0xFF00000000080000UL;
+        p[0] = !(gGfx.frame & 1) ? 0xFF00000000080070ULL : 0xFF00000000080000ULL;
         p[1] = GS_FRAME_1;
         p += 2;
-        p[0] = (0x80UL << 32) | 0x54;
+        p[0] = (0x80ULL << 32) | 0x54;
         p[1] = GS_ALPHA_1;
         p += 2;
         p[0] = (u64)tbp[0] | (fbw << 14) | ((u64)tw << 26) | ((u64)th << 30);

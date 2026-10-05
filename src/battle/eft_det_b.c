@@ -137,12 +137,12 @@ s32 StgCol_QueryZone(StgColResult *res, StgColZone *zone, StgColBox *box, void *
         }
         gStgColMesh = rec->mesh;
         if (ColMesh_WalkBox(gStgColMesh, box, ctx, cb)) {
-            res->recMask |= 1L << i;
+            res->recMask |= 1LL << i;
             res->hit = 1;
             res->rec = 1;
             if (!rec->broken) {
                 res->obj = 1;
-                res->objMask |= 1L << rec->obj;
+                res->objMask |= 1LL << rec->obj;
             }
         }
     }

@@ -22,7 +22,7 @@ void Save_UnlockAll(SaveData *opt) {
     }
     gSaveData->stageBits = 0;
     for (i = 0; i < SAVE_STAGE_COUNT; i++) {
-        gSaveData->stageBits |= 1L << i;
+        gSaveData->stageBits |= 1LL << i;
     }
     for (i = 0; i < SAVE_BGM_LIST_COUNT; i++) {
         if (i >= SAVE_BGM_COUNT) {
@@ -116,7 +116,7 @@ void Save_SetDefaults(SaveData *opt) {
         case 0x20:
             break;
         default:
-            gSaveData->stageBits |= 1L << i;
+            gSaveData->stageBits |= 1LL << i;
             break;
         }
     }

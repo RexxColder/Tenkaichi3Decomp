@@ -913,7 +913,7 @@ void StgGrid_ApplyUnlocks(s32 *count, s32 *ids) {
         case 4:
         case 0x1B:
             if (!(flags & 1)) {
-                if (!(s32)((gSaveData->stageBits >> id) & 1L)) {
+                if (!(s32)((gSaveData->stageBits >> id) & 1LL)) {
                     ids[i] = STGGRID_ID_LOCKED;
                 } else if (flags & 4) {
                     ids[i] = STGGRID_ID_EMPTY;
@@ -922,7 +922,7 @@ void StgGrid_ApplyUnlocks(s32 *count, s32 *ids) {
             break;
         default:
             if (!(flags & 1)) {
-                if (!(s32)((gSaveData->stageBits >> id) & 1L)) {
+                if (!(s32)((gSaveData->stageBits >> id) & 1LL)) {
                     ids[i] = STGGRID_ID_LOCKED;
                 }
             }

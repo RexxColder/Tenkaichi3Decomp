@@ -130,7 +130,7 @@ extern SaveData *gSaveData;
 
 /* Word and mask of a character's unlock bit (the pointer form is what matches; `charaBits[id / 64]` does not). */
 #define SAVE_CHARA_WORD(opt, id) (*((opt)->charaBits + (id) / 64))
-#define SAVE_CHARA_MASK(id) (1L << ((id) % 64))
+#define SAVE_CHARA_MASK(id) (1LL << ((id) % 64))
 
 void Save_UnlockAll(SaveData *opt);
 void Save_SetDefaults(SaveData *opt);

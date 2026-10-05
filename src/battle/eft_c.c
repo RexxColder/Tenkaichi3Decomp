@@ -1888,8 +1888,8 @@ void EftSurf_RenderPalettes(void) {
     src->tex0 = EftVram_AddImage(src, 1, 0);
     dst = EftSurfRt_GetTex(rt, rt->texA + rt->flip);
     dst->def->data->clut = *rt->buf[1].clut;
-    dst->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)EftVram_AddClut(dst) << 37);
+    dst->tex0 = (src->tex0 & ~(0x3FFFULL << 37)) | ((u64)EftVram_AddClut(dst) << 37);
     dst2 = EftSurfRt_GetTex(rt, rt->texB + rt->flip);
     dst2->def->data->clut = *rt->buf[2].clut;
-    dst2->tex0 = (src->tex0 & ~(0x3FFFUL << 37)) | ((u64)EftVram_AddClut(dst2) << 37);
+    dst2->tex0 = (src->tex0 & ~(0x3FFFULL << 37)) | ((u64)EftVram_AddClut(dst2) << 37);
 }
