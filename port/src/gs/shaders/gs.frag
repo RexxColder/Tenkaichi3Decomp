@@ -27,7 +27,8 @@ void main() {
         }
     }
     if (p.mode.w != 0) {
-        float ag = a * 128.0;
+        // the GS compares integers; round, or a value that is exactly AREF (tree leaves: 0x7F against 0x7F) fails by float error
+        float ag = floor(a * 128.0 + 0.5);
         int f = p.mode.w - 1;
         bool pass = f == 0 ? false : f == 1 ? true : f == 2 ? ag < p.misc.x : f == 3 ? ag <= p.misc.x :
                     f == 4 ? abs(ag - p.misc.x) < 0.5 : f == 5 ? ag >= p.misc.x : f == 6 ? ag > p.misc.x : abs(ag - p.misc.x) >= 0.5;

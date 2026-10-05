@@ -48,6 +48,7 @@ static int sTargetCount;
 static unsigned sMissingTex;
 static unsigned sPix[5]; /* per frame: outside scissor, failed alpha test, failed depth test, colour written, depth written */
 static int sDrawFrom;       /* BT3_GS_FROM=<frame>: draw only from this frame on (the reference is slow) */
+static int sProbeX = -1, sProbeY = -1;
 static int sDumpFrame = -1; /* BT3_GS_DUMP=<frame>: list that frame's primitives */
 static unsigned sStat[8]; /* per frame: DMA tags, VIF codes, DIRECT quadwords, GIF tags, register writes, vertices, image quadwords, unknown VIF */
 
@@ -249,6 +250,17 @@ static void pixel(Target *sf, int ctx, int x, int y, uint32_t z, uint32_t src) {
     uint32_t fbp = (fr & 0x1FF) << 5, fbw = (fr >> 16) & 0x3F, fpsm = (fr >> 24) & 0x3F;
     uint32_t d, sr, sg, sb, sa, out[3], zbp, zpsm, zmax;
     int i, write_rgb = 1, write_z = !((zb >> 32) & 1);
+
+    /* BT3_GS_PROBE=x,y: in the BT3_GS_DUMP frame, report every primitive that reaches this pixel */
+    if (sDumpFrame == (int)sFrame && x == sProbeX && y == sProbeY) {
+        uint64_t t0 = gs.tex0[ctx];
+        fprintf(stderr, "  probe: prim %llx z %08x src %08x | tex %04x psm %02x %ux%u tcc %u tfx %u cbp %04x | alpha %llx test %llx frame %llx zbuf %llx clamp %llx | depth there %08x\n",
+                (unsigned long long)gs.prim, z, src, (unsigned)(t0 & 0x3FFF), (unsigned)((t0 >> 20) & 0x3F), 1u << ((t0 >> 26) & 15),
+                1u << ((t0 >> 30) & 15), (unsigned)((t0 >> 34) & 1), (unsigned)((t0 >> 35) & 3), (unsigned)((t0 >> 37) & 0x3FFF),
+                (unsigned long long)gs.alpha[ctx], (unsigned long long)gs.test[ctx], (unsigned long long)gs.frame[ctx],
+                (unsigned long long)gs.zbuf[ctx], (unsigned long long)gs.clamp[ctx],
+                vram_rw((uint32_t)(gs.zbuf[ctx] & 0x1FF) << 5, (uint32_t)((gs.frame[ctx] >> 16) & 0x3F), 0x30 | (uint32_t)((gs.zbuf[ctx] >> 24) & 15), (uint32_t)x, (uint32_t)y, 0, 0));
+    }
 
     if (x < (int)(sc & 0x7FF) || x > (int)((sc >> 16) & 0x7FF) || y < (int)((sc >> 32) & 0x7FF) || y > (int)((sc >> 48) & 0x7FF) ||
         x < 0 || y < 0 || x >= SURF_W || y >= SURF_H) {
@@ -818,6 +830,9 @@ static int gs_on(void) {
         gs.prmodecont = 1; /* the GS starts with the attributes in PRIM */
         sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
         sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
+        if (getenv("BT3_GS_PROBE") != NULL) {
+            sscanf(getenv("BT3_GS_PROBE"), "%d,%d", &sProbeX, &sProbeY);
+        }
         if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
             sGpu = GsGpu_Init(); /* falls back to the software rasteriser when no GPU device can be made */
         }
