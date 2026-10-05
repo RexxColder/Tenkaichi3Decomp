@@ -2,6 +2,7 @@
 """Compile the game sources to 32-bit host objects and list what a link would still need, by kind.
 Usage: port/tools/undefined.py [-v]   (objects go to port/build/obj)"""
 import collections, concurrent.futures, pathlib, re, subprocess, sys
+import portsrc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OBJ = ROOT / "port/build/obj"
@@ -11,17 +12,20 @@ TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (li
 
 def cc(f):
     o = OBJ / (str(f.relative_to(ROOT / "src")).replace("/", "_")[:-2] + ".o")
-    r = subprocess.run(CC + [str(f.relative_to(ROOT)), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
+    src, done, missing = portsrc.prepare(f)
+    r = subprocess.run(CC + [f"-I{f.parent}", str(src), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
+    if missing:
+        print("no C for:", f.name, " ".join(missing))
     return o if r.returncode == 0 else None, f, r.stderr
 
 def main():
     OBJ.mkdir(parents=True, exist_ok=True)
-    fs = [ROOT / "src/main.c"] + sorted((ROOT / "src/sys").glob("*.c")) + sorted((ROOT / "src/battle").glob("*.c"))
+    fs = portsrc.sources()
     with concurrent.futures.ThreadPoolExecutor(16) as ex:
         res = list(ex.map(cc, fs))
     bad = [(f, e) for o, f, e in res if o is None]
     for f, e in bad:
-        print("FAILED", f.name, e.splitlines()[0] if e else "")
+        print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l), "")[:150])
     objs = [str(o) for o, _, _ in res if o]
     objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
     defined, undef = set(), collections.Counter()
