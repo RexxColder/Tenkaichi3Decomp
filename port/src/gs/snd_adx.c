@@ -50,6 +50,7 @@ static Player sPlayers[MAX_PLAYERS];
 static int sCount;
 static SDL_AudioDeviceID sDevice;
 static int sMono, sTried;
+static unsigned sFeedCalls; /* callbacks from SDL so far (BT3_SND_VERBOSE prints it at a stop) */
 
 extern int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size); /* plat_file.c */
 
@@ -57,12 +58,18 @@ static uint32_t be32(const uint8_t *p) { return (uint32_t)p[0] << 24 | (uint32_t
 static uint32_t be16(const uint8_t *p) { return (uint32_t)p[0] << 8 | p[1]; }
 
 static int device(void) {
-    if (!sTried) {
+    /* not before the renderer has decided whether there is a window (its first frame) */
+    if (!sTried && (GsGpu_Enabled() || getenv("BT3_SOUND") != NULL || gGsFrame > 2)) {
         sTried = 1;
-        if (GsGpu_Enabled() && getenv("BT3_NOSOUND") == NULL && SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+        /* BT3_SOUND=1: sound without a window too (tests, with SDL_AUDIO_DRIVER=dummy for silence) */
+        if ((GsGpu_Enabled() || getenv("BT3_SOUND") != NULL) && getenv("BT3_NOSOUND") == NULL && SDL_InitSubSystem(SDL_INIT_AUDIO)) {
             sDevice = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
             if (sDevice == 0) {
                 fprintf(stderr, "bt3: no sound device: %s\n", SDL_GetError());
+            }
+            else {
+                SDL_ResumeAudioDevice(sDevice);
+                fprintf(stderr, "bt3: sound: %s\n", SDL_GetCurrentAudioDriver());
             }
         }
     }
@@ -154,6 +161,8 @@ static void SDLCALL feed(void *user, SDL_AudioStream *stream, int additional, in
     Player *p = user;
     int16_t buf[32 * 2 * 16];
 
+    sFeedCalls++;
+
     (void)total;
     while (additional > 0 && p->stat == ADXT_STAT_PLAYING && !p->paused) {
         int n = decode(p, buf, 16);
@@ -173,6 +182,9 @@ static void apply_volume(Player *p) {
 }
 
 static void stop(Player *p) {
+    if (p->stream != NULL && getenv("BT3_SND_VERBOSE") != NULL) {
+        fprintf(stderr, "adx: stop player %d at %.1f s, status %d, volume %d; %u callbacks so far\n", (int)(p - sPlayers), (double)p->pos / (double)p->rate, p->stat, p->vol, sFeedCalls);
+    }
     if (p->stream != NULL) {
         SDL_DestroyAudioStream(p->stream); /* waits for a running callback */
         p->stream = NULL;
@@ -230,12 +242,19 @@ static void start(Player *p, const char *path) {
     spec.freq = (int)p->rate;
     p->stream = SDL_CreateAudioStream(&spec, NULL);
     if (p->stream == NULL) {
+        fprintf(stderr, "bt3: sound stream: %s\n", SDL_GetError());
         return;
+    }
+    if (getenv("BT3_SND_VERBOSE") != NULL) {
+        fprintf(stderr, "adx: start %s: %u ch, %u Hz, %.1f s, loop %d, volume %d (0.1 dB), paused %d\n", path, p->channels, p->rate,
+                (double)p->total / (double)p->rate, p->loop, p->vol, p->paused);
     }
     p->stat = ADXT_STAT_PLAYING;
     apply_volume(p);
     SDL_SetAudioStreamGetCallback(p->stream, feed, p);
-    SDL_BindAudioStream(sDevice, p->stream);
+    if (!SDL_BindAudioStream(sDevice, p->stream)) {
+        fprintf(stderr, "bt3: sound stream: %s\n", SDL_GetError());
+    }
 }
 
 /* ------------------------------------------------------------------------------- the library's functions */
@@ -282,6 +301,9 @@ void ADXT_Pause(void *adxt, int sw) {
     if (p == NULL) {
         return;
     }
+    if (getenv("BT3_SND_VERBOSE") != NULL && p->paused != (sw != 0)) {
+        fprintf(stderr, "adx: player %d pause %d\n", (int)(p - sPlayers), sw);
+    }
     if (p->stream != NULL) {
         SDL_LockAudioStream(p->stream);
         p->paused = sw != 0;
@@ -298,6 +320,9 @@ void ADXT_SetOutVol(void *adxt, int vol) {
     Player *p = adxt;
 
     if (p != NULL) {
+        if (getenv("BT3_SND_VERBOSE") != NULL && p->vol != vol) {
+            fprintf(stderr, "adx: player %d volume %d\n", (int)(p - sPlayers), vol);
+        }
         p->vol = vol;
         apply_volume(p);
     }

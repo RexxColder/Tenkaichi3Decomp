@@ -65,7 +65,8 @@ static void vblank_wait(void) {
 }
 
 void Port_VBlank(void) {
-    if (GsGpu_Enabled() && getenv("BT3_UNCAPPED") == NULL) {
+    /* BT3_PACED=1: real-time pacing without a window too (sound tests) */
+    if ((GsGpu_Enabled() || getenv("BT3_PACED") != NULL) && getenv("BT3_UNCAPPED") == NULL) {
         vblank_wait();
     }
     gPortVBlanks++;
