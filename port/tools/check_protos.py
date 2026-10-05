@@ -74,7 +74,7 @@ def dump(f):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    fs = portsrc.sources() + sorted((ROOT / "src/menu").glob("*.c")) + sorted((ROOT / "port/src").glob("*.c")) + \
+    fs = portsrc.sources() + sorted((ROOT / "port/src").glob("*.c")) + \
          [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"]
     defs, decls = {}, collections.defaultdict(set)
     with concurrent.futures.ThreadPoolExecutor(16) as ex:

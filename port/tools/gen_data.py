@@ -9,7 +9,7 @@ assembly functions (jump tables of code the PC build does not use) -> 0, and eac
 modulo 16 as on the PS2, so data that must be 16-byte aligned stays aligned.
 
 Usage: port/tools/gen_data.py [--asm DIR]     DIR = the decompilation's generated asm/ (default ../bt3/asm)
-Output: port/build/gen/data/*.s  (generated from the game; never commit)"""
+Output: port/build/gen/data/*.s and the assembled port/build/obj_data/*.o  (generated from the game; never commit)"""
 import argparse, collections, pathlib, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -17,11 +17,11 @@ KINDS = ("data", "sdata", "rodata", "lit4", "lit8", "bss", "sbss")
 SECTION = {"data": ".data", "sdata": ".data", "rodata": ".data", "lit4": ".data", "lit8": ".data",
            "bss": ".bss", "sbss": ".bss"}  # everything writable: the original rodata is patched in places
 
-def chunks(yaml):
+def chunks(yaml, base=0x100000):
     """(kind, name, PS2 address) of every data chunk the matching build takes from assembly."""
-    out, base = [], 0x100000
+    out = []
     for l in yaml.read_text().splitlines():
-        m = re.match(r"\s+- \[0x([0-9A-Fa-f]+), (\w+), ([\w/]+)\]", l)
+        m = re.match(r"\s+- \[0x([0-9A-Fa-f]+), (\w+), \"?([\w/]+)\"?\]", l)
         if m and m.group(2) in KINDS:
             out.append((m.group(2), m.group(3), int(m.group(1), 16) + base))
         m = re.match(r"\s+- \{ type: (\w+), vram: 0x([0-9A-Fa-f]+), name: ([\w/]+) \}", l)
@@ -82,6 +82,13 @@ def main():
             raise SystemExit(f"missing {src}: run the decompilation's configure.py first")
         (dst / f"{name.replace('/', '_')}.{kind}.s").write_text(convert(src.read_text(), kind, addr))
         n += 1
+    # The menu overlay (DBZP.BIN, loaded at 0x334C00 on the PS2): the same for its one assembly data chunk.
+    for kind, name, addr in chunks(ROOT / "config/DBZP.yaml", 0x334C00):
+        src = pathlib.Path(a.asm) / "dbzp/data" / f"{name}.{kind}.s"
+        if not src.exists():
+            raise SystemExit(f"missing {src}: run the decompilation's configure.py first")
+        (dst / f"dbzp_{name.replace('/', '_')}.{kind}.s").write_text(convert(src.read_text(), kind, addr))
+        n += 1
     # Tables that C files take from assembly with INCLUDE_RODATA (the PC build turns that macro into nothing).
     addr_of = symbols()
     m = 0
@@ -110,5 +117,16 @@ def main():
         out.append(f'    .incbin "{blob}", {c - start}, {end - c}')
     (dst / "vu1_micro.data.s").write_text("\n".join(out) + "\n")
     print(f"{n} data chunks, {m} included tables and the VU1 microprograms written to {dst.relative_to(ROOT)}")
+    # assemble them for the link (port/build/obj_data)
+    import subprocess
+    obj = ROOT / "port/build/obj_data"
+    obj.mkdir(parents=True, exist_ok=True)
+    for old in obj.glob("*.o"):
+        old.unlink()
+    for f in sorted(dst.glob("*.s")):
+        r = subprocess.run(["as", "--32", str(f), "-o", str(obj / (f.name[:-2] + ".o"))], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"{f.name}: {r.stderr[:300]}")
+    print(f"{len(list(obj.glob('*.o')))} data objects assembled")
 
 main()

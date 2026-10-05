@@ -9,7 +9,7 @@ B = ROOT / "port/build"
 
 def link(objs, extra):
     return subprocess.run(["gcc", "-m32", "-no-pie", "-w", "-o", str(B / "bt3")] + extra + objs +
-                          ["-lm", "-lpthread", "-lSDL3", "-Wl,--defsym=D_3BE71C=0x3BE71C"], capture_output=True, text=True)
+                          ["-lm", "-lpthread", "-lSDL3", "-Wl,--defsym=D_3BE71C=0x3BE71C", "-Wl,--wrap=Progress_Main"], capture_output=True, text=True)
 
 def main():
     objs = [str(o) for o in sorted((B / "obj").glob("*.o")) + sorted((B / "obj_data").glob("*.o"))]

@@ -11,7 +11,9 @@ GEN = ROOT / "port/build/gen/src"
 REPLACED = {"src/sys/vu0_a_c.c", "src/sys/vu0_a_c_b.c", "src/sys/vu0_a_c_c.c", "src/sys/vu0_b_c.c"}
 
 def sources():
-    fs = [ROOT / "src/main.c"] + sorted((ROOT / "src/sys").glob("*.c")) + sorted((ROOT / "src/battle").glob("*.c"))
+    # the main executable (engine, battle) and the menu overlay (DBZP.BIN on the PS2; one program here)
+    fs = [ROOT / "src/main.c"] + sorted((ROOT / "src/sys").glob("*.c")) + sorted((ROOT / "src/battle").glob("*.c")) + \
+         sorted((ROOT / "src/menu").glob("*.c"))
     return [f for f in fs if str(f.relative_to(ROOT)) not in REPLACED]
 
 def enable_attempts(text):

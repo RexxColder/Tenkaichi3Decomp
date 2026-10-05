@@ -22,10 +22,16 @@ extern void Demo_SetupBattle(void);
 
 static int sBattles;
 
-void Progress_Main(int arg) {
+/* Linked with --wrap=Progress_Main: the game's call in Game_Main comes here. BT3_REPLAY or BT3_DEMO: the battle is
+   set up without menus (below); otherwise the real menus run (the overlay's Progress_Main, src/menu/menu_a_b.c). */
+extern int __real_Progress_Main(int arg);
+
+int __wrap_Progress_Main(int arg) {
     const char *path = getenv("BT3_REPLAY");
 
-    (void)arg;
+    if (path == NULL && getenv("BT3_DEMO") == NULL) {
+        return __real_Progress_Main(arg);
+    }
     if (sBattles++ > 0) {
         printf("bt3: battle finished\n");
         exit(0);
@@ -50,6 +56,7 @@ void Progress_Main(int arg) {
         printf("bt3: attract-demo battle\n");
     }
     fflush(stdout);
+    return 0;
 }
 
 /* Overlay_Load reads the menu overlay to its PS2 address: there is nothing to read on PC (size 0). */
