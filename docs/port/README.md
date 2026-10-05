@@ -614,5 +614,13 @@ with a third of the interpreter's work gone.
   screen matrix, s, t generated from the shadow camera matrix and the scale, flagged strip triangles skipped on
   the CPU, the texture coordinates rescaled for a frame buffer used as a texture. Checked on the first frames of
   the fight against the interpreter (shadows equal by eye). The interpreter now runs 0 times in replay01's first
-  24 seconds; frame work about 10 ms (mean of the per-second averages). Three single frames over the 33.4 ms
+  1,440 frames (48 s; the timing line is printed every 60 frames = 2 s, not every second as first written);
+  frame work about 10 ms (mean of the 60-frame averages). Three single frames over the 33.4 ms
   budget remain (75.7 ms near frame 121, about 36 ms near frames 361 and 1261): not examined.
+- **Slow single frames = pipeline creation.** `BT3_GS_VERBOSE` now prints a `slow:` line for every frame over
+  budget (game / display list split, new textures and pipelines, time in each). Measured: the three slow frames
+  were 46 ms, 21 ms, 21 ms of pipeline creation (10, 5, 2 pipelines), texture decoding only 2 to 9 ms. Fix: a
+  pipeline is built from its key alone (`pipeline_create`), keys are appended to `bt3_pipelines.txt`
+  (`BT3_PIPELINES` overrides the path; git-ignored) and all known ones are created at start (22 in 101 ms).
+  Whole replay with the file present, two runs: no frame over budget, mean 10.8 ms, worst 29.1 ms. The first run
+  on a machine (no file) still has the hitches; shipping a list with the game would remove that.

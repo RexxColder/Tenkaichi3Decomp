@@ -976,7 +976,7 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
 void Port_GsVif1Chain(uint32_t tadr, int tte) {
     static uint64_t next, start, sum, worst;
     static unsigned n, over;
-    uint64_t t;
+    uint64_t t, tChain;
 
     if (!gs_on()) {
         return;
@@ -985,6 +985,7 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
         run_chain(tadr, tte);
         return;
     }
+    tChain = now_ns();
     if (sThreaded) {
         render_wait(); /* the previous list must be finished before this one starts (the PS2's sceGsSyncPath) */
     } else {
@@ -994,6 +995,19 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     t = now_ns();
     if (start != 0) {
         uint64_t work = t - start;
+        {   /* a frame over budget: where the time went and what was created in it */
+            extern unsigned gGpuNewTex, gGpuNewTexPixels, gGpuNewPipes;
+            extern uint64_t gGpuTexNs, gGpuPipeNs, gGpuEndNs;
+            if (work > 33366700ull && getenv("BT3_GS_VERBOSE") != NULL) {
+                fprintf(stderr, "slow: frame %u: %.1f ms = game %.1f ms + display list %.1f ms; %u new textures (%u pixels), %u new pipelines\n",
+                        sFrame, (double)work / 1e6, (double)(tChain - start) / 1e6, (double)(t - tChain) / 1e6, gGpuNewTex, gGpuNewTexPixels,
+                        gGpuNewPipes);
+                fprintf(stderr, "slow:   of the display list time: texture decoding %.1f ms, pipeline creation %.1f ms, submitting the frame %.1f ms\n",
+                        (double)gGpuTexNs / 1e6, (double)gGpuPipeNs / 1e6, (double)gGpuEndNs / 1e6);
+            }
+            gGpuNewTex = gGpuNewTexPixels = gGpuNewPipes = 0;
+            gGpuTexNs = gGpuPipeNs = gGpuEndNs = 0;
+        }
         sum += work;
         if (work > worst) { worst = work; }
         if (work > 33366700ull) { over++; }

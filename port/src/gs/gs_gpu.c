@@ -102,6 +102,9 @@ static uint32_t sVertCount;
 static Draw *sDraws;
 static uint32_t sDrawCount;
 static unsigned sNative; /* native effect markers seen this frame */
+unsigned gGpuNewTex, gGpuNewTexPixels, gGpuNewPipes; /* created since the front end last cleared them (slow-frame report) */
+uint64_t gGpuTexNs, gGpuPipeNs, gGpuEndNs; /* time spent decoding textures, creating pipelines, in GsGpu_FrameEnd */
+static uint64_t gpu_now(void) { return SDL_GetTicksNS(); }
 static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
 /* textures created this frame, to upload in the copy pass */
@@ -120,6 +123,8 @@ static SDL_GPUShader *shader(const unsigned char *code, size_t size, SDL_GPUShad
     ci.num_uniform_buffers = (Uint32)ubos;
     return SDL_CreateGPUShader(sDev, &ci);
 }
+
+static void pipelines_preload(void);
 
 int GsGpu_Init(void) {
     SDL_GPUBufferCreateInfo bi;
@@ -242,6 +247,7 @@ int GsGpu_Init(void) {
         }
     }
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
+    pipelines_preload();
     return 1;
 }
 
@@ -285,6 +291,7 @@ static SDL_GPUTexture *texture_get(int ctx) {
     uint32_t bits = (uint32_t)Gs_PsmBits(psm), gen = 0, pages, i, x, y, *px;
     SDL_GPUTextureCreateInfo ci;
     Tex *t;
+    uint64_t tex_t0;
 
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
@@ -325,6 +332,7 @@ static SDL_GPUTexture *texture_get(int ctx) {
         sTex[old] = sTex[--sTexCount];
         sLast = NULL;
     }
+    tex_t0 = gpu_now();
     px = malloc((size_t)tw * th * 4);
     for (y = 0; y < th; y++) {
         for (x = 0; x < tw; x++) {
@@ -350,7 +358,10 @@ static SDL_GPUTexture *texture_get(int ctx) {
     ci.height = th;
     ci.layer_count_or_depth = 1;
     ci.num_levels = 1;
+    gGpuTexNs += gpu_now() - tex_t0;
     t = &sTex[sTexCount++];
+    gGpuNewTex++;
+    gGpuNewTexPixels += tw * th;
     sLast = t;
     t->tex0 = t0;
     t->texa = texa;
@@ -398,43 +409,58 @@ static void blend_of(uint64_t alpha, int abe, SDL_GPUColorTargetBlendState *b, u
     *key = 1u | (uint32_t)k[0] << 1 | (uint32_t)k[1] << 4 | (uint32_t)C << 7;
 }
 
-static int pipeline_get(int ctx, int topo, int vu) {
-    uint64_t test = gGs.test[ctx], zb = gGs.zbuf[ctx];
-    int zte = (test >> 16) & 1, ztst = (test >> 17) & 3, zwrite = !((zb >> 32) & 1);
-    SDL_GPUColorTargetDescription cd, cds[2];
+/* The blend state of a key made by blend_of (bits 0..8: enabled, k source, k destination, C). */
+static void blend_from_key(uint32_t bkey, SDL_GPUColorTargetBlendState *b) {
+    int k[2] = {(int)((bkey >> 1) & 7), (int)((bkey >> 4) & 7)}, C = (int)((bkey >> 7) & 3), i;
+    SDL_GPUBlendFactor fc = C == 0 ? SDL_GPU_BLENDFACTOR_SRC_ALPHA : C == 1 ? SDL_GPU_BLENDFACTOR_DST_ALPHA : SDL_GPU_BLENDFACTOR_CONSTANT_COLOR;
+    SDL_GPUBlendFactor fi = C == 0 ? SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA : C == 1 ? SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA : SDL_GPU_BLENDFACTOR_ONE_MINUS_CONSTANT_COLOR;
+    SDL_GPUBlendFactor f[2];
+
+    SDL_zerop(b);
+    if (!(bkey & 1)) {
+        return;
+    }
+    for (i = 0; i < 2; i++) {
+        f[i] = k[i] == 0 ? SDL_GPU_BLENDFACTOR_ZERO : k[i] == 1 || k[i] == 5 ? SDL_GPU_BLENDFACTOR_ONE : k[i] == 4 ? fi : fc;
+    }
+    b->enable_blend = true;
+    b->src_color_blendfactor = f[0];
+    b->dst_color_blendfactor = f[1];
+    b->color_blend_op = k[0] == 3 ? SDL_GPU_BLENDOP_REVERSE_SUBTRACT : k[1] == 3 ? SDL_GPU_BLENDOP_SUBTRACT : SDL_GPU_BLENDOP_ADD;
+    b->src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE; /* the frame buffer keeps the source alpha */
+    b->dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    b->alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+}
+
+/* Where the keys of the pipelines the game has used are remembered between runs. Creating a pipeline takes the
+   driver 2 to 10 ms (measured: 46 ms for the ten of the first stage frame), so the known ones are made at start. */
+static const char *pipeline_file(void) {
+    return getenv("BT3_PIPELINES") != NULL ? getenv("BT3_PIPELINES") : "bt3_pipelines.txt";
+}
+
+/* Creates the pipeline of a key (everything a pipeline depends on is in the key):
+   bits 0..8 blend, 10..11 depth test, 12 depth write, 13..14 topology, 16..19 colour write mask,
+   20..21 vertices: 0 GS vertices, 1 program 0, 2 program 4, 3 program 6. */
+static int pipeline_create(uint32_t key, int remember) {
+    int ztst = (int)((key >> 10) & 3), zwrite = (int)((key >> 12) & 1), topo = (int)((key >> 13) & 3), vu = (int)((key >> 20) & 3);
+    uint32_t wmask = (key >> 16) & 15;
+    SDL_GPUColorTargetDescription cds[2];
     SDL_GPUGraphicsPipelineCreateInfo ci;
     SDL_GPUVertexBufferDescription vb;
     SDL_GPUVertexAttribute at[3];
-    uint32_t bkey, key, wmask;
-    int i;
+    uint64_t t0;
 
-    SDL_zero(cd);
-    cd.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    blend_of(gGs.alpha[ctx], (int)((gGs.prim >> 6) & 1), &cd.blend_state, &bkey);
-    if (!zte) {
-        ztst = 1;
-    }
-    /* FRAME.FBMSK, in the whole-channel forms ordinary drawing uses (alpha only, everything but alpha, ...):
-       a channel whose eight mask bits are all set is not written. Partial masks are not representable. */
-    {
-        uint32_t m = (uint32_t)(gGs.frame[ctx] >> 32);
-        wmask = ((m & 0xFF) != 0xFF ? SDL_GPU_COLORCOMPONENT_R : 0) | ((m & 0xFF00) != 0xFF00 ? SDL_GPU_COLORCOMPONENT_G : 0) |
-                ((m & 0xFF0000) != 0xFF0000 ? SDL_GPU_COLORCOMPONENT_B : 0) | ((m & 0xFF000000u) != 0xFF000000u ? SDL_GPU_COLORCOMPONENT_A : 0);
-        cd.blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
-        cd.blend_state.enable_color_write_mask = true;
-    }
-    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20; /* vu: 0 GS vertices, 1 program 0, 2 program 4, 3 program 6 */
-    for (i = 0; i < sPipeCount; i++) {
-        if (sPipes[i].key == key) {
-            return i;
-        }
-    }
     if (sPipeCount == 1024) {
         return 0;
     }
     SDL_zero(ci);
     SDL_zero(vb);
     SDL_zero(at);
+    SDL_zero(cds);
+    cds[0].format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    blend_from_key(key & 0x1FF, &cds[0].blend_state);
+    cds[0].blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
+    cds[0].blend_state.enable_color_write_mask = true;
     vb.slot = 0;
     vb.pitch = sizeof(Vtx);
     vb.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
@@ -460,8 +486,7 @@ static int pipeline_get(int ctx, int topo, int vu) {
     ci.depth_stencil_state.enable_depth_write = zwrite;
     ci.depth_stencil_state.compare_op = ztst == 0 ? SDL_GPU_COMPAREOP_NEVER : ztst == 1 ? SDL_GPU_COMPAREOP_ALWAYS :
                                         ztst == 2 ? SDL_GPU_COMPAREOP_GREATER_OR_EQUAL : SDL_GPU_COMPAREOP_GREATER;
-    cds[0] = cd;
-    SDL_zero(cds[1]); /* the exact alpha byte: never blended, written whenever the frame's alpha is writable */
+    /* the exact alpha byte: never blended, written whenever the frame's alpha is writable */
     cds[1].format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
     cds[1].blend_state.color_write_mask = (wmask & SDL_GPU_COLORCOMPONENT_A) ? SDL_GPU_COLORCOMPONENT_R : 0;
     cds[1].blend_state.enable_color_write_mask = true;
@@ -470,12 +495,68 @@ static int pipeline_get(int ctx, int topo, int vu) {
     ci.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     ci.target_info.has_depth_stencil_target = true;
     sPipes[sPipeCount].key = key;
+    t0 = gpu_now();
     sPipes[sPipeCount].p = SDL_CreateGPUGraphicsPipeline(sDev, &ci);
+    gGpuPipeNs += gpu_now() - t0;
     if (sPipes[sPipeCount].p == NULL) {
-        fprintf(stderr, "bt3: pipeline: %s\n", SDL_GetError());
+        fprintf(stderr, "bt3: pipeline %08x: %s\n", key, SDL_GetError());
         return 0;
     }
+    if (remember) { /* first seen in this run: known from the next start on */
+        FILE *f = fopen(pipeline_file(), "a");
+        if (f != NULL) {
+            fprintf(f, "%08x\n", key);
+            fclose(f);
+        }
+        gGpuNewPipes++;
+    }
     return sPipeCount++;
+}
+
+/* Creates every pipeline an earlier run used. */
+static void pipelines_preload(void) {
+    FILE *f = fopen(pipeline_file(), "r");
+    unsigned key;
+    int i, n = 0;
+    uint64_t t0 = gpu_now();
+
+    if (f == NULL) {
+        return;
+    }
+    while (fscanf(f, "%x", &key) == 1) {
+        for (i = 0; i < sPipeCount && sPipes[i].key != key; i++) {
+        }
+        if (i == sPipeCount && (key & ~0x3FF7FFFu) == 0) {
+            pipeline_create(key, 0);
+            n++;
+        }
+    }
+    fclose(f);
+    fprintf(stderr, "bt3: %d pipelines of earlier runs created in %.0f ms (%s)\n", n, (double)(gpu_now() - t0) / 1e6, pipeline_file());
+}
+
+static int pipeline_get(int ctx, int topo, int vu) {
+    uint64_t test = gGs.test[ctx], zb = gGs.zbuf[ctx];
+    int zte = (test >> 16) & 1, ztst = (test >> 17) & 3, zwrite = !((zb >> 32) & 1);
+    SDL_GPUColorTargetBlendState unused;
+    uint32_t bkey, key, wmask, m = (uint32_t)(gGs.frame[ctx] >> 32);
+    int i;
+
+    blend_of(gGs.alpha[ctx], (int)((gGs.prim >> 6) & 1), &unused, &bkey);
+    if (!zte) {
+        ztst = 1;
+    }
+    /* FRAME.FBMSK, in the whole-channel forms ordinary drawing uses (alpha only, everything but alpha, ...):
+       a channel whose eight mask bits are all set is not written. Partial masks are not representable. */
+    wmask = ((m & 0xFF) != 0xFF ? SDL_GPU_COLORCOMPONENT_R : 0) | ((m & 0xFF00) != 0xFF00 ? SDL_GPU_COLORCOMPONENT_G : 0) |
+            ((m & 0xFF0000) != 0xFF0000 ? SDL_GPU_COLORCOMPONENT_B : 0) | ((m & 0xFF000000u) != 0xFF000000u ? SDL_GPU_COLORCOMPONENT_A : 0);
+    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16 | (uint32_t)vu << 20;
+    for (i = 0; i < sPipeCount; i++) {
+        if (sPipes[i].key == key) {
+            return i;
+        }
+    }
+    return pipeline_create(key, 1);
 }
 
 static void put(const GsVertex *v, float x, float y, float s, float t, float q, uint8_t r, uint8_t g, uint8_t b, uint8_t a, float zmax) {
@@ -800,7 +881,15 @@ void GsGpu_Native(int effect) {
     sDraws[sDrawCount++] = d;
 }
 
+static void frame_end(void);
+
 void GsGpu_FrameEnd(void) {
+    uint64_t t0 = gpu_now();
+    frame_end();
+    gGpuEndNs += gpu_now() - t0;
+}
+
+static void frame_end(void) {
     SDL_GPUCommandBuffer *cmd;
     SDL_GPUCopyPass *copy;
     SDL_GPURenderPass *pass = NULL;

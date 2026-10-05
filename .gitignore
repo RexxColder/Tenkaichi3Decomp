@@ -19,3 +19,4 @@ port/tests/ps2float/*.s
 !port/tests/ps2float/crt0*.s
 port/tests/ps2float/*.elf
 port/tests/ps2float/*.bin
+bt3_pipelines.txt
