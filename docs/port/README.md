@@ -790,3 +790,12 @@ with a third of the interpreter's work gone.
   without a window; the replay result is unchanged. Any effect near the screen edge could have hit this in a
   normal fight.
 - The user confirmed READY / FIGHT in widescreen (bands keep the full width).
+- **Stages with animated objects broke the whole picture** (user's `session2.pad`, island stage with water):
+  `Vu1Pkt_LoadProg8` measures program 8 as `D_002C3380 - D_002C3080`, and `D_002C3380` is the first symbol of the
+  next data file, which the PC linker places elsewhere. The DMA reference got a nonsense length and the list ran
+  into unrelated memory (163,000 VIF codes per frame, garbage primitives, 7,000 textures). Fixed under
+  `#ifdef PORT` with the real length (0x300 bytes). The other seven programs are measured between symbols of one
+  file and are fine. Lesson: a length taken between two data symbols is only valid inside one generated data file.
+- While chasing that: texture cache now hashed (8192 entries, palettes hashed per palette instead of per page),
+  render targets 24 with reuse of ones idle for two seconds, frame dump prints DMA tags, `BT3_VU_CALLS=1` lists
+  program entry points. Program 8 (94 instructions) runs in the interpreter on that stage: 57 runs per frame.

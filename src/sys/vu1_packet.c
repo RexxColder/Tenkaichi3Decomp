@@ -369,7 +369,13 @@ u32 *Vu1Pkt_CallProg8(Vu1Node *node) {
 u32 *Vu1Pkt_LoadProg8(void) {
     u32 *p;
 
+#ifdef PORT
+    /* D_002C3380 is the first symbol of the next data file: on PC the linker puts it elsewhere, and the length
+       came out as nonsense (the chain then ran off into unrelated memory on every stage with animated objects). */
+    Dma_AddRef(D_002C3080, 0x300 / sizeof(D_002C3080[0]));
+#else
     Dma_AddRef(D_002C3080, D_002C3380 - D_002C3080);
+#endif
     p = Dma_Alloc(0x140);
     p[0] = VU1_DMA_CNT | 0x13;
     p[1] = 0;

@@ -40,6 +40,7 @@ typedef struct Target {
     unsigned draws; /* this frame */
     uint32_t gen;   /* upload generation of its first page when it was last drawn to */
     int stale;      /* a pass that should have filled it was dropped: its contents are not what the game expects */
+    unsigned last;  /* frame it was last asked for */
 } Target;
 
 typedef struct Tex {
@@ -103,9 +104,13 @@ extern int gPortMenuMode;       /* headless.c: the menus are running */
    10). Default 60: the user's choice on 2026-10-06 (100 looked too strong at the glare's peaks). */
 #define GLOW_DEFAULT 60
 static int sGlowPercent = GLOW_DEFAULT;
-static Target sTargets[16];
+#define MAX_TARGETS 24
+static Target sTargets[MAX_TARGETS];
 static int sTargetCount;
-static Tex sTex[2048];
+#define MAX_TEX 8192
+#define TEX_BUCKETS 32768 /* a power of two, four times MAX_TEX */
+static Tex sTex[MAX_TEX];
+static uint16_t sTexBucket[TEX_BUCKETS]; /* index + 1 of a cache entry, 0 = empty (open addressing) */
 static int sTexCount;
 static Tex *sLast; /* the entry the previous lookup returned */
 static Pipe sPipes[1024];
@@ -133,7 +138,8 @@ static uint64_t gpu_now(void) { return SDL_GetTicksNS(); }
 static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
 /* textures created this frame, to upload in the copy pass */
-static struct { SDL_GPUTexture *tex; uint32_t w, h; uint32_t *px; } sPending[512];
+#define MAX_PENDING 4096
+static struct { SDL_GPUTexture *tex; uint32_t w, h; uint32_t *px; } sPending[MAX_PENDING];
 static int sPendingCount;
 
 static SDL_GPUShader *shader(const unsigned char *code, size_t size, SDL_GPUShaderStage stage, int samplers, int ubos) {
@@ -307,15 +313,33 @@ int GsGpu_Init(void) {
 
 static int target_get(uint32_t fbp, int create) {
     SDL_GPUTextureCreateInfo ci;
-    int i;
+    int i, slot;
 
     for (i = 0; i < sTargetCount; i++) {
         if (sTargets[i].fbp == fbp) {
+            sTargets[i].last = gGsFrame;
             return i;
         }
     }
-    if (!create || sTargetCount == 16) {
+    if (!create) {
         return -1;
+    }
+    slot = sTargetCount;
+    if (sTargetCount == MAX_TARGETS) {
+        /* Every buffer address the game has ever drawn to holds three large textures. The menus and each stage
+           use their own set, so one that has not been touched for two seconds gives its slot to the new one. */
+        slot = -1;
+        for (i = 0; i < sTargetCount; i++) {
+            if (sTargets[i].last + 120 < gGsFrame && (slot < 0 || sTargets[i].last < sTargets[slot].last)) {
+                slot = i;
+            }
+        }
+        if (slot < 0) {
+            return -1;
+        }
+        SDL_ReleaseGPUTexture(sDev, sTargets[slot].color);
+        SDL_ReleaseGPUTexture(sDev, sTargets[slot].aux);
+        SDL_ReleaseGPUTexture(sDev, sTargets[slot].depth);
     }
     SDL_zero(ci);
     ci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -325,16 +349,49 @@ static int target_get(uint32_t fbp, int create) {
     ci.height = GS_H * SCALE;
     ci.layer_count_or_depth = 1;
     ci.num_levels = 1;
-    sTargets[sTargetCount].color = SDL_CreateGPUTexture(sDev, &ci);
+    sTargets[slot].color = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
-    sTargets[sTargetCount].aux = SDL_CreateGPUTexture(sDev, &ci);
+    sTargets[slot].aux = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER; /* the depth effects read it */
-    sTargets[sTargetCount].depth = SDL_CreateGPUTexture(sDev, &ci);
-    sTargets[sTargetCount].fbp = fbp;
-    sTargets[sTargetCount].cleared = 0;
-    sTargets[sTargetCount].draws = 0;
-    return sTargetCount++;
+    sTargets[slot].depth = SDL_CreateGPUTexture(sDev, &ci);
+    sTargets[slot].fbp = fbp;
+    sTargets[slot].cleared = 0;
+    sTargets[slot].draws = 0;
+    sTargets[slot].stale = 0;
+    sTargets[slot].gen = 0;
+    sTargets[slot].last = gGsFrame;
+    if (slot == sTargetCount) {
+        sTargetCount++;
+    }
+    return slot;
+}
+
+static uint32_t tex_bucket(uint64_t t0, uint64_t texa, uint32_t gen) {
+    uint64_t h = (t0 ^ (texa * 0x9E3779B97F4A7C15ull) ^ ((uint64_t)gen << 17)) * 0xD6E8FEB86659FD93ull;
+    return (uint32_t)(h >> 40) & (TEX_BUCKETS - 1);
+}
+
+/* A hash of the palette entries a texture uses (16 or 256 at `cbp`), remembered until one of the palette's pages is
+   written again. The page hashes are too coarse here: a page holds up to 32 palettes, and the game rewrites some
+   of them every frame (lit palettes, the fighters' palettes painted for the see-through pass), which made every
+   texture with a palette in the same page count as new and be decoded again, hundreds per frame on some stages. */
+static uint32_t clut_hash(uint32_t cbp, uint32_t cpsm, uint32_t count) {
+    static struct { uint32_t key, gen0, gen1, hash; } memo[1024];
+    uint32_t key = cbp << 5 | cpsm << 1 | (count == 256), slot = (key * 2654435761u) >> 22, h = 2166136261u, i;
+    uint32_t g0 = gGsPageGen[(cbp / 32) & 511], g1 = gGsPageGen[(cbp / 32 + 1) & 511];
+
+    if (memo[slot].key == key + 1 && memo[slot].gen0 == g0 && memo[slot].gen1 == g1) {
+        return memo[slot].hash;
+    }
+    for (i = 0; i < count; i++) {
+        h = (h ^ Gs_VramRead(cbp, 1, cpsm, i & 15, i >> 4)) * 16777619u;
+    }
+    memo[slot].key = key + 1;
+    memo[slot].gen0 = g0;
+    memo[slot].gen1 = g1;
+    memo[slot].hash = h;
+    return h;
 }
 
 /* GS memory -> an RGBA texture for the current TEX0 (alpha as stored: 0x80 is opaque). */
@@ -355,36 +412,53 @@ static SDL_GPUTexture *texture_get(int ctx) {
         gen = (gen ^ Gs_PageHash(tbp / 32 + i)) * 16777619u + i;
     }
     if (bits <= 8) {
-        gen = (gen ^ Gs_PageHash(cbp / 32)) * 16777619u;
-        gen = (gen ^ Gs_PageHash(cbp / 32 + 1)) * 16777619u;
+        gen = (gen ^ clut_hash(cbp, cpsm, bits == 8 ? 256 : 16)) * 16777619u;
     }
     if (sLast != NULL && sLast->tex0 == t0 && sLast->texa == texa && sLast->gen == gen) {
         sLast->last = gGsFrame;
         return sLast->tex; /* the common case: the same texture as the previous primitive */
     }
-    for (i = 0; i < (uint32_t)sTexCount; i++) {
-        if (sTex[i].tex0 == t0 && sTex[i].texa == texa && sTex[i].gen == gen) {
-            sTex[i].last = gGsFrame;
-            sLast = &sTex[i];
-            return sTex[i].tex;
+    {
+        uint32_t h = tex_bucket(t0, texa, gen);
+        while (sTexBucket[h] != 0) {
+            Tex *c = &sTex[sTexBucket[h] - 1];
+            if (c->tex0 == t0 && c->texa == texa && c->gen == gen) {
+                c->last = gGsFrame;
+                sLast = c;
+                return c->tex;
+            }
+            h = (h + 1) & (TEX_BUCKETS - 1);
         }
     }
-    if (sPendingCount == 512) {
+    if (sPendingCount == MAX_PENDING) {
         return sWhite;
     }
-    if (sTexCount == 2048) { /* evict the least recently used */
-        int old = 0;
-        for (i = 1; i < 2048; i++) {
-            if (sTex[i].last < sTex[old].last) {
-                old = (int)i;
+    if (sTexCount == MAX_TEX) {
+        /* full: drop everything not used for two seconds (or, failing that, not used this frame) in one sweep */
+        unsigned keep = gGsFrame > 120 ? gGsFrame - 120 : 0;
+        int pass, n;
+        for (pass = 0; pass < 2 && sTexCount == MAX_TEX; pass++, keep = gGsFrame) {
+            for (n = 0, i = 0; i < (uint32_t)sTexCount; i++) {
+                if (sTex[i].last >= keep) {
+                    sTex[n++] = sTex[i];
+                } else {
+                    SDL_ReleaseGPUTexture(sDev, sTex[i].tex);
+                }
             }
+            sTexCount = n;
         }
-        if (sTex[old].last == gGsFrame) {
-            return sWhite; /* everything in the cache is in use by this frame's draw list: cannot evict */
-        }
-        SDL_ReleaseGPUTexture(sDev, sTex[old].tex);
-        sTex[old] = sTex[--sTexCount];
         sLast = NULL;
+        memset(sTexBucket, 0, sizeof(sTexBucket));
+        for (i = 0; i < (uint32_t)sTexCount; i++) {
+            uint32_t h = tex_bucket(sTex[i].tex0, sTex[i].texa, sTex[i].gen);
+            while (sTexBucket[h] != 0) {
+                h = (h + 1) & (TEX_BUCKETS - 1);
+            }
+            sTexBucket[h] = (uint16_t)(i + 1);
+        }
+        if (sTexCount == MAX_TEX) {
+            return sWhite; /* this one frame uses more textures than the cache holds */
+        }
     }
     tex_t0 = gpu_now();
     px = malloc((size_t)tw * th * 4);
@@ -414,6 +488,13 @@ static SDL_GPUTexture *texture_get(int ctx) {
     ci.num_levels = 1;
     gGpuTexNs += gpu_now() - tex_t0;
     t = &sTex[sTexCount++];
+    {
+        uint32_t h = tex_bucket(t0, texa, gen);
+        while (sTexBucket[h] != 0) {
+            h = (h + 1) & (TEX_BUCKETS - 1);
+        }
+        sTexBucket[h] = (uint16_t)sTexCount;
+    }
     gGpuNewTex++;
     gGpuNewTexPixels += tw * th;
     sLast = t;
@@ -662,7 +743,7 @@ static SDL_GPUTexture *clut_texture(uint32_t cbp) {
             old = sCluts[k].tex == NULL && sCluts[old].tex == NULL ? old : k;
         }
     }
-    if (sPendingCount == 512 || (sCluts[old].tex != NULL && sCluts[old].last == gGsFrame)) {
+    if (sPendingCount == MAX_PENDING || (sCluts[old].tex != NULL && sCluts[old].last == gGsFrame)) {
         return NULL;
     }
     if (sCluts[old].tex != NULL) {

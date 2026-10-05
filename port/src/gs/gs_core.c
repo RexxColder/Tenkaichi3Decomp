@@ -1079,6 +1079,9 @@ static void run_chain(uint32_t tadr, int tte) {
         case 6: data = tag + 4; if (sp > 0) { tadr = stack[--sp]; } else { end = 1; } break;          /* RET */
         default: data = tag + 4; end = 1; break;                                          /* END */
         }
+        if (sDumpFrame == (int)sFrame) {
+            fprintf(stderr, "  dma tag at %08x: id %u qwc %u addr %08x | %08x %08x (depth %u)\n", (unsigned)(uintptr_t)tag, id, qwc, addr, tag[2], tag[3], sp);
+        }
         sStat[0]++;
         if (tte) {
             vif(tag + 2, 2);

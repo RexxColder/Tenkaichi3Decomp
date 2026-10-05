@@ -574,6 +574,21 @@ void GsVu1_Call(int addr) {
             }
         }
     }
+    if (getenv("BT3_VU_CALLS") != NULL) { /* which entry addresses each program is called with (-1 = MSCNT) */
+        static struct { unsigned size; int addr; unsigned n; } seen[64];
+        static unsigned total;
+        int k;
+        for (k = 0; k < 63 && seen[k].n != 0 && !(seen[k].size == sProgSize && seen[k].addr == addr); k++) {
+        }
+        seen[k].size = sProgSize;
+        seen[k].addr = addr;
+        seen[k].n++;
+        if (++total % 20000 == 0) {
+            for (k = 0; k < 64 && seen[k].n != 0; k++) {
+                fprintf(stderr, "vucalls: program of %u instructions, entry %d: %u calls\n", seen[k].size, seen[k].addr, seen[k].n);
+            }
+        }
+    }
     if (sProgSize == 399 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         if (addr >= 0) {          /* MSCALF 0: constants only */
             sP4Batches = 0;
