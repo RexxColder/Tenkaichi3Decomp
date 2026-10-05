@@ -495,6 +495,34 @@ static int hle_program4(void) {
     return 1;
 }
 
+/* Programs 2a / 2b (99 / 101 instructions; a fighter model in one flat colour: the flat shadow and the silhouette
+   drawn into the shadow page; decomp src/vu1/prog2a.vsm, prog2b.vsm). The chains are the fighters' own, so the
+   batch is program 0's: +0 A+D tag, +1 its data, +4 the primitive tag (count in the low 15 bits), vertices from
+   +5, three quadwords each (position with the bone weight in w, normal (not used), s t 1). Constants: 0..3 bone
+   A, 4..7 bone B, 8 / 9 pivots, 10 the colour, 11..14 the screen matrix. That is program 0's first layer with
+   the constants in other places, so the same shader draws it. (2a also drops triangles with a vertex outside
+   the view volume; the GPU clips them instead.) */
+static int hle_program2(void) {
+    float consts[96];
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count;
+
+    memcpy(tag, &vu.mem[(top + 4) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 5 + count * 3 > 1024) {
+        return 0;
+    }
+    memset(consts, 0, sizeof(consts));
+    memcpy(&consts[0], &vu.mem[0], 10 * 16);          /* bones and pivots: as in program 0 */
+    memcpy(&consts[56], &vu.mem[11 * 16], 4 * 16);    /* screen matrix: program 0 has it at 14..17 */
+    memcpy(&consts[88], &vu.mem[10 * 16], 16);        /* colour: program 0's layer 0 colour at 22 */
+    Gs_Gif(&vu.mem[top * 16], 2);
+    Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF); /* PRIM from the tag */
+    GsGpu_DrawVu0(0, (int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 5) * 16], count, consts);
+    sStatKicks++;
+    return 1;
+}
+
 /* MSCAL / MSCALF (addr = instruction address) or MSCNT (addr < 0: continue where the last run stopped). */
 void GsVu1_Call(int addr) {
     vu.top = vu.tops;
@@ -540,6 +568,15 @@ void GsVu1_Call(int addr) {
         /* a batch the shader path cannot take: the interpreter needs the state the skipped calls would have left */
         run(0);
         vu.pc = 21;
+    }
+    if ((sProgSize == 99 || sProgSize == 101) && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        /* MSCALF 0 only loads registers; every MSCNT is one batch */
+        if (addr >= 0 || hle_program2()) {
+            sHle++;
+            return;
+        }
+        run(0); /* a batch the shader path cannot take: give the interpreter the registers the setup loads */
+        vu.pc = 16;
     }
     if (sProgSize == 127 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         /* MSCALF 0 only prepares derived constants (the shader derives them itself); every MSCNT is one batch */

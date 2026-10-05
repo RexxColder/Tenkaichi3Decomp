@@ -595,3 +595,14 @@ with a third of the interpreter's work gone.
   palettes) must be executed in GS memory; texture alpha above 0x80 must survive (it was clamped at upload, now
   the shader rescales).
 - Tools: `BT3_SHOT_FROM` / `BT3_SHOT_TO`, `port/tools/montage.py`, `BT3_CAMCHECK=<vblank>`.
+
+## 2026-10-05 (night): VU1 listings, silhouette program as a shader
+
+- The nine VU1 microprograms are documented assembly in the decomp now (`src/vu1/prog*.vsm`,
+  `docs/systems/vu1/README.md`): 0 / 1 fighters, 2a / 2b flat-colour fighter (flat shadow / silhouette into the
+  shadow page), 4 stage, 5 unused, 6 ground shadow, 7 debris, 8 animated stage objects.
+- Measured per program: the interpreter's work in a fight frame was 92% program 2b (1,092 runs) and 7% program 6.
+- Programs 2a / 2b go through program 0's shader (`hle_program2` in `gs_vu1.c`: the same batch, constants in
+  other places, first layer only). Frame work about 21 ms -> about 13 ms; pictures equal to the interpreter's in
+  the three frames compared by eye. Left in the interpreter: program 6 (6 runs per frame), 1, 7, 8.
+- Not carried over from the originals: program 4's 0.5% enlargement of clipped triangles (see the decomp notes).
