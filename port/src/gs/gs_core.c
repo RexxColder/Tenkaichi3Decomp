@@ -713,27 +713,61 @@ static void screenshot(void) {
     sFrame++;
 }
 
-/* Carries out a source-chain transfer on VIF1 that starts at `tadr` (PS2 address = host address). */
-void Port_GsVif1Chain(uint32_t tadr, int tte) {
+static int gs_on(void) {
     static int on = -1;
-    uint32_t stack[2], sp = 0;
-    int guard;
 
     if (on < 0) {
         on = getenv("BT3_GS") != NULL;
         tables_init();
+        sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
+        sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
         if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
             sGpu = GsGpu_Init(); /* falls back to the software rasteriser when no GPU device can be made */
         }
-        sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
-        sDumpFrame = getenv("BT3_GS_DUMP") != NULL ? atoi(getenv("BT3_GS_DUMP")) : -1;
     }
-    if (!on) {
+    return on;
+}
+
+/* A transfer on the GIF channel itself (the game uses it for texture uploads outside the frame's list):
+   `qwc` quadwords of GIF data at `addr`, or with chain = 1 a source chain of them starting at `addr`. */
+void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
+    int guard;
+
+    if (!gs_on()) {
+        return;
+    }
+    if (!chain) {
+        Gs_Gif((const uint8_t *)(uintptr_t)addr, qwc);
+        return;
+    }
+    for (guard = 0; guard < 100000; guard++) {
+        const uint32_t *tag = (const uint32_t *)(uintptr_t)addr;
+        uint32_t n = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7, ref = tag[1];
+
+        if (id == 0 || id == 3 || id == 4) {
+            Gs_Gif((const uint8_t *)(uintptr_t)ref, n);
+            addr += 16;
+        } else {
+            Gs_Gif((const uint8_t *)(tag + 4), n);
+            addr = id == 2 ? ref : addr + 16 + n * 16;
+        }
+        if (id == 0 || id == 7) {
+            break;
+        }
+    }
+}
+
+/* Carries out a source-chain transfer on VIF1 that starts at `tadr` (PS2 address = host address). */
+void Port_GsVif1Chain(uint32_t tadr, int tte) {
+    uint32_t stack[2], sp = 0;
+    int guard;
+
+    if (!gs_on()) {
         return;
     }
     for (guard = 0; guard < 100000; guard++) {
         const uint32_t *tag = (const uint32_t *)(uintptr_t)tadr;
-        uint32_t qwc = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7, addr = tag[1] & 0x7FFFFFFF;
+        uint32_t qwc = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7, addr = tag[1]; /* a host pointer: all 32 bits */
         const uint32_t *data;
         int end = 0;
 

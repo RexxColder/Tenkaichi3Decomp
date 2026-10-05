@@ -12,11 +12,17 @@
 #define REG(a) ((volatile uint32_t *)(uintptr_t)(a))
 
 extern void Port_GsVif1Chain(uint32_t tadr, int tte);
+extern void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain);
 
 static void Port_DmaTransfer(int channel) {
     /* Channel 1 in source-chain mode (CHCR mode bits = 1) is the frame's display list: D1_TADR points at it. */
     if (channel == 1 && ((*REG(0x10009000u) >> 2) & 3) == 1) {
         Port_GsVif1Chain(*REG(0x10009030u), (int)((*REG(0x10009000u) >> 6) & 1));
+    }
+    /* Channel 2 is the GIF channel: normal mode sends QWC quadwords at MADR, chain mode a chain at TADR. */
+    if (channel == 2) {
+        int chain = ((*REG(0x1000A000u) >> 2) & 3) == 1;
+        Port_GsGifChannel(chain ? *REG(0x1000A030u) : *REG(0x1000A010u), *REG(0x1000A020u), chain);
     }
 }
 
