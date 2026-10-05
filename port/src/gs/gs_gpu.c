@@ -20,7 +20,12 @@
 #include "gs_internal.h"
 #include "shaders.h" /* generated: kGsVertSpv, kGsFragSpv */
 
-#define SCALE 2
+/* The internal resolution multiplier: BT3_SCALE=1..8 (default 2). Every render target is GS_W x GS_H times this,
+   about 9 MB of video memory each at 1x, 36 MB at 2x, 144 MB at 4x; a fight uses 7 to 16 of them. */
+static int sScale = 2;
+#define SCALE sScale
+static int sFullscreen;
+static float sWantAspect;
 #define GS_W 1024
 #define GS_H 1024
 #define MAX_VERTS (1 << 20)
@@ -169,18 +174,50 @@ int GsGpu_Init(void) {
     }
     sDev = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, getenv("BT3_GPU_DEBUG") != NULL, NULL);
     {
-        /* The window has the picture's shape: 448 lines times the multiplier high, 4:3 or 16:9 wide (1195 x 896 or
-           1593 x 896 at 2x), and keeps that shape when it is resized. BT3_WINDOW=WxH gives another start size. */
+        /* The window has the picture's shape: 896 lines high, 4:3 or 16:9 wide (1195 x 896 or
+           1593 x 896), and keeps that shape when it is resized. BT3_WINDOW=WxH gives another start size. */
         extern int Port_AspectMilli(void);
         float want = (float)Port_AspectMilli() / 1000.0f;
-        int h = 448 * SCALE, w = (int)((float)h * want + 0.5f);
+        int h = 896, w = (int)((float)h * want + 0.5f), count = 0, pick = 0;
+        SDL_DisplayID *displays = SDL_GetDisplays(&count);
+        SDL_PropertiesID props = SDL_CreateProperties();
+
+        if (getenv("BT3_SCALE") != NULL) {
+            sScale = atoi(getenv("BT3_SCALE"));
+            sScale = sScale < 1 ? 1 : sScale > 8 ? 8 : sScale;
+        }
         if (getenv("BT3_WINDOW") != NULL) {
             sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h);
         }
-        sWindow = sDev ? SDL_CreateWindow("Budokai Tenkaichi 3 (port)", w, h, SDL_WINDOW_RESIZABLE) : NULL;
-        if (sWindow != NULL) {
+        /* BT3_DISPLAY=n: the n-th display (1 = first) for the window or the full screen; without it the desktop
+           places the window. Some desktops (Wayland) ignore a window's position but honour the display of a
+           full-screen window. BT3_FULLSCREEN=1 starts in borderless full screen; F11 switches. */
+        for (pick = 0; pick < count; pick++) {
+            SDL_Rect r;
+            SDL_GetDisplayBounds(displays[pick], &r);
+            fprintf(stderr, "bt3: display %d: %s, %d x %d\n", pick + 1, SDL_GetDisplayName(displays[pick]), r.w, r.h);
+        }
+        pick = getenv("BT3_DISPLAY") != NULL ? atoi(getenv("BT3_DISPLAY")) : 0;
+        sFullscreen = getenv("BT3_FULLSCREEN") != NULL && atoi(getenv("BT3_FULLSCREEN")) != 0;
+        sWantAspect = want;
+        SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Budokai Tenkaichi 3 (port)");
+        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, w);
+        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, h);
+        SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
+        if (pick >= 1 && pick <= count) {
+            SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(displays[pick - 1]));
+            SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(displays[pick - 1]));
+        } else if (pick != 0) {
+            fprintf(stderr, "bt3: BT3_DISPLAY=%d: there are %d displays\n", pick, count);
+        }
+        SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, sFullscreen);
+        sWindow = sDev ? SDL_CreateWindowWithProperties(props) : NULL;
+        SDL_DestroyProperties(props);
+        SDL_free(displays);
+        if (sWindow != NULL && !sFullscreen) {
             SDL_SetWindowAspectRatio(sWindow, want, want);
         }
+        fprintf(stderr, "bt3: internal resolution %dx (%d x %d)\n", sScale, 512 * sScale, 448 * sScale);
     }
     if (sWindow == NULL || !SDL_ClaimWindowForGPUDevice(sDev, sWindow)) {
         fprintf(stderr, "bt3: no GPU window: %s\n", SDL_GetError());
@@ -1318,6 +1355,16 @@ static void frame_end(void) {
     while (SDL_PollEvent(&ev)) {
         if (ev.type == SDL_EVENT_QUIT || (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE)) {
             exit(0);
+        }
+        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key == SDLK_F11) {
+            sFullscreen = !sFullscreen;
+            if (sFullscreen) { /* the full screen has the display's shape: the picture is centred in it */
+                SDL_SetWindowAspectRatio(sWindow, 0.0f, 0.0f);
+            }
+            SDL_SetWindowFullscreen(sWindow, sFullscreen);
+            if (!sFullscreen) {
+                SDL_SetWindowAspectRatio(sWindow, sWantAspect, sWantAspect);
+            }
         }
         if (ev.type == SDL_EVENT_KEY_DOWN && (ev.key.key == SDLK_F6 || ev.key.key == SDLK_F7)) {
             sGlowPercent += ev.key.key == SDLK_F7 ? 10 : -10;
