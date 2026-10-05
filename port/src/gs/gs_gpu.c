@@ -75,13 +75,14 @@ static Target sTargets[16];
 static int sTargetCount;
 static Tex sTex[2048];
 static int sTexCount;
-static Pipe sPipes[256];
+static Pipe sPipes[1024];
 static int sPipeCount;
 static Vtx *sVerts;
 static uint32_t sVertCount;
 static Draw *sDraws;
 static uint32_t sDrawCount;
 static uint64_t sNextFrameNs;
+static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
 /* textures created this frame, to upload in the copy pass */
 static struct { SDL_GPUTexture *tex; uint32_t w, h; uint32_t *px; } sPending[512];
@@ -308,7 +309,7 @@ static int pipeline_get(int ctx, int topo) {
     SDL_GPUGraphicsPipelineCreateInfo ci;
     SDL_GPUVertexBufferDescription vb;
     SDL_GPUVertexAttribute at[3];
-    uint32_t bkey, key;
+    uint32_t bkey, key, wmask;
     int i;
 
     SDL_zero(cd);
@@ -317,13 +318,22 @@ static int pipeline_get(int ctx, int topo) {
     if (!zte) {
         ztst = 1;
     }
-    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13;
+    /* FRAME.FBMSK, in the whole-channel forms ordinary drawing uses (alpha only, everything but alpha, ...):
+       a channel whose eight mask bits are all set is not written. Partial masks are not representable. */
+    {
+        uint32_t m = (uint32_t)(gGs.frame[ctx] >> 32);
+        wmask = ((m & 0xFF) != 0xFF ? SDL_GPU_COLORCOMPONENT_R : 0) | ((m & 0xFF00) != 0xFF00 ? SDL_GPU_COLORCOMPONENT_G : 0) |
+                ((m & 0xFF0000) != 0xFF0000 ? SDL_GPU_COLORCOMPONENT_B : 0) | ((m & 0xFF000000u) != 0xFF000000u ? SDL_GPU_COLORCOMPONENT_A : 0);
+        cd.blend_state.color_write_mask = (SDL_GPUColorComponentFlags)wmask;
+        cd.blend_state.enable_color_write_mask = true;
+    }
+    key = bkey | (uint32_t)ztst << 10 | (uint32_t)zwrite << 12 | (uint32_t)topo << 13 | wmask << 16;
     for (i = 0; i < sPipeCount; i++) {
         if (sPipes[i].key == key) {
             return i;
         }
     }
-    if (sPipeCount == 256) {
+    if (sPipeCount == 1024) {
         return 0;
     }
     SDL_zero(ci);
@@ -383,6 +393,23 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     if (sVertCount + 6 > MAX_VERTS || sDrawCount == MAX_DRAWS) {
         return;
     }
+    /* Passes that only make sense on the PS2's memory layout are not drawn here: they belong to full-screen
+       effects that get native versions (see docs/port/README.md). Dropped:
+         - drawing through a 16-bit view of the frame buffer (the "channel shuffle" between halves of a pixel),
+         - drawing INTO the depth buffer's memory as if it were a picture,
+         - sampling the depth buffer's memory, or the top byte of a buffer as an 8-bit index (PSMT8H / T4HL / T4HH). */
+    {
+        uint32_t fpsm = (uint32_t)((gGs.frame[ctx] >> 24) & 0x3F), fbp = (uint32_t)(gGs.frame[ctx] & 0x1FF), zbp = (uint32_t)(gGs.zbuf[ctx] & 0x1FF);
+        uint32_t tpsm = (uint32_t)((t0 >> 20) & 0x3F), tbp = (uint32_t)(t0 & 0x3FFF);
+        if (Gs_PsmBits(fpsm) == 16 || fbp == zbp) {
+            sSkipped++;
+            return;
+        }
+        if (tme && ((tpsm & 0x30) == 0x30 || tbp / 32 == zbp || tpsm == 0x1B || tpsm == 0x24 || tpsm == 0x2C)) {
+            sSkipped++;
+            return;
+        }
+    }
     memset(&d, 0, sizeof(d));
     d.target = target_get((uint32_t)(gGs.frame[ctx] & 0x1FF), 1);
     if (d.target < 0) {
@@ -393,8 +420,12 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         src = target_get((uint32_t)((t0 & 0x3FFF) / 32), 0);
         /* a frame buffer used as a texture: only if nothing was uploaded over it since it was drawn */
         if (src >= 0 && (t0 & 0x1F) == 0 && sTargets[src].cleared && sTargets[src].gen == gGsPageGen[sTargets[src].fbp & 511]) {
-            if (src == d.target) {
-                return; /* a buffer sampled while it is drawn to: not handled yet */
+            if (src == d.target || type == 6) {
+                /* A sprite that copies one frame buffer into another (or into itself) is a step of a full-screen
+                   effect (glare's shrink / blur / add chain, blur feedback): those get native versions. Triangles
+                   textured with a buffer are kept: that is how the shadow is projected onto the ground. */
+                sSkipped++;
+                return;
             }
             d.tex = sTargets[src].color; /* a frame buffer used as a texture */
             us = tw / (float)GS_W;
@@ -476,8 +507,8 @@ void GsGpu_FrameEnd(void) {
         }
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
-        fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines\n", gGsFrame, sDrawCount, sVertCount,
-                sTargetCount, sTexCount, sPipeCount);
+        fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped\n",
+                gGsFrame, sDrawCount, sVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped);
     }
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
@@ -645,6 +676,7 @@ void GsGpu_FrameEnd(void) {
     }
     sVertCount = 0;
     sDrawCount = 0;
+    sSkipped = 0;
     /* the game runs at 30 frames per second (two vertical blanks per frame) */
     {
         uint64_t now = SDL_GetTicksNS();

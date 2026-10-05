@@ -430,6 +430,26 @@ and writes single channels of the same memory in several formats; on the GPU tho
 need either the same tricks expressed with colour masks and format-converting shaders, or
 native replacements of the effects (depth tint, glare, blur).
 
+## Renderer, step 5: the GPU back end draws the whole scene (2026-10-06)
+
+Decision (user): full-screen effects that depend on PS2 memory tricks get NATIVE versions;
+everything else stays on the generic path. Step 1 of that, done:
+- PRMODECONT / PRMODE: the GPU path reads the effective attributes (gGs.prim), so the shadow
+  passes work as in the reference.
+- FRAME.FBMSK in its whole-channel forms becomes the pipeline's colour write mask (alpha
+  only, everything but alpha, ...). Partial masks cannot be expressed and are ignored.
+- PS2-only passes are DROPPED in GsGpu_Draw (counted; `BT3_GS_VERBOSE` prints the number):
+  drawing through a 16-bit view of the frame buffer; drawing into the depth buffer's memory;
+  sampling the depth buffer's memory or a buffer's top byte as an 8-bit index; sprites that
+  copy one frame buffer into another or into itself. About 240 primitives per battle frame.
+  Triangles textured with a buffer are kept (the projected shadow).
+Verified by reading the render target back (docs/port/img/gpu_full_scene.png): the same
+frame as the reference's, at twice the resolution: sky, stage, both fighters with their
+outlines, the shadow on the ground, the logo overlay.
+Missing on purpose until their native versions exist, so the GPU picture is brighter and
+sharper than the reference's: depth tint, glare, the intro's fade, any blur.
+Speed is unchanged (about half real time): see the profile above, not addressed yet.
+
 ## Next steps, in order
 
 1. DONE: data (gen_data.py). 2. DONE except mathf.c / randf.c. 3. DONE (portsrc.py).
