@@ -63,6 +63,7 @@ typedef struct Draw {
     int pipeline;
     int32_t mode[4];
     float misc[4];
+    float rect[4];  /* a frame buffer as texture: the part of it the GS would address (u0, v0, u1, v1 in its uv) */
     float blendc;
     SDL_Rect scissor;
 } Draw;
@@ -765,24 +766,41 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
         src = target_get((uint32_t)((t0 & 0x3FFF) / 32), 0);
         /* a frame buffer used as a texture: only if nothing was uploaded over it since it was drawn */
         if (src >= 0 && (t0 & 0x1F) == 0 && sTargets[src].cleared && sTargets[src].gen == gGsPageGen[sTargets[src].fbp & 511]) {
-            if (sprite && d->target != src && (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp) {
-                sTargets[d->target].stale = 1; /* the copy into this work buffer is dropped below */
-            }
+            uint32_t tp = (uint32_t)((t0 >> 20) & 0x3F);
             if (sTargets[src].stale) {
                 /* The buffer was meant to hold a copy or a step of an effect that was dropped; what it holds now
                    is whatever was drawn there before (seen as blocks of noise over the picture). */
                 sSkipped++;
                 return 0;
             }
-            if (src == d->target || sprite) {
-                /* A sprite that copies one frame buffer into another (or into itself) is a step of a full-screen
-                   effect (glare's shrink / blur / add chain, blur feedback): those get native versions. Triangles
-                   textured with a buffer are kept: that is how the shadow is projected onto the ground. */
+            /* One buffer drawn into another is how the game builds its screen effects: the glare and the object
+               glow (the picture shrunk by its alpha into the 256 x 256 work buffer, down to 64 x 64, blurred
+               between two buffers, added back), the blur by depth, the pan blur, the haze. They are ordinary
+               textured sprites and strips and are drawn as such. Not drawable: a buffer sampled while it is the
+               target, and a buffer read in another pixel format than it was drawn in (the 16-bit views). */
+            if (src == d->target || tp > 1 || (sprite && (sFxOff & 8))) {
+                if (d->target != src && (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp) {
+                    sTargets[d->target].stale = 1; /* a work buffer missed a pass */
+                }
                 sSkipped++;
                 return 0;
             }
             d->tex = sTargets[src].color;
             d->tex_is_target = 1;
+            {
+                /* The buffer is a corner of a larger texture here, so the GS's own edge handling has to be done
+                   by hand: CLAMP gives the texel range per axis (0 repeat and 1 clamp: the texture's size; 2 and
+                   3: the region MINU..MAXU). Sampling is held inside it, or the blur steps pull in whatever lies
+                   next to the buffer (seen as a box with an edge in the glare). */
+                int wms = (int)(cl & 3), wmt = (int)((cl >> 2) & 3);
+                float u0 = 0.0f, u1 = tw - 1.0f, v0 = 0.0f, v1 = th - 1.0f;
+                if (wms >= 2) { u0 = (float)((cl >> 4) & 0x3FF); u1 = (float)((cl >> 14) & 0x3FF); }
+                if (wmt >= 2) { v0 = (float)((cl >> 24) & 0x3FF); v1 = (float)((cl >> 34) & 0x3FF); }
+                d->rect[0] = (u0 + 0.5f) / (float)GS_W;
+                d->rect[1] = (v0 + 0.5f) / (float)GS_H;
+                d->rect[2] = (u1 + 0.5f) / (float)GS_W;
+                d->rect[3] = (v1 + 0.5f) / (float)GS_H;
+            }
             *us = tw / (float)GS_W;
             *vs = th / (float)GS_H;
         } else {
@@ -807,6 +825,7 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
 static int same_state(const Draw *a, const Draw *b) {
     return !a->native && a->vu == b->vu && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->blendc == b->blendc &&
+           memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 &&
            memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
 }
 
@@ -1073,7 +1092,7 @@ static void frame_end(void) {
             exit(0);
         }
         if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F4) {
-            static const char *names[4] = {"outline", "see-through tint", "depth tint", "glow"};
+            static const char *names[4] = {"outline", "see-through tint", "depth tint", "glare, glow and blur (buffer-to-buffer effects)"};
             int k = (int)(ev.key.key - SDLK_F1);
             sFxOff ^= 1u << k;
             fprintf(stderr, "bt3: %s %s\n", names[k], (sFxOff >> k) & 1 ? "off" : "on");
@@ -1189,7 +1208,7 @@ static void frame_end(void) {
         SDL_GPUBufferBinding vb;
         SDL_GPUTextureSamplerBinding ts;
         SDL_FColor bc;
-        struct { int32_t mode[4]; float misc[4]; } fu;
+        struct { int32_t mode[4]; float misc[4]; float rect[4]; } fu;
 
         if (d->native >= 100) { /* a picture uploaded into this display buffer (GsGpu_FbUpload): scaled into its texture */
             SDL_GPUBlitInfo bl;
@@ -1348,6 +1367,7 @@ static void frame_end(void) {
         SDL_BindGPUFragmentSamplers(pass, 0, &ts, 1);
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
+        memcpy(fu.rect, d->rect, sizeof(fu.rect));
         SDL_PushGPUFragmentUniformData(cmd, 0, &fu, sizeof(fu));
         bc.r = bc.g = bc.b = bc.a = d->blendc;
         SDL_SetGPUBlendConstants(pass, bc);

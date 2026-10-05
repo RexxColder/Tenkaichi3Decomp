@@ -9,13 +9,16 @@ layout(set = 2, binding = 0) uniform sampler2D tex;
 layout(set = 3, binding = 0) uniform Params {
     ivec4 mode;  // x: textured (1 from GS memory, 2 a frame buffer), y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
     vec4 misc;   // x: AREF in GS units (0..255)
+    vec4 rect;   // textured from a frame buffer (mode.x == 2): the uv range that may be sampled
 } p;
 void main() {
     float k = 255.0 / 128.0;
     vec3 rgb = vColor.rgb;
     float a = vColor.a * k;
     if (p.mode.x != 0) {
-        vec4 t = texture(tex, vStq.xy / vStq.z);
+        vec2 uv = vStq.xy / vStq.z;
+        if (p.mode.x == 2) uv = clamp(uv, p.rect.xy, p.rect.zw);
+        vec4 t = texture(tex, uv);
         if (p.mode.x == 1) t.a *= k; // a texture from GS memory keeps the GS alpha (0x80 opaque, up to 0xFF)
         if (p.mode.y == 0) {
             rgb = t.rgb * vColor.rgb * k;
