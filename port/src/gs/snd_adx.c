@@ -175,9 +175,11 @@ static void SDLCALL feed(void *user, SDL_AudioStream *stream, int additional, in
     }
 }
 
+int gPortMusicPercent = 100, gPortSePercent = 100; /* the settings overlay's volumes */
+
 static void apply_volume(Player *p) {
     if (p->stream != NULL) {
-        SDL_SetAudioStreamGain(p->stream, p->vol <= -960 ? 0.0f : (float)pow(10.0, (double)p->vol / 200.0));
+        SDL_SetAudioStreamGain(p->stream, p->vol <= -960 ? 0.0f : (float)pow(10.0, (double)p->vol / 200.0) * (float)gPortMusicPercent / 100.0f);
     }
 }
 
@@ -356,4 +358,12 @@ int ADXT_GetStat(void *adxt) {
 int func_00277A70(void *adxt) {
     (void)adxt;
     return 0;
+}
+
+/* The music volume setting changed: the streams playing now take it over. */
+void Port_AudioRefresh(void) {
+    int i;
+    for (i = 0; i < MAX_PLAYERS; i++) {
+        apply_volume(&sPlayers[i]);
+    }
 }

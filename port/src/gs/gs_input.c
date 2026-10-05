@@ -10,6 +10,8 @@
  * The pressure bytes of the buffer are left at zero.
  */
 #include <SDL3/SDL.h>
+
+int gPortOverlayOpen; /* set by the renderer (gs_gpu.c) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -137,7 +139,7 @@ int Port_PadRead(int socket, unsigned char *data) {
         lx = axis(g, SDL_GAMEPAD_AXIS_LEFTX); ly = axis(g, SDL_GAMEPAD_AXIS_LEFTY);
         rx = axis(g, SDL_GAMEPAD_AXIS_RIGHTX); ry = axis(g, SDL_GAMEPAD_AXIS_RIGHTY);
     }
-    if (socket == 0) {
+    if (socket == 0 && !gPortOverlayOpen) { /* the settings overlay takes the keyboard while it is open */
         const bool *ks = SDL_GetKeyboardState(NULL);
         for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
             if (ks[keys[i].k]) {

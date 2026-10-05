@@ -167,6 +167,10 @@ int Port_AspectMilli(void) {
     }
     return sAspectMilli;
 }
+/* The settings overlay changes the shape while the game runs: the game asks every frame. */
+void Port_SetAspectMilli(int milli) {
+    sAspectMilli = milli < 1333 ? 1333 : milli > 4000 ? 4000 : milli;
+}
 int Port_IsWide(void) {
     return Port_AspectMilli() > 1340;
 }

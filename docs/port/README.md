@@ -721,7 +721,7 @@ with a third of the interpreter's work gone.
 - `BT3_SHOT_VBLANK=<n>`: a screenshot at a vertical blank, to compare with a console save state's tick. At the
   slot 7 tick, region averages (grass, trees, hill) are within a few units of the console screenshot.
 - The direct replay mode starts no music: the menus that start it are skipped.
-- Glare and glow strength: `BT3_GLOW=<percent>`, F6 / F7 in steps of 10; default 60 (the user's choice; 100 is what
+- Glare and glow strength: `BT3_GLOW=<percent>`, or the settings overlay (F1) in steps of 10; default 60 (the user's choice; 100 is what
   the game's passes give, and the GPU and software pictures agree on that level, but it was not compared with a
   console at a peak of the glare). The half-pixel rule is applied to the texture coordinates of sprites textured
   from a render target (moving the sprite left the first row and column undrawn).
@@ -813,3 +813,13 @@ with a third of the interpreter's work gone.
   512 x 448 and 2048 x 1792, same picture, work per frame about the same on an RTX 5080). Not checked by eye:
   full screen and the display choice (started without errors only). The fighters' outline is one target pixel
   wide, so it gets thinner as the multiplier goes up.
+- **Settings overlay** (F1; `overlay_*` in gs_gpu.c, font from `port/tools/gen_font.py` -> `overlay_font.h`): Up / Down
+  pick a line, Left / Right change it, all live: resolution multiplier (targets dropped and remade between two
+  frames), aspect ratio (4:3, 16:10, 16:9, 21:9, 32:9; `Port_SetAspectMilli`, the window follows), full screen, the
+  five effect switches, glow strength, music and effects volume (`gPortMusicPercent`, `gPortSePercent`). The
+  keyboard does not reach the game while it is open. It replaces the F1..F7 keys (F11 stays). Drawn over the
+  finished picture, so screenshots (`BT3_SHOT`) never contain it. Testing hooks: `BT3_KEYS=<frame>:<key>,...`
+  presses overlay keys at given frames, `BT3_OV_DUMP=<file.ppm>` writes the panel as painted. Checked that way:
+  resolution 2x -> 3x -> 1x -> 4x and 4:3 -> 16:9 during a fight (screenshot sizes and picture). Not checked: the
+  panel's appearance in the window itself (no screen capture taken), the volumes by ear. Settings are not saved
+  between runs. Gamepad cannot operate it yet.

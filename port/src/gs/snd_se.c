@@ -50,7 +50,8 @@ static float se_gain(void) {
     }
     return g;
 }
-#define SE_GAIN se_gain()
+extern int gPortSePercent; /* the settings overlay's volume (snd_adx.c); takes effect with the next sound */
+#define SE_GAIN (se_gain() * (float)gPortSePercent / 100.0f)
 
 typedef struct Bank {
     int set;

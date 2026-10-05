@@ -162,6 +162,201 @@ static SDL_GPUShader *shader(const unsigned char *code, size_t size, SDL_GPUShad
 
 static void pipelines_preload(void);
 
+/* The two helper textures of the alpha bytes, as large as a render target. */
+static void copies_create(void) {
+    SDL_GPUTextureCreateInfo ci;
+    SDL_zero(ci);
+    ci.type = SDL_GPU_TEXTURETYPE_2D;
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+    ci.width = GS_W * SCALE;
+    ci.height = GS_H * SCALE;
+    ci.layer_count_or_depth = 1;
+    ci.num_levels = 1;
+    sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
+    sDateCopy = SDL_CreateGPUTexture(sDev, &ci);
+}
+
+/* ------------------------------------------------------------------------------------------- the settings overlay
+   F1 opens a small panel in the window's corner; Up / Down pick a line, Left / Right change it, F1 closes. Every
+   setting takes effect at once. The panel is drawn on the CPU (overlay_font.h) into one texture and laid over the
+   finished picture, so nothing of it reaches the game's buffers or the screenshots. */
+#include "overlay_font.h"
+#define OV_ROWS 11
+#define OV_COLS 36
+#define OV_W (OV_COLS * FONT_W + 16)
+#define OV_H ((OV_ROWS + 2) * FONT_H + 16)
+extern int gPortOverlayOpen, gPortMusicPercent, gPortSePercent;
+extern void Port_SetAspectMilli(int milli), Port_AudioRefresh(void);
+static SDL_GPUTexture *sOvTex;
+static SDL_GPUTransferBuffer *sOvXfer;
+static uint32_t sOvPx[OV_W * OV_H];
+static int sOvRow, sOvDirty, sPendingScale;
+static const struct { const char *name; int milli; } kAspects[] = {{"4:3", 1333}, {"16:10", 1600}, {"16:9", 1778}, {"21:9", 2389}, {"32:9", 3556}};
+
+static void overlay_init(void) {
+    SDL_GPUTextureCreateInfo ci;
+    SDL_GPUTransferBufferCreateInfo ti;
+    SDL_zero(ci);
+    ci.type = SDL_GPU_TEXTURETYPE_2D;
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    ci.width = OV_W;
+    ci.height = OV_H;
+    ci.layer_count_or_depth = 1;
+    ci.num_levels = 1;
+    sOvTex = SDL_CreateGPUTexture(sDev, &ci);
+    SDL_zero(ti);
+    ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    ti.size = sizeof(sOvPx);
+    sOvXfer = SDL_CreateGPUTransferBuffer(sDev, &ti);
+}
+
+static void overlay_text(int col, int row, const char *text, uint32_t rgb) {
+    int x, y;
+    for (; *text != '\0' && col < OV_COLS; text++, col++) {
+        const unsigned char *g = kFont[*text >= 32 && *text < 127 ? *text - 32 : 0];
+        for (y = 0; y < FONT_H; y++) {
+            for (x = 0; x < FONT_W; x++) {
+                uint32_t a = g[y * FONT_W + x], *px = &sOvPx[(8 + row * FONT_H + y) * OV_W + 8 + col * FONT_W + x], k;
+                uint32_t out = 0xFF000000u;
+                for (k = 0; k < 24; k += 8) {
+                    out |= ((((rgb >> k) & 255) * a + ((*px >> k) & 255) * (255 - a)) / 255) << k;
+                }
+                *px = out;
+            }
+        }
+    }
+}
+
+static int overlay_aspect_index(void) {
+    int i, best = 0, milli = Port_AspectMilli();
+    for (i = 1; i < (int)(sizeof(kAspects) / sizeof(kAspects[0])); i++) {
+        if (abs(kAspects[i].milli - milli) < abs(kAspects[best].milli - milli)) {
+            best = i;
+        }
+    }
+    return best;
+}
+
+static void overlay_paint(void) {
+    static const char *fx[5] = {"Outline", "See-through tint", "Depth tint", "Glare and glow", "Distance blur"};
+    char line[64], value[24];
+    int i, row;
+
+    for (i = 0; i < OV_W * OV_H; i++) {
+        sOvPx[i] = 0xFF281810u; /* dark blue panel (bytes R, G, B, A in memory) */
+    }
+    overlay_text(0, 0, "SETTINGS     F1 close  arrows change", 0xFFFFFFu);
+    for (row = 0; row < OV_ROWS; row++) {
+        const char *name;
+        switch (row) {
+        case 0: name = "Resolution"; snprintf(value, sizeof(value), "%dx %dx%d", sPendingScale ? sPendingScale : sScale, 512 * (sPendingScale ? sPendingScale : sScale), 448 * (sPendingScale ? sPendingScale : sScale)); break;
+        case 1: name = "Aspect ratio"; snprintf(value, sizeof(value), "%s", kAspects[overlay_aspect_index()].name); break;
+        case 2: name = "Full screen"; snprintf(value, sizeof(value), "%s", sFullscreen ? "on" : "off"); break;
+        case 8: name = "Glow strength"; snprintf(value, sizeof(value), "%d%%", sGlowPercent); break;
+        case 9: name = "Music volume"; snprintf(value, sizeof(value), "%d%%", gPortMusicPercent); break;
+        case 10: name = "Effects volume"; snprintf(value, sizeof(value), "%d%%", gPortSePercent); break;
+        default: name = fx[row - 3]; snprintf(value, sizeof(value), "%s", (sFxOff >> (row - 3)) & 1 ? "off" : "on"); break;
+        }
+        snprintf(line, sizeof(line), "%c %-17s< %s >", row == sOvRow ? '>' : ' ', name, value);
+        overlay_text(0, row + 2, line, row == sOvRow ? 0x40E0FFu : 0xD0D0D0u);
+    }
+    sOvDirty = 1;
+    if (getenv("BT3_OV_DUMP") != NULL) { /* the panel as painted, for checking it without a screen capture */
+        FILE *fp = fopen(getenv("BT3_OV_DUMP"), "wb");
+        if (fp != NULL) {
+            fprintf(fp, "P6\n%d %d\n255\n", OV_W, OV_H);
+            for (i = 0; i < OV_W * OV_H; i++) {
+                fwrite(&sOvPx[i], 1, 3, fp);
+            }
+            fclose(fp);
+        }
+    }
+}
+
+static void window_shape(void) {
+    float want = (float)Port_AspectMilli() / 1000.0f;
+    int w, h;
+    sWantAspect = want;
+    if (!sFullscreen) {
+        SDL_GetWindowSize(sWindow, &w, &h);
+        SDL_SetWindowAspectRatio(sWindow, 0.0f, 0.0f);
+        SDL_SetWindowSize(sWindow, (int)((float)h * want + 0.5f), h);
+        SDL_SetWindowAspectRatio(sWindow, want, want);
+    }
+}
+
+static void fullscreen_set(int on) {
+    sFullscreen = on;
+    if (on) { /* the full screen has the display's shape: the picture is centred in it */
+        SDL_SetWindowAspectRatio(sWindow, 0.0f, 0.0f);
+    }
+    SDL_SetWindowFullscreen(sWindow, on);
+    if (!on) {
+        SDL_SetWindowAspectRatio(sWindow, sWantAspect, sWantAspect);
+    }
+}
+
+static void overlay_key(SDL_Keycode key) {
+    int dir = key == SDLK_RIGHT ? 1 : key == SDLK_LEFT ? -1 : 0, v;
+
+    if (key == SDLK_F1) {
+        gPortOverlayOpen = !gPortOverlayOpen;
+    } else if (!gPortOverlayOpen) {
+        return;
+    } else if (key == SDLK_UP) {
+        sOvRow = (sOvRow + OV_ROWS - 1) % OV_ROWS;
+    } else if (key == SDLK_DOWN) {
+        sOvRow = (sOvRow + 1) % OV_ROWS;
+    } else if (dir != 0) {
+        switch (sOvRow) {
+        case 0:
+            v = (sPendingScale ? sPendingScale : sScale) + dir;
+            sPendingScale = v < 1 ? 1 : v > 8 ? 8 : v; /* applied between two frames (GsGpu_FrameEnd) */
+            break;
+        case 1:
+            v = overlay_aspect_index() + dir;
+            if (v >= 0 && v < (int)(sizeof(kAspects) / sizeof(kAspects[0]))) {
+                Port_SetAspectMilli(kAspects[v].milli);
+                window_shape();
+            }
+            break;
+        case 2: fullscreen_set(!sFullscreen); break;
+        case 8: v = sGlowPercent + dir * 10; sGlowPercent = v < 0 ? 0 : v > 200 ? 200 : v; break;
+        case 9: v = gPortMusicPercent + dir * 10; gPortMusicPercent = v < 0 ? 0 : v > 200 ? 200 : v; Port_AudioRefresh(); break;
+        case 10: v = gPortSePercent + dir * 10; gPortSePercent = v < 0 ? 0 : v > 200 ? 200 : v; break;
+        default: sFxOff ^= 1u << (sOvRow - 3); break;
+        }
+    }
+    if (gPortOverlayOpen) {
+        overlay_paint();
+    }
+}
+
+/* A new resolution multiplier: every render target is dropped and made again at the new size when the game next
+   draws to it. Buffers that carry something over from the previous frame start empty for one frame. */
+static void scale_apply(void) {
+    int i;
+    if (sPendingScale == 0 || sPendingScale == sScale) {
+        sPendingScale = 0;
+        return;
+    }
+    SDL_WaitForGPUIdle(sDev);
+    for (i = 0; i < sTargetCount; i++) {
+        SDL_ReleaseGPUTexture(sDev, sTargets[i].color);
+        SDL_ReleaseGPUTexture(sDev, sTargets[i].aux);
+        SDL_ReleaseGPUTexture(sDev, sTargets[i].depth);
+    }
+    sTargetCount = 0;
+    SDL_ReleaseGPUTexture(sDev, sAuxCopy);
+    SDL_ReleaseGPUTexture(sDev, sDateCopy);
+    sScale = sPendingScale;
+    sPendingScale = 0;
+    copies_create();
+    fprintf(stderr, "bt3: internal resolution %dx (%d x %d)\n", sScale, 512 * sScale, 448 * sScale);
+}
+
 int GsGpu_Init(void) {
     SDL_GPUBufferCreateInfo bi;
     SDL_GPUTransferBufferCreateInfo ti;
@@ -328,19 +523,8 @@ int GsGpu_Init(void) {
         }
     }
     sDclutFs = shader(kDclutFragSpv, sizeof(kDclutFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 3, 1);
-    {
-        SDL_GPUTextureCreateInfo ci;
-        SDL_zero(ci);
-        ci.type = SDL_GPU_TEXTURETYPE_2D;
-        ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
-        ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
-        ci.width = GS_W * SCALE;
-        ci.height = GS_H * SCALE;
-        ci.layer_count_or_depth = 1;
-        ci.num_levels = 1;
-        sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
-        sDateCopy = SDL_CreateGPUTexture(sDev, &ci);
-    }
+    copies_create();
+    overlay_init();
     sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
     sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : GLOW_DEFAULT;
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
@@ -1339,6 +1523,7 @@ static void frame_end(void);
 void GsGpu_FrameEnd(void) {
     uint64_t t0 = gpu_now();
     frame_end();
+    scale_apply();
     gGpuEndNs += gpu_now() - t0;
 }
 
@@ -1352,31 +1537,45 @@ static void frame_end(void) {
     int cur = -1, best = -1, bound = -1, i;
     uint32_t n;
 
+    {   /* BT3_KEYS=<frame>:<key>,... presses keys at given frames (testing the overlay without a person):
+           keys are F1, F11, UP, DOWN, LEFT, RIGHT */
+        static const char *next;
+        static int started;
+        if (!started) {
+            started = 1;
+            next = getenv("BT3_KEYS");
+        }
+        while (next != NULL && *next != '\0' && (unsigned)atoi(next) <= gGsFrame) {
+            const char *name = strchr(next, ':');
+            SDL_Keycode key = 0;
+            if (name == NULL) {
+                next = NULL;
+                break;
+            }
+            name++;
+            key = strncmp(name, "F11", 3) == 0 ? SDLK_F11 : strncmp(name, "F1", 2) == 0 ? SDLK_F1 : name[0] == 'U' ? SDLK_UP : name[0] == 'D' ? SDLK_DOWN :
+                  name[0] == 'L' ? SDLK_LEFT : name[0] == 'R' ? SDLK_RIGHT : 0;
+            if (key == SDLK_F11) {
+                fullscreen_set(!sFullscreen);
+            } else if (key != 0) {
+                overlay_key(key);
+            }
+            next = strchr(name, ',');
+            next = next != NULL ? next + 1 : NULL;
+        }
+    }
     while (SDL_PollEvent(&ev)) {
         if (ev.type == SDL_EVENT_QUIT || (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE)) {
             exit(0);
         }
         if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key == SDLK_F11) {
-            sFullscreen = !sFullscreen;
-            if (sFullscreen) { /* the full screen has the display's shape: the picture is centred in it */
-                SDL_SetWindowAspectRatio(sWindow, 0.0f, 0.0f);
-            }
-            SDL_SetWindowFullscreen(sWindow, sFullscreen);
-            if (!sFullscreen) {
-                SDL_SetWindowAspectRatio(sWindow, sWantAspect, sWantAspect);
+            fullscreen_set(!sFullscreen);
+            if (gPortOverlayOpen) {
+                overlay_paint();
             }
         }
-        if (ev.type == SDL_EVENT_KEY_DOWN && (ev.key.key == SDLK_F6 || ev.key.key == SDLK_F7)) {
-            sGlowPercent += ev.key.key == SDLK_F7 ? 10 : -10;
-            if (sGlowPercent < 0) { sGlowPercent = 0; }
-            if (sGlowPercent > 200) { sGlowPercent = 200; }
-            fprintf(stderr, "bt3: glare and glow strength %d%%\n", sGlowPercent);
-        }
-        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F5) {
-            static const char *names[5] = {"outline", "see-through tint", "depth tint", "glare and glow", "blur of distant things"};
-            int k = (int)(ev.key.key - SDLK_F1);
-            sFxOff ^= 1u << k;
-            fprintf(stderr, "bt3: %s %s\n", names[k], (sFxOff >> k) & 1 ? "off" : "on");
+        if (ev.type == SDL_EVENT_KEY_DOWN && (ev.key.key == SDLK_F1 ? !ev.key.repeat : 1)) {
+            overlay_key(ev.key.key);
         }
     }
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
@@ -1734,6 +1933,40 @@ static void frame_end(void) {
         bl.load_op = SDL_GPU_LOADOP_CLEAR;
         bl.filter = SDL_GPU_FILTER_LINEAR;
         SDL_BlitGPUTexture(cmd, &bl);
+        if (gPortOverlayOpen && sOvTex != NULL && sOvXfer != NULL) {
+            Uint32 zoom = sh / 600 > 0 ? sh / 600 : 1;
+            if (sOvDirty) {
+                SDL_GPUTextureTransferInfo from;
+                SDL_GPUTextureRegion to;
+                SDL_GPUCopyPass *cp;
+                void *map = SDL_MapGPUTransferBuffer(sDev, sOvXfer, true);
+                memcpy(map, sOvPx, sizeof(sOvPx));
+                SDL_UnmapGPUTransferBuffer(sDev, sOvXfer);
+                SDL_zero(from);
+                from.transfer_buffer = sOvXfer;
+                SDL_zero(to);
+                to.texture = sOvTex;
+                to.w = OV_W;
+                to.h = OV_H;
+                to.d = 1;
+                cp = SDL_BeginGPUCopyPass(cmd);
+                SDL_UploadToGPUTexture(cp, &from, &to, true);
+                SDL_EndGPUCopyPass(cp);
+                sOvDirty = 0;
+            }
+            SDL_zero(bl);
+            bl.source.texture = sOvTex;
+            bl.source.w = OV_W;
+            bl.source.h = OV_H;
+            bl.destination.texture = swap;
+            bl.destination.x = 16 * zoom;
+            bl.destination.y = 16 * zoom;
+            bl.destination.w = OV_W * zoom < sw ? OV_W * zoom : sw;
+            bl.destination.h = OV_H * zoom < sh ? OV_H * zoom : sh;
+            bl.load_op = SDL_GPU_LOADOP_LOAD;
+            bl.filter = SDL_GPU_FILTER_NEAREST;
+            SDL_BlitGPUTexture(cmd, &bl);
+        }
     }
     SDL_SubmitGPUCommandBuffer(cmd);
     /* BT3_SHOT=<n>: every n frames, read the shown buffer back and write port/build/shots/gpu_NNNNN.ppm */
