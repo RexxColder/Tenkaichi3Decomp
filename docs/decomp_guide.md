@@ -499,3 +499,18 @@ Tools
 - FAKE MATCHES: `EftLink_DrawBillboard` (eft_w.c) matches only with an empty `__asm__("");`
   that adds one RTL instruction to break an allocator tie. Kept, marked in the source; the
   natural source form is unknown. List such cases in docs/open_questions.md.
+- memset arguments loaded a1, a2, a0 mean the clear is compiler-generated: write the argument
+  block as a STRUCT INITIALISER with `{0, ...}` members and 16-aligned vectors
+  (`EftArg9 arg = { { res0, res1 }, tex, {0,0,0,0}, {0,0,0,0}, size, rate, objId };`), not
+  assignments plus `memset`; an element read through a pointer gives the "build in a
+  temporary, block copy" form.
+- A constant load one step too early among packet stores is a local initialised at the top
+  (`u64 gif1 = 0xF42142142160;`). A flag word reloaded at the end of every path is a variable
+  assigned once before the block; a pointer set in the delay slot of a test is assigned both
+  before and after the `if`.
+- slt / movz without `xori` on a validity result:
+  `if (a <= K) { if (a > 0) ok = 1; else ok = 0; }`.
+- FAKE MATCH: `EftBlast_Init` (eft_j.c) reads `src->def` through a volatile lvalue in its first
+  test to stop gcse's PRE merging two loads; the real source cause is unknown.
+- Global allocation refs are weighted by loop depth; the log2 factor steps at 16 and 32 refs.
+  Equal-priority block-local quantities go to the first-born.
