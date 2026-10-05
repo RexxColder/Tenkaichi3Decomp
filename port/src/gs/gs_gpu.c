@@ -89,8 +89,8 @@ static SDL_GPUTexture *sAuxCopy;  /* the alpha bytes, copied so that a pass can 
 static int sDepthByteIsFog;
 #define MAX_CLUTS 64
 static struct { uint32_t hash, last; SDL_GPUTexture *tex; } sCluts[MAX_CLUTS];
-/* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F4 while running): 1 outline, 2 see-through tint,
-   4 depth tint, 8 glow (glare and object glow). */
+/* Effects the user can switch off (BT3_FX_OFF=<mask>, or F1..F5 while running): 1 outline, 2 see-through tint,
+   4 depth tint, 8 glare and object glow, 16 blur of distant things. */
 static unsigned sFxOff;
 static Target sTargets[16];
 static int sTargetCount;
@@ -778,7 +778,15 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
                between two buffers, added back), the blur by depth, the pan blur, the haze. They are ordinary
                textured sprites and strips and are drawn as such. Not drawable: a buffer sampled while it is the
                target, and a buffer read in another pixel format than it was drawn in (the 16-bit views). */
-            if (src == d->target || tp > 1 || (sprite && (sFxOff & 8))) {
+            /* The user's switches act on the pass that puts a work buffer back over the picture: added (the
+               glare and the object glow, blend "source + destination") or mixed in by the destination's alpha
+               (the blur of distant things). */
+            if (sprite && (uint32_t)(gGs.frame[ctx] & 0x1FF) == (uint32_t)gGsMainFbp && ((prim >> 6) & 1) &&
+                ((((gGs.alpha[ctx] & 0xFF) == 0x68) && (sFxOff & 8)) || (((gGs.alpha[ctx] & 0xFF) == 0x54) && (sFxOff & 16)))) {
+                sSkipped++;
+                return 0;
+            }
+            if (src == d->target || tp > 1) {
                 if (d->target != src && (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp) {
                     sTargets[d->target].stale = 1; /* a work buffer missed a pass */
                 }
@@ -1091,8 +1099,8 @@ static void frame_end(void) {
         if (ev.type == SDL_EVENT_QUIT || (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE)) {
             exit(0);
         }
-        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F4) {
-            static const char *names[4] = {"outline", "see-through tint", "depth tint", "glare, glow and blur (buffer-to-buffer effects)"};
+        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key >= SDLK_F1 && ev.key.key <= SDLK_F5) {
+            static const char *names[5] = {"outline", "see-through tint", "depth tint", "glare and glow", "blur of distant things"};
             int k = (int)(ev.key.key - SDLK_F1);
             sFxOff ^= 1u << k;
             fprintf(stderr, "bt3: %s %s\n", names[k], (sFxOff >> k) & 1 ? "off" : "on");
