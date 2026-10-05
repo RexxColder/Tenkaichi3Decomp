@@ -90,23 +90,12 @@ typedef struct StgHazeParam {
     /* 0x14 */ f32 follow;
 } StgHazeParam;
 
-/* Scratch block of one StgHaze_Draw call. */
+/* Packet cursor of one StgHaze_Draw call. As with StgBlurDraw, only the pointer is in memory; what
+   used to be listed here as further members (haze, width, widthPx, xOffset, cols, y0, y1, v0, nextRow,
+   v1, lastRow, nVerts at +4 .. +0x30) are StgHaze_Draw's ordinary locals in their spill slots. */
 typedef struct StgHazeDraw {
     /* 0x00 */ GsQword *p;
-    /* 0x04 */ StgHaze *haze;
-    /* 0x08 */ s32 width;   /* 512, or 256 in split screen */
-    /* 0x0C */ s32 widthPx; /* same value, used for the vertex clamp */
-    /* 0x10 */ s32 xOffset; /* 0, or 256 for the right half */
-    /* 0x14 */ s32 cols;
-    /* 0x18 */ s32 y0;      /* row top, 1/16 pixel */
-    /* 0x1C */ s32 y1;      /* row bottom */
-    /* 0x20 */ s32 v0;      /* row top in the 448-line source */
-    /* 0x24 */ s32 nextRow;
-    /* 0x28 */ s32 v1;
-    /* 0x2C */ s32 lastRow; /* rows - 1 */
-    /* 0x30 */ s32 nVerts;  /* cols * 2 */
-    /* 0x34 */ s32 pad34[3];
-} StgHazeDraw; /* size 0x40 */
+} StgHazeDraw;
 
 /* StgTint.flags */
 #define STG_TINT_ON 1
@@ -155,13 +144,11 @@ typedef struct StgBlur {
     /* 0x44 */ s32 pad44[3];
 } StgBlur; /* size 0x50 */
 
-/* Scratch block of one StgBlur_Draw call. */
+/* Packet cursor of one StgBlur_Draw call. Only the pointer is in memory: StgBlur_Draw keeps the view's
+   rectangle in ordinary locals (the matching C verifies it: they are spilled registers, reloaded by the
+   compiler where it pleases, which a structure member would not be). */
 typedef struct StgBlurDraw {
     /* 0x00 */ GsQword *p;
-    /* 0x04 */ StgBlur *blur;
-    /* 0x08 */ s32 width;
-    /* 0x0C */ s32 half;
-    /* 0x10 */ s32 xOffset;
 } StgBlurDraw;
 
 void StgFog_SetColor(s32 r, s32 g, s32 b, s32 a);
@@ -219,8 +206,8 @@ s32 StgTint_IsOn(u32 slot);
 
 void StgBlur_BeginDraw(StgBlurDraw *d, s32 x0, s32 x1, s32 width, s32 h, s32 srcW, s32 srcH);
 void StgBlur_EndDraw(StgBlurDraw *d);
-void StgBlur_PutStripTag(StgBlurDraw *d, s32 nVerts);
-void StgBlur_Nop(void);
+void StgBlur_PutStripTag(StgBlurDraw *d, s32 nVerts, s32 unused);
+void StgBlur_Nop(StgBlurDraw *d);
 void StgBlur_Init(void);
 void StgBlur_Term(void);
 void StgBlur_Reset(void);

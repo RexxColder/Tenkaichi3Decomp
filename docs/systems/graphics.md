@@ -362,3 +362,21 @@ alpha, colour, texture rectangle / index, flips, blend, mask; callbacks preDraw 
 postDraw. `Flash_FindLabel` (existing name) actually finds a clip instance by name.
 No random draw, no pad, clock or camera read. Original bug: a sprite placed by tag 4 has no
 name and `FlashClip_Start` calls `strlen(NULL)`.
+
+## Stage radial blur: `StgBlur_Draw` (0x248160; src/battle/stg_c.c; matched 2026-10-05)
+
+Verified by matching C. `StgBlur_Draw(split, view, viewMtx)` blurs one view:
+- Returns unless one of the three ring alphas (colours 0 / 1 / 2 of `gStgBlur`) is non-zero.
+- Copies the view (512 wide, or 256 in split screen) at half size into work buffer 0 (frame
+  page 0x150 = texture block 0x2A00); then `passes` iterations ping-pong between buffers
+  0x150 / 0x2A00 and 0x16C / 0x2D80, each a plain copy followed by one blended sprite tinted
+  `color3` whose texel rectangle is inset by `grow = (int)(f * scale)` and shifted by
+  `f * shift * center` (f = 1, 2, 4, ...): a zoom towards the centre.
+- Draws the result back over the screen as two 10-vertex Gouraud strips forming rings around
+  the centre: centre (colour 0) to half-way points (colour 1) to the view's corners (colour
+  2), so the three alphas are the blur strength at the centre, the middle ring and the edge.
+- The centre is `blur->center` in screen space, or rotated by the view matrix (the only camera
+  read). No random draw; nothing written outside the packet. No simulation impact.
+- Quirks: with `passes <= 0` the final texture block is 0; x truncates `f` before
+  multiplying and y does not.
+`StgHaze_Draw` (same file, still INCLUDE_ASM) is now 15 stack offsets from matching.

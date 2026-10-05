@@ -624,3 +624,17 @@ Tools
   share a saved register: the body is an inline function (`static inline EftSurf_QueueTri`).
 - A late conditional move (`lw / slti / movn / sw`): a second, dead statement in the `if`.
 - A `{0, 0, 0, 1}` local initialiser compiles to memset plus stores.
+- "Scratch struct" views in drawing code are often NOT structs: a run of 4-byte stack slots
+  behind an address-taken pointer, with values sometimes reloaded and sometimes in a
+  register, is spilled locals. Stack order: aggregates get their slot at declaration; an
+  address-taken scalar or one-pointer struct gets it after ALL locals; spilled locals follow
+  in declaration order. Compiling a scratch copy with `-g` and reading the stabs maps every
+  local to its slot (build/scratch_cleanup2_blur/vars.sh).
+- A `static inline` vertex writer reproduces the register-copy chain in front of a run of
+  stores (`addu t2,v1,t4 / move a3,t2 / move v1,a3`): try this on the open copy-chain family.
+- `x = (c) ? K : 0` expands to a conditional move with K in a register (`li / move / movn
+  zero`); `arr[(c) ? 0 : 1]` in a subscript gives `li 4 / movn zero`. An integer constant
+  converted to float through a spilled variable becomes a constant-pool word in `.sdata`.
+- Reload registers come round-robin from the set of hard regs picked as spill regs anywhere
+  in the function: a whole-function "off by one register" in reload temporaries can be caused
+  by a single far-away instruction (see `Using reg` lines in the `.greg` dump).

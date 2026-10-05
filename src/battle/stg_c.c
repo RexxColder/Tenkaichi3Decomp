@@ -412,99 +412,100 @@ void StgHaze_Step(StgHaze *haze, s32 split, s32 view) {
  * target (y, in sixteenths; the target is one field, 224 lines); column `col` is at
  * col * width / (cols - 1). The top vertex is displaced by curX/curY[row][col], the bottom one by
  * curX/curY[row][col + 1] (the next column of the SAME row, not the next row), both clamped to the
- * view. Not matched (96 of 186 instructions differ; same length since the second cleanup). What the
- * attempt now reproduces: the row loop is entered through an explicit test with `n = d.lastRow` and
- * `d.nVerts = d.cols * 2` behind it (`lw t0 / blez / move s1,t0`), the two row pointers are taken
- * BEFORE the four y / v values, and the column loop's accumulators are cleared behind its own
- * entry test. What still differs:
- *   - split arm: the original halves d.cols as `(lw 20(sp)) + (haze->cols >> 31)`, i.e. the add
- *     reads d.cols back from the stack while the sign comes from the register that still holds
- *     haze->cols; this C forwards the stored value for both (cse sees the store). The x offset is
- *     `move a2,a1 / movn a2,zero,v0` (copy 256, clear when view != 1) against `movz` here; the
- *     `x0 = w; if (view != 1) x0 -= w;` form that fixed ScrWarp_Draw does not help here.
- *   - the first four stores (haze, width, widthPx, xOffset) are emitted in source order in the
- *     original and rotated here;
- *   - row set-up: the original loads 224 and 448 once each and reads d.nextRow twice (once for
- *     y1, once for v1); this C loads d.nextRow once and each constant twice;
- *   - registers of the column loop (s1 / s2, a0..a3) follow from the above.
+ * view.
+ * Not matched, but 171 of 186 instructions are now identical and the other 15 differ ONLY in a stack
+ * offset. What made the difference (found with StgBlur_Draw, which matches): the "scratch block" is
+ * not a structure. Only the packet pointer is in memory (StgHazeDraw is one pointer); haze, width,
+ * widthPx, xOffset, cols, y0, y1, v0, nextRow, v1, lastRow and nVerts are ordinary locals that the
+ * register allocator leaves on the stack, in declaration order (sp+4 .. sp+0x30). That is why the
+ * original reloads them where it pleases (the "reads cols back from the stack" of the old note).
+ * What still differs: in the original v0 and v1 keep their own pseudo registers (slots 0x20 and 0x28,
+ * between y1 / nextRow and nextRow / lastRow). Here the quotient of each division is first put in a
+ * temporary and copied (`tmp = a / b; v0 = tmp;`), and gcse's copy propagation then replaces v0 and
+ * v1 by those temporaries, whose higher register numbers put their slots last: nextRow 0x20,
+ * lastRow 0x24, nVerts 0x28, v0 0x2C, v1 0x30. Tried without effect: an inline helper for the
+ * scaling, `v = a * b; v /= n;`, the statements in other orders. A dummy `v0 += z` with z = 0 keeps
+ * the variables but changes the multiplications. Needed: a source form in which v0 / v1 are either
+ * set again later in the same basic block or have two reaching definitions, so that the copy is
+ * not "available" to gcse. Other things this attempt needs: u computed before px (the two
+ * strength-reduced counters take s7 / s8 in that order), the explicit `if (row < lastRow)` with
+ * `n = lastRow` behind it (a second register for the divisor), h and srcH as variables.
  */
 #if 0
 void StgHaze_Draw(StgHaze *haze, s32 split, s32 view) {
     StgHazeDraw d;
+    s32 width;
+    s32 widthPx;
+    s32 xOffset;
+    s32 cols;
+    s32 y0;
+    s32 y1;
+    s32 v0;
+    s32 nextRow;
+    s32 v1;
+    s32 lastRow;
+    s32 nVerts;
     u16 x1;
     s32 rows;
     s32 row;
     s32 col;
+    s32 n;
     s32 px;
     s32 u;
-    s32 n;
-    s32 cols;
     s32 x;
     s32 y;
-    s32 accX;
-    s32 accU;
-    s32 xo;
     s32 h = 0xE0;
     s32 srcH = 0x1C0;
     s8 *cx;
     s8 *cy;
 
-    d.haze = haze;
-    d.width = 0x200;
-    d.widthPx = 0x200;
-    d.xOffset = 0;
-    d.cols = haze->cols;
+    width = 0x200;
+    widthPx = 0x200;
+    xOffset = 0;
+    cols = haze->cols;
     rows = haze->rows;
     x1 = 0x200;
     if (split) {
-        d.width = 0x100;
-        xo = (view == 1) ? 0x100 : 0;
-        d.xOffset = xo;
-        x1 = xo + 0x100;
-        d.cols /= 2;
-        d.widthPx = 0x100;
+        width = 0x100;
+        xOffset = (view == 1) ? 0x100 : 0;
+        x1 = xOffset + 0x100;
+        cols /= 2;
+        widthPx = 0x100;
     }
-    d.lastRow = rows - 1;
-    StgHaze_BeginDraw(&d, d.haze, d.xOffset, x1, d.width, srcH, d.widthPx, h);
+    lastRow = rows - 1;
+    StgHaze_BeginDraw(&d, haze, xOffset, x1, width, srcH, widthPx, h);
     row = 0;
-    if (row < d.lastRow) {
-        n = d.lastRow;
-        d.nVerts = d.cols * 2;
+    if (row < lastRow) {
+        n = lastRow;
+        nVerts = cols * 2;
         do {
-        d.nextRow = row + 1;
-        StgHaze_PutStripTag(&d, d.haze, d.nVerts);
-        cx = d.haze->curX[row];
-        cy = d.haze->curY[row];
-        d.y0 = (h * row / n) << 4;
-        d.y1 = (h * d.nextRow / n) << 4;
-        d.v0 = srcH * row / n;
-        d.v1 = srcH * d.nextRow / n;
-        cols = d.cols;
-        if (cols > 0) {
-            accX = 0;
-            accU = 0;
-            for (col = 0; col < cols; col++) {
-            px = (accX / (cols - 1)) << 4;
-            u = accU / (cols - 1) + d.xOffset;
+        nextRow = row + 1;
+        StgHaze_PutStripTag(&d, haze, nVerts);
+        cx = haze->curX[row];
+        cy = haze->curY[row];
+        y0 = (h * row / n) << 4;
+        y1 = (h * nextRow / n) << 4;
+        v0 = srcH * row / n;
+        v1 = srcH * nextRow / n;
+        for (col = 0; col < cols; col++) {
+            u = col * width / (cols - 1) + xOffset;
+            px = (col * widthPx / (cols - 1)) << 4;
             x = px + cx[0];
-            y = d.y0 + cy[0];
-            x = (x < 0) ? 0 : ((x > d.widthPx << 4) ? d.widthPx << 4 : x);
+            y = y0 + cy[0];
+            x = (x < 0) ? 0 : ((x > widthPx << 4) ? widthPx << 4 : x);
             y = (y < 0) ? 0 : ((y > h << 4) ? h << 4 : y);
-            StgHaze_PutVertex(&d, u, d.v0, x, y);
+            StgHaze_PutVertex(&d, u, v0, x, y);
             x = px + cx[1];
-            y = d.y1 + cy[1];
-            x = (x < 0) ? 0 : ((x > d.widthPx << 4) ? d.widthPx << 4 : x);
+            y = y1 + cy[1];
+            x = (x < 0) ? 0 : ((x > widthPx << 4) ? widthPx << 4 : x);
             y = (y < 0) ? 0 : ((y > h << 4) ? h << 4 : y);
-            StgHaze_PutVertex(&d, u, d.v1, x, y);
+            StgHaze_PutVertex(&d, u, v1, x, y);
             cx++;
             cy++;
-            accX += d.widthPx;
-            accU += d.width;
-        }
         }
         StgHaze_EndStrip(&d);
-        row = d.nextRow;
-        } while (row < d.lastRow);
+        row = nextRow;
+        } while (row < lastRow);
     }
     StgHaze_EndDraw(&d);
 }
@@ -941,8 +942,9 @@ void StgBlur_EndDraw(StgBlurDraw *d) {
     Dma_EndDirect((u64 *)d->p);
 }
 
-/* Starts one textured Gouraud triangle strip of nVerts vertices (colour, texel, position per vertex). */
-void StgBlur_PutStripTag(StgBlurDraw *d, s32 nVerts) {
+/* Starts one textured Gouraud triangle strip of nVerts vertices (colour, texel, position per vertex).
+   Both callers pass 1 as a third argument, which is not used. */
+void StgBlur_PutStripTag(StgBlurDraw *d, s32 nVerts, s32 unused) {
     d->p->d[0] = 0x1000000000000001;
     d->p->d[1] = 0xE;
     d->p++;
@@ -954,8 +956,8 @@ void StgBlur_PutStripTag(StgBlurDraw *d, s32 nVerts) {
     d->p++;
 }
 
-/* Does nothing. */
-void StgBlur_Nop(void) {
+/* Does nothing (end of a strip; StgBlur_Draw calls it with its packet cursor). */
+void StgBlur_Nop(StgBlurDraw *d) {
 }
 
 /* Allocates the two blur views. */
@@ -996,27 +998,235 @@ void StgBlur_Reset(void) {
     }
 }
 
+/* One strip vertex of the final rings: colour (q = 1), texel (u, v) of the work buffer, position (x, y) in view pixels. */
+static inline void StgBlur_PutVertex(StgBlurDraw *d, u32 rgba, s32 x, s32 y, s32 u, s32 v) {
+    d->p->d[0] = 0;
+    d->p->d[1] = (u64)rgba | ((u64)0xFE00 << 46);
+    d->p++;
+    d->p->d[0] = (u64)((u << 4) + 8) | ((u64)((v << 4) + 8) << 16);
+    d->p->d[1] = (u64)((x << 4) + 0x7000) | ((u64)((y << 4) + 0x7200) << 16);
+    d->p++;
+}
+
 /*
- * Radial blur of one view (described from the disassembly; not decompiled, 674 instructions of packet code).
- *
- * Nothing is drawn unless one of the three ring colours (centre, middle, edge) has a non-zero alpha.
- *   1. Centre: when blur->screenSpace is set, blur->center is used as it is; otherwise the view matrix
- *      (third argument) is copied, its last row is set to (0, 0, 0, 1) and blur->center, a world
- *      direction, is rotated by it. Only x and y of the result are used.
- *   2. StgBlur_BeginDraw, then the view's part of the frame (512 or 256 x 448) is copied into a
- *      256 x 224 work buffer (frame block 0x150, texture block 0x2A00).
- *   3. `passes` times, with f = 1, 2, 4, ...: the work buffer is drawn into the other work buffer
- *      (blocks 0x150 / 0x16C alternate, tables at 0x2FEC30 and 0x2FEC38) enlarged by
- *      (int)(f * scale) pixels on every side and shifted by (int)(f * shiftX * center.x) and
- *      (int)(f * shiftY * center.y), then a second time blended with colour `colorPass`.
- *   4. The frame buffer is selected again and the last work buffer is drawn over the view as two
- *      rings of ten-vertex Gouraud strips around the point (0.5 + 0.5 * center) * size: centre
- *      colour -> middle colour, then middle colour -> edge colour. The alpha of those colours is
- *      the blur's strength at each ring.
- * Emits two local tables in .sdata (0x2FEC30 = {0x2A00, 0x2D80}, 0x2FEC38 = {0x150, 0x16C}) and reads
- * the word at 0x2FEC40 (0x1C0, the source height).
+ * Radial blur of one view. Nothing is drawn unless one of the three ring colours (centre, middle, edge)
+ * has a non-zero alpha.
+ *   1. View rectangle: 512 x 448 at x 0, or 256 x 448 at x 0 / 256 in split screen. The work buffers are
+ *      half that size (256 or 128 x 224).
+ *   2. Centre: blur->center as it is when blur->screenSpace is set; otherwise the view matrix (third
+ *      argument) is copied, its translation cleared, and blur->center (a world direction) rotated by it.
+ *      Only x and y are used.
+ *   3. StgBlur_BeginDraw, then the view's part of the frame is copied at half size into work buffer 0
+ *      (frame block 0x150 = texture block 0x2A00).
+ *   4. `passes` times, with f = 1, 2, 4, ...: buffer (i & 1) is copied into the other buffer (half a texel
+ *      off, so it is filtered), then drawn over that copy again as a blended sprite in colour `color3`
+ *      whose texels are pulled in by grow = (int)(f * scale) on every side and shifted by
+ *      (int)((float)(int)f * shiftX * center.x) and (int)(f * shiftY * center.y): a positive shift moves
+ *      the near edge of the texel rectangle, a negative one the far edge.
+ *   5. The frame buffer, the view's scissor and the last written work buffer (as texture) are selected and
+ *      two rings of ten-vertex Gouraud strips are drawn around the point (0.5 + 0.5 * center) * size:
+ *      centre (colour 0) -> points half way to the corners (colour 1), then those -> the corners
+ *      (colour 2). The alpha of the three colours is the strength of the blur at each ring.
+ * With passes <= 0 the texture of step 5 is block 0 (lastTbp keeps its initial 0); the game never sets that.
+ * Emits two local tables and one constant in .sdata: 0x2FEC30 = {0x2A00, 0x2D80}, 0x2FEC38 = {0x150, 0x16C},
+ * 0x2FEC40 = 448 (the integer the compiler converts to float for the centre's y).
+ * Matching notes: only `p` is in memory (StgBlurDraw is one pointer); blur, width, half, xOffset and x1
+ * are plain locals that the allocator leaves on the stack, which is what the 0x134..0x150 slots are.
  */
-INCLUDE_ASM("asm/nonmatchings/battle/stg_c", StgBlur_Draw);
+void StgBlur_Draw(s32 split, s32 view, Mtx44 *viewMtx) {
+    Vec4 c;
+    Mtx44 m;
+    StgBlurDraw d;
+    StgBlur *blur;
+    s32 width;   /* of the view, pixels */
+    s32 half;    /* of the work buffers */
+    s32 xOffset; /* left edge of the view */
+    s32 srcH;
+    s32 h;
+    s32 lastTbp; /* texture block of the work buffer written last */
+    s32 x1;      /* right edge of the view */
+    s32 u1;
+    s32 i;
+    f32 f;
+
+    blur = &gStgBlur[view];
+    width = 0x200;
+    half = 0x100;
+    srcH = 0x1C0;
+    h = 0xE0;
+    lastTbp = 0;
+    xOffset = 0;
+    x1 = 0x200;
+    if ((blur->color01 & 0xFF000000FF000000) == 0 && (blur->color2 & 0xFF000000) == 0) {
+        return;
+    }
+    if (split) {
+        width = 0x100;
+        half = 0x80;
+        xOffset = (view == 1) ? 0x100 : 0;
+        x1 = xOffset + width;
+        u1 = x1;
+    } else {
+        u1 = 0x200;
+    }
+    if (blur->screenSpace) {
+        Vec4_Copy(&c, &blur->center);
+    } else {
+        Mtx_Copy(&m, viewMtx);
+        Mtx_ClearTrans(&m);
+        Mtx_MulVec4(&c, &m, &blur->center);
+    }
+    StgBlur_BeginDraw(&d, xOffset, x1, width, srcH, half, h);
+    {
+        u32 tbp[2] = { 0x2A00, 0x2D80 }; /* the two work buffers as textures ... */
+        u32 fbp[2] = { 0x150, 0x16C };   /* ... and as frame buffers */
+
+        Dma_PutTexStrips(&d.p, 0, 0, half, h, 0, 0, xOffset, 0, u1, srcH, 0, 0, 0x80808080, 0);
+        f = 1.0f;
+        for (i = 0; i < blur->passes; i++, f += f) {
+            s32 grow;
+            s32 dx;
+            s32 dy;
+            s32 nx;
+            s32 ny;
+            s32 ua;
+            s32 ub;
+            s32 vb;
+            s32 va;
+
+            grow = f * blur->scale;
+            dx = (f32)(s32)f * blur->shiftX * c.x;
+            dy = f * blur->shiftY * c.y;
+            nx = 0;
+            ny = 0;
+            if (dx < 0) {
+                nx = -dx;
+                dx = 0;
+            }
+            if (dy < 0) {
+                ny = -dy;
+                dy = 0;
+            }
+            ua = grow + dx;
+            ub = grow + nx;
+            va = grow + dy;
+            vb = grow + ny;
+            d.p->d[0] = GIF_TAG(2, 0, 1);
+            d.p->d[1] = GIF_REG_AD;
+            d.p++;
+            d.p->d[0] = (u64)(tbp[i & 1] | 0x20010000) | ((u64)8 << 30); /* 256 x 256, 4 pages wide */
+            d.p->d[1] = GS_TEX0_1;
+            d.p++;
+            d.p->d[0] = (u64)(fbp[(i & 1) ? 0 : 1] | 0x40000);
+            d.p->d[1] = GS_FRAME_1;
+            d.p++;
+            lastTbp = tbp[(i & 1) ? 0 : 1];
+            Dma_PutTexStrips(&d.p, 0, 0, half, h, 0, 0, 0, 0, half, h, 8, 8, 0x80808080, 0);
+            d.p->d[0] = GIF_TAG(2, 0, 1);
+            d.p->d[1] = GIF_REG_AD;
+            d.p++;
+            d.p->d[0] = 0x156; /* sprite, textured, blended, UV */
+            d.p->d[1] = GS_PRIM;
+            d.p++;
+            d.p->d[0] = (u64)blur->color3 | ((u64)0xFE00 << 46);
+            d.p->d[1] = GS_RGBAQ;
+            d.p++;
+            d.p->d[0] = 0x4400000000008001; /* REGLIST, one loop of UV, XYZ2, UV, XYZ2 */
+            d.p->d[1] = 0x5353;
+            d.p++;
+            d.p->d[0] = (u64)((ua << 4) + 8) | ((u64)((va << 4) + 8) << 16);
+            d.p->d[1] = 0x72007000;
+            d.p++;
+            d.p->d[0] = (u64)(((half - ub) << 4) + 8) | ((u64)(((h - vb) << 4) + 8) << 16);
+            d.p->d[1] = (u64)((half + 0x700) << 4) | ((u64)0x8000 << 16);
+            d.p++;
+        }
+        d.p->d[0] = GIF_TAG(4, 0, 1);
+        d.p->d[1] = GIF_REG_AD;
+        d.p++;
+        d.p->d[0] = !(gGfx.frame & 1) ? 0x80070 : 0x80000;
+        d.p->d[1] = GS_FRAME_1;
+        d.p++;
+        d.p->d[0] = GS_SET_SCISSOR(xOffset, x1 - 1, 0, srcH - 1);
+        d.p->d[1] = GS_SCISSOR_1;
+        d.p++;
+        d.p->d[0] = (u64)(lastTbp | 0x20010000) | ((u64)8 << 30);
+        d.p->d[1] = GS_TEX0_1;
+        d.p++;
+        d.p->d[0] = GS_SET_CLAMP(2, 2, 0, half - 1, 0, h - 1);
+        d.p->d[1] = GS_CLAMP_1;
+        d.p++;
+        {
+            s32 in[4][4];  /* x, y, u, v of the points half way between the centre and each corner */
+            s32 out[4][4]; /* x, y, u, v of the view's corners */
+            s32 cx;
+            s32 cy;
+            s32 hx;
+            s32 hy;
+            s32 rx;
+            s32 ry;
+            s32 ru;
+            s32 rv;
+
+            cx = (c.x * 0.5f + 0.5f) * (f32)width;
+            cy = (c.y * 0.5f + 0.5f) * (f32)srcH;
+            hx = cx / 2;
+            hy = cy / 2;
+            rx = width - cx;
+            ry = srcH - cy;
+            ru = half - hx;
+            rv = h - hy;
+            out[0][0] = 0;
+            out[0][1] = 0;
+            out[0][2] = 0;
+            out[0][3] = 0;
+            out[1][0] = width;
+            out[1][1] = 0;
+            out[1][2] = half;
+            out[1][3] = 0;
+            out[2][0] = width;
+            out[2][1] = srcH;
+            out[2][2] = half;
+            out[2][3] = h;
+            out[3][0] = 0;
+            out[3][1] = srcH;
+            out[3][2] = 0;
+            out[3][3] = h;
+            in[0][0] = hx;
+            in[0][1] = hy;
+            in[0][2] = hx / 2;
+            in[0][3] = hy / 2;
+            in[1][0] = cx + rx / 2;
+            in[1][1] = hy;
+            in[1][2] = hx + ru / 2;
+            in[1][3] = hy / 2;
+            in[2][0] = cx + rx / 2;
+            in[2][1] = cy + ry / 2;
+            in[2][2] = hx + ru / 2;
+            in[2][3] = hy + rv / 2;
+            in[3][0] = hx;
+            in[3][1] = cy + ry / 2;
+            in[3][2] = hx / 2;
+            in[3][3] = hy + rv / 2;
+            StgBlur_PutStripTag(&d, 10, 1);
+            for (i = 0; i < 5; i++) {
+                StgBlur_PutVertex(&d, (u32)blur->color01, cx + xOffset, cy, hx, hy);
+                StgBlur_PutVertex(&d, ((u32 *)&blur->color01)[1], in[i % 4][0] + xOffset, in[i % 4][1], in[i % 4][2],
+                                  in[i % 4][3]);
+            }
+            StgBlur_Nop(&d);
+            StgBlur_PutStripTag(&d, 10, 1);
+            for (i = 0; i < 5; i++) {
+                StgBlur_PutVertex(&d, ((u32 *)&blur->color01)[1], in[i % 4][0] + xOffset, in[i % 4][1], in[i % 4][2],
+                                  in[i % 4][3]);
+                StgBlur_PutVertex(&d, blur->color2, out[i % 4][0] + xOffset, out[i % 4][1], out[i % 4][2],
+                                  out[i % 4][3]);
+            }
+            StgBlur_Nop(&d);
+        }
+    }
+    StgBlur_EndDraw(&d);
+}
 
 /* Draws the blur for whatever views are on screen. */
 void StgBlur_DrawAll(void) {
