@@ -490,3 +490,9 @@ Next, when the user says the session has reset (HOLD above still applies until t
 2. Near-miss cleanup rounds on both binaries.
 docs/systems/menu_overlay.md has every mode's flow and every battle hand-off, and the replay
 start / save path.
+
+## Resumed 2026-10-05 (user: "ok continue its been reset"): HOLD lifted
+
+Decision recorded 2026-10-04: the decomp phase ends when all game code of both binaries is
+linked, SDK and CRI libraries excluded. Port and decomp will be separate repos (recommended,
+port forked from a tagged decomp commit). Now running: overlay integrator (first pass).
