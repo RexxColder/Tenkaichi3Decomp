@@ -1,8 +1,7 @@
 /*
  * The only file of the PC build compiled with the host's float unit. It bridges the software-float game code
  * (floats as 32-bit patterns, doubles as 64-bit patterns, both in integer registers) to:
- *   - the C maths library (sinf, tanf, atan2f, ...). TO DO: the PS2 uses its own library (newlib) for these and
- *     the host's results differ in the last bits; exact copies are needed for a bit-identical simulation.
+ *   - the few C maths functions that are not built from the PS2's library sources (see below);
  *   - double arithmetic, which is IEEE software arithmetic on the PS2 too, so the host's is the same.
  * Every function takes and returns integers, so the two calling conventions cannot be confused.
  */
@@ -17,8 +16,10 @@ static uint64_t q(double x) { uint64_t v; memcpy(&v, &x, 8); return v; }
 
 #define F1(name) uint32_t Port_##name(uint32_t a) { return u(name(f(a))); }
 #define F2(name) uint32_t Port_##name(uint32_t a, uint32_t b) { return u(name(f(a), f(b))); }
-F1(sinf) F1(cosf) F1(tanf) F1(asinf) F1(acosf) F1(atanf) F1(sqrtf) F1(floorf) F1(ceilf) F1(fabsf) F1(expf) F1(logf)
-F2(atan2f) F2(powf) F2(fmodf)
+/* sinf, cosf, tanf, asinf, acosf, atanf, atan2f, sqrtf, powf, floorf, fabsf are the PS2's own (newlib 1.10.0,
+   port/third_party/newlib_libm, compiled with software float). What is left here is not called by the simulation. */
+F1(ceilf) F1(expf) F1(logf)
+F2(fmodf)
 
 uint64_t __adddf3(uint64_t a, uint64_t b) { return q(d(a) + d(b)); }
 uint64_t __subdf3(uint64_t a, uint64_t b) { return q(d(a) - d(b)); }
