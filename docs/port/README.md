@@ -641,5 +641,10 @@ with a third of the interpreter's work gone.
 - **Pacing**: the vertical blank is the clock with a window (`Port_VBlank` waits on a 59.94 Hz grid): menus run
   at 60 frames per second, battles at 30, as the game asks. `BT3_UNCAPPED=1` removes the wait.
 - `port/src/plat_crash.c`: a fatal signal writes a backtrace to the terminal and `bt3_crash.txt`.
-- Open: the user reports the program closes when creating a save file (not reproduced yet). The memory card
-  layer still answers "no card"; saves need the folder-backed card.
+- **Memory card** (`port/src/plat_mc.c`): slot 1 is a formatted card backed by the folder `saves/card1/`
+  (`BT3_SAVES` overrides `saves`), slot 2 is empty. Card paths are used as they are, so a save has the console's
+  files. Result codes as libmc gives them (listed in the file). The user confirmed: a save can be created and a
+  duel started from the menus (2026-10-05). The earlier "closes when creating a save" was with the "no card"
+  layer and an executable built without the pacing code; not seen again, cause not established.
+- Build tool fix: `eeconst.py` did not know octal literals and stopped `undefined.py` part-way (objects after
+  the failing file stayed stale while the link still said OK). Lesson: read the whole output of the build step.
