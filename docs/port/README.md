@@ -781,3 +781,12 @@ with a third of the interpreter's work gone.
   colour (their write masks and corners were right).
 - Test aids: `BT3_GPU_TAIL=<frame>` prints the frame's last draws as recorded (pipeline key, modes, corners).
 - Seen and not handled: the software reference has no destination alpha test (its READY shows at once).
+- **In-place polygon clipping overruns its caller's buffer** (found through the demo fight crashing in
+  `EftRibbon_DrawStrip`): thirteen draw functions (`EftGfx_DrawPoly*`, `EftSurf_Draw*Clipped`,
+  `EftSprAnim_DrawTriClip`, `EftMesh_Draw*TriClip`, `EftWater_DrawClippedFan`, `EftRay_DrawClipped`) clip a
+  triangle against five planes in the caller's array, which has room for three corners; the result can have
+  eight. On the PS2 the extra corners overwrite the caller's other locals; on PC they reach the return address.
+  Under `#ifdef PORT` each now works on a 16-corner copy. The demo fight (`port/run.sh demo`) runs to its end
+  without a window; the replay result is unchanged. Any effect near the screen edge could have hit this in a
+  normal fight.
+- The user confirmed READY / FIGHT in widescreen (bands keep the full width).

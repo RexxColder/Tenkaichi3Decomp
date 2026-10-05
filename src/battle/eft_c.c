@@ -1610,6 +1610,14 @@ void EftSurf_DrawTri(EftSurfVtx *tri, u64 tex0) {
 
 /* Clips a triangle against the five planes and draws the resulting polygon as a fan. */
 void EftSurf_DrawTriClipped(EftSurfVtx *tri, u64 tex0) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftSurfVtx portPoly[16];
+    __builtin_memcpy(portPoly, tri, 3 * sizeof(EftSurfVtx));
+    tri = portPoly;
+#endif
     EftScreenPos xyz[9];
     Vec4 st[9];
     Vec4 *plane = gEftSurf->u.s.planes;
@@ -1653,6 +1661,14 @@ void EftSurf_DrawReflectTri(EftSurfVtx *tri, u64 *tex, Vec4 *fog) {
 
 /* Clips a triangle of the reflecting surface against the five planes and draws the fan. */
 void EftSurf_DrawReflectTriClipped(EftSurfVtx *tri, u64 *tex, Vec4 *fog) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftSurfVtx portPoly[16];
+    __builtin_memcpy(portPoly, tri, 3 * sizeof(EftSurfVtx));
+    tri = portPoly;
+#endif
     s32 xyz[9][4];
     Vec4 st[9];
     Vec4 *plane = gEftSurf->u.s.planes;
@@ -1789,6 +1805,14 @@ static inline void EftSurf_QueueTri(EftScreenPos *v0, EftScreenPos *v1, EftScree
 /* Clips a triangle against the five planes and queues the resulting fan in the ordering table, at the depth of
    the first vertex (mirrored when flipZ) less zBias. */
 void EftSurf_DrawTriOtClipped(EftSurfVtx *tri, s32 layer, s32 unused, s32 flipZ, u64 tex0, s32 zBias) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftSurfVtx portPoly[16];
+    __builtin_memcpy(portPoly, tri, 3 * sizeof(EftSurfVtx));
+    tri = portPoly;
+#endif
     EftScreenPos xyz[9];
     Vec4 st[9];
     Vec4 *plane = gEftSurf->u.s.planes;

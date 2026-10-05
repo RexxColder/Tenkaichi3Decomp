@@ -2963,6 +2963,14 @@ static inline void EftWater_QueueTri(EftWaterScr4 *p0, EftWaterScr4 *p1, EftWate
 }
 
 void EftWater_DrawClippedFan(EftWaterClipVtx *poly, s32 layer, u64 tex0) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftWaterClipVtx portPoly[16];
+    __builtin_memcpy(portPoly, poly, 3 * sizeof(EftWaterClipVtx));
+    poly = portPoly;
+#endif
     EftWaterScr4 scr[9];
     EftWaterVec stq[9];
     EftWaterVec *plane;

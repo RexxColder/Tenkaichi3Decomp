@@ -2505,6 +2505,14 @@ void EftRay_DrawQuad2D(Vec4 *corner, s32 z, u8 r0, u8 g0, u8 b0, u8 a0, u8 r1, u
 /* Clips a triangle against the five planes of the view, projects what is left and queues it as a fan with every
    GS depth at the far limit, sorted by the average depth. */
 void EftRay_DrawClipped(EftTClipVtx *poly, s32 blend, u64 tex0) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftTClipVtx portPoly[16];
+    __builtin_memcpy(portPoly, poly, 3 * sizeof(EftTClipVtx));
+    poly = portPoly;
+#endif
     EftTIVec scr[9];
     EftTVec st[9];
     EftTVec *plane;

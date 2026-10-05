@@ -1565,6 +1565,14 @@ typedef struct EftGfxScr {
  * (mirrored to 0x1000 - z when flip is set) plus zOfs; depths are clamped to 0xFFFFFF.
  */
 void EftGfx_DrawPolyAvgZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 flip, u64 tex, s32 zOfs) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftGfxVert portPoly[16];
+    __builtin_memcpy(portPoly, verts, 3 * sizeof(EftGfxVert));
+    verts = portPoly;
+#endif
     EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
@@ -1593,6 +1601,14 @@ void EftGfx_DrawPolyAvgZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 fl
 
 /* Same with a fixed sort depth z (mirrored when flip is set); front forces the three depths to 0xFFFFFF. */
 void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex, s32 z) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftGfxVert portPoly[16];
+    __builtin_memcpy(portPoly, verts, 3 * sizeof(EftGfxVert));
+    verts = portPoly;
+#endif
     EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
@@ -1621,6 +1637,14 @@ void EftGfx_DrawPolyFixedZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 
 /* Same as EftGfx_DrawPolyAvgZ with the option to force the three depths to 0xFFFFFF (front). */
 void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                               s32 zOfs) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftGfxVert portPoly[16];
+    __builtin_memcpy(portPoly, verts, 3 * sizeof(EftGfxVert));
+    verts = portPoly;
+#endif
     EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;
@@ -1651,6 +1675,14 @@ void EftGfx_DrawPolyAvgZFront(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s
 /* Same with the average depth multiplied by zScale. */
 void EftGfx_DrawPolyScaledZ(EftGfxVert *verts, s32 arg1, s32 arg2, s32 arg3, s32 front, s32 flip, u64 tex,
                               f32 zScale) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftGfxVert portPoly[16];
+    __builtin_memcpy(portPoly, verts, 3 * sizeof(EftGfxVert));
+    verts = portPoly;
+#endif
     EftGfxScr scr[9];
     EftVec col[9];
     EftVec *plane;

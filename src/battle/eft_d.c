@@ -218,6 +218,14 @@ static inline void EftSurf_QueueTri(EftScrPos *scr0, EftScrPos *scr1, EftScrPos 
 /* Clips a triangle against the five planes of the surface and queues the resulting polygon as a fan
    (vertex 0, k - 1, k), each fan triangle through EftSurf_QueueTri. */
 void EftSurf_DrawPolyOtClipped(EftSurfVtxD *poly, s32 unused, u64 *tex, Vec4 *fog, s32 zBias) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftSurfVtxD portPoly[16];
+    __builtin_memcpy(portPoly, poly, 3 * sizeof(EftSurfVtxD));
+    poly = portPoly;
+#endif
     EftIVec scr[9];
     EftFVec st[9];
     Vec4 *plane = gEftSurf->clipPlanes;

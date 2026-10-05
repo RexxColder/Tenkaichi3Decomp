@@ -967,6 +967,14 @@ static inline void EftSprAnim_QueueTri(EftAeScr *v0, EftAeScr *v1, EftAeScr *v2,
 
 /* Clips a triangle against the five planes of the view, projects what is left and queues it as a fan. */
 static inline void EftSprAnim_DrawTriClip(EftAeClipVtx *poly, s32 otLayer, s32 z, u64 tex0, s32 mode) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftAeClipVtx portPoly[16];
+    __builtin_memcpy(portPoly, poly, 3 * sizeof(EftAeClipVtx));
+    poly = portPoly;
+#endif
     EftAeScr scr[9];
     Vec4 stq[9];
     Vec4 *plane;

@@ -646,6 +646,14 @@ inline s32 EftMesh_IsOffScreen(EftAdScr p) {
    form: indexing scr[i].z gives other induction variables). */
 #define EFT_FAN_Z(zp, i) (*(s32 *)((u8 *)(zp) + ((i) << 4)))
 void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 flag2, s32 zflip, u64 tex0, s32 zOfs) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftMeshOut portPoly[16];
+    __builtin_memcpy(portPoly, v, 3 * sizeof(EftMeshOut));
+    v = portPoly;
+#endif
     EftAdScr scr[9];
     EftAdVec stq[9];
     EftAdVec *plane;
@@ -692,6 +700,14 @@ void EftMesh_DrawTriClip(EftMeshOut *v, s32 hasTex, s32 blend, s32 flag1, s32 fl
 /* Note the screen tests: this variant tests points 0, 1 and 2 for every triangle of the fan, not 0, i - 1 and i
    (fixed stack offsets 0x20 / 0x30 / 0x40 in the original). */
 void EftMesh_DrawNowTriClip(EftMeshOut *v, u64 tex0, s32 abe) {
+#ifdef PORT
+    /* The triangle is clipped in place and can grow to eight corners, but callers hand over room for three. On
+       the PS2 the extra corners land in the caller's other locals; on PC they reach the return address (the
+       crash in EftRibbon_DrawStrip). The work is done on a copy with room. */
+    EftMeshOut portPoly[16];
+    __builtin_memcpy(portPoly, v, 3 * sizeof(EftMeshOut));
+    v = portPoly;
+#endif
     EftAdScr scr[9];
     EftAdVec stq[9];
     EftAdVec *plane;
