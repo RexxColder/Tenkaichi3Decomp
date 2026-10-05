@@ -531,3 +531,19 @@ non-C subsegment left in config/DBZP.yaml is the zero padding `[0x07C204, data]`
   views, `ubFlags` vs `discFlags` for gProgress + 0x684); stale file names in comments of config/symbols/menu_*.txt
   and a few sources; `MSave` should move to include/sys/save.h.
 Next: near-miss cleanup rounds on the INCLUDE_ASM functions of both binaries.
+
+## Twelfth step started 2026-10-05: near-miss cleanup round 2
+
+State: BOTH binaries fully linked and byte-identical, verified here after a fresh configure +
+ninja (commit da1c694): main executable 86.91% (174 INCLUDE_ASM), overlay DBZP.BIN 97.16%
+(9 INCLUDE_ASM; 69 files in src/menu). This is the stopping point the user named for the
+decomp phase ("whole game linked other than the sdks"); the cleanup below was the planned
+next step.
+Running: 9 cleanup agents (brief docs/briefs_cleanup.md; tags A..I; file lists in the launch
+prompts: A eft_a..e, B eft_g..j, C eft_n..s, D eft_t_b..y, E eft_z..ab_c, F eft_ad_b..ae +
+stage + misc, G src/sys graphics, H fighter / AI / HUD / menu support / late_a, I overlay).
+They edit LINKED files and report data-pool changes. When each reports: re-diff its files,
+apply the yaml changes it lists (.lit4 / .rodata moves), then `.venv/bin/python configure.py`
++ ninja gate; the gate is only conclusive when no agent is mid-edit, so commit after all (or
+after isolating one agent's files). Not yet done / user has not answered: setting up
+decomp-permuter for the register-only near-misses.
