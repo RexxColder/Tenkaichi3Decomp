@@ -2044,3 +2044,68 @@ void Ref_Vu0Cur_MulVec3(RefVec4 *out, RefVec4 *v) {
     op_vmaddbc(M_XYZ, 4, 19, 4, W);        /* 120FF8  vmaddw.xyz vf4, vf19, vf4w */
     op_sqc2(4, out);                       /* 121000  sqc2 vf4, 0x0(a0) */
 }
+
+/* ================================================================================================================
+ * 0x240C68..0x240DB8: StgVu_RotateZ / RotateX / RotateY (hand-written VU0 macro code inside the stage module)
+ * ============================================================================================================== */
+
+/* Each multiplies the four rows of the CURRENT matrix (vf16..vf19) by a rotation about one axis, in place:
+ *   (s, c) = Vu0_SinCos(angle), in vf12.x / vf12.y; vf8 and vf9 are the two rotated axes, the third is the unit
+ *   register (vf1 = z, vf3 = x, vf2 = y); row' = ((P * row.x + Q * row.y) + R * row.z) + vf0 * row.w.
+ *   Z: P = vf8 = (c, -s, 0, 0), Q = vf9 = (s, c, 0, 0), R = vf1
+ *   X: P = vf3, Q = vf8 = (0, c, -s, 0), R = vf9 = (0, s, c, 0)
+ *   Y: P = vf8 = (c, 0, -s, 0), Q = vf2, R = vf9 = (s, 0, c, 0)
+ * Transcribed instruction by instruction from asm/cod/140C68.s (the loop is the same four instructions per row). */
+void Ref_StgVu_RotateZ(float angle) {
+    int r;
+
+    Ref_Vu0_SinCos(angle);
+    op_vsub(M_ZW, 8, 0, 0);
+    op_vaddbc(M_X, 8, 0, 12, Y);
+    op_vsubbc(M_Y, 8, 0, 12, X);
+    op_vsub(M_ZW, 9, 0, 0);
+    op_vaddbc(M_X, 9, 0, 12, X);
+    op_vaddbc(M_Y, 9, 0, 12, Y);
+    for (r = 16; r < 20; r++) {
+        op_vmulabc(M_XYZW, 8, r, X);
+        op_vmaddabc(M_XYZW, 9, r, Y);
+        op_vmaddabc(M_XYZW, 1, r, Z);
+        op_vmaddbc(M_XYZW, r, 0, r, W);
+    }
+}
+
+void Ref_StgVu_RotateX(float angle) {
+    int r;
+
+    Ref_Vu0_SinCos(angle);
+    op_vsub(M_XW, 8, 0, 0);
+    op_vaddbc(M_Y, 8, 0, 12, Y);
+    op_vsubbc(M_Z, 8, 0, 12, X);
+    op_vsub(M_XW, 9, 0, 0);
+    op_vaddbc(M_Y, 9, 0, 12, X);
+    op_vaddbc(M_Z, 9, 0, 12, Y);
+    for (r = 16; r < 20; r++) {
+        op_vmulabc(M_XYZW, 3, r, X);
+        op_vmaddabc(M_XYZW, 8, r, Y);
+        op_vmaddabc(M_XYZW, 9, r, Z);
+        op_vmaddbc(M_XYZW, r, 0, r, W);
+    }
+}
+
+void Ref_StgVu_RotateY(float angle) {
+    int r;
+
+    Ref_Vu0_SinCos(angle);
+    op_vsub(M_YW, 8, 0, 0);
+    op_vaddbc(M_X, 8, 0, 12, Y);
+    op_vsubbc(M_Z, 8, 0, 12, X);
+    op_vsub(M_YW, 9, 0, 0);
+    op_vaddbc(M_X, 9, 0, 12, X);
+    op_vaddbc(M_Z, 9, 0, 12, Y);
+    for (r = 16; r < 20; r++) {
+        op_vmulabc(M_XYZW, 8, r, X);
+        op_vmaddabc(M_XYZW, 2, r, Y);
+        op_vmaddabc(M_XYZW, 9, r, Z);
+        op_vmaddbc(M_XYZW, r, 0, r, W);
+    }
+}
