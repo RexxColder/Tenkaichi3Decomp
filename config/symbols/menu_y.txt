@@ -46,14 +46,3 @@ Option_ResetScissor = 0x003A6518; // type:func // guess
 Option_OnSaved = 0x003A6540; // type:func // guess
 Option_Term = 0x003A6560; // type:func // guess
 // Read-only objects of menu_x_c.c shared between Option_Draw (INCLUDE_ASM) and the C functions.
-sOptOnStart = 0x003BC370; // size:0xC force_not_migration:True
-sOptClipMenuPlate = 0x003BC540; // size:0x11 force_migration:True
-sOptClipMenuTextOff = 0x003BC558; // size:0x11 force_migration:True
-sOptClipMenuTextOn = 0x003BC570; // size:0x10 force_migration:True
-sOptClipBottomPlate = 0x003BC580; // size:0x13 force_migration:True
-sOptClipBottomTextOff = 0x003BC598; // size:0x13 force_migration:True
-sOptClipBottomTextOn = 0x003BC5B0; // size:0x12 force_migration:True
-sOptClipSelectPlate = 0x003BC660; // size:0x13 force_migration:True
-sOptClipVolPlateBgm = 0x003BC6A8; // size:0x14 force_migration:True
-sOptClipVolPlateSe = 0x003BC6E0; // size:0x13 force_migration:True
-sOptClipBgmPlate = 0x003BC728; // size:0x10 force_migration:True

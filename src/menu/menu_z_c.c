@@ -16,14 +16,6 @@ static inline void DcMenu_SetUv(MFlash *flash, char *parent, char *name, MFlashU
     Flash_ClipSetUv(flash, &ref, uv);
 }
 
-/* Texture rectangle from a corner and a size. */
-static inline void DcMenu_SetRect(MFlashUv *uv, s32 x, s32 y, s32 w, s32 h) {
-    uv->x0 = x;
-    uv->x1 = x + w;
-    uv->y0 = y;
-    uv->y1 = y + h;
-}
-
 /* Starts a line of the guide and shows its subtitle. */
 static inline void DcMenu_Say(DcMenu *menu, s32 line) {
     Voice_PlayWithSubtitle(menu->subtitles, DC_VOICE_BASE, line);
@@ -75,16 +67,7 @@ void DcMenu_AnimBg(DcMenu *menu) {
 }
 
 /* Cuts the three plates' captions from their sheet (rows 0, 2, 1). */
-/*
- * NOT MATCHING: 6 of 81 instructions: three of the six constants the loop pass moved out of the loop are in
- * other saved registers (original s5 = 0x20, s6 = 2, s7 = 0x60; attempt s5 = 2, s6 = 0x60, s7 = 0x20). The
- * code is otherwise identical.
- */
-/* A named object because DcMenu_DrawPlates (INCLUDE_ASM) uses it too; it sits where that function's first
-   literal was. In the attempt it is the literal "mc_menu_plate_%d". */
-static const char sDcMenuPlateClip[] __attribute__((aligned(8))) = "mc_menu_plate_%d";
-
-#if 0
+/* (Written out: with DcMenu_SetRect the constants come out in other saved registers.) */
 void DcMenu_DrawPlates(MFlash *flash) {
     MFlashUv uv;
     char name[0x100];
@@ -92,23 +75,26 @@ void DcMenu_DrawPlates(MFlash *flash) {
 
     for (i = 0; i < DCMENU_PLATES; i++) {
         if (i == 1) {
-            DcMenu_SetRect(&uv, 0, 0x40, 0x200, 0x20);
+            uv.x0 = 0;
+            uv.x1 = 0x200;
+            uv.y0 = 0x40;
+            uv.y1 = 0x60;
         } else if (i == 2) {
-            DcMenu_SetRect(&uv, 0, 0x20, 0x200, 0x20);
+            uv.x0 = 0;
+            uv.x1 = 0x200;
+            uv.y0 = 0x20;
+            uv.y1 = 0x40;
         } else {
-            DcMenu_SetRect(&uv, 0, i << 5, 0x200, 0x20);
+            uv.x0 = 0;
+            uv.x1 = 0x200;
+            uv.y0 = i << 5;
+            uv.y1 = (i << 5) + 0x20;
         }
         sprintf(name, "mc_menu_plate_%d", i + 1);
         DcMenu_SetUv(flash, name, "mc_menu_text_on", &uv);
         DcMenu_SetUv(flash, name, "mc_menu_text_off", &uv);
     }
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/menu/menu_z_c", DcMenu_DrawPlates);
-/* The compiler's last own output was sDcMenuPlateClip, so it believes it is still in .rodata, while the
-   INCLUDE_ASM ends in .text: put the assembler back where the compiler thinks it is. */
-__asm__(".section .rodata");
-#endif
 
 /* (Defined here, behind DcMenu_DrawPlates: its two literals follow that function's in the object.) */
 /* Lights or dims a clip found by name. */
@@ -130,7 +116,7 @@ static inline void DcMenu_FlashPlate(DcMenu *menu) {
     char name[0x100];
     MFlash *flash;
 
-    sprintf(name, sDcMenuPlateClip, menu->cursor + 1);
+    sprintf(name, "mc_menu_plate_%d", menu->cursor + 1);
     flash = &menu->view.flash;
     Flash_FindLabel(flash, NULL, name, &ref);
     Flash_ClipGotoLabel(flash, &ref, "fl_ok");
@@ -143,7 +129,7 @@ void DcMenu_LightPlate(DcMenu *menu, s32 on) {
     MFlash *flash = &menu->view.flash;
 
     menu->cursor = DcMenu_Wrap(menu->cursor, 0, DCMENU_PLATES - 1);
-    sprintf(name, sDcMenuPlateClip, menu->cursor + 1);
+    sprintf(name, "mc_menu_plate_%d", menu->cursor + 1);
     DcMenu_LightClip(flash, name, on);
 }
 

@@ -104,6 +104,15 @@ void SimPopo_CursorOff(USimDay *day) {
  * were tried (build/scratch_menu_u/perm3.py .. perm6.py). Everything else, including the jump table and the
  * strings, is identical with every relocation applied (build/scratch_menu_u/linkcheck.py). The attempt is
  * behaviourally exact. Verified by enabling it; fdiff then reports the 15 instructions.
+ *
+ * Cleanup notes (build/scratch_cleanup2_I/ev*.py, rtl/ud.*): the high halves of the five addresses are not
+ * local to case 6. The global CSE pass makes `%hi(gSimPopoTarget)` one register for the whole function and
+ * copies it into every case that reaches the code behind the switch, so the place of that `lui` in case 6
+ * follows from the whole function, and a change in case 6 moves registers in case 16 (0x392450). With the
+ * result in a temporary and the order Count, Speed, Won, Target the three other `lui` come out as in the
+ * original (a2 / a3 / a1, in that order) but the store of the target then follows the two zero stores (10
+ * instructions, two of them in case 16); chained zero stores and a pointer to the table row change nothing.
+ * The original has the target's `lui` last and its store first.
  */
 #if 0
 s32 SimEv34(USimDay *day) {

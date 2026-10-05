@@ -14,14 +14,6 @@
  * custom characters, 56 the replay menu. Returns 1 to leave the overlay (a replay was chosen: the battle starts),
  * 0 to go on with the mode it has set.
  */
-/*
- * NOT MATCHING: 19 of 135 instructions, all from one thing: the original keeps the constant 1 that `next` is
- * compared with (mode 56) in a saved register loaded before the loop (li s5,1 after li s2,53), the attempt loads
- * it in place (so it saves one register less and its frame is 16 bytes smaller). The loop pass only moves such a
- * constant out when it has two uses in the loop, so the original source compared with 1 twice in a way that
- * was not found. Control flow, calls and stores are identical.
- */
-#if 0
 s32 Dc_Main(void) {
     s32 ret = 1;
     s32 done;
@@ -64,8 +56,12 @@ s32 Dc_Main(void) {
             Bgm_Play(DC_BGM);
             next = ReplayMenu_Run(4);
             if (next != 0) {
+                /* The constant lives in a variable set BEFORE the call: only then is its lifetime long enough
+                   for the loop pass to move the load out of the loop (li s5,1 in front of the loop). */
+                s32 start = 1;
+
                 Adx_StopAll();
-                if (next == 1) {
+                if (next == start) {
                     ret = 1;
                 } else {
                     ret = 0;
@@ -87,6 +83,3 @@ s32 Dc_Main(void) {
     ZPROG->dcVisits++;
     return ret;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/menu/menu_z_b", Dc_Main);
-#endif

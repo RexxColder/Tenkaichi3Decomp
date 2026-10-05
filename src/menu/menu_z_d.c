@@ -94,6 +94,19 @@ char DcPass_GetKey(DcKeyPos *pos) {
  * NOT MATCHING: the three wraps compile to the same conditional-move sequence here; the original has that
  * sequence for the row only and another (the one DcPass_Wrap3 has as a function of its own) for page and
  * column. Same results for every input.
+ *
+ * What the difference is (cleanup, build/scratch_cleanup2_I/t/): one source form gives BOTH original sequences;
+ * which one comes out depends on whether the first scheduling pass moved `slt` above the `bltz` (speculative
+ * motion between blocks). Here it does (`li v0,hi / li a1,hi / bltz / slt` for all three); in the original it did
+ * not, so the constant's register is free for the result, the result shares v0 with the compare, and reload
+ * then picks the other conditional-move alternative (`movn v1,zero,v0 / move v0,v1`) wherever the result is in
+ * v0 (page, column) and keeps `move a1,zero / movz a1,v1,v0` where v0 is still busy with the previous result
+ * (row). The scheduler only moves instructions between blocks while the function is one "region" of at most 10
+ * basic blocks: five wraps in one function (11 blocks) reproduce the original's page sequence exactly, three
+ * (7 blocks) do not. So the original function had more than 10 basic blocks when it was scheduled, i.e. source
+ * that is not visible in the code any more; what it was is not found (nested inlines, scopes, `do { } while
+ * (0)`, a third and fourth dead wrap were tried). The order `lw / li / sw` of the row (the store of the page
+ * after the row's constant) is not reproduced either.
  */
 #if 0
 void DcPass_WrapPos(DcKeyPos *pos) {
@@ -439,10 +452,16 @@ static inline s32 DcPass_IsListed(DcPass *pass, s32 chara) {
  * (the character must be unlocked) fills the status page's record and returns 1.
  */
 /*
- * NOT MATCHING: 20 of 118 instructions, block layout only: the original returns after a failed
- * DcPassText_Pack with an unconditional branch (the attempt folds it into the conditional one), and puts the
- * "found" exit of the grid search behind the 34-character validation instead of in front of it; two stores are
- * also scheduled the other way round. Calls, arguments and stores are the same.
+ * NOT MATCHING: 5 of 118 instructions (was 20), all at the first test: the original keeps the `return 0` of a
+ * failed DcPassText_Pack in place behind the test (`beql v0,zero,+ / lw / b end / move v0,zero`), the attempt
+ * branches to the end (`bnezl v0,end / move v0,zero`). Calls, arguments and stores are the same.
+ * Found in the cleanup: the 34-character branch is `if (decode == 1) { if (!valid) return 0; } else return 0;`
+ * (the `else return 0` block is where the loop pass puts the "found" exit of the inlined grid search), and the
+ * record's character is stored before the status page's (the two stores are emitted the other way round).
+ * The remaining difference: in the attempt the second jump pass merges the Pack test's `v0 = 0; goto end` block
+ * into the identical block of the `else return 0` above (cross-jumping), which turns the test into a branch to
+ * it; in the original that block survived at the Pack test and the other failures branch to it. A label and
+ * `goto` reproduce that layout but disturb the rest (20 differences), so the original's form is still unknown.
  */
 #if 0
 s32 DcPass_Decode(DcPass *pass) {
@@ -453,44 +472,45 @@ s32 DcPass_Decode(DcPass *pass) {
     s32 i;
 
     memset(&data, 0, sizeof(ChrPassData));
-    if (DcPassText_Pack(&pass->text) == 0) {
-        if (pass->text.len == 32) {
-            memset(&old, 0, sizeof(OldPassChar));
-            if (OldPass_DecodeChar(&old, pass->text.pass) != 1) {
-                return 0;
-            }
-            if (!PassChk_IsOldValid(&old)) {
-                return 0;
-            }
-            PassChk_ConvertOld(&data, &old);
-        } else if (pass->text.len == 34) {
-            if (ChrPass_Decode(&data, pass->text.pass) != 1) {
-                return 0;
-            }
+    if (DcPassText_Pack(&pass->text) != 0) {
+        return 0;
+    }
+    if (pass->text.len == 32) {
+        memset(&old, 0, sizeof(OldPassChar));
+        if (OldPass_DecodeChar(&old, pass->text.pass) != 1) {
+            return 0;
+        }
+        if (!PassChk_IsOldValid(&old)) {
+            return 0;
+        }
+        PassChk_ConvertOld(&data, &old);
+    } else if (pass->text.len == 34) {
+        if (ChrPass_Decode(&data, pass->text.pass) == 1) {
             if (!PassChk_IsValid(&data)) {
                 return 0;
             }
         } else {
             return 0;
         }
-        if (!DcPass_IsListed(pass, data.charId)) {
-            return 0;
-        }
-        pass->status.chara = data.charId;
-        pass->status.rec.chara = data.charId;
-        for (i = 0; i < 8; i++) {
-            pass->status.rec.item[i] = data.item[i];
-        }
-        pass->status.rec.level = data.extraSlots;
-        ItemSet_GetBonus(pass->status.rec.item, pass->itemTbl, &pass->status.val[0]);
-        chrTbl = (ZChrEntry *)MPACK_AT(gCommonRes->data[2], 1);
-        attr = chrTbl[pass->status.chara].flags;
-        pass->flags |= DCPASS_FACE_CHANGE;
-        pass->status.attr = (attr ^ 1) & 1;
-        DcPassList_Refresh(&pass->list);
-        return 1;
+    } else {
+        return 0;
     }
-    return 0;
+    if (!DcPass_IsListed(pass, data.charId)) {
+        return 0;
+    }
+    pass->status.rec.chara = data.charId;
+    pass->status.chara = data.charId;
+    for (i = 0; i < 8; i++) {
+        pass->status.rec.item[i] = data.item[i];
+    }
+    pass->status.rec.level = data.extraSlots;
+    ItemSet_GetBonus(pass->status.rec.item, pass->itemTbl, &pass->status.val[0]);
+    chrTbl = (ZChrEntry *)MPACK_AT(gCommonRes->data[2], 1);
+    attr = chrTbl[pass->status.chara].flags;
+    pass->flags |= DCPASS_FACE_CHANGE;
+    pass->status.attr = (attr ^ 1) & 1;
+    DcPassList_Refresh(&pass->list);
+    return 1;
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/menu/menu_z_d", DcPass_Decode);
@@ -567,6 +587,12 @@ static inline void DcPass_SetTex(MFlash *flash, char *parent, char *name, s32 te
  * NOT MATCHING: 27 of 233 instructions: the attempt keeps the constant 0x80 of the row rectangle in a saved
  * register from the end of the loop to the rectangle after it, the original loads it again each time (and so
  * has one saved register free: registers shift in that part). Calls, arguments and stores are the same.
+ *
+ * Cleanup notes: the sharing is done by the second CSE pass, which (unlike the first) follows the fall-through
+ * out of the loop, so the rectangle after the loop reuses the loop's register for 0x80; the original's two
+ * loads mean that pass did not see the two as one path. The same shows in the movie pointer: the original
+ * uses the function-level `view + 0x2C` (s6) in the loop's last two calls, the attempt the loop's hoisted copy
+ * (s2). An inline helper for the caption (own `uv`) is worse (50..87 differences).
  */
 #if 0
 void DcPass_DrawStatus(DcPassView *view, ZStatus *status) {
@@ -751,16 +777,22 @@ s32 DcPass_ClampTop(DcPassList *list) {
 
 /*
  * Fills the four plates of the slot list: the name and form of the character saved there, or a dimmed plate.
- * INCLUDE_ASM: the attempt below is the same code with the saved registers assigned differently (47 of 161
- * instructions: the original keeps the movie in s1, the character in s2, the name buffer in s4, list in s5 and
- * view in s6; this gives s2, s1, s6, s4, s5). Verified with the attempt enabled: every other function of the
- * file matches either way.
+ * INCLUDE_ASM: the attempt below is the same code with three saved registers rotated (20 of 161 instructions,
+ * was 47): the original has the name buffer's address in s4, list in s5 and view in s6; this gives s6, s4, s5.
+ * Found in the cleanup: the movie is `&view->flash[1]` written at every use, not a local (that puts the movie in
+ * s1 and the character in s2 as in the original). The rest is the allocation order of three registers that live
+ * through the whole function: the hoisted `sp + 16` is equivalent to a constant, so its live length counts
+ * double (254 against 128) and with its 14 weighted references it ranks behind list and view (8 each); it needs
+ * 16 to rank first, i.e. one more use inside the loop. A `char *buf = name` used for the four lookups by name
+ * alone reaches that and gives the original's registers, but then the lookup at the end of the first arm uses
+ * the register where the original computes `sp + 16` again (9 differences). What gave the original its extra
+ * reference is not found (duplicated arms, the pointer assigned inside the loop and every mix of `buf` / `name`
+ * were tried: build/scratch_cleanup2_I/dr*.py).
  */
 #if 0
 void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
     MFlashRef ref;
     char name[0x100];
-    MFlash *flash = &view->flash[1];
     s32 i;
     s32 chara;
 
@@ -770,33 +802,33 @@ void DcPass_DrawRows(DcPassView *view, DcPassList *list) {
             chara = list->chara[i + list->top];
             if (i == list->cursor) {
                 if (chara == -1) {
-                    Flash_FindLabel(flash, NULL, name, &ref);
-                    Flash_ClipSetAlpha(flash, &ref, 1.0f);
+                    Flash_FindLabel(&view->flash[1], NULL, name, &ref);
+                    Flash_ClipSetAlpha(&view->flash[1], &ref, 1.0f);
                     continue;
                 }
             } else if (chara == -1) {
                 goto empty;
             }
-            Flash_FindLabel(flash, name, "mc_menu_text1_on", &ref);
-            TextBox_AttachLine(flash, &ref, 0, 0, chara, &view->nameBox[i]);
-            Flash_FindLabel(flash, name, "mc_menu_text2_on", &ref);
-            TextBox_AttachLine(flash, &ref, 0, 0, chara, &view->formBox[i]);
-            Flash_FindLabel(flash, NULL, name, &ref);
-            Flash_ClipSetAlpha(flash, &ref, 1.0f);
+            Flash_FindLabel(&view->flash[1], name, "mc_menu_text1_on", &ref);
+            TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->nameBox[i]);
+            Flash_FindLabel(&view->flash[1], name, "mc_menu_text2_on", &ref);
+            TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->formBox[i]);
+            Flash_FindLabel(&view->flash[1], NULL, name, &ref);
+            Flash_ClipSetAlpha(&view->flash[1], &ref, 1.0f);
         } else {
             chara = list->chara[list->extra];
             if (chara == -1) {
             empty:
-                Flash_FindLabel(flash, NULL, name, &ref);
-                Flash_ClipSetAlpha(flash, &ref, 0.5f);
+                Flash_FindLabel(&view->flash[1], NULL, name, &ref);
+                Flash_ClipSetAlpha(&view->flash[1], &ref, 0.5f);
                 continue;
             }
-            Flash_FindLabel(flash, name, "mc_menu_text1_on", &ref);
-            TextBox_AttachLine(flash, &ref, 0, 0, chara, &view->nameBoxB);
-            Flash_FindLabel(flash, name, "mc_menu_text2_on", &ref);
-            TextBox_AttachLine(flash, &ref, 0, 0, chara, &view->formBoxB);
-            Flash_FindLabel(flash, NULL, name, &ref);
-            Flash_ClipSetAlpha(flash, &ref, 1.0f);
+            Flash_FindLabel(&view->flash[1], name, "mc_menu_text1_on", &ref);
+            TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->nameBoxB);
+            Flash_FindLabel(&view->flash[1], name, "mc_menu_text2_on", &ref);
+            TextBox_AttachLine(&view->flash[1], &ref, 0, 0, chara, &view->formBoxB);
+            Flash_FindLabel(&view->flash[1], NULL, name, &ref);
+            Flash_ClipSetAlpha(&view->flash[1], &ref, 1.0f);
         }
     }
 }

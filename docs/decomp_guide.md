@@ -514,3 +514,14 @@ Tools
   test to stop gcse's PRE merging two loads; the real source cause is unknown.
 - Global allocation refs are weighted by loop depth; the log2 factor steps at 16 and 32 refs.
   Equal-priority block-local quantities go to the first-born.
+- A constant in a saved register loaded in front of a loop, where a literal stays in place:
+  a variable set to the constant before an intervening call (`s32 start = 1;` ... `if (next
+  == start)`).
+- Two saved registers swapped between two unrelated places: suspect ONE source variable used
+  in both (`baseY` in `Option_Draw`). Check `b` targets in "registers only" notes: a wrong
+  target (a redundant or missing store in one switch case) hides among register lines.
+- Single-use loop constants in the wrong saved registers: ties go to creation order; inline
+  parameters create their registers at the call, so try writing the constants out.
+- The first scheduling pass only moves instructions between blocks in functions of at most
+  10 basic blocks. A hoisted constant-equivalent address (`sp + N`, a string address) has its
+  live length doubled for allocation priority.

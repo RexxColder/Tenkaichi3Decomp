@@ -475,6 +475,17 @@ void Train_SaveCursor(void) {
  * Tried without success: every loop shape (for / while / while (1) / goto), found and i at function or block
  * scope and in either order, i initialised from found, u8 / 64-bit flags, a result passed by pointer, a walking
  * pointer, a hand-inlined test.
+ *
+ * Cleanup notes (RTL dumps, build/scratch_cleanup2_I/rtl/hd.*): up to the second CSE pass the attempt has what
+ * the original must have had, `found = 0; i = 0; n = tbl->skipNum; t = found <u n` (CSE itself writes the
+ * compare with `found`, the older register that holds 0). The fold happens in combine, which merges
+ * `found = 0` into the compare because the compare is the FIRST use of `found` behind it in the same basic
+ * block. The original therefore had either another use of `found` in front of the compare or a block boundary
+ * between the two, and its `move t1,t0` is a real copy `i = found` that the first CSE pass could not turn into
+ * `i = 0`, i.e. `found = 0` was not visible on the path that CSE followed to it. Also tried here: the count
+ * read into a local in front of the two initialisations, `found` as a parameter of a nested inline, `do { }
+ * while (0)` around the initialisation or the loop, `if (found < n)` written out with a do / while: all give
+ * the same 11 (10 for the written-out test).
  */
 #if 0
 /* The lesson records of a class. */
