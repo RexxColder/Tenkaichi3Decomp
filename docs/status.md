@@ -654,3 +654,15 @@ the behaviour sweep is clean; permuter keeps running in the background).
 USER RULES: at most 10 agents; local commits only, no Claude co-author line; gate before
 EVERY commit outside docs/; document findings; the user prefers loose folders over AFS for
 the port; decomp phase ends at "all game code linked, SDK excluded" (reached).
+
+## UPDATE to the handoff note (2026-10-05, about 16:50)
+
+Round 3 is COMMITTED and verified: c0d4955 = main executable 94.48% (55 INCLUDE_ASM), overlay
+99.11% (5), both byte-identical. The uncommitted-work section of the handoff note above no
+longer applies (W1 reported; eft_g / eft_q `.sdata` words placed). All four matching agents of
+round 3 are finished; lessons are in docs/decomp_guide.md. Still running: permuter batch 2
+(apply its exact solutions with one agent when it ends) and the differential behaviour test
+sweep. Remaining follow-ups unchanged: tag older fakes, rebuild docs/open_questions.md, fix
+flagged prototypes (EftGndDust_SpawnPieceEx in eft_z.h; Vu0Cur_ProjectPoint declared void in
+eft_p_b.c: retry `EftGlow_DrawParts` with the right type), then the user's decision
+(more matching vs tag + port repo).
