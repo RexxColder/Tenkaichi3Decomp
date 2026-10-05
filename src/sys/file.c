@@ -53,7 +53,9 @@ s32 File_Stub264A50(void) {
 s32 Vsync_Handler(s32 cause) {
     gVsyncCount++;
     ADXPS2_ExecVint(0);
+#ifndef PORT
     __asm__ volatile("sync.l\nei");
+#endif
     return 0;
 }
 
