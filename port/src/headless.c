@@ -135,6 +135,14 @@ void Port_Trace(unsigned vblanks) {
             exit(0);
         }
     }
+    if (sBattles != 0 && gBtlSeq != NULL && getenv("BT3_TRACE_SEQ") != NULL) { /* when the battle sequence changes state */
+        static int last = -1;
+        if (gBtlSeq->state != last) {
+            printf("seq: state %d begins at vertical blank %u\n", gBtlSeq->state, vblanks);
+            fflush(stdout);
+            last = gBtlSeq->state;
+        }
+    }
     if (every <= 0 || vblanks % (unsigned)every != 0 || sBattles == 0 || gBtlSeq == NULL || gBtlSeq->state < 2) {
         return;
     }
@@ -142,6 +150,18 @@ void Port_Trace(unsigned vblanks) {
     for (i = 0; i < 2; i++) {
         BtlCharApi_GetPos(i, p[i]);
         memcpy(u[i], p[i], 12);
+    }
+    {   /* the pad fighter's camera: eye position (fighter block + 0x420) against the ground height under the fighter */
+        extern float BtlCharApi_GetGroundY(int objId);
+        extern void *BtlChar_FindByObjId(int objId);
+        float *chr = BtlChar_FindByObjId(0);
+        if (chr != NULL && getenv("BT3_TRACE_CAM") != NULL) {
+            float *eye = (float *)((char *)chr + 0x420), g = BtlCharApi_GetGroundY(0);
+            unsigned ue[3], ug;
+            memcpy(ue, eye, 12);
+            memcpy(&ug, &g, 4);
+            printf("cam tick %u eye %08x %08x %08x ground %08x\n", (unsigned)clock[0], ue[0], ue[1], ue[2], ug);
+        }
     }
     printf("vb %7u seq %d clock %08x %08x %08x %08x | hp %6d %6d | p0 %08x %08x %08x | p1 %08x %08x %08x\n", vblanks,
            gBtlSeq->state, clock[0], clock[1], clock[2], clock[3], BtlCharApi_GetHp(0), BtlCharApi_GetHp(1),
