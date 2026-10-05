@@ -6,7 +6,7 @@ import portsrc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OBJ = ROOT / "port/build/obj"
-CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msse2", "-mfpmath=sse", "-malign-double",
+CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O1", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msoft-float", "-mno-sse", "-mno-mmx", "-malign-double", "-include", "port_libm.h",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
@@ -32,8 +32,10 @@ def main():
     for f in [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"] + sorted((ROOT / "port/src").glob("*.c")):
         o = OBJ / ("pc_" + f.stem + ".o")
         names = ["-include", "vu0_names.h"] if f.parent.name == "port" and f.parent.parent.name == "src" else []
-        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O1", "-g", "-malign-double", "-fno-strict-aliasing", "-ffp-contract=off", "-w",
-                            "-Iinclude", "-Iport/include", "-Iport/src"] + names + [str(f), "-o", str(o)],
+        soft = [] if f.name == "plat_libm.c" else ["-msoft-float", "-mno-sse", "-mno-mmx", "-include", "math.h", "-include", "port_libm.h"]
+        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O1", "-g", "-malign-double", "-fno-strict-aliasing",
+                            "-ffp-contract=off", "-fno-builtin", "-w", "-Iinclude", "-Iport/include", "-Iport/src"] +
+                           soft + names + [str(f), "-o", str(o)],
                            cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
             print("FAILED", f.name, r.stderr.splitlines()[0][:150])
