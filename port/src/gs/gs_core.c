@@ -387,21 +387,24 @@ static void draw_triangle(Target *sf, int ctx, const Vertex *a, const Vertex *b,
     if (maxx > SURF_W - 1) { maxx = SURF_W - 1; } if (maxy > SURF_H - 1) { maxy = SURF_H - 1; }
     for (y = (int)miny; y <= (int)maxy; y++) {
         for (x = (int)minx; x <= (int)maxx; x++) {
-            float w0 = edge(b, c, (float)x, (float)y) / area, w1 = edge(c, a, (float)x, (float)y) / area, w2 = 1.0f - w0 - w1;
+            /* weights in double precision and results rounded, not truncated: with float weights that sum to just
+               under 1 a flat triangle's depth came out one unit low on some pixels, and the fighters' black outline
+               hull (drawn at almost the same depth as the body) showed through as speckles */
+            double w0 = (double)edge(b, c, (float)x, (float)y) / (double)area, w1 = (double)edge(c, a, (float)x, (float)y) / (double)area, w2 = 1.0 - w0 - w1;
             uint32_t col;
 
-            if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) {
+            if (w0 < 0.0 || w1 < 0.0 || w2 < -1e-9) {
                 continue;
             }
             if (gouraud) {
-                col = (uint32_t)(a->r * w0 + b->r * w1 + c->r * w2) | (uint32_t)(a->g * w0 + b->g * w1 + c->g * w2) << 8 |
-                      (uint32_t)(a->b * w0 + b->b * w1 + c->b * w2) << 16 | (uint32_t)(a->a * w0 + b->a * w1 + c->a * w2) << 24;
+                col = (uint32_t)(a->r * w0 + b->r * w1 + c->r * w2 + 0.5) | (uint32_t)(a->g * w0 + b->g * w1 + c->g * w2 + 0.5) << 8 |
+                      (uint32_t)(a->b * w0 + b->b * w1 + c->b * w2 + 0.5) << 16 | (uint32_t)(a->a * w0 + b->a * w1 + c->a * w2 + 0.5) << 24;
             } else {
                 col = vcol(c);
             }
-            pixel(sf, ctx, x, y, (uint32_t)((double)a->z * w0 + (double)b->z * w1 + (double)c->z * w2),
-                  shade(ctx, col, a->s * w0 + b->s * w1 + c->s * w2, a->t * w0 + b->t * w1 + c->t * w2,
-                        a->q * w0 + b->q * w1 + c->q * w2, (int)(a->u * w0 + b->u * w1 + c->u * w2),
+            pixel(sf, ctx, x, y, (uint32_t)((double)a->z * w0 + (double)b->z * w1 + (double)c->z * w2 + 0.5),
+                  shade(ctx, col, (float)(a->s * w0 + b->s * w1 + c->s * w2), (float)(a->t * w0 + b->t * w1 + c->t * w2),
+                        (float)(a->q * w0 + b->q * w1 + c->q * w2), (int)(a->u * w0 + b->u * w1 + c->u * w2),
                         (int)(a->v * w0 + b->v * w1 + c->v * w2)));
         }
     }
@@ -863,6 +866,14 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
         fprintf(stderr, "gs: frame %u: %u DMA tags, %u VIF codes, %u DIRECT qwords, %u GIF tags, %u register writes, %u vertices, "
                         "%u image qwords, %d targets\n", sFrame, sStat[0], sStat[1], sStat[2], sStat[3], sStat[4], sStat[5],
                 sStat[6], sTargetCount);
+    }
+    if (sDumpFrame == (int)sFrame) {
+        static const int pt[5][2] = {{360, 330}, {362, 331}, {100, 100}, {400, 250}, {364, 300}};
+        int k;
+        for (k = 0; k < 5; k++) {
+            fprintf(stderr, "  end of frame at (%d,%d): frame %08x, depth memory %08x\n", pt[k][0], pt[k][1],
+                    vram_rw(0, 8, 0, (uint32_t)pt[k][0], (uint32_t)pt[k][1], 0, 0), vram_rw(0x1C00, 8, 0x30, (uint32_t)pt[k][0], (uint32_t)pt[k][1], 0, 0));
+        }
     }
     if (sDumpFrame == (int)sFrame) {
         fprintf(stderr, "  pixels: %u outside scissor, %u failed alpha test, %u failed depth test, %u written\n", sPix[0], sPix[1], sPix[2], sPix[3]);

@@ -409,8 +409,20 @@ the game uses the GS, all needed for a correct picture:
   stack addresses: `DMA_PHYS` in the decompilation keeps the pointer on PC. The GIF channel
   (`Dma_SendGif`, used for uploads outside the frame list) is routed to the front end too.
 
-Still wrong in the reference: the pad fighter's shadow appears as a black shape near the
-horizon, and a fine dark hatch pattern lies over the near fighter. Not examined.
+Two artefacts fixed afterwards (reference_full_scene.png shows the result):
+- SHADOW drawn as a black shape near the horizon: the game switches PRMODECONT to 0 for its
+  shadow passes, so the primitive attributes come from PRMODE (0x48: Gouraud, blended,
+  untextured) and PRIM only gives the type. With that honoured, the fighter is first drawn
+  from above into the 256 x 256 work buffer (fbp 0x150, VU1 program of 101 instructions) and
+  the shadow then lies on the ground under it.
+- DARK SPECKLES over the fighters: the black outline hull is drawn at almost the same depth
+  as the body. The rasteriser's float weights summed to just under 1, so a flat triangle's
+  depth came out one unit low on some pixels and the hull won. Weights are now double
+  precision and depth / colour are rounded.
+- The last pass of the frame draws the depth-buffer memory (cleared to 0 by then) as a
+  24-bit texture over the picture with alpha 0x19: a uniform darkening (the intro's fade).
+`BT3_GS_STOP=<n>` (with BT3_GS_FROM / BT3_GS_DUMP on the same frame) draws only the first n
+primitives of that frame: the way these were located.
 
 The GPU back end does not have depth-in-memory, depth as a texture, or FBMSK yet, so its
 picture is behind the reference's (stripes, black stage). The post-processing chain reads
