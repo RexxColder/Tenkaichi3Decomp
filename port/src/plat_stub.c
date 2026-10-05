@@ -113,7 +113,13 @@ int sceVibSetActParam() { return 0; }
 int gPortWide = -1;
 int Port_IsWide(void) {
     if (gPortWide < 0) {
-        gPortWide = getenv("BT3_WIDE") != NULL && atoi(getenv("BT3_WIDE")) != 0;
+        if (getenv("BT3_WIDE") != NULL) {
+            gPortWide = atoi(getenv("BT3_WIDE")) != 0;
+        } else {
+            /* not said: a window size wider than 3:2 (BT3_WINDOW=1920x1080) asks for widescreen by itself */
+            int w = 0, h = 0;
+            gPortWide = getenv("BT3_WINDOW") != NULL && sscanf(getenv("BT3_WINDOW"), "%dx%d", &w, &h) == 2 && h > 0 && w * 2 > h * 3;
+        }
     }
     return gPortWide;
 }
