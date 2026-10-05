@@ -53,7 +53,7 @@
    returns nothing. A non-zero pressed always overrides the result. So with delay D and interval I a button
    reports on frame 0, then on frame D+1, then every I+1 frames. Pad_Init sets D = 20, I = 1; the same
    delay/interval pair also drives the raw Pad.repeat word. Pad_SetRepeat changes it for both ports
-   (callers: Shen_Main in the main executable, with (20, 1) and later (40, 3); func_00336A90 in the
+   (callers: Shen_Main in the main executable, with (20, 1) and later (40, 3); Progress_Main in the
    menu overlay, twice).
 
    == Who reads it ==

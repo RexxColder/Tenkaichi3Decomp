@@ -3,6 +3,9 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+/* The screen's work (overlay .data, 0x3B0E80). */
+MainMenu *gMainMenu = NULL;
+
 /*
  * MainMenu: the main menu of the game (progress mode 4), 0x334C00..0x336A90. First object of the menu
  * overlay DBZP.BIN. A ring of up to 11 items, six plates visible, the cursor on rows 0..3; four guide

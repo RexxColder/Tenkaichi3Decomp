@@ -2,6 +2,9 @@
 #include "menu/menu_s.h"
 #include "sys/pad.h"
 
+/* The screen's work area (.data, 0x3B7440). */
+SurvResult *gSurvResult = NULL;
+
 /*
  * SurvResult, 0x38A308..0x38C360: the result screen of a survival run (mode 19 of Ub_Main), a whole object.
  * Work pointer gSurvResult (0x3B7440); read-only data 0x3BA300..0x3BA738 (strings and the three jump tables

@@ -34,10 +34,7 @@ def c_text(map_path):
 def included_asm_bytes(obj):
     """Bytes of functions a C file still includes from asm/**/nonmatchings/."""
     rel = Path(obj).relative_to("build/src").with_suffix("")
-    if rel.parts[0] == "dbzp":
-        folder = ROOT / "asm" / "dbzp" / "nonmatchings" / Path(*rel.parts[1:])
-    else:
-        folder = ROOT / "asm" / "nonmatchings" / rel
+    folder = ROOT / "asm" / "nonmatchings" / rel  # both binaries (the overlay's files are under menu/)
     src = (ROOT / "src" / rel).with_suffix(".c").read_text()
     total = 0
     for name in re.findall(r"^INCLUDE_ASM\([^,]+,\s*(\w+)\);", src, re.M):
@@ -47,16 +44,24 @@ def included_asm_bytes(obj):
 
 
 def function_counts(name, ranges):
-    """(named, total) game functions, from the split assembly and the C sources."""
-    asm_dir = ROOT / "asm" / ("dbzp" if name == "DBZP" else "cod")
+    """(named, total, included) game functions still in assembly: those in the assembly subsegments the yaml
+    lists now (older split files stay on disk and are ignored) plus the INCLUDE_ASM lines of the linked C files."""
+    yaml = (ROOT / "config" / f"{name}.yaml").read_text()
+    asm_dir = ROOT / "asm" / "dbzp" if name == "DBZP" else ROOT / "asm"
     labels = []
-    for path in asm_dir.rglob("*.s") if name == "DBZP" else (ROOT / "asm").rglob("*.s"):
-        if name != "DBZP" and "dbzp" in path.parts:
+    for sub in re.findall(r"\[0x[0-9A-Fa-f]+, asm, \"?([\w/]+)\"?\]", yaml):
+        path = asm_dir / f"{sub}.s"
+        if not path.exists():
             continue
         for m in re.finditer(r"^glabel (\w+)\n\s+/\* [0-9A-F]+ ([0-9A-F]{8})", path.read_text(), re.M):
             labels.append((m.group(1), int(m.group(2), 16)))
     game = {n for n, a in labels if in_ranges(a, ranges)}
-    return sum(1 for n in game if not n.startswith("func_")), len(game)
+    included = 0
+    for sub in re.findall(r"\[0x[0-9A-Fa-f]+, c, ([\w/]+)\]", yaml):
+        src = ROOT / "src" / f"{sub}.c"
+        if src.exists():
+            included += len(re.findall(r"^INCLUDE_ASM\(", src.read_text(), re.M))
+    return sum(1 for n in game if not n.startswith("func_")), len(game), included
 
 
 def main():
@@ -70,9 +75,10 @@ def main():
         for addr, size, obj in c_text(map_path):
             if in_ranges(addr, ranges):
                 done += size - included_asm_bytes(obj)
-        named, count = function_counts(name, ranges)
+        named, count, included = function_counts(name, ranges)
         print(f"{name}: {done:#x} / {total:#x} bytes of game code in C ({100 * done / total:.2f}%)")
-        print(f"    functions still in assembly: {count} ({named} of them named)")
+        print(f"    functions still in assembly: {count} in assembly files ({named} of them named), "
+              f"{included} INCLUDE_ASM in linked C files")
 
 
 if __name__ == "__main__":

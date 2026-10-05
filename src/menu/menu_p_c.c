@@ -2,6 +2,9 @@
 #include "menu/menu_p.h"
 #include "sys/pad.h"
 
+/* The screen's work area (.data, 0x3B7380). */
+UbMenu *gUbMenu = NULL;
+
 /*
  * UbMenu, 0x37DC38..0x37EE18: the menu of mode 13, the first screen of main-menu item 1. Four plates
  * ("mc_menu_plate_%d") and two guides who comment on the plate under the cursor (Androids 17 and 18 by the clip

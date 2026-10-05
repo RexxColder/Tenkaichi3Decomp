@@ -10,6 +10,8 @@
  * 0x3B7E50.
  */
 
+UbRank *gUbRank = NULL; /* 0x3B7354 */
+
 /*
  * As in menu_n_b.c, this file saw Snd_PlaySe as a function returning a value (UbRank_Input's cancel branch keeps
  * $v0 reserved behind the call).

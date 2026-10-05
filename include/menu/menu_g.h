@@ -9,7 +9,7 @@
  *   menu_g.c    0x351C38..0x352CB8  ItemPanel  the equipped-item ("custom") panel of one side of a character
  *                                              select; tail of the object that starts before this chunk
  *   menu_g_b.c  0x352CB8..0x352EC0  Duel_Main  handler of progress modes 38..41 (main-menu item 3)
- *   menu_g_c.c  0x352EC0..0x356090  DuelMenu   the screen of mode 38 (its DuelMenu_Run is 0x356090, next chunk)
+ *   menu_g_c.c  0x352EC0..0x3562B8  DuelMenu   the screen of mode 38 (with DuelMenu_Run, 0x356090, merged in from menu_h.c)
  */
 
 /* ---- main executable ---- */
@@ -147,7 +147,7 @@ typedef struct DuelMenu {
 #define DUELMENU_CHOSEN 1
 #define DUELMENU_LEAVING 2
 #define DUELMENU_STARTED 4      /* the cursor plate was lit once */
-#define DUELMENU_GREETED 8      /* set by DuelMenu_Run (next chunk): the greeting was started */
+#define DUELMENU_GREETED 8      /* set by DuelMenu_Run: the greeting was started */
 #define DUELMENU_NO_PAD2 0x10   /* no controller in port 2: "1P vs 2P" is greyed out */
 
 #define DUEL_LEVEL_TOP 0
@@ -171,5 +171,6 @@ void DuelMenu_Update(void);
 void DuelMenu_Input(s32 *result);
 void DuelMenu_UpdateStart(void);
 void DuelMenu_UpdateReset(void);
+s32 DuelMenu_Run(s32 section);
 
 #endif

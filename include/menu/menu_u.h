@@ -8,6 +8,7 @@
 #undef Snd_PlaySe
 #undef Rand_Range
 #include "sys/pad.h"
+#include "sys/common.h"
 extern s32 Snd_PlaySe(u32 mask, s32 id);
 /* menu_a.h has u32 Rand_Range(u32); the shell game (menu_u_d.c) only matches with a signed result. */
 extern s32 Rand_Range(s32 n);
@@ -109,8 +110,11 @@ extern void Sprite_SetScissor(s32 x0, s32 x1, s32 y0, s32 y1);
 extern s32 ChrTbl_GetMaxExp(s32 chara);
 extern void ItemHelp_Term(void);
 extern void ItemHelp_Draw(s32 item);
-extern void func_003AE760(void);   /* next chunks: term of a module this screen shares */
-extern void func_003AE840(void);   /* ... and its draw */
+extern void PassWin_Term(void);   /* next chunks: term of a module this screen shares */
+extern void PassWin_Draw(void);   /* ... and its draw */
+extern void PassWin_Init(void *pack);
+extern void ItemHelp_Init(u32 *pack);
+extern void Dialog_SetLayout(s32 layout);
 
 /* Item entry of common file 4 (ItemTblEntry in battle/view_b.h). */
 typedef struct UItemEntry {
@@ -134,6 +138,13 @@ typedef struct UChrCell {
 extern void ChrGrid_Build(s32 *outCount, UChrCell *out, s32 *inCount, UChrCell *in, s32 *customCount,
                           UChrCell *custom);
 extern s32 ChrGrid_IsSelectable(UChrCell *cells, s32 index);
+
+/* The grid list of a screen pack: count, then the cells from 0x10 (VChrGridList of menu_v.h). */
+typedef struct UChrGridList {
+    /* 0x00 */ s32 count;
+    /* 0x04 */ s32 unk4[3];
+    /* 0x10 */ UChrCell cell[1];
+} UChrGridList;
 
 /* The pick record kept in gProgress + 0x440 (the same record the character selects keep there). */
 typedef struct UPick {
@@ -266,8 +277,10 @@ extern USave *gSaveData;
 
 extern UEvoZ *gEvoZ;   /* 0x3BB140 */
 
-/* next chunk (menu_v) */
-extern void EvoZ_Load(UEvoZ *ez, s32 section);
+/* menu_u_h.c (its last function; was src/menu/menu_v.c) */
+void EvoZ_Load(UEvoZ *ez, s32 section);
+
+/* next chunk (menu_v_b.c) */
 extern void EvoZ_Input(UEvoZ *ez, s32 *result);
 extern void EvoZ_UpdateDialog(UEvoZ *ez);
 extern void EvoZ_ToggleList(UEvoZ *ez);

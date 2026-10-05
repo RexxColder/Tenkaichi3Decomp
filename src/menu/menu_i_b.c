@@ -1,6 +1,8 @@
 #include "common.h"
 #include "menu/menu_i.h"
 
+BootCard *gBootCard = NULL; /* 0x3B5908 */
+
 /*
  * BootCard, 0x35D660..0x35D948: the memory card check shown once at boot (called by FirstRun_Main). It runs the
  * main executable's card flow 2 (boot load: look for a system save, load it or offer to go on without one)

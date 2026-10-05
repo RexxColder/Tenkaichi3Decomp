@@ -13,16 +13,15 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  * mode "sim" ("mc_sim_botan", "mc_sim_monita", "fl_syugyo_*" = training, "mc_turn_lamp"): a ladder of seven rounds
  * of ten turns, nine turns of training and events and a fight on the tenth. Four pieces, cut at object boundaries:
  *
- *   menu_r.c    0x3840E0..0x3851B0  SimDay      tail of the board screen (mode 22; the object starts in the
- *                                               previous chunk, src/menu/menu_q_b.c; work pointer 0x3B7384): the
- *                                               guide's closing line, the pad handler, the portrait loader and
- *                                               the frame loop
+ *   (menu_r.c)  0x3840E0..0x3851B0  SimDay      tail of the board screen (mode 22; work pointer 0x3B7384): merged
+ *                                               into src/menu/menu_q_b.c, where the object starts
  *   menu_r_b.c  0x3851B0..0x3851E8  SimEvent    the event dispatcher (table 0x3B7388: 37 scripts that live in
  *                                               the chunks menu_s / menu_t / menu_u)
  *   menu_r_c.c  0x3851E8..0x387880  SimResult   the result screen after a round's fight (mode 23), a whole
  *                                               object (work pointer 0x3B741C)
- *   menu_r_d.c  0x387880..0x388618  SimTop      head of the ladder's entry screen with the ranking list (mode 20;
- *                                               work pointer 0x3B7420); the object goes on in src/menu/menu_s.c
+ *   menu_r_d.c  0x387880..0x388EE0  SimTop      the ladder's entry screen with the ranking list (mode 20; work
+ *                                               pointer 0x3B7420), a whole object: the former src/menu/menu_s.c
+ *                                               (0x388618..) is merged into it
  *
  * All names are guesses from what the code does. The structures are this chunk's own views; where the
  * neighbouring chunks' headers (menu_p.h, menu_q.h, menu_s.h) describe the same thing the field names agree.
@@ -120,76 +119,15 @@ typedef struct SimSave {
 #define SIM_SAVE ((SimSave *)gSaveData)
 extern void *gSaveData;
 
-/* ---- SimDay (menu_r.c): the part of the previous chunk's work area that its last functions use. A local view:
-   include/menu/menu_q.h has the whole layout; the names are the same, except that
-   faceTex[0] and faceTex[1] are tex6[13] and tex6[14] there. ---- */
+/* ---- SimDay: the board screen's work area. Only the name here: the layout and the SIMDAY_ constants are in
+   include/menu/menu_q.h (the object is src/menu/menu_q_b.c, into which the former menu_r.c was merged). ---- */
 
-#define SIMDAY_STATE_NUM 13
-
-typedef struct SimDay {
-    /* 0x000 */ u8 unk0[8];
-    /* 0x008 */ void *faceFile[2];  /* compressed portraits: the player's character, the round's opponent */
-    /* 0x010 */ MTexRes *faceRes[2]; /* the same unpacked */
-    /* 0x018 */ u8 unk18[8];
-    /* 0x020 */ MFlash flash[7];
-    /* 0x154 */ u8 unk154[0x23C];
-    /* 0x390 */ u8 *faceTex[2];     /* textures 13 and 14 of the round movie: the opponent's portrait, the player's */
-    /* 0x398 */ u8 unk398[0x1B8];
-    /* 0x550 */ s32 flags;          /* SIMDAY_ */
-    /* 0x554 */ s32 loadState;      /* SIMDAY_LOAD_ */
-    /* 0x558 */ s32 cur[SIMDAY_STATE_NUM]; /* cursor of each state */
-    /* 0x58C */ s32 timer;          /* frames until the fade out starts */
-    /* 0x590 */ s32 state;          /* SIMDAY_ST_ */
-    /* 0x594 */ s32 prevState;
-    /* 0x598 */ s32 talk[2];        /* [0] the guide's closing line to say (1..5), 0 = none; [1] the last one said */
-    /* 0x5A0 */ s32 msgLine;        /* line of the message window, -1 = none */
-    /* 0x5A4 */ s32 menuText;       /* 1 = the window shows the item names, 0 = its plates */
-    /* 0x5A8 */ s32 bgm;
-    /* 0x5AC */ s32 wait;           /* frames the round picture stays (300) */
-    /* 0x5B0 */ s32 day;            /* turn of the round, 0..9; 9 = the fight */
-    /* 0x5B4 */ u8 unk5B4[0x5A4];
-    /* 0xB58 */ s32 enemyChara;     /* the opponent of the fight set up */
-    /* 0xB5C */ s32 unkB5C[2];
-    /* 0xB64 */ s32 event;          /* script of the turn: index into gSimEvent */
-    /* 0xB68 */ u8 unkB68[0x24];
-    /* 0xB8C */ s32 unkB8C;         /* answer of the two-row menu: 1 = first row */
-} SimDay;
-
-#define SIMDAY_DONE 1
-#define SIMDAY_LEAVING 2
-#define SIMDAY_STARTED 4
-#define SIMDAY_GREETED 8
-#define SIMDAY_FACES_READY 0x10
-#define SIMDAY_BUSY 0x40
-#define SIMDAY_WAIT_KEY 0x80
-
-#define SIMDAY_LOAD_IDLE 0
-#define SIMDAY_LOAD_REQUEST 1
-#define SIMDAY_LOAD_READ 2
-#define SIMDAY_LOAD_UNPACK 3
-
-#define SIMDAY_FL_BOARD 0
-#define SIMDAY_FL_MENU 5
-#define SIMDAY_FL_ROUND 6
-
-#define SIMDAY_ST_BOARD 0       /* the board: four buttons */
-#define SIMDAY_ST_TRAIN 1       /* the three trainings (button 0) */
-#define SIMDAY_ST_SELECT 2      /* a script's two-row question */
-#define SIMDAY_ST_SCRIPT 3      /* the turn's event script runs (gSimEvent) */
-#define SIMDAY_ST_WAIT 4
-#define SIMDAY_ST_VERSUS 5      /* the portraits load, then the confirm button starts the fight */
-#define SIMDAY_ST_WINDOW 6      /* the three-row window (start button) */
-#define SIMDAY_ST_WINDOW_ITEMS 7 /* the window shows the carried items */
-#define SIMDAY_ST_CONFIRM 8     /* "quit?" dialog (message 14) */
-#define SIMDAY_ST_BACK 9
-#define SIMDAY_ST_ROUND 10
-#define SIMDAY_ST_ROUND_WAIT 11
-#define SIMDAY_ST_QUIT 12
+typedef struct SimDay SimDay;
 
 extern SimDay *gSimDay;                      /* 0x3B7384 */
 extern s32 (*gSimEvent[37])(SimDay *day);    /* 0x3B7388 */
 
-/* previous chunks (menu_p_d.c, menu_q.c: the score sheet; menu_q_b.c: the head of SimDay) */
+/* the score sheet (src/menu/menu_p_d.c) */
 extern s32 UbScore_Fill(s32 kind, void *score, s32 *pages);
 extern void UbScore_CalcPoints(void *price, void *score);
 extern s32 UbScore_CalcRank(s32 kind, void *score);
@@ -200,22 +138,7 @@ extern void UbScore_SetPage(void *score, s32 page);
 extern void UbScore_PlateGoto(MFlash *flash, s32 plate, s32 on);
 extern void UbScore_AddRanking(s32 score, s32 chara, s32 cleared);
 extern s32 UbScore_GetRewardItem(s32 idx);
-extern void SimDay_SetupBattle(void);
-extern void SimDay_ListItems(void);
-extern s32 SimDay_CountItems(void);
-extern void SimDay_Cmd(s32 cmd);
-extern void SimDay_PickEvent(s32 unused);   /* defined without a parameter; both callers pass one (0 / 1) */
-extern void SimDay_RefreshBoard(void);
-extern void SimDay_Init(s32 section);
-extern void SimDay_Term(void);
-extern void SimDay_Draw(void);
-extern void SimDay_Update(void);
 
-void SimDay_UpdateTalk(void);
-void SimDay_Input(s32 *result);
-void SimDay_ClipGoto(s32 movie, s32 kind, char *label);
-void SimDay_UpdateFaceLoad(void);
-s32 SimDay_Run(s32 section);
 s32 SimEvent_Run(SimDay *day, u32 event);
 
 /* ---- SimResult (menu_r_c.c) ---- */
@@ -226,7 +149,7 @@ typedef struct SimScoreLine {
     /* 0x08 */ s32 points;      /* points the line is worth, in hundreds */
 } SimScoreLine; /* 0xC */
 
-/* The score sheet (UbScore of include/menu/menu_p.h / QScore of menu_q.h, same field names; a local view). */
+/* The score sheet (UbScore of include/menu/menu_p.h, same field names; a local view). */
 typedef struct SimScore {
     /* 0x000 */ s32 total;       /* here: starts as the run's points (gProgress->run.stat[SIM_STAT_POINT]) */
     /* 0x004 */ s32 count;       /* the total as it is turned into money */
@@ -312,9 +235,13 @@ void SimResult_UpdateTalk(void);
 void SimResult_Input(s32 *result);
 s32 SimResult_Run(s32 section);
 
-/* ---- SimTop (menu_r_d.c): head of the object; include/menu/menu_s.h has a view with the same field names ---- */
+/* ---- SimTop (menu_r_d.c; the former menu_s.c is merged into it) ---- */
 
 #define SIMTOP_FLASH_NUM 1
+#define SIMTOP_ROWS 3
+#define SIMTOP_RANK_TOP_MAX 5    /* the ranking has ten rows and shows five */
+#define SIMTOP_HELP_PAGES 10
+#define SIMTOP_IDLE_FRAMES 0xE10
 #define SIMTOP_TEX_CURSOR_FACE 26 /* SimTop.tex: the portrait of the record under the cursor */
 #define SIMTOP_FACE_NUM 165      /* texture lists in the portrait pack: one per character-grid id */
 
@@ -328,17 +255,17 @@ typedef struct SimTop {
     /* 0x0A0 */ MFlash flash[SIMTOP_FLASH_NUM];
     /* 0x0CC */ void *bg;           /* section 4 */
     /* 0x0D0 */ u8 *tex[40];        /* [gSimTopFaceTex[n]] = the portrait of ranking row n; [26] that of the cursor row */
-    /* 0x170 */ s32 flags;          /* the fields from here to voiceLast are used by the tail of the object (menu_s.c) */
-    /* 0x174 */ s32 cur[6];
-    /* 0x18C */ s32 timer;
-    /* 0x190 */ s32 level;
-    /* 0x194 */ s32 voiceReq;
+    /* 0x170 */ s32 flags;          /* SIMTOP_ */
+    /* 0x174 */ s32 cur[6];         /* cursor of each level; only cur[0] (plate 0..2) is used */
+    /* 0x18C */ s32 timer;          /* frames until the fade out starts after the choice */
+    /* 0x190 */ s32 level;          /* SIMTOP_LV_ */
+    /* 0x194 */ s32 voiceReq;       /* line the guide is asked to say (1..5), 0 = none */
     /* 0x198 */ s32 voiceLast;
-    /* 0x19C */ s32 voiceSkip;
+    /* 0x19C */ s32 voiceSkip;      /* confirm was pressed while the guide spoke */
     /* 0x1A0 */ s32 voiceLine;      /* subtitle line, -1 = none */
     /* 0x1A4 */ s32 blink;
     /* 0x1A8 */ s32 mouth;
-    /* 0x1AC */ s32 idle;
+    /* 0x1AC */ s32 idle;           /* frames without input */
     /* 0x1B0 */ s32 starTimer;
     /* 0x1B4 */ s32 starFrame;
     /* 0x1B8 */ s32 top;            /* first ranking row shown (0..5) */
@@ -347,12 +274,28 @@ typedef struct SimTop {
     /* 0x1C4 */ s32 iconFrame;      /* flips every frame */
 } SimTop; /* 0x1C8 */
 
+#define SIMTOP_CHOSEN 1
+#define SIMTOP_LEAVING 2
+#define SIMTOP_STARTED 4
+#define SIMTOP_GREETED 8
+
+#define SIMTOP_LV_MENU 0        /* three plates: start, ranking, how to play */
+#define SIMTOP_LV_RANKING 1
+#define SIMTOP_LV_HELP 2
+
 extern SimTop *gSimTop;       /* 0x3B7420 */
 extern s32 gSimTopFaceTex[5]; /* 0x3B7428 */
+extern const s32 gSimTopPlateVoice[SIMTOP_ROWS]; /* 0x3B9ED8: {1, 2, 3}, the line of each plate */
+extern const s32 gSimTopIdleVoice[2];           /* 0x3B9EE8: {4, 5} */
 
 void SimTop_ShowStar(char *parent, s32 on);
 void SimTop_Init(s32 section);
 void SimTop_Term(void);
 void SimTop_Draw(void);
+void SimTop_Update(void);
+void SimTop_UpdateVoice(void);
+void SimTop_Input(s32 *result);
+void SimTop_ClipGoto(s32 movie, s32 level, char *label);
+s32 SimTop_Run(s32 section);
 
 #endif

@@ -7,12 +7,13 @@
 /*
  * Menu overlay DBZP.BIN, 0x368C18..0x36DBE8 (placeholder stem "menu_l"). Two pieces:
  *
- *   menu_l.c    0x368C18..0x36B3E0  Bracket  the tournament logic of Dragon World Tour (progress mode 35): the tree,
+ *   (menu_l.c)  0x368C18..0x36B3E0  Bracket  the tournament logic of Dragon World Tour (progress mode 35): the tree,
  *                                            the entrants, the CPU matches, the battle hand-off and the prizes. Tail
- *                                            of the object that starts at 0x3673F8 (menu_k_d.c).
- *   menu_l_b.c  0x36B3E0..0x36DBE8  SoloSel  the one-character select of the modes 13..30 group (called for modes
- *                                            15, 18, 21, 25 and 29). The object goes on to 0x36E028 in menu_m
- *                                            (two more functions: the closing step and SoloSel_Run).
+ *                                            of the object that starts at 0x368068 (Bracket_Load): now merged into
+ *                                            menu_k_f.c, which includes this header.
+ *   menu_l_b.c  0x36B3E0..0x36E028  SoloSel  the one-character select of the modes 13..30 group (called for modes
+ *                                            15, 18, 21, 25 and 29); merged with the former menu_m.c (the closing
+ *                                            step and SoloSel_Run, 0x36DBE8..0x36E028).
  *
  * menu_j.h and menu_k.h were still changing while this was written, so this header depends on menu_a.h only:
  * LBracket is this chunk's own, complete view of the bracket work area (same offsets as Bracket of menu_k.h; the
@@ -132,11 +133,11 @@ extern s32 ItemPanel_Input(s32 side, s32 pad);
 extern void ItemPanel_SetChara(s32 side, s32 chara, s32 slot, s32 set, s32 fromRec);
 extern void ItemPanel_Show(s32 side);
 extern void ItemPanel_Hide(s32 side);
-extern void func_00399240(void *pack);                /* item help window: init */
-extern void func_00399430(void);                      /* item help window: term */
-extern void func_00399478(s32 item);                  /* item help window: draw */
-extern void func_00399730(void);                      /* item help window: open */
-extern void func_00399760(void);                      /* item help window: close */
+extern void ItemHelp_Init(void *pack);                /* item help window: init */
+extern void ItemHelp_Term(void);                      /* item help window: term */
+extern void ItemHelp_Draw(s32 item);                  /* item help window: draw */
+extern void ItemHelp_Open(void);                      /* item help window: open */
+extern void ItemHelp_Close(void);                      /* item help window: close */
 
 /* ---- The tournament (menu_l.c) ---- */
 
@@ -232,6 +233,14 @@ typedef struct LBracketReward {
 
 #define LBRACKET_FLASH_NUM 6
 
+/* flash[] (BRK_FL_ of menu_k.h) */
+#define LBRK_FL_TREE 0           /* the tree with the 17 chips; scrolls sideways */
+#define LBRK_FL_MOVE_A 1         /* the two chips of the current match */
+#define LBRK_FL_MOVE_B 2         /* the winner's chip moving up */
+#define LBRK_FL_GUIDE 3          /* the guide character(s) */
+#define LBRK_FL_VS 4             /* the "versus" panel: names, forms, numbers, win / lose */
+#define LBRK_FL_TITLE 5          /* title plate and the result banners */
+
 typedef struct LBracket {
     /* 0x0000 */ void *pack;
     /* 0x0004 */ u32 *res;
@@ -244,7 +253,9 @@ typedef struct LBracket {
     /* 0x0028 */ void *formText;
     /* 0x002C */ void *file;
     /* 0x0030 */ MFlash flash[LBRACKET_FLASH_NUM]; /* 0 tree, 1 the two chips meeting, 2 the winner moving up, ... */
-    /* 0x0138 */ s32 unk138[4];
+    /* 0x0138 */ s32 unk138;
+    /* 0x013C */ MTexRes *guideTex[2]; /* sections 43 / 44: the two picture sets of the guide */
+    /* 0x0144 */ s32 unk144;
     /* 0x0148 */ u8 *texTree[26];    /* textures of flash[0]; 6 and 9..24 are the seventeen chips */
     /* 0x01B0 */ u8 *texTitle[38];
     /* 0x0248 */ u8 *texGuide[9];
@@ -298,6 +309,10 @@ typedef struct LBracket {
 
 #define LBRK_SEQ_ROUND_END 0x65
 
+extern void TourBg_Init(void *file, u32 kind, u8 **tex);   /* menu_k_d.c */
+extern void GetWin_Init(void *pack, s32 lang);
+
+void Bracket_Load(LBracket *b);
 void Bracket_PlayCpuMatch(LBracket *b, s32 match);
 s32 Bracket_GetViewX(s32 view);
 s32 Bracket_GetPosX(s32 pos);
@@ -378,7 +393,8 @@ typedef struct SoloSel {
     /* 0x018C */ s32 flags;          /* SOLOSEL_ */
     /* 0x0190 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
     /* 0x0194 */ s32 loadState;      /* the large picture's loader */
-    /* 0x0198 */ s32 unk198[2];
+    /* 0x0198 */ s32 unk198;
+    /* 0x019C */ s32 timer;          /* frames until the fade out starts */
     /* 0x01A0 */ s32 helpItem;       /* item the help window explains */
     /* 0x01A4 */ SoloSelState state;
     /* 0x021C */ SoloSelState *sel;  /* &state */
@@ -390,7 +406,7 @@ typedef struct SoloSel {
     /* 0x1964 */ s32 customCount;    /* item-set plates that can be chosen: 4, or 1 with SOLOSEL_NO_CUSTOM */
     /* 0x1968 */ s32 colorCount;     /* costumes of the character */
     /* 0x196C */ f32 imageAlpha;
-    /* 0x1970 */ s32 endStep;        /* set to 1 when the character is decided (stepped in menu_m) */
+    /* 0x1970 */ s32 endStep;        /* SOLOSEL_END_: set to 1 when the character is decided */
     /* 0x1974 */ s32 talker;         /* which of the two guides is talking */
     /* 0x1978 */ s32 blink[2];
     /* 0x1980 */ s32 talk[2];
@@ -399,7 +415,21 @@ typedef struct SoloSel {
 } SoloSel; /* 0x1AA4 */
 
 #define SOLOSEL_STARTED 2        /* the first chip was lit */
+#define SOLOSEL_DONE 8
+#define SOLOSEL_LEAVING 0x10     /* the leave timer runs */
 #define SOLOSEL_NO_CUSTOM 0x40   /* progress mode 21: only the "no items" plate can be chosen */
+#define SOLOSEL_GREETED 0x80     /* the guide's greeting was started */
+
+/* endStep: the guide's closing line */
+#define SOLOSEL_END_NONE 0
+#define SOLOSEL_END_SPEAK 1
+#define SOLOSEL_END_WAIT 2
+#define SOLOSEL_END_LEAVE 3
+
+/* Voice_GetStat result when nothing is playing. */
+#define SOLO_VOICE_IDLE 5
+/* Voice bank base of this mode group's guides (Voice_PlayWithSubtitle). */
+#define SOLO_VOICE_BASE 0x8765
 
 /* loadState */
 #define SOLOSEL_LOAD_REQUEST 1
@@ -434,5 +464,7 @@ void SoloSel_Term(void);
 void SoloSel_Draw(void);
 void SoloSel_Update(void);
 void SoloSel_Input(s32 *result);
+void SoloSel_UpdateEnd(void);
+s32 SoloSel_Run(s32 section);
 
 #endif

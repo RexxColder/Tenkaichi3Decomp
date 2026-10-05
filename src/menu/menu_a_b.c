@@ -1,6 +1,21 @@
 #include "common.h"
 #include "menu/menu_a.h"
 
+/* The menu archives, one per group of modes (overlay .data, 0x3B0E84..0x3B0EB8); see menu_a.h. */
+void *gMenuArc0 = NULL;
+void *gMenuArc1 = NULL;
+void *gMenuArc2 = NULL;
+void *gMenuArc3 = NULL;
+void *gMenuArc4 = NULL;
+void *gMenuArc5 = NULL;
+void *gMenuArc6 = NULL;
+void *gMenuArc7 = NULL;
+void *gMenuArc8 = NULL;
+void *gMenuArc9 = NULL;
+void *gMenuArc10 = NULL;
+void *gMenuArc11 = NULL;
+void *gMenuArc12 = NULL; /* file baseFile + 0x18: loaded and freed by the wish screen (src/sys/late_a.c) */
+
 /*
  * Progress_Main, 0x336A90..0x336FC0: the entry point of the menu overlay and its mode dispatcher. The main
  * executable's Game_Main calls it (by address, 0x336A90) right after Overlay_Load(0), and calls Battle_Main when
@@ -10,29 +25,29 @@
  *    1          Title_Run(1)        0x337D70  title screen
  *    2          Movie_PlayOpening   main      opening movie, then mode 1
  *    4          MainMenu_Run(2)     0x336838  main menu
- *    6..10      func_0033CBF8
- *   13..30      func_00379A58
- *   33..35      func_00362160
- *   38..41      func_00352CB8
- *   44..45      func_003591C8
- *   48..50      func_0039E940       (result ignored)
- *   53..56      func_003A9850
- *   60          func_003590A8       (result ignored)
- *   62          func_0039FAA8       (result ignored)
+ *    6..10      Hist_Main
+ *   13..30      Ub_Main
+ *   33..35      Tour_Main
+ *   38..41      Duel_Main
+ *   44..45      TrainMode_Main
+ *   48..50      EvoMode_Main       (result ignored)
+ *   53..56      Dc_Main
+ *   60          CharRefMode_Main       (result ignored)
+ *   62          OptMode_Main       (result ignored)
  *   70          Shen_Main           main 0x2BD230 (result ignored)
  * A handler that returns non-zero ends the loop: the overlay returns and the battle starts.
  */
 
-extern void func_0035DF70(void); /* first run: loads the third archive partition */
-extern s32 func_0033CBF8(void);
-extern s32 func_00379A58(void);
-extern s32 func_00362160(void);
-extern s32 func_00352CB8(void);
-extern s32 func_003591C8(void);
-extern void func_0039E940(void);
-extern s32 func_003A9850(void);
-extern void func_003590A8(void);
-extern void func_0039FAA8(void);
+extern void FirstRun_Main(void); /* first run: loads the third archive partition */
+extern s32 Hist_Main(void);
+extern s32 Ub_Main(void);
+extern s32 Tour_Main(void);
+extern s32 Duel_Main(void);
+extern s32 TrainMode_Main(void);
+extern void EvoMode_Main(void);
+extern s32 Dc_Main(void);
+extern void CharRefMode_Main(void);
+extern void OptMode_Main(void);
 
 #define MENU_BGM_TITLE 0x10B16
 
@@ -51,7 +66,7 @@ s32 Progress_Main(s32 arg) {
 
     Pad_SetRepeat(0x28, 3);
     if (gProgress->flags & MPROG_FIRST_RUN) {
-        func_0035DF70();
+        FirstRun_Main();
         gProgress->flags &= ~MPROG_FIRST_RUN;
     }
     flags = BattleResult_GetFlags();
@@ -127,7 +142,7 @@ s32 Progress_Main(s32 arg) {
         case 8:
         case 9:
         case 10:
-            if (func_0033CBF8()) {
+            if (Hist_Main()) {
                 done = 1;
             }
             break;
@@ -149,14 +164,14 @@ s32 Progress_Main(s32 arg) {
         case 28:
         case 29:
         case 30:
-            if (func_00379A58()) {
+            if (Ub_Main()) {
                 done = 1;
             }
             break;
         case 33:
         case 34:
         case 35:
-            if (func_00362160()) {
+            if (Tour_Main()) {
                 done = 1;
             }
             break;
@@ -164,34 +179,34 @@ s32 Progress_Main(s32 arg) {
         case 39:
         case 40:
         case 41:
-            if (func_00352CB8()) {
+            if (Duel_Main()) {
                 done = 1;
             }
             break;
         case 44:
         case 45:
-            if (func_003591C8()) {
+            if (TrainMode_Main()) {
                 done = 1;
             }
             break;
         case 48:
         case 49:
         case 50:
-            func_0039E940();
+            EvoMode_Main();
             break;
         case 53:
         case 54:
         case 55:
         case 56:
-            if (func_003A9850()) {
+            if (Dc_Main()) {
                 done = 1;
             }
             break;
         case 60:
-            func_003590A8();
+            CharRefMode_Main();
             break;
         case 62:
-            func_0039FAA8();
+            OptMode_Main();
             break;
         case 70:
             Shen_Main();

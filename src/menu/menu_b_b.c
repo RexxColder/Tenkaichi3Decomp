@@ -1,6 +1,8 @@
 #include "common.h"
 #include "menu/menu_b.h"
 
+ModeBg *gModeBg = NULL; /* 0x3B12F4 */
+
 /*
  * ModeBg, 0x33A360..0x33ABA0: the background of a game mode's screens (a still picture and, except for sub menu
  * 3, a movie of scrolling clouds / smoke). Used by ModeMenu and by ModeInfo, taken from the sub menu's own pack.

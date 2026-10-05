@@ -30,18 +30,6 @@ static inline void DcMenu_Say(DcMenu *menu, s32 line) {
     menu->voiceLine = line;
 }
 
-/* Lights or dims a clip found by name. */
-static inline void DcMenu_LightClip(MFlash *flash, char *name, s32 on) {
-    MFlashRef ref;
-
-    Flash_FindLabel(flash, NULL, name, &ref);
-    if (on) {
-        Flash_ClipGotoLabel(flash, &ref, "fl_on_start");
-    } else {
-        Flash_ClipGotoLabel(flash, &ref, "fl_off_start");
-    }
-}
-
 /* Whether the guide has finished her line. */
 static inline s32 DcMenu_VoiceEnded(void) {
     return Voice_GetStat(0) == MVOICE_IDLE;
@@ -92,6 +80,10 @@ void DcMenu_AnimBg(DcMenu *menu) {
  * other saved registers (original s5 = 0x20, s6 = 2, s7 = 0x60; attempt s5 = 2, s6 = 0x60, s7 = 0x20). The
  * code is otherwise identical.
  */
+/* A named object because DcMenu_DrawPlates (INCLUDE_ASM) uses it too; it sits where that function's first
+   literal was. In the attempt it is the literal "mc_menu_plate_%d". */
+static const char sDcMenuPlateClip[] __attribute__((aligned(8))) = "mc_menu_plate_%d";
+
 #if 0
 void DcMenu_DrawPlates(MFlash *flash) {
     MFlashUv uv;
@@ -113,7 +105,37 @@ void DcMenu_DrawPlates(MFlash *flash) {
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/menu/menu_z_c", DcMenu_DrawPlates);
+/* The compiler's last own output was sDcMenuPlateClip, so it believes it is still in .rodata, while the
+   INCLUDE_ASM ends in .text: put the assembler back where the compiler thinks it is. */
+__asm__(".section .rodata");
 #endif
+
+/* (Defined here, behind DcMenu_DrawPlates: its two literals follow that function's in the object.) */
+/* Lights or dims a clip found by name. */
+static inline void DcMenu_LightClip(MFlash *flash, char *name, s32 on) {
+    MFlashRef ref;
+
+    Flash_FindLabel(flash, NULL, name, &ref);
+    if (on) {
+        Flash_ClipGotoLabel(flash, &ref, "fl_on_start");
+    } else {
+        Flash_ClipGotoLabel(flash, &ref, "fl_off_start");
+    }
+}
+
+/* (Defined here for the same reason: its literals come next in the object.) */
+/* Plays the "chosen" animation of the plate under the cursor and leaves it lit. */
+static inline void DcMenu_FlashPlate(DcMenu *menu) {
+    MFlashRef ref;
+    char name[0x100];
+    MFlash *flash;
+
+    sprintf(name, sDcMenuPlateClip, menu->cursor + 1);
+    flash = &menu->view.flash;
+    Flash_FindLabel(flash, NULL, name, &ref);
+    Flash_ClipGotoLabel(flash, &ref, "fl_ok");
+    Flash_ClipGotoLabel(flash, &ref, "fl_on_loop");
+}
 
 /* Wraps the cursor and lights or dims its plate. */
 void DcMenu_LightPlate(DcMenu *menu, s32 on) {
@@ -121,7 +143,7 @@ void DcMenu_LightPlate(DcMenu *menu, s32 on) {
     MFlash *flash = &menu->view.flash;
 
     menu->cursor = DcMenu_Wrap(menu->cursor, 0, DCMENU_PLATES - 1);
-    sprintf(name, "mc_menu_plate_%d", menu->cursor + 1);
+    sprintf(name, sDcMenuPlateClip, menu->cursor + 1);
     DcMenu_LightClip(flash, name, on);
 }
 
@@ -183,8 +205,16 @@ void DcMenu_Update(DcMenu *menu) {
     }
 }
 
-#define DCMENU_RES(n) \
-    res = (MTexRes *)MPACK_AT(menu->res, n); \
+/* A section of the screen's pack. `host` is the file the section was built from (the development build could
+   read it from the host PC); nothing uses it, but the strings are in the object, in this order. */
+static inline u8 *DcMenu_Section(DcMenu *menu, s32 n, const char *host) {
+    return MPACK_AT(menu->res, n);
+}
+
+#define DCMENU_HOST "host:data/ps2/test/main/DC/"
+
+#define DCMENU_RES(n, host) \
+    res = (MTexRes *)DcMenu_Section(menu, n, host); \
     Res_RelocateOffsets(&res, res, res)
 
 /* Unpacks the screen's section of archive 8, builds the movie and opens the shared windows. */
@@ -193,9 +223,9 @@ void DcMenu_Init(DcMenu *menu, s32 section) {
 
     menu->pack = MPACK_AT(gMenuArc8, section);
     menu->res = Sprite_Unpack(menu->pack, NULL, NULL);
-    DCMENU_RES(6);
+    DCMENU_RES(6, DCMENU_HOST "dc_select_bg_PS2_.dbt");
     menu->view.bg = res;
-    DCMENU_RES(11);
+    DCMENU_RES(11, DCMENU_HOST "dc_compane_PS2_.dbt");
     menu->view.tex[0] = MTEX(res, 0);
     menu->view.tex[1] = MTEX(res, 1);
     menu->view.tex[2] = MTEX(res, 2);
@@ -203,29 +233,29 @@ void DcMenu_Init(DcMenu *menu, s32 section) {
     menu->view.tex[4] = MTEX(res, 4);
     menu->view.tex[5] = MTEX(res, 5);
     menu->view.tex[6] = MTEX(res, 6);
-    DCMENU_RES(7);
+    DCMENU_RES(7, DCMENU_HOST "dc_select_guide_PS2_.dbt");
     menu->view.tex[7] = MTEX(res, 0);
     menu->view.tex[8] = MTEX(res, 1);
     menu->view.tex[9] = MTEX(res, 3);
-    DCMENU_RES(10);
+    DCMENU_RES(10, DCMENU_HOST "dc_select_PS2_.dbt");
     menu->view.tex[10] = MTEX(res, 0);
     menu->view.tex[12] = MTEX(res, 1);
     menu->view.tex[13] = MTEX(res, 2);
     menu->view.tex[14] = MTEX(res, 3);
-    DCMENU_RES(8);
+    DCMENU_RES(8, DCMENU_HOST "dc_select_text_JP_PS2_.dbt");
     menu->view.tex[11] = MTEX(res, 0);
     menu->view.tex[15] = MTEX(res, 1);
-    Flash_Create(&menu->view.flash, MPACK_AT(menu->res, 5), menu->view.tex);
+    Flash_Create(&menu->view.flash, DcMenu_Section(menu, 5, DCMENU_HOST "data_center_top_PS2_.fod"), menu->view.tex);
     Flash_Play(&menu->view.flash, 1);
-    menu->subtitles = MPACK_AT(menu->res, 1);
-    DCMENU_RES(9);
-    IconWin_Init(MPACK_AT(menu->res, 3), res);
+    menu->subtitles = DcMenu_Section(menu, 1, DCMENU_HOST "dcenter_lips_PS2_.pak");
+    DCMENU_RES(9, DCMENU_HOST "dc_select_title_JP_PS2_.dbt");
+    IconWin_Init(DcMenu_Section(menu, 3, DCMENU_HOST "if_title_line_PS2_.pak"), res);
     IconWin_Open();
-    menu->msgText = MPACK_AT(menu->res, 4);
-    MsgWin_Init(MPACK_AT(menu->res, 2), menu->msgText, 0, (s32)menu->unk88);
+    menu->msgText = DcMenu_Section(menu, 4, DCMENU_HOST "dc_msg_JP_PS2_.pak");
+    MsgWin_Init(DcMenu_Section(menu, 2, DCMENU_HOST "if_msg_window_PS2_.pak"), menu->msgText, 0, (s32)menu->unk88);
     MsgWin_Open();
     menu->voiceLine = -1;
-    DcSave_Init(MPACK_AT(menu->res, 12));
+    DcSave_Init(DcMenu_Section(menu, 12, DCMENU_HOST "if_system_window_JP_PS2_.pak"));
 }
 
 /* Closes the windows, destroys the movie and frees the unpacked section. */
@@ -430,19 +460,6 @@ static inline void DcMenu_SayPlate(DcMenu *menu) {
     } else {
         DcMenu_Say(menu, DCLINE_REPLAY);
     }
-}
-
-/* Plays the "chosen" animation of the plate under the cursor and leaves it lit. */
-static inline void DcMenu_FlashPlate(DcMenu *menu) {
-    MFlashRef ref;
-    char name[0x100];
-    MFlash *flash;
-
-    sprintf(name, "mc_menu_plate_%d", menu->cursor + 1);
-    flash = &menu->view.flash;
-    Flash_FindLabel(flash, NULL, name, &ref);
-    Flash_ClipGotoLabel(flash, &ref, "fl_ok");
-    Flash_ClipGotoLabel(flash, &ref, "fl_on_loop");
 }
 
 /* Reads the pad: up / down move over the three plates, confirm picks the mode, cancel leaves. */

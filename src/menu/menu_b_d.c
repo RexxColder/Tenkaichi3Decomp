@@ -1,10 +1,14 @@
 #include "common.h"
-#include "menu/menu_b.h"
+#include "menu/menu_c.h"
+#include "sys/pad.h"
 #include "sys/save.h"
 
+HistSel *gHistSel = NULL; /* 0x3B12FC */
+
 /*
- * HistSel, from 0x33CFC8 (this file ends at 0x33E108; the object goes on in the next chunk, which has the rest
- * of the screen and its frame loop func_0033F440): the saga select of the story mode (progress mode 6).
+ * HistSel, 0x33CFC8..0x33F700 (one object; it was written as two halves cut at 0x33E108, the former menu_c.c,
+ * which has the rest of the screen and its frame loop HistSel_Run): the saga select of the story mode
+ * (progress mode 6).
  */
 
 extern void Voice_StopWithLip(void);
@@ -47,7 +51,7 @@ void HistSel_Idle(void) {
     gHistSel->idle++;
     if (gHistSel->idle == 3600) {
         gHistSel->guide = 8;
-        gHistSel->unk230 = 0;
+        gHistSel->talker = 0;
         gHistSel->voiceLine = Rand_Range(4) + 10;
         HistSel_PlayVoice();
         gHistSel->idle = 0;
@@ -56,7 +60,7 @@ void HistSel_Idle(void) {
 
 /* The guide presents the saga under the cursor (one of two lines each); an empty plate stops the voice. */
 void HistSel_SayItem(void) {
-    switch (gHistSel->items[gHistSel->cursor]) {
+    switch (gHistSel->items[gHistSel->cursor[1]]) {
     case 0:
         gHistSel->voiceLine = Rand_Range(2) + 0x16;
         HistSel_PlayVoice();
@@ -108,11 +112,11 @@ void HistSel_RollEvent(void) {
     for (i = 0; i < 8; i++) {
         SaveSlot *slot = &gSaveData->slot[i];
         s32 flags = slot->flags;
-        s32 done = flags & SAVESLOT_EVENT_DONE;
+        s32 done = flags & MSLOT_EVENT_DONE;
 
-        flags &= SAVESLOT_OUTRO_SEEN;
+        flags &= MSLOT_OUTRO_SEEN;
         if (flags && !done && (s32)Rand_Range(100) < 4) {
-            gHistSel->event = i;
+            gHistSel->guest = i;
             return;
         }
     }
@@ -275,27 +279,501 @@ void HistSel_Init(s32 section) {
     }
     for (i = 0; i < gHistSel->itemCount; i++) {
         if (gHistSel->items[i] == gProgress->subMenu) {
-            gHistSel->cursor = i;
+            gHistSel->cursor[1] = i;
             break;
         }
     }
-    gHistSel->top = gHistSel->cursor - 1;
+    gHistSel->top = gHistSel->cursor[1] - 1;
     if (gHistSel->top < 0) {
         gHistSel->top += gHistSel->itemCount;
     }
     gHistSel->voiceLine = -1;
     gHistSel->guide = 8;
-    gHistSel->event = -1;
+    gHistSel->guest = -1;
     for (i = 0; i < 2; i++) {
         gHistSel->blink[i] = Rand_Range(0x20);
     }
     if (gSaveData->unlockFlags & 0x80) {
         HistSel_RollEvent();
-        if (gHistSel->event >= 0) {
+        if (gHistSel->guest >= 0) {
             gHistSel->flags |= HISTSEL_EVENT;
         }
     } else {
-        gHistSel->flags |= HISTSEL_FIRST;
+        gHistSel->flags |= HISTSEL_FIRST_VISIT;
     }
-    gHistSel->unk250 = Rand_Range(10) * 60 + 300;
+    gHistSel->seTimer = Rand_Range(10) * 60 + 300;
+}
+
+/*
+ * 0x33E108..0x33F700: what was the tail half (menu_c.c; the voice helpers and Init are above). The menu of the
+ * history mode (progress mode 6): Goku as guide, a two-item menu (episodes / level), a ring of the unlocked sub menus of which three plates are visible, three level plates,
+ * and the completion percentage. A guide script (menu_c_b.c) takes the pad away while it runs.
+ */
+
+/*
+ * HistSel_Update only matches when the compiler has seen the definition of HistSel_PlayVoice, the first
+ * function of this object (a `bnel` instead of a `bne` after the Voice_GetStat call): while the object was two
+ * files, the tail carried a copy of it between ASM_STUB_BEGIN / ASM_STUB_END.
+ */
+
+#define HM_FREE(p) \
+    if ((p) != NULL) { \
+        Heap_Free(p); \
+        (p) = NULL; \
+    }
+
+/* Frees the screen. */
+void HistSel_Term(void) {
+    s32 i;
+
+    MsgWin_Term();
+    IconWin_Term();
+    for (i = 0; i < HISTSEL_FLASH_NUM; i++) {
+        Flash_Destroy(&gHistSel->flash[i]);
+    }
+    HM_FREE(gHistSel->res);
+    HM_FREE(gHistSel);
+}
+
+/* Sets up every clip of the movie for this frame and draws it and the two windows. */
+void HistSel_Draw(void) {
+    MFlashRef ref;
+    MFlashUv uv;
+    char name[64];
+    char sub[64];
+    s32 i;
+    MFlash *flash;
+
+    Sprite_DrawPicture(gHistSel->bg, 0, 0, 0x80);
+    flash = &gHistSel->flash[0];
+    Flash_FindLabel(flash, "mc_guide_gokuu", "mc_guide_gokuu_eye", &ref);
+    FlashAnim_Blink(flash, &ref, &gHistSel->blink[0], 0);
+    Flash_FindLabel(flash, "mc_guide_gokuu", "mc_guide_gokuu_mouth", &ref);
+    if (gHistSel->talker == 0) {
+        FlashAnim_Talk(flash, &ref, &gHistSel->talk[0], 0);
+    } else {
+        FlashAnim_ShowNext2(flash, &ref, 0);
+    }
+    if (gHistSel->guest >= 0) {
+        sprintf(name, "mc_guide_%02d", gHistSel->guest);
+        sprintf(sub, "mc_guide_%02d_eye", gHistSel->guest);
+        Flash_FindLabel(flash, name, sub, &ref);
+        FlashAnim_Blink(flash, &ref, &gHistSel->blink[1], 0);
+        sprintf(sub, "mc_guide_%02d_mouth", gHistSel->guest);
+        Flash_FindLabel(flash, name, sub, &ref);
+        if (gHistSel->talker == 1) {
+            FlashAnim_Talk(flash, &ref, &gHistSel->talk[1], 0);
+        } else {
+            FlashAnim_ShowNext2(flash, &ref, 0);
+        }
+    }
+    Num_Draw(flash, "mc_tassei_num_%d", 0, 3, gHistSel->percent, 0x20, 0x20, 0);
+
+    for (i = 0; i < 2; i++) {
+        uv.x0 = i * 0x20;
+        uv.y0 = 0;
+        uv.x1 = uv.x0 + 0x20;
+        uv.y1 = 0x20;
+        switch (i) {
+        case 0:
+            Flash_FindLabel(flash, "mc_yajirusi_left", "mc_yajirusi_icon_left", &ref);
+            if (gHistSel->items[gHistSel->top] == HISTSEL_ITEM_NONE) {
+                Flash_ClipSetFlags(flash, &ref, 2, 0);
+            } else {
+                Flash_ClipSetFlags(flash, &ref, 2, 1);
+            }
+            break;
+        case 1:
+            Flash_FindLabel(flash, "mc_yajirusi_right", "mc_yajirusi_icon_right", &ref);
+            if (gHistSel->items[(gHistSel->cursor[1] + 1) % gHistSel->itemCount] == HISTSEL_ITEM_NONE) {
+                Flash_ClipSetFlags(flash, &ref, 2, 0);
+            } else {
+                Flash_ClipSetFlags(flash, &ref, 2, 1);
+            }
+            break;
+        }
+        Flash_ClipSetUv(flash, &ref, &uv);
+    }
+
+    for (i = 0; i < 2; i++) {
+        uv.x0 = 0;
+        uv.y0 = i * 0x20;
+        uv.x1 = 0x200;
+        uv.y1 = uv.y0 + 0x20;
+        sprintf(name, "mc_menu_plate_%d", i + 1);
+        Flash_FindLabel(flash, name, "mc_menu_text_off", &ref);
+        Flash_ClipSetUv(flash, &ref, &uv);
+        Flash_FindLabel(flash, name, "mc_menu_text_on", &ref);
+        Flash_ClipSetUv(flash, &ref, &uv);
+    }
+    for (i = 0; i < 3; i++) {
+        uv.x0 = 0;
+        uv.y0 = i * 0x20;
+        uv.x1 = 0x200;
+        uv.y1 = uv.y0 + 0x20;
+        sprintf(name, "mc_level_plate_%d", i + 1);
+        Flash_FindLabel(flash, name, "mc_level_text_off", &ref);
+        Flash_ClipSetUv(flash, &ref, &uv);
+        Flash_FindLabel(flash, name, "mc_level_text_on", &ref);
+        Flash_ClipSetUv(flash, &ref, &uv);
+    }
+
+    for (i = 0; i < 3; i++) {
+        sprintf(name, "mc_scenario_%d", i + 1);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipSetTex(flash, &ref, gHistSel->items[(gHistSel->top + i) % gHistSel->itemCount]);
+    }
+    Flash_FindLabel(flash, NULL, "mc_scenario_4", &ref);
+    Flash_ClipSetTex(flash, &ref, gHistSel->items[gHistSel->extra]);
+
+    for (i = 0; i < 2; i++) {
+        sprintf(name, "mc_scenario_text_%d", i + 1);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        if (i != 0) {
+            uv.x0 = 0;
+            uv.y0 = (gHistSel->items[gHistSel->prev] % 8) * 0x20;
+            uv.x1 = 0x200;
+            uv.y1 = uv.y0 + 0x20;
+            Flash_ClipSetTex(flash, &ref, gHistSel->items[gHistSel->prev] / 8);
+        } else {
+            uv.x0 = 0;
+            uv.y0 = (gHistSel->items[gHistSel->cursor[1]] % 8) * 0x20;
+            uv.x1 = 0x200;
+            uv.y1 = uv.y0 + 0x20;
+            Flash_ClipSetTex(flash, &ref, gHistSel->items[gHistSel->cursor[1]] / 8);
+        }
+        Flash_ClipSetUv(flash, &ref, &uv);
+    }
+
+    Flash_FindLabel(flash, NULL, "mc_icon_new", &ref);
+    if (MSAVE->slot[gHistSel->items[gHistSel->cursor[1]]].flags & MSLOT_NEW) {
+        Flash_ClipSetFlags(flash, &ref, 2, 1);
+    } else {
+        Flash_ClipSetFlags(flash, &ref, 2, 0);
+    }
+
+    {
+        f32 speed[3] = { 0.35555556f, 0.35555556f, 0.53333333f };
+
+        uv.x0 = 0;
+        uv.y0 = 0;
+        uv.x1 = 0x40;
+        uv.y1 = 0x40;
+        for (i = 0; i < 3; i++) {
+            sprintf(name, "mc_yuragi_%d", i + 1);
+            Flash_FindLabel(flash, NULL, name, &ref);
+            FlashAnim_Scroll(flash, &ref, &uv, NULL, &gHistSel->scroll[i], 0.0f, speed[i]);
+        }
+    }
+
+    for (i = 0; i < HISTSEL_FLASH_NUM; i++) {
+        Flash_Draw(&gHistSel->flash[i]);
+    }
+    IconWin_Draw();
+    MsgWin_SetText(gHistSel->msgText[gHistSel->guide]);
+    MsgWin_Draw(0, 0, gHistSel->voiceLine);
+}
+
+/* Sends the plate under a cursor to a label: kind 0 the menu plate, kind 2 the level plate. */
+void HistSel_PlateGoto(s32 idx, s32 kind, char *label) {
+    MFlashRef ref;
+    char name[64];
+    MFlash *flash = &gHistSel->flash[idx];
+
+    switch (kind) {
+    case 0:
+        sprintf(name, "mc_menu_plate_%d", gHistSel->cursor[0] + 1);
+        break;
+    case 2:
+        sprintf(name, "mc_level_plate_%d", gHistSel->cursor[2] + 1);
+        break;
+    default:
+        return;
+    }
+    Flash_FindLabel(flash, NULL, name, &ref);
+    Flash_ClipGotoLabel(flash, &ref, label);
+}
+
+/* Steps the movie, plays the sound it asks for and the ambient sound; after the greeting Goku reads the item. */
+void HistSel_Update(void) {
+    s32 i;
+
+    if (gHistSel->flags & HISTSEL_GREETED) {
+        if (gHistSel->voiceLine >= 14 && gHistSel->voiceLine <= 19) {
+            if (Voice_GetStat(0) == 5) {
+                gHistSel->talker = 0;
+                gHistSel->voiceLine = gHistSel->cursor[gHistSel->focus] + 5;
+                HistSel_PlayVoice();
+            }
+        }
+    }
+    for (i = 0; i < HISTSEL_FLASH_NUM; i++) {
+        Flash_Advance(&gHistSel->flash[i]);
+    }
+    if (gHistSel->flash[0].se & 1) {
+        Snd_PlaySe(2, 0xF);
+    }
+    if (--gHistSel->seTimer == -1) {
+        Snd_PlaySe(2, 0xD);
+        gHistSel->seTimer = Rand_Range(10) * 60 + 300;
+    }
+}
+
+/* Pad 0, by focus: the two-item menu, the ring of sub menus (left / right), the level plates. */
+void HistSel_Input(s32 *result) {
+    if (!(gHistSel->flash[0].flags & MFLASH_PAD)) {
+        return;
+    }
+    if (!(gHistSel->flags & HISTSEL_STARTED)) {
+        HistSel_PlateGoto(0, 0, "fl_on_start");
+        gHistSel->flags |= HISTSEL_STARTED;
+    }
+    switch (gHistSel->focus) {
+    case 0:
+        if (gPad[0].gameRepeat & 8) {
+            gHistSel->idle = 0;
+            HistSel_PlateGoto(0, 0, "fl_off_start");
+            gHistSel->cursor[gHistSel->focus]--;
+            if (gHistSel->cursor[gHistSel->focus] < 0) {
+                gHistSel->cursor[gHistSel->focus] = 1;
+            }
+            HistSel_PlateGoto(0, 0, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[gHistSel->focus] + 5;
+            HistSel_PlayVoice();
+            Snd_PlaySe(1, 0);
+        } else if (gPad[0].gameRepeat & 4) {
+            gHistSel->idle = 0;
+            HistSel_PlateGoto(0, 0, "fl_off_start");
+            gHistSel->cursor[gHistSel->focus]++;
+            if (gHistSel->cursor[gHistSel->focus] >= 2) {
+                gHistSel->cursor[gHistSel->focus] = 0;
+            }
+            HistSel_PlateGoto(0, 0, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[gHistSel->focus] + 5;
+            HistSel_PlayVoice();
+            Snd_PlaySe(1, 0);
+        } else if (gPad[0].gamePressed & 0x200) {
+            gHistSel->idle = 0;
+            HistSel_PlateGoto(0, 0, "fl_ok");
+            switch (gHistSel->cursor[gHistSel->focus]) {
+            case 0:
+                Flash_GotoLabel(&gHistSel->flash[0], "fl_scenario_in", 1);
+                if (MSAVE->unlockFlags & MUNLOCK_HIST_NEW_SAGA) {
+                    MSAVE->unlockFlags &= ~MUNLOCK_HIST_NEW_SAGA;
+                    gHistSel->voiceLine = 0x2A;
+                } else {
+                    gHistSel->voiceLine = Rand_Range(3) + 0x13;
+                }
+                HistSel_PlayVoice();
+                gHistSel->focus = 1;
+                break;
+            case 1:
+                Flash_GotoLabel(&gHistSel->flash[0], "fl_level_in", 1);
+                gHistSel->cursor[2] = MSAVE->level;
+                HistSel_PlateGoto(0, 2, "fl_on_start");
+                gHistSel->voiceLine = gHistSel->cursor[2] + 7;
+                HistSel_PlayVoice();
+                gHistSel->focus = 2;
+                break;
+            }
+            Snd_PlaySe(1, 1);
+        } else if (gPad[0].gamePressed & 0x400) {
+            gHistSel->idle = 0;
+            gHistSel->script = 0x33;
+            *result = 0;
+            Snd_PlaySe(1, 2);
+        } else {
+            HistSel_Idle();
+        }
+        break;
+    case 1:
+        if (gPad[0].gameRepeat & 1) {
+            gHistSel->idle = 0;
+            if (gHistSel->items[gHistSel->top] == HISTSEL_ITEM_NONE) {
+                return;
+            }
+            Flash_GotoLabel(&gHistSel->flash[0], "fl_scenario_right", 1);
+            gHistSel->extra = (gHistSel->cursor[gHistSel->focus] + 1) % gHistSel->itemCount;
+            gHistSel->prev = gHistSel->cursor[gHistSel->focus];
+            gHistSel->cursor[gHistSel->focus]--;
+            if (gHistSel->cursor[gHistSel->focus] < 0) {
+                gHistSel->cursor[gHistSel->focus] = gHistSel->itemCount - 1;
+            }
+            gHistSel->top = gHistSel->cursor[gHistSel->focus] - 1;
+            if (gHistSel->top < 0) {
+                gHistSel->top += gHistSel->itemCount;
+            }
+            HistSel_SayItem();
+            Snd_PlaySe(2, 0xA);
+        } else if (gPad[0].gameRepeat & 2) {
+            gHistSel->idle = 0;
+            if (gHistSel->items[(gHistSel->cursor[gHistSel->focus] + 1) % gHistSel->itemCount] == HISTSEL_ITEM_NONE) {
+                return;
+            }
+            Flash_GotoLabel(&gHistSel->flash[0], "fl_scenario_left", 1);
+            gHistSel->extra = gHistSel->top;
+            gHistSel->prev = gHistSel->cursor[gHistSel->focus];
+            gHistSel->cursor[gHistSel->focus]++;
+            if (gHistSel->cursor[gHistSel->focus] >= gHistSel->itemCount) {
+                gHistSel->cursor[gHistSel->focus] = 0;
+            }
+            gHistSel->top = gHistSel->cursor[gHistSel->focus] - 1;
+            if (gHistSel->top < 0) {
+                gHistSel->top += gHistSel->itemCount;
+            }
+            HistSel_SayItem();
+            Snd_PlaySe(2, 0xA);
+        } else if (gPad[0].gamePressed & 0x200) {
+            gHistSel->idle = 0;
+            switch (gHistSel->items[gHistSel->cursor[1]]) {
+            case HISTSEL_ITEM_NONE:
+                Snd_PlaySe(1, 7);
+                break;
+            case HISTSEL_ITEM_ENDING:
+                MSAVE->slot[8].flags &= ~MSLOT_NEW;
+                *result = 2;
+                gHistSel->flags |= HISTSEL_CHOSEN;
+                gHistSel->flags |= HISTSEL_LEAVING;
+                gHistSel->timer = 15;
+                Snd_PlaySe(2, 0xB);
+                break;
+            default:
+                if (MSAVE->slot[gHistSel->items[gHistSel->cursor[1]]].flags & MSLOT_INTRODUCED) {
+                    gHistSel->script = 0x65;
+                } else {
+                    gHistSel->script = 0x97;
+                }
+                Snd_PlaySe(2, 0xB);
+                break;
+            }
+        } else if (gPad[0].gamePressed & 0x400) {
+            gHistSel->idle = 0;
+            Flash_GotoLabel(&gHistSel->flash[0], "fl_scenario_cansel", 1);
+            HistSel_PlateGoto(0, 0, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[0] + 5;
+            HistSel_PlayVoice();
+            gHistSel->focus = 0;
+            Snd_PlaySe(1, 2);
+        } else {
+            HistSel_Idle();
+        }
+        break;
+    case 2:
+        if (gPad[0].gameRepeat & 8) {
+            gHistSel->idle = 0;
+            HistSel_PlateGoto(0, 2, "fl_off_start");
+            gHistSel->cursor[gHistSel->focus]--;
+            if (gHistSel->cursor[gHistSel->focus] < 0) {
+                gHistSel->cursor[gHistSel->focus] = 2;
+            }
+            HistSel_PlateGoto(0, 2, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[gHistSel->focus] + 7;
+            HistSel_PlayVoice();
+            Snd_PlaySe(1, 0);
+        } else if (gPad[0].gameRepeat & 4) {
+            gHistSel->idle = 0;
+            HistSel_PlateGoto(0, 2, "fl_off_start");
+            gHistSel->cursor[gHistSel->focus]++;
+            if (gHistSel->cursor[gHistSel->focus] >= 3) {
+                gHistSel->cursor[gHistSel->focus] = 0;
+            }
+            HistSel_PlateGoto(0, 2, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[gHistSel->focus] + 7;
+            HistSel_PlayVoice();
+            Snd_PlaySe(1, 0);
+        } else if (gPad[0].gamePressed & 0x200) {
+            gHistSel->idle = 0;
+            MSAVE->level = gHistSel->cursor[gHistSel->focus];
+            Flash_GotoLabel(&gHistSel->flash[0], "fl_level_out", 1);
+            HistSel_PlateGoto(0, 2, "fl_ok");
+            HistSel_PlateGoto(0, 0, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[0] + 5;
+            HistSel_PlayVoice();
+            gHistSel->focus = 0;
+            Snd_PlaySe(1, 1);
+        } else if (gPad[0].gamePressed & 0x400) {
+            gHistSel->idle = 0;
+            Flash_GotoLabel(&gHistSel->flash[0], "fl_level_out", 1);
+            HistSel_PlateGoto(0, 2, "fl_off_start");
+            HistSel_PlateGoto(0, 0, "fl_on_start");
+            gHistSel->voiceLine = gHistSel->cursor[0] + 5;
+            HistSel_PlayVoice();
+            gHistSel->focus = 0;
+            Snd_PlaySe(1, 2);
+        } else {
+            HistSel_Idle();
+        }
+        break;
+    }
+}
+
+/* The history menu's frame loop. Returns 0 to go back to the main menu, 1 when a sub menu was chosen
+   (gProgress->subMenu), 2 for the ending movie. */
+s32 HistSel_Run(s32 section) {
+    s32 result = 1;
+
+    HistSel_Init(section);
+    ColorFade_StartIn(0, 0, 0, 0x14);
+    while (1) {
+        Gfx_BeginFrame();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        if (!(gProgress->flags & MPROG_FREEZE)) {
+            HistSel_Update();
+            HistGuide_Update(gHistSel, &result);
+        }
+        HistSel_Draw();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (gProgress->flags & MPROG_FREEZE) {
+            continue;
+        }
+        if (ColorFade_IsInDone()) {
+            if (!(gHistSel->flags & HISTSEL_GREETED) && (gHistSel->flash[0].flags & MFLASH_PAD)) {
+                gHistSel->flags |= HISTSEL_GREETED;
+                if (gHistSel->flags & HISTSEL_COMPLETE) {
+                    gHistSel->script = 1151;
+                } else if (gHistSel->flags & HISTSEL_FIRST_VISIT) {
+                    gHistSel->script = 1;
+                } else if (gHistSel->flags & HISTSEL_EVENT) {
+                    gHistSel->script = 651;
+                } else {
+                    Flash_GotoLabel(&gHistSel->flash[0], "fl_menu_in", 1);
+                    gHistSel->guide = 8;
+                    gHistSel->talker = 0;
+                    gHistSel->voiceLine = Rand_Range(5) + 14;
+                    HistSel_PlayVoice();
+                    Snd_PlaySe(2, 0xE);
+                }
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Voice_FadeOutStep(0);
+            Bgm_FadeOutStep();
+            StreamSe_FadeOutStep(0);
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            break;
+        }
+        if (gHistSel->flags & HISTSEL_LEAVING) {
+            if (--gHistSel->timer == -1) {
+                if (result != 1) {
+                    ColorFade_StartOut(0, 0, 0, 0x14);
+                } else {
+                    ColorFade_StartOut(0xFF, 0xFF, 0xFF, 0x14);
+                }
+                gProgress->subMenu = gHistSel->items[gHistSel->cursor[1]];
+                HPROG->level = MSAVE->level;
+            }
+        } else if (gHistSel->script == 0) {
+            HistSel_Input(&result);
+        }
+    }
+    HistSel_Term();
+    Dma_ResetBuffers();
+    return result;
 }

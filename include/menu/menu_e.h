@@ -4,21 +4,25 @@
 #include "menu/menu_a.h"
 
 /*
- * Menu overlay DBZP.BIN, 0x348710..0x34D368 (placeholder stem "menu_e"). Two pieces of ONE object (the object's
- * .data is 0x3B38D4.., its .rodata runs from 0x3B38F0 through this chunk's 0x3B3D40..0x3B4188 and on):
+ * Menu overlay DBZP.BIN, 0x348710..0x34D368 (placeholder stem "menu_e"). Two pieces (the .data words are
+ * 0x3B38D4.., the .rodata runs from 0x3B38F0 through this chunk's 0x3B3D40..0x3B4188 and on):
  *
- *   menu_e.c    0x348710..0x348D78  CharSel_Run: the frame loop and the battle hand-off of the one-on-one
- *                                   character select (the screen of the previous chunk, work pointer 0x3B38D4)
- *   menu_e_b.c  0x348D78..0x34D368  TeamSel: head of the team character select (teams of up to five, with or
- *                                   without a DP limit; work pointer 0x3B38D8). Its Update / Input / Run are
- *                                   the three functions of the next chunk (0x34D368..0x351C38).
+ *   (menu_e.c)  0x348710..0x348D78  CharSel_Run: the frame loop and the battle hand-off of the one-on-one
+ *                                   character select; now the end of src/menu/menu_c_e.c, which uses the
+ *                                   CharSel view of include/menu/menu_d.h (the partial view that was here
+ *                                   is gone)
+ *   menu_e_b.c  0x348D78..0x351C38  TeamSel: the team character select (teams of up to five, with or without
+ *                                   a DP limit; work pointer 0x3B38D8). Written as two chunks (the cut was
+ *                                   at 0x34D368, in front of Update / Input / Run), now one file; what the
+ *                                   second chunk added to the layouts is in include/menu/menu_f.h, which
+ *                                   includes this header.
  *
  * All names are guesses from what the code does. The structures below are this chunk's own views.
  */
 
 /* A cell of the character grid (include/battle/view_a.h has the original). */
 typedef struct TsCell {
-    /* 0x00 */ s32 id;         /* character id 0..0xA0, 0xA1 custom, 0xA2 locked, 0xA3 random, 0xA4 filler */
+    /* 0x00 */ s32 id;         /* character id 0..0xA0, 0xA1 random, 0xA2 locked, 0xA3 custom, 0xA4 filler */
     /* 0x04 */ s32 formCount;
     /* 0x08 */ s32 form[7];
 } TsCell; /* 0x24 */
@@ -37,6 +41,12 @@ typedef struct TsCell {
 #define TS_FACE_FILE 0x2F9   /* + character id: compressed portrait */
 #define TS_STAGE_FILE 0x39D  /* + stage id: compressed stage picture */
 
+/* An item set: eight item ids, one object (it is copied whole with a structure assignment; TeamSel_Input only
+   compiles to the original's code that way). */
+typedef struct TsItemSet {
+    u16 id[8];
+} TsItemSet; /* 0x10 */
+
 /* What a side chose for one fighter. Kept in gProgress between screens (five per side). */
 typedef struct TsMember {
     /* 0x00 */ s32 col;         /* cursor column in the character grid */
@@ -47,7 +57,7 @@ typedef struct TsMember {
     /* 0x14 */ s32 plate;       /* item-set plate the cursor is on (0..3) */
     /* 0x18 */ s32 color;       /* costume: plate the colour cursor is on (0..3) */
     /* 0x1C */ s32 chara;       /* the chosen character id, -1 = none yet */
-    /* 0x20 */ u16 items[8];    /* equipped items (BattleItemSet) */
+    /* 0x20 */ TsItemSet items; /* equipped items (BattleItemSet) */
 } TsMember; /* 0x30 */
 
 #define TS_MEMBER_MAX 5
@@ -72,41 +82,6 @@ typedef struct TsProgress {
 
 #define gTsProgress ((TsProgress *)gProgress)
 
-/* ---- CharSel, the part its Run function touches (the previous chunk owns the full layout) ---- */
-
-typedef struct CharSelStageE {
-    /* 0x00 */ s32 col;
-    /* 0x04 */ s32 row;
-    /* 0x08 */ s32 unk8[13];
-    /* 0x3C */ s32 stage;
-    /* 0x40 */ s32 unk40[4];
-    /* 0x50 */ s32 bgm;        /* index in the music list of the entry chosen */
-} CharSelStageE;
-
-typedef struct CharSelE {
-    /* 0x0000 */ u8 unk0[0x2FC];
-    /* 0x02FC */ s32 flags;
-    /* 0x0300 */ s32 faceState;
-    /* 0x0304 */ s32 stageState;
-    /* 0x0308 */ s32 unk308[2];
-    /* 0x0310 */ s32 timer;         /* frames until the fade out starts after the last choice */
-    /* 0x0314 */ u8 unk314[0x1E4];
-    /* 0x04F8 */ TsMember *side[2];
-    /* 0x0500 */ u8 unk500[0x54];
-    /* 0x0554 */ CharSelStageE *stage;
-    /* 0x0558 */ u8 unk558[0x3294];
-    /* 0x37EC */ s32 players;
-    /* 0x37F0 */ u8 unk37F0[0x14];
-    /* 0x3804 */ s32 *stageIds;
-    /* 0x3808 */ s32 *bgmIds;
-    /* 0x380C */ s32 stageCount;
-} CharSelE;
-
-#define CHARSEL_LEAVING 0x10
-
-extern CharSelE *D_003B38D4;
-#define gCharSelE D_003B38D4
-
 /* ---- TeamSel ---- */
 
 #define TEAMSEL_SIDES 2
@@ -128,7 +103,7 @@ typedef struct TeamSelSide {
 
 #define TEAMSEL_SIDE_FACE_CHANGE 1  /* the portrait must be reloaded */
 #define TEAMSEL_SIDE_FACE_READY 2   /* the portrait is loaded and fades in */
-#define TEAMSEL_SIDE_FLAG40 0x40
+#define TEAMSEL_SIDE_FORM 0x40      /* the member is being chosen from the form reel */
 #define TEAMSEL_SIDE_NO_FACE 0x400  /* nothing to show (chara < 0) */
 
 /* The stage and music choice. */
@@ -168,7 +143,7 @@ typedef struct TeamSel {
     /* 0x03C8 */ s32 faceSide;              /* side whose portrait is being loaded */
     /* 0x03CC */ s32 stageBuf;              /* which of stageRes the next picture goes to */
     /* 0x03D0 */ s32 timer;                 /* frames from the stage choice to the fade out (next chunk) */
-    /* 0x03D4 */ s32 help;                  /* argument of func_00399478: which item the help window explains */
+    /* 0x03D4 */ s32 help;                  /* argument of ItemHelp_Draw: which item the help window explains */
     /* 0x03D8 */ TeamSelSide sideData[TEAMSEL_SIDES];
     /* 0x08E8 */ TeamSelSide *side[TEAMSEL_SIDES];
     /* 0x08F0 */ TsMember backup[TEAMSEL_SIDES]; /* the member being changed, as it was (next chunk) */
@@ -223,7 +198,6 @@ typedef struct TeamSel {
 /* The work pointer: second word of the object's .data. */
 extern TeamSel *gTeamSel; /* 0x3B38D8 */
 
-s32 CharSel_Run(s32 section);
 void TeamSel_SumCost(s32 side, s32 skipCur);
 s32 TeamSel_IsCharaFree(s32 side, s32 chara);
 s32 TeamSel_FitsDp(s32 side, s32 chara);

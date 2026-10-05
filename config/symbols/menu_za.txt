@@ -85,4 +85,4 @@ DcSave_GetState = 0x003B0DA0; // type:func // guess
 DcSave_IsDone = 0x003B0DC8; // type:func // guess
 DcSave_IsStarted = 0x003B0DF0; // type:func // guess
 gDcSave = 0x003BC9FC; // size:0x4
-_ctype_ = 0x002FB260; // size:0x101 // the C library character class table (newlib); used through _ctype_ + 1
+_ctype_ = 0x002FB260; // size:0x101 // the C library character class table (newlib), used through _ctype_ + 1

@@ -153,6 +153,33 @@ options:
     - config/symbols/misc_a.txt
     - config/symbols/view_b.txt
     - config/symbols/late_a.txt
+    - config/symbols/menu_a.txt
+    - config/symbols/menu_b.txt
+    - config/symbols/menu_c.txt
+    - config/symbols/menu_d.txt
+    - config/symbols/menu_e.txt
+    - config/symbols/menu_f.txt
+    - config/symbols/menu_g.txt
+    - config/symbols/menu_h.txt
+    - config/symbols/menu_i.txt
+    - config/symbols/menu_j.txt
+    - config/symbols/menu_k.txt
+    - config/symbols/menu_l.txt
+    - config/symbols/menu_m.txt
+    - config/symbols/menu_n.txt
+    - config/symbols/menu_o.txt
+    - config/symbols/menu_p.txt
+    - config/symbols/menu_q.txt
+    - config/symbols/menu_r.txt
+    - config/symbols/menu_s.txt
+    - config/symbols/menu_t.txt
+    - config/symbols/menu_u.txt
+    - config/symbols/menu_v.txt
+    - config/symbols/menu_w.txt
+    - config/symbols/menu_x.txt
+    - config/symbols/menu_y.txt
+    - config/symbols/menu_z.txt
+    - config/symbols/menu_za.txt
   reloc_addrs_path:
     - config/reloc_addrs.txt
 

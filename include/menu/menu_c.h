@@ -10,14 +10,15 @@
  * Hist_Main (0x33CBF8, previous chunk) runs for progress modes 6, 8 and 10. Five files, cut at object
  * boundaries (see each file's head comment for the evidence):
  *
- *   menu_c.c    0x33E108..0x33F700  HistSel     tail of the saga select (mode 6); head: src/menu/menu_b_d.c
+ *   (menu_c.c   0x33E108..0x33F700  HistSel     tail of the saga select (mode 6); now merged into
+ *                                               src/menu/menu_b_d.c, 0x33CFC8..0x33F700, which includes this header)
  *   menu_c_b.c  0x33F700..0x3405A0  HistGuide   the scripted dialogues of the saga select
  *   menu_c_c.c  0x3405A0..0x341E08  HistResult  the result screen after a story battle (mode 8)
  *   menu_c_d.c  0x341E08..0x342190  HistSave    the save screen (mode 10)
  *   menu_c_e.c  0x342190..0x342588  CharSel     head of the character select object (body: src/menu/menu_d.c)
  *
- * HistSel below is the full layout of the structure that include/menu/menu_b.h declares from its head only
- * (same name, so the two headers cannot be included together until one of them is dropped).
+ * HistSel below is the layout of the whole structure (include/menu/menu_b.h had a view from the object's head
+ * only; it was removed when the two halves were merged).
  */
 
 /* gProgress as the mode 6..10 screens use it (menu_a.h's MenuProgress has no names past 0x38). */
@@ -160,10 +161,8 @@ typedef struct HistSel {
     /* 0x228 */ s32 percent;        /* cleared episodes of 48, in percent */
     /* 0x22C */ s32 guest;          /* sub menu whose guide stands next to Goku, -1 = none */
     /* 0x230 */ s32 talker;         /* whose mouth moves: 0 Goku, 1 the guest */
-    /* 0x234 */ s32 blink;
-    /* 0x238 */ s32 guestBlink;
-    /* 0x23C */ s32 talk;
-    /* 0x240 */ s32 guestTalk;
+    /* 0x234 */ s32 blink[2];       /* [0] Goku, [1] the guest (Init seeds both in a loop) */
+    /* 0x23C */ s32 talk[2];        /* [0] Goku, [1] the guest */
     /* 0x244 */ f32 scroll[3];      /* vertical offset of the three haze layers ("mc_yuragi") */
     /* 0x250 */ s32 seTimer;        /* frames until the next ambient sound (300..840) */
 } HistSel; /* 0x254 */
@@ -209,10 +208,11 @@ extern void StreamSe_FadeOutStep(s32 se);
 extern void Flash_StepFrames(MFlash *flash, s32 step);
 extern void MsgWin_SetText(void *text);
 
-/* Previous chunk (head of the HistSel object, src/menu/menu_b_d.c). */
+/* HistSel (src/menu/menu_b_d.c). */
 extern void HistSel_PlayVoice(void);    /* plays voiceLine of the current guide's set, with its subtitle */
 extern void HistSel_Idle(void);         /* idle frame: after 3600 of them Goku says one of four lines */
 extern void HistSel_SayItem(void);      /* Goku comments the sub menu under the cursor */
+extern void HistSel_RollEvent(void);      /* picks this visit's event saga (4 % each) */
 extern void HistSel_Init(s32 section);
 
 void HistGuide_Update(HistSel *menu, s32 *result);

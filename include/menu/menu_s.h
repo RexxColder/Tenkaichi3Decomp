@@ -11,10 +11,9 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  * Menu overlay DBZP.BIN, 0x388618..0x38CB38 (placeholder stem "menu_s"): screens of the mode group 13..30
  * (handler Ub_Main 0x379A58, archive gMenuArc3, main-menu item 1). Four pieces, cut at object boundaries:
  *
- *   menu_s.c    0x388618..0x388EE0  SimTop      tail of the entry screen of the "sim" sub family (mode 20): its
- *                                               Update, the guide's lines, the pad handler, the clip helper and
- *                                               the frame loop SimTop_Run. The object starts in the previous
- *                                               chunk (menu_r_d.c, 0x387880; work pointer 0x3B7420).
+ *   (menu_s.c)  0x388618..0x388EE0  SimTop      tail of the entry screen of the "sim" sub family (mode 20): merged
+ *                                               into src/menu/menu_r_d.c, where the object starts (0x387880;
+ *                                               work pointer 0x3B7420); its view is in include/menu/menu_r.h
  *   menu_s_b.c  0x388EE0..0x38A308  SurvSel     the course select of the survival sub family (mode 17; movie
  *                                               labels "fl_survival_%02d_in"), a whole object (work pointer
  *                                               0x3B743C). Its first function writes the battle setup.
@@ -70,7 +69,7 @@ typedef struct SProgress {
 
 #define S_PROG ((SProgress *)gProgress)
 
-/* Best result of one survival course (QSaveBestB of include/menu/menu_q.h, written by UbScore_SaveBestB). */
+/* Best result of one survival course (UbSaveBestB of include/menu/menu_p.h, written by UbScore_SaveBestB). */
 typedef struct SSaveSurv {
     /* 0x00 */ s32 defeated;    /* opponents beaten: the score sheet's fourth line */
     /* 0x04 */ s32 score;       /* shown * 100 */
@@ -137,65 +136,7 @@ extern void UbScore_PlateGoto(MFlash *flash, s32 kind, s32 on);
 extern s32 UbScore_SaveBestB(s32 course, s32 total, SScore *score); /* 1 = a new record was written */
 extern s32 UbScore_GetRewardItem(s32 idx);  /* gUbRewardItems[idx]; idx 3 = item 0x6A */
 
-/* ---- SimTop (menu_s.c): tail of the object that starts in menu_r_d.c ---- */
-
-#define SIMTOP_FLASH_NUM 1
-#define SIMTOP_ROWS 3
-#define SIMTOP_RANK_TOP_MAX 5    /* the ranking has ten rows and shows five */
-#define SIMTOP_HELP_PAGES 10
-#define SIMTOP_IDLE_FRAMES 0xE10
-
-typedef struct SimTop {
-    /* 0x000 */ u32 *pack;
-    /* 0x004 */ u32 *res;
-    /* 0x008 */ u32 *faces;
-    /* 0x00C */ void *text;
-    /* 0x010 */ void *subtitles;    /* section 9 */
-    /* 0x014 */ MTextBox box;
-    /* 0x0A0 */ MFlash flash[SIMTOP_FLASH_NUM];
-    /* 0x0CC */ u8 unkCC[0xA4];
-    /* 0x170 */ s32 flags;          /* SIMTOP_ */
-    /* 0x174 */ s32 cur[6];         /* cursor of each level; only cur[0] (plate 0..2) is used */
-    /* 0x18C */ s32 timer;          /* frames until the fade out starts after the choice */
-    /* 0x190 */ s32 level;          /* SIMTOP_LV_ */
-    /* 0x194 */ s32 voiceReq;       /* line the guide is asked to say (1..5), 0 = none */
-    /* 0x198 */ s32 voiceLast;
-    /* 0x19C */ s32 voiceSkip;      /* confirm was pressed while the guide spoke */
-    /* 0x1A0 */ s32 voiceLine;      /* subtitle line, -1 = none */
-    /* 0x1A4 */ s32 blink;
-    /* 0x1A8 */ s32 mouth;
-    /* 0x1AC */ s32 idle;           /* frames without input */
-    /* 0x1B0 */ s32 starTimer;
-    /* 0x1B4 */ s32 starFrame;
-    /* 0x1B8 */ s32 top;            /* first ranking row shown (0..5) */
-    /* 0x1BC */ s32 cursor;         /* ranking row that scrolls in */
-    /* 0x1C0 */ s32 page;           /* page of the "how to play" text (0..10) */
-    /* 0x1C4 */ s32 iconFrame;
-} SimTop; /* 0x1C8 */
-
-#define SIMTOP_CHOSEN 1
-#define SIMTOP_LEAVING 2
-#define SIMTOP_STARTED 4
-#define SIMTOP_GREETED 8
-
-#define SIMTOP_LV_MENU 0        /* three plates: start, ranking, how to play */
-#define SIMTOP_LV_RANKING 1
-#define SIMTOP_LV_HELP 2
-
-extern SimTop *gSimTop;                         /* 0x3B7420 */
-extern const s32 gSimTopPlateVoice[SIMTOP_ROWS]; /* 0x3B9ED8: {1, 2, 3}, the line of each plate */
-extern const s32 gSimTopIdleVoice[2];           /* 0x3B9EE8: {4, 5} */
-
-/* head of the object (menu_r_d.c) */
-extern void SimTop_Init(s32 section);
-extern void SimTop_Term(void);
-extern void SimTop_Draw(void);
-
-void SimTop_Update(void);
-void SimTop_UpdateVoice(void);
-void SimTop_Input(s32 *result);
-void SimTop_ClipGoto(s32 movie, s32 level, char *label);
-s32 SimTop_Run(s32 section);
+/* ---- SimTop: the former menu_s.c is merged into src/menu/menu_r_d.c; its view is in include/menu/menu_r.h ---- */
 
 /* ---- SurvSel (menu_s_b.c) ---- */
 
@@ -334,57 +275,7 @@ void SurvResult_UpdateVoice(void);
 void SurvResult_Input(s32 *result);
 s32 SurvResult_Run(s32 section);
 
-/* ---- SimEvent handlers (menu_s_d.c): the three trainings of the sim day screen ---- */
-
-#define SIMTRAIN_OUTCOMES 6
-
-/* Section 29 of the day screen's pack: one block per training (0xC0 bytes). */
-typedef struct SimTrainTbl {
-    /* 0x00 */ s32 weight[3][SIMTRAIN_OUTCOMES]; /* by times the training was repeated: chance of each outcome, of 100 */
-    /* 0x48 */ s32 hp[SIMTRAIN_OUTCOMES];        /* change of stat 2 */
-    /* 0x60 */ s32 atkMin[SIMTRAIN_OUTCOMES];    /* change of stat 0: drawn from min..max */
-    /* 0x78 */ s32 atkMax[SIMTRAIN_OUTCOMES];
-    /* 0x90 */ s32 defMin[SIMTRAIN_OUTCOMES];    /* change of stat 1 */
-    /* 0xA8 */ s32 defMax[SIMTRAIN_OUTCOMES];
-} SimTrainTbl; /* 0xC0 */
-
-/* The day screen's work area (SimDay of include/menu/menu_q.h): what the handlers touch. */
-typedef struct SimDayS {
-    /* 0x000 */ u8 unk0[0x550];
-    /* 0x550 */ s32 flags;          /* SIMDAY_ */
-    /* 0x554 */ u8 unk554[0x4C];
-    /* 0x5A0 */ s32 msgLine;        /* line of the message window, -1 = none */
-    /* 0x5A4 */ u8 unk5A4[0x5B8];
-    /* 0xB5C */ SimTrainTbl *train; /* section 29 */
-    /* 0xB60 */ void *level;
-    /* 0xB64 */ s32 event;
-    /* 0xB68 */ s32 step;           /* step of the running handler */
-    /* 0xB6C */ s32 wait;
-    /* 0xB70 */ s32 lastEvent;
-    /* 0xB74 */ s32 repeat;         /* times in a row the same event came up, at most 2 */
-    /* 0xB78 */ s32 faceA;          /* picture the monitor goes back to */
-} SimDayS;
-
-#define SIMDAY_WAIT_KEY 0x80        /* the handler waits for the confirm button */
-#define SIMDAY_FLAG800 0x800        /* forces outcome 0 */
-#define SIMDAY_FLAG1000 0x1000      /* forces outcome 5 */
-
-extern void SimDay_Cmd(s32 anim);
-extern void SimDay_AddChange(s32 stat, s32 amount);
-
-/*
- * Outcome of the last training of each kind. In the main executable's .bss (common symbols of overlay source,
- * like gCharRefState at 0x31EA80, whose nine entries would overlap these: see the report).
- */
-extern s32 gSimTrainOutcome0; /* 0x31EA94 */
-extern s32 gSimTrainOutcome1; /* 0x31EA98 */
-extern s32 gSimTrainOutcome2; /* 0x31EA9C */
-
-s32 SimEv00_Roll(SimDayS *day);
-s32 SimEv00(SimDayS *day);
-s32 SimEv01_Roll(SimDayS *day);
-s32 SimEv01(SimDayS *day);
-s32 SimEv02_Roll(SimDayS *day);
-s32 SimEv02(SimDayS *day);
+/* ---- SimEvent handlers (menu_s_d.c): merged with menu_t.c; SimTrainTbl, the outcome globals and the
+ * prototypes of SimEv00..02 are in include/menu/menu_t.h now (the SimDayS view is replaced by TSimDay). ---- */
 
 #endif

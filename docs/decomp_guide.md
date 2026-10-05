@@ -401,3 +401,59 @@ Tools
 - When the object after a C file has data aligned to less than the padding the original had, add a small assembly
   chunk for the gap (`[0x1F2168, rodata, ...]`) or start the following assembly chunk early (`0x1FF05C`, `0x1EB354`).
 
+
+## Linking lessons from the eleventh step: the menu overlay (2026-10-05)
+- Second binary, same tree: the overlay's yaml uses `src_path: src` with subsegments named `menu/<file>` and
+  `nonmatchings_path: ../nonmatchings`, so INCLUDE_ASM paths look the same for both binaries
+  (`asm/nonmatchings/menu/<file>`). configure.py's target has `src_subdir`; the main executable never compiles
+  src/menu because only files with a `c` subsegment in a target's own yaml are built.
+- Symbols across the two binaries: splat writes `undefined_*_auto` entries only for references made from
+  assembly. configure.py therefore writes `build/<target>_extern_syms.ld` with every LISTED symbol that lies
+  outside the target's image (overlay C calling the main executable, the wish screen calling `ItemHelp_*`,
+  overlay globals that live in the main executable's `.bss` / `.sbss`). A name must be in a listed symbol file.
+- The overlay interleaves `.data` and `.rodata` (per link group: the work pointers, then each file's read-only
+  data). splat orders a segment by section type, so give each `.rodata` subsegment
+  `linker_section_order: .data` (dict form: `{start: 0x.., type: .rodata, name: menu/x, linker_section_order:
+  .data}`); everything then links in yaml order. With that there is no need to know the original link groups:
+  each file defines its own pointer (`X *gX = NULL;`, `extern` kept in the header) and gets a 4-byte `.data`
+  subsegment at the pointer's address.
+- `.data` alignment tells what a zero word is: a pointer followed by an initialised table of 8 bytes or more
+  (`gMisSel` + `gMisSelFaceTex`, `gSimTop` + `gSimTopFaceTex`, `gPassWin` + `gPassKeys`, `gItemPanel[2]` behind
+  `gTeamSel`) has a padding word because the compiler aligns such objects to 8.
+- Check a file BEFORE linking with a relocating byte compare (build/scratch_integ11/ov.py: compiles as the build
+  does, applies every relocation from config/, finds the `.rodata` in the image by content, compares `.text`,
+  `.rodata` and `.data`). All 93 chunk files passed it for `.text` as delivered; what it found were layout
+  problems only (below). A yaml generator driven by its output (mk.py) replaces editing subsegments by hand.
+- Halves of one source file cannot be linked separately when they share string literals (the tail's code refers
+  to strings inside the head's `.rodata`: undefined `D_XXXXXXXX` from the assembly half). Merge first. A merge is
+  mostly a struct-view unification (the head's partial view against the tail's complete one); it was farmed out
+  to parallel agents with the checker as the acceptance test. Three functions matched only once merged
+  (`CharSel_Input`, `Train_Update`, `Train_Input`: a callee defined earlier in the translation unit changes
+  `beqz` / `bnel` and delay slots).
+- A duplicated string inside what looks like one module means two source files (`"mc_ability_limit_up"` twice:
+  `EvoZ_Init..Run` and `EvoZ_Refresh..Load` are separate objects).
+- String literals of a `static inline` function are emitted where the inline function is DEFINED, not where it
+  is expanded. If literals are out of order in `.rodata`, move the helper's definition (src/menu/menu_z_c.c:
+  two helpers sit behind `DcMenu_DrawPlates`).
+- Unreferenced development paths ("host:data/...") in an object are arguments of an inline "section" helper
+  that ignores them (`Train_Section`, `DcMenu_Section`): one string per call, in call order.
+- After an `INCLUDE_ASM` that follows a named read-only object, the compiler still believes it is in `.rodata`
+  while the macro ended in `.text`: literals of the next function land in `.text`. Put
+  `__asm__(".section .rodata");` behind that INCLUDE_ASM (src/menu/menu_z_c.c).
+- Assembler `-G` and delay slots under `-G0`: Sony's assembler left a `symbol(reg)` load of a not-yet-defined
+  symbol in front of an unfilled `jal` even with -G0; the modern gas does so only with a non-zero -G. A file
+  without float constants can be ASSEMBLED with -G8 while compiled with -G0 (`AS_G_FLAGS` in configure.py and
+  the same exception in scripts/fdiff.py; `SimEv28` in src/menu/menu_t_b.c). With floats it cannot: `li.s`
+  would become a gp-relative `.lit4` load.
+- `li.d` (a `double` constant in an integer register) is in the prelude; the compiler's `litodp` / `dptoli`
+  calls are aliased to `__floatsidf` / `__fixdfsi` in config/linker_script_extra_dbzp.ld.
+- splat keeps old split files on disk (asm/dbzp/000000.s etc.): scripts/progress.py reads only the assembly
+  files the yaml names now.
+- An INCLUDE_ASM function whose strings are ALSO used by C functions behind it, in the middle of its own strings
+  (`Option_Draw`): name those strings in the symbol file with `force_migration:True` (splat does not move a
+  user-named symbol into the function's .s otherwise, and stops migrating there), and let the C refer to them as
+  `extern const char name[]`. A string emitted by C in FRONT of the function is the other case: a named
+  `static const char x[] __attribute__((aligned(8)))` object with `force_not_migration:True`.
+- An object whose only jump table belongs to an INCLUDE_ASM function has an 8-aligned `.rodata`; when the
+  original was 16-aligned put `RODATA_ALIGN16();` at the TOP of the file (in front of the first table), not in
+  front of the INCLUDE_ASM, if strings of the C part end in between (src/menu/menu_u_d.c).

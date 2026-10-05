@@ -68,3 +68,7 @@ DcPass_UpdateFace = 0x003ABF00; // type:func // guess
 DcPass_DrawTextLine = 0x003AC050; // type:func // guess
 DcPass_DrawStatus = 0x003AC098; // type:func // guess
 gDcPassKeys = 0x003BC928; // size:0x8C
+// Read-only object of menu_z_c.c that DcMenu_DrawPlates (INCLUDE_ASM) shares with the C functions.
+sDcMenuPlateClip = 0x003BD390; // size:0x11 force_not_migration:True
+// Read-only object of menu_z_d.c that DcPass_DrawRows (INCLUDE_ASM) shares with the C functions.
+sDcPassPlate2Clip = 0x003BD930; // size:0x12 force_not_migration:True

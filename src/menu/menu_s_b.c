@@ -2,6 +2,9 @@
 #include "menu/menu_s.h"
 #include "sys/pad.h"
 
+/* The screen's work area (.data, 0x3B743C). */
+SurvSel *gSurvSel = NULL;
+
 /*
  * SurvSel, 0x388EE0..0x38A308: the course select of the survival sub family (mode 17 of Ub_Main), a whole
  * object. Work pointer gSurvSel (0x3B743C); read-only data 0x3BA138..0x3BA300 (strings only). The screen is a

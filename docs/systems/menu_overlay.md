@@ -4,6 +4,63 @@ Loaded at 0x334C00; code 0x334C00..0x3B0E04 (737 functions), data from 0x3B0E80.
 -G0 (verified: no gp-relative access anywhere). Data is laid out per object as `.data` then
 `.rodata`. Source goes in src/menu/. Brief and chunk table: docs/briefs_menu_overlay.md.
 
+## Link state (eleventh step, 2026-10-05): the whole overlay is linked from C
+
+build/DBZP.BIN is byte-identical from 69 C files (the 93 chunk files after 24 merges of head / tail halves);
+no assembly code chunk is left, only the zero padding between `.text` and the data (0x3B0E04..0x3B0E80). 728 of
+the 737 functions are C; 9 are INCLUDE_ASM inside linked files (docs/open_questions.md). The file names in the
+chunk sections below are the ORIGINAL chunk files; where a section says "append to" / "merge with", that is done
+and the tail file is gone:
+
+| Object (source file now) | Range | Was |
+|---|---|---|
+| menu_a_d.c `ModeMenu` | 0x338020..0x33A360 | menu_a_d + menu_b |
+| menu_b_d.c `HistSel` | 0x33CFC8..0x33F700 | menu_b_d + menu_c |
+| menu_c_e.c `CharSel` | 0x342190..0x348D78 | menu_c_e + menu_d + menu_e |
+| menu_e_b.c `TeamSel` | 0x348D78..0x351C38 | menu_e_b + menu_f |
+| menu_g_c.c `DuelMenu` | 0x352EC0..0x3562B8 | menu_g_c + menu_h |
+| menu_h_d.c `Train` | 0x359358..0x35D660 | menu_h_d + menu_i |
+| menu_i_d.c `EntrySel` | 0x35E0F8..0x3623A8 | menu_i_d + menu_j |
+| menu_j_b.c `TourMenu` | 0x3623A8..0x364DA8 | menu_j_b + menu_k |
+| menu_k_f.c `Bracket` logic | 0x368068..0x36B3E0 | menu_k_f + menu_l |
+| menu_l_b.c `SoloSel` | 0x36B3E0..0x36E028 | menu_l_b + menu_m |
+| menu_m_b.c `UbTeamSel` | 0x36E028..0x372560 | menu_m_b + menu_n |
+| menu_n_d.c `UbResult` | 0x3760C8..0x3782A8 | menu_n_d + menu_o |
+| menu_o_d.c `MisSel` | 0x379F58..0x37B7C0 | menu_o_d + menu_p |
+| menu_p_d.c `UbScore` | 0x37EE18..0x37F850 | menu_p_d + menu_q |
+| menu_q_b.c `SimDay` | 0x37F850..0x3851B0 | menu_q_b + menu_r |
+| menu_r_d.c `SimTop` | 0x387880..0x388EE0 | menu_r_d + menu_s |
+| menu_s_d.c sim events 0..27 | 0x38C360..0x3900D0 | menu_s_d + menu_t |
+| menu_u_h.c `EvoZ_Refresh` .. `EvoZ_Load` | 0x393C58..0x396838 | menu_u_h + menu_v |
+| menu_v_d.c `Shop` | 0x399790..0x39E940 | menu_v_d + menu_w |
+| menu_w_c.c `EvoTop` | 0x39EB08..0x39FAA8 | menu_w_c + menu_x |
+| menu_x_c.c `Option` | 0x39FBB8..0x3A65E8 | menu_x_c + menu_y |
+| menu_y_b.c `DcList` | 0x3A65E8..0x3A9850 | menu_y_b + menu_z |
+| menu_z_d.c `DcPass` | 0x3AAF30..0x3AE648 | menu_z_d + menu_za |
+
+Facts the link established (verified by the identical image):
+- menu_u_g.c (`EvoZ_Init` .. `EvoZ_Run`, 0x392F10..0x393C58) and menu_u_h.c are TWO source files
+  ("mc_ability_limit_up" exists twice), not one as the chunk notes assumed. menu_k_b .. menu_k_e are separate
+  objects from the Bracket logic file.
+- `CharSel_Input`, `Train_Update`, `Train_Input` and `DcList_Draw` match as C once their file is whole;
+  `SimEv28` is C (its file is assembled with -G8, see docs/decomp_guide.md).
+- `.data` (all defined in C now): every screen with a global work struct has one pointer, in link order:
+  0x3B0E80 `gMainMenu`, `gMenuArc0..12`, `gTitle`; 0x3B12F0 ModeMenu, ModeBg, HistOutro, HistSel, HistResult,
+  HistSave; 0x3B38D4 CharSel, TeamSel, (pad), `gItemPanel[2]`, DuelMenu; 0x3B4854 CharRef; 0x3B4BA8 Train;
+  0x3B5908 BootCard, Logo, EntrySel, TourMenu, Bracket (defined in menu_k_b.c), TourBg; 0x3B7348 SoloSel,
+  UbTeamSel, UbzSel, UbRank, UbResult, DiscFusion, MisSel + `gMisSelFaceTex[5]`, MisResult, UbMenu, SimDay,
+  `gSimEvent[37]` (the event handler table, `SimEv00`..`SimEv36` in order), SimResult, SimTop +
+  `gSimTopFaceTex[5]`, SurvSel, SurvResult; 0x3BB140 EvoZ, ItemHelp, Shop; 0x3BC364 Option; 0x3BC928
+  `gDcPassKeys[2][5][14]`, `gPassWin`, `gPassKeys[4][14]`, `gReplayMenu`, `gDcSave`. `EvoTop`, `DcList`, `DcMenu`
+  and `DcPass` keep their work struct on the stack of their `_Run` function (no pointer).
+- `gMenuArc12` (0x3B0EB4, file baseFile + 0x18) is the wish screen's archive: defined by the overlay, loaded and
+  freed by the main executable (src/sys/late_a.c).
+- Overlay globals in the main executable's `.bss` / `.sbss` are fixed-address symbols
+  (build/DBZP_extern_syms.ld, from the symbol files). The overlap at 0x31EA80..0x31EAA4 is REAL: CharRef's
+  nine-entry state table `gCharRefState` covers the words UbMenu (0x31EA90), the three sim trainings
+  (0x31EA94..0x31EA9C) and the card game (0x31EAA0) use. How the original linker came to overlap them
+  (inferred: common symbols) is not established; the screens never run at the same time.
+
 ## Entry and mode dispatcher (src/menu/menu_a_b.c; verified by matching C)
 
 `Game_Main` calls `Progress_Main` (0x336A90) after `Overlay_Load(0)`; when it returns,
@@ -163,9 +220,8 @@ type (+0x624), stage, music and DP level (+0x630) from `gProgress`. DP battles: 
 
 ## Character / stage / music select (chunk 4, 0x342588..0x348710; src/menu/menu_d.c; 11 of 12 match)
 
-`CharSel_Input` (0x3456A8, 0x3064 bytes) is INCLUDE_ASM: its attempt differs in 3 of 3097
-instructions (a `lui` in a delay slot), so what is said about input below is from that
-attempt. `gCharSel` = 0x3B38D4, 0x3A4C bytes; layouts in include/menu/menu_d.h. The file only
+`CharSel_Input` (0x3456A8, 0x3064 bytes) matches as C since the merge (in the stand-alone chunk file it differed
+in 3 of 3097 instructions), so what is said about input below is verified. `gCharSel` = 0x3B38D4, 0x3A4C bytes; layouts in include/menu/menu_d.h. The file only
 lays out correctly merged behind menu_c_e.c (one object 0x342190..0x348D78).
 
 - (verified) Per-side pick record kept in `gProgress` (+0x440 / +0x530, first 0x30 bytes of a
@@ -187,7 +243,7 @@ lays out correctly merged behind menu_c_e.c (one object 0x342190..0x348D78).
 
 `TeamSel_Update`, `TeamSel_Input` (16.5 KB) and `TeamSel_Run`. menu_e_b.c + menu_f.c are ONE
 source file (the TeamSel object 0x348D78..0x351C38: `TeamSel_Input` only matches with three
-of its callees defined above it; menu_f.c carries stand-ins until merged). CharSel and TeamSel
+of its callees defined above it; merged and linked now). CharSel and TeamSel
 are separate files (duplicate strings), contrary to the note above.
 
 - (verified) Mode 40 = `TeamSel_Run(2)`, called by `Duel_Main` (0x352CB8, modes 38..41): mode
@@ -203,8 +259,7 @@ are separate files (duplicate strings), contrary to the note above.
   grid (9) and music list (10) on pad 0. Item sets: plate 0 = none; a saved custom character's
   set is the first 16 bytes of its `SaveRec` (`gSaveData + 0x2D40 + idx * 0x1C`); otherwise
   `gSaveData + 0x1808 + cell * 0x38 + (plate - 1) * 16`.
-- (verified) Grid cell 0xA1 = random, 0xA3 = saved custom characters (view_a.h, menu_d.h
-  defines, menu_e.h comments and menu_support.md have them swapped: fix at integration).
+- (verified) Grid cell 0xA1 = random, 0xA3 = saved custom characters (the headers agree now).
 - (verified) Random member: `Rand_Range(masterCount)` until a real character, then
   `Rand_Range(formCount)`, repeated until `TeamSel_IsCharaFree`.
 - Original bugs: a random member is never checked against the DP limit, so a DP team can
@@ -286,7 +341,7 @@ Files: menu_h.c = `DuelMenu_Run` (last function of the duel menu object), menu_h
 - (verified) `gCharRefState` (0x31EA80) is in the MAIN executable's `.bss`: an uninitialised
   global of overlay source placed as a common symbol, so the overlay was linked together with
   the main executable.
-- For the integrator: `Snd_PlaySe` returns `s32` (menu_a.h declares it `void`: fix).
+- `Snd_PlaySe` returns `s32` (menu_a.h says so since the eleventh step).
 
 ## Dragon World Tour, modes 33..35: tournament menu tail and bracket screen (chunk 11, 0x364358..0x368C18; src/menu/menu_k*.c; all 16 functions match)
 
@@ -378,8 +433,8 @@ Verified by matching C:
 
 `Train_BuildLists` (0x35A610) is INCLUDE_ASM (11 of 118 instructions, a folded compare).
 `Train_Update` and `Train_Input` match only when compiled in one file with menu_h_d.c (one
-object, 0x359358..0x35D660; standalone they differ in 1 and 4 instructions): merge at
-integration using menu_i.h's complete `Train` (0x1BE0 bytes). menu_i_d.c is the head of the
+object, 0x359358..0x35D660; standalone they differed in 1 and 4 instructions): merged and matching now, with
+menu_i.h's complete `Train` (0x1BE0 bytes). menu_i_d.c is the head of the
 `EntrySel` object (continues in menu_j.c).
 
 Verified by matching C:
@@ -594,7 +649,7 @@ Verified by matching C:
 - The address range 0x31EA80..0x31EAA4 in the main executable's `.bss` is shared by several
   overlay modules' uninitialised globals (`gCharRefState` as declared by chunk 8 overlaps
   UbMenu's word, three sim outcome words and `gSimCardShown`): chunk 8's nine-pointer reading
-  of it is wrong or these are merged common symbols; resolve at integration.
+  of it is RIGHT (its nine stores are verified by the identical image): the overlap is real, see "Link state".
 
 ## Mission select tail, mission result, family top menu, score sheet head (chunk 16, 0x37AFF8..0x37F430; src/menu/menu_p*.c; all 30 functions match)
 
@@ -654,12 +709,13 @@ Verified by matching C:
 ## Sim day events 3..30 (chunk 20, 0x38CB38..0x3911A8; src/menu/menu_t.c, menu_t_b.c; 31 of 32 match)
 
 28 of the 37 day-event handlers (`gSimEvent[3..30]`); menu_t.c appends to menu_s_d.c.
-`SimEv28` (the card game) is INCLUDE_ASM for a TOOLCHAIN reason, not a source one: its
+`SimEv28` (the card game) was INCLUDE_ASM for a TOOLCHAIN reason, not a source one (resolved at the eleventh
+step: src/menu/menu_t_b.c is assembled with -G8, `AS_G_FLAGS` in configure.py, and the function is C): its
 compiler output is right, but the modern assembler under -G0 moves the `lw %lo(sym)(reg)` of
 a `symbol(reg)` load into the `jal`'s delay slot where the original assembler kept a `nop`
 (3 of 546 instructions). The same output assembled with -G8 is byte-identical. It is the only
 such site in the overlay; the fix is a rule in include/gcc_prelude.inc or a per-file
-exception (the file has no floats), to be decided at integration.
+exception (the file has no floats); the per-file exception was chosen.
 
 Verified by matching C: every event is a `switch (day->seq)` script, one step per frame;
 effects go through `SimDay_AddChange` (stats 0 attack, 1 defence, 2 health %, 3 points); the
@@ -749,7 +805,9 @@ pad, per controller; peers must apply their own mapping before inputs are exchan
 ## Data Center (modes 53..56) (chunk 26, 0x3A7D98..0x3AC440; src/menu/menu_z*.c; 62 of 68 match)
 
 Wrapped up early (budget): NO relocated byte compare was run on this chunk, so strings and
-call targets are checked by reading only. Six INCLUDE_ASM with attempts (`DcList_Draw`,
+call targets were checked by reading only (the link has since verified all of them; `DcList_Draw` matches
+since the merge; `DcMenu_Init` lacked its twelve development path strings and two inline helpers were defined in
+the wrong place for the string order: fixed at the link). Six INCLUDE_ASM with attempts (`DcList_Draw`,
 `Dc_Main`, `DcMenu_DrawPlates`, `DcPass_WrapPos`, `DcPass_Decode`, `DcPass_DrawStatus`; notes
 in the source). Files: menu_z.c = `DcList` tail (saved custom characters, mode 55; head in
 chunk 25), menu_z_b.c = `Dc_Main` (0x3A9850), menu_z_c.c = `DcMenu` (mode 53), menu_z_d.c =
@@ -770,7 +828,7 @@ head of `DcPass` (password screen, mode 54; continues in chunk 27).
 ## Options tail and Data Center character list (chunk 25, 0x3A3848..0x3A7D98; src/menu/menu_y.c, menu_y_b.c; 42 of 43 match)
 
 `Option_Draw` (0x3A3848, 2153 instructions) is INCLUDE_ASM: 14 instructions differ, register
-choices only; no link check was run on menu_y.c (wrapped up early). menu_y.c appends to
+choices only; menu_y.c was link-checked at the eleventh step (strings and call targets right). menu_y.c appends to
 menu_x_c.c; menu_y_b.c is the head of `DcList` (continues in menu_z.c).
 - (verified) `Option_UpdateReset` (the "reset?" dialogs): screen position and +0x1694 /
   +0x1698 to 0; sound mode 0, both volumes 9; controller: flags bits 8 / 0x10 cleared, bits
@@ -783,11 +841,10 @@ menu_x_c.c; menu_y_b.c is the head of `DcList` (continues in menu_z.c).
 
 `DcPass_DrawRows` (0x3AC858) is INCLUDE_ASM (saved registers). Files: menu_za.c = `DcPass`
 tail (behind menu_z_d.c), menu_za_b.c = `PassWin`, menu_za_c.c = `PassChk`, menu_za_d.c =
-`ReplayMenu` (mode 56), menu_za_e.c = `DcSave`. For the integrator: menu_za_d.c defines an
-`li.d` assembler macro at the top (the project's first `double` constant: add `li.d` to
-include/gcc_prelude.inc and delete the block); the compiler's soft-float calls `litodp` /
-`dptoli` are named `__floatsidf` / `__fixdfsi` in lib.txt (alias them); `gPassChk` is in the
-main executable's `.sbss`.
+`ReplayMenu` (mode 56), menu_za_e.c = `DcSave`. Done at the eleventh step: `li.d` is in
+include/gcc_prelude.inc (the project's first `double` constant, in `ReplayMenu_Draw`); the compiler's soft-float
+calls `litodp` / `dptoli` are aliased to `__floatsidf` / `__fixdfsi` (config/linker_script_extra_dbzp.ld);
+`gPassChk` is in the main executable's `.sbss` (a fixed-address symbol).
 
 **How a replay is started from the menu** (ReplayMenu verified by matching C; `Dc_Main` from
 its attempt; McFlow / `BattleReplay_Load` from linked main-executable source):

@@ -8,6 +8,8 @@
  * identified, put this disc back). Read-only data 0x3B8290..0x3B83AE.
  */
 
+DiscFusion *gDiscFusion = NULL; /* 0x3B735C */
+
 /* Copies the two "recognised" bits of gProgress into the work area. */
 void DiscFusion_UpdateHave(void) {
     if (UO_PROG->discFlags & UB_DISC_0) {

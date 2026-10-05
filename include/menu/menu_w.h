@@ -15,9 +15,9 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  * progress modes 48..50; the development path in the next object's data is "host:data/ps2/test/main/evoZ/").
  *
  *   menu_w.c    0x39A978..0x39E940  Shop     tail of the item shop object (mode 50); head: src/menu/menu_v_d.c
+ *                                            -- now merged into src/menu/menu_v_d.c, which includes this header
  *   menu_w_b.c  0x39E940..0x39EB08  EvoMode_Main, the handler of modes 48..50
- *   menu_w_c.c  0x39EB08..0x39EFC0  EvoTop   head of the mode's top menu (mode 48); the object goes on in the
- *                                            next chunk (src/menu/menu_x.c)
+ *   menu_w_c.c  0x39EB08..0x39FAA8  EvoTop   the mode's top menu (mode 48); declared in include/menu/menu_x.h
  *
  * The Shop layout below is this chunk's own view (the previous chunk's include/menu/menu_v.h declares the same
  * structure from the head of the object only and was still changing; unify them when the two files are merged:
@@ -54,7 +54,16 @@ typedef struct WItemEntry {
     /* 0x18 */ u8 unk18[0x10];
 } WItemEntry; /* 0x28 */
 
+#define WITEM_HIDDEN 5         /* either bit: never listed */
+#define WITEM_SOLD 0x20        /* the shop sells it */
+#define WITEM_LISTED 0x40      /* appears in the item lists */
+#define WITEM_UNCOUNTED 0x100  /* not counted for the collection percentage */
+
 extern s32 ItemTbl_GetClass(s32 item, WItemEntry *table);
+extern void Sprite_SetScissor(s32 x0, s32 x1, s32 y0, s32 y1);
+extern void TextBox_Init(MTextBox *box, void *text, u32 preset);
+extern void TextBox_SetUnk80(MTextBox *box, s32 value);
+extern void TextBox_SetRect(MTextBox *box, s32 a, s32 b, s32 c, s32 d);
 
 /* ---- Shop (0x399790..0x39E940; this chunk has it from 0x39A978) ---- */
 
@@ -158,21 +167,23 @@ typedef struct Shop {
 
 extern Shop *gShop; /* 0x3BB148 */
 
-/* Previous chunk (head of the Shop object, src/menu/menu_v_d.c; ItemHelp, src/menu/menu_v_c.c). */
-extern s32 Shop_IsSoldOut(void);
-extern s32 Shop_CanBuy(s32 item, WItemEntry *table);
-extern void Shop_PlayVoice(void);
-extern void Shop_SetListScissor(void);
-extern void Shop_SetWindowScissor(void);
-extern void Shop_ResetScissor(void);
-extern void Shop_SwapGuide(void);
-extern void Shop_Init(s32 section);
+/* ItemHelp (src/menu/menu_v_c.c). */
 extern void ItemHelp_Init(u32 *pack);
 extern void ItemHelp_Term(void);
 extern void ItemHelp_Draw(s32 item);
 extern void ItemHelp_Open(void);
 extern void ItemHelp_Close(void);
 
+/* The Shop object is one file since the merge: src/menu/menu_v_d.c (0x399790..0x39E940). */
+void Shop_CheckStockLevel(void);
+s32 Shop_IsSoldOut(void);
+s32 Shop_CanBuy(s32 item, WItemEntry *table);
+void Shop_PlayVoice(void);
+void Shop_SetListScissor(void);
+void Shop_SetWindowScissor(void);
+void Shop_ResetScissor(void);
+void Shop_SwapGuide(void);
+void Shop_Init(s32 section);
 void Shop_Term(void);
 void Shop_Draw(void);
 void Shop_SetPlate(s32 flash, s32 level, s32 tab, char *label);
@@ -183,33 +194,6 @@ s32 Shop_Run(s32 section);
 
 s32 EvoMode_Main(void);
 
-/* ---- EvoTop (menu_w_c.c): the top menu of Evolution Z (mode 48). Head of the object only; the next chunk's
- * include/menu/menu_x.h declares the same structure (same names) with the fields its tail uses. ---- */
-
-#define EVOTOP_FLASH_NUM 1
-#define EVOTOP_VOICE_BASE 0x86C9
-
-typedef struct EvoTop {
-    /* 0x00 */ void *pack;          /* this screen's section of archive 7 (compressed) */
-    /* 0x04 */ u32 *res;            /* the same unpacked: a pack of 12 sections */
-    /* 0x08 */ MFlash flash[EVOTOP_FLASH_NUM]; /* section 6 */
-    /* 0x34 */ MTexRes *bg;         /* section 1 */
-    /* 0x38 */ u8 *tex[13];         /* textures of the movie's image records (sections 4, 2, 5) */
-    /* 0x6C */ s32 blink;           /* the guide's blink timer; starts at Rand_Range(32) */
-    /* 0x70 */ s32 talk;
-    /* 0x74 */ void *subtitles;     /* section 10 */
-    /* 0x78 */ void *msgText;       /* section 7 */
-    /* 0x7C */ u8 unk7C[0x3C];      /* handed to MsgWin_Init as a fourth argument, which it does not take */
-    /* 0xB8 */ s32 cursor;          /* plate 0..2; restored from gProgress + 0x7D0 */
-    /* 0xBC */ s32 voiceLine;       /* subtitle line of the guide's voice, -1 = none */
-    /* 0xC0 */ s32 unkC0[4];        /* result, timer, flags, cloud: see menu_x.h */
-} EvoTop; /* 0xD0 */
-
-void EvoTop_PlayVoice(EvoTop *menu, s32 line);
-s32 EvoTop_Wrap(s32 value, s32 min, s32 max);
-void EvoTop_SetPlate(EvoTop *menu, s32 on);
-void EvoTop_SetPlateText(EvoTop *menu);
-void EvoTop_Advance(EvoTop *menu);
-void EvoTop_Init(EvoTop *menu, s32 section);
+/* EvoTop (menu_w_c.c, the whole object since the merge with menu_x.c): see include/menu/menu_x.h. */
 
 #endif

@@ -9,8 +9,11 @@
  * plates, costume plates), optionally under a DP limit (gProgress->dpRule 1..3: the team total may not exceed
  * 10 / 15 / 20). It is the one-sided version of TeamSel (src/menu/menu_e_b.c) with two guides in place of the
  * stage choice. The object's .data is the work pointer 0x3B734C (second word after 0x3B7348 of SoloSel); its
- * .rodata runs from 0x3B7740 to 0x3B7ADC. Its last two functions (0x372148, 0x372260) are in the next chunk.
+ * .rodata runs from 0x3B7740 to 0x3B7ADC. Its last two functions (0x372148, 0x372260: the guide's closing line
+ * and the frame loop) were written in the next chunk (menu_n.c) and are merged in here: 0x36E028..0x372560.
  */
+
+UbTeamSel *gUbTeamSel = NULL; /* 0x3B734C */
 
 /* The common resources of the main executable (include/sys/common.h). */
 typedef struct UbCommonRes {
@@ -368,7 +371,7 @@ void UbTeamSel_Init(s32 section) {
     gUbTeamSel->subtitles = MPACK_AT(gUbTeamSel->res, 26);
     MsgWin_Init(MPACK_AT(gUbTeamSel->res, 23), gUbTeamSel->msgText, 1, 0);
     MsgWin_Open();
-    func_00399240(MPACK_AT(gUbTeamSel->res, 24));
+    ItemHelp_Init(MPACK_AT(gUbTeamSel->res, 24));
     gUbTeamSel->items = MPACK_AT(gCommonRes->data[2], 2);
     gUbTeamSel->nameText = MPACK_AT(gUbTeamSel->res, 28);
     gUbTeamSel->formText = MPACK_AT(gUbTeamSel->res, 29);
@@ -430,7 +433,7 @@ void UbTeamSel_Init(s32 section) {
 void UbTeamSel_Term(void) {
     s32 i;
 
-    func_00399430();
+    ItemHelp_Term();
     MsgWin_Term();
     ItemPanel_Term(0);
     for (i = 0; i < UBTEAM_FLASH_NUM; i++) {
@@ -669,7 +672,7 @@ void UbTeamSel_Draw(void) {
     Flash_Draw(&gUbTeamSel->flash[3]);
     MsgWin_Draw(0, 0, gUbTeamSel->voiceLine);
     ItemPanel_Draw(0);
-    func_00399478(gUbTeamSel->help);
+    ItemHelp_Draw(gUbTeamSel->help);
 }
 
 /* Advances the movies and the item panel, and shows the chips again once the reel movie says so. */
@@ -892,7 +895,7 @@ void UbTeamSel_Input(s32 *result) {
         s32 item = ItemPanel_Input(0, 0);
 
         if (item > 0) {
-            func_00399730();
+            ItemHelp_Open();
             gUbTeamSel->help = item - 1;
             gUbTeamSel->sel->step = UBTEAM_STEP_HELP;
         } else if (item < 0) {
@@ -904,7 +907,7 @@ void UbTeamSel_Input(s32 *result) {
     }
     case UBTEAM_STEP_HELP:
         if (gPad[0].gamePressed & 0x600) {
-            func_00399760();
+            ItemHelp_Close();
             gUbTeamSel->sel->step = UBTEAM_STEP_PANEL;
             Snd_PlaySe(1, 2);
         }
@@ -1075,4 +1078,100 @@ void UbTeamSel_Input(s32 *result) {
         }
         break;
     }
+}
+
+/* Once the team is chosen: the guide's closing line, then the leave timer. */
+void UbTeamSel_UpdateEnd(void) {
+    s32 step = gUbTeamSel->endStep;
+
+    if (step == UBSEL_END_NONE) {
+        return;
+    }
+    switch (step) {
+    case UBSEL_END_SPEAK:
+        gUbTeamSel->talker = 0;
+        gUbTeamSel->voiceLine = 0x37;
+        Voice_PlayWithSubtitle(gUbTeamSel->subtitles, UB_VOICE_BASE, gUbTeamSel->voiceLine);
+        gUbTeamSel->endStep++;
+        break;
+    case UBSEL_END_WAIT:
+        if (Voice_GetStat(0) == UB_VOICE_IDLE) {
+            gUbTeamSel->endStep++;
+        } else if (gPad[0].gamePressed & 0x200) {
+            gUbTeamSel->endStep++;
+            Snd_PlaySe(1, 1);
+        }
+        break;
+    case UBSEL_END_LEAVE:
+        gUbTeamSel->flags |= UBSEL_DONE;
+        gUbTeamSel->flags |= UBSEL_LEAVING;
+        gUbTeamSel->timer = 15;
+        gUbTeamSel->endStep = UBSEL_END_NONE;
+        break;
+    }
+}
+
+/*
+ * The team select (mode 15 when gProgress->teamSize >= 2). Returns 1 when a team was chosen (the members are then
+ * in gProgress->team and their number in gProgress->teamSize), 0 when the player backed out.
+ */
+s32 UbTeamSel_Run(s32 section) {
+    s32 result = 1;
+
+    UbTeamSel_Init(section);
+    ColorFade_StartIn(0, 0, 0, 0x14);
+    while (1) {
+        Gfx_BeginFrame();
+        UbTeamSel_UpdateFaceLoad();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        if (!(gProgress->flags & MPROG_FREEZE)) {
+            UbTeamSel_Update();
+            UbTeamSel_UpdateEnd();
+        }
+        UbTeamSel_Draw();
+        Font_FlushAll();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (gProgress->flags & MPROG_FREEZE) {
+            continue;
+        }
+        if (ColorFade_IsInDone()) {
+            if (!(gUbTeamSel->flags & UBSEL_GREETED) && (gUbTeamSel->flash[0].flags & MFLASH_PAD)) {
+                gUbTeamSel->flags |= UBSEL_GREETED;
+                gUbTeamSel->talker = 0;
+                gUbTeamSel->voiceLine = 0x36;
+                Voice_PlayWithSubtitle(gUbTeamSel->subtitles, UB_VOICE_BASE, gUbTeamSel->voiceLine);
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Voice_FadeOutStep(0);
+            Bgm_FadeOutStep();
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            if (gUbTeamSel->loadState != UBSEL_LOAD_IDLE) {
+                continue;
+            }
+            break;
+        }
+        if (gUbTeamSel->flags & UBSEL_LEAVING) {
+            if (--gUbTeamSel->timer == -1) {
+                ColorFade_StartOut(0, 0, 0, 0x14);
+                /* hand the choice to the mode */
+                UB_PROG->team = gUbTeamSel->sel->team;
+            }
+        } else if (gUbTeamSel->endStep == UBSEL_END_NONE) {
+            UbTeamSel_Input(&result);
+        }
+    }
+    if (result) {
+        UB_PROG->teamSize = gUbTeamSel->sel->memberCount;
+    }
+    UbTeamSel_Term();
+    Dma_ResetBuffers();
+    return result;
 }

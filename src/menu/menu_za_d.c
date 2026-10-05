@@ -1,6 +1,9 @@
 #include "common.h"
 #include "menu/menu_za.h"
 
+/* The screen's work (overlay .data, 0x3BC9F8). */
+ReplayMenu *gReplayMenu = NULL;
+
 /*
  * Menu overlay DBZP.BIN, 0x3AF290..0x3B0C08: ReplayMenu, the replay list of the Data Center (progress mode 56).
  * A whole object: `.data` gReplayMenu (0x3BC9F8), `.rodata` 0x3BE3A8..0x3BE71C.
@@ -16,19 +19,7 @@
  * callbacks and turns their outcome into the screen's result.
  */
 
-/*
- * FOR THE INTEGRATOR: ReplayMenu_Draw has the project's first `double` constant (pow(10.0, n)). The compiler
- * loads it into an integer register with `li.d $22,1.0e1`, which the modern assembler refuses for the r5900 and
- * include/gcc_prelude.inc does not handle yet. Until the prelude has a `li.d`, this block gives the assembler
- * the one constant this file needs, so that fdiff can check the file (the original encodes it as
- * `ori $22,$0,0x8048 / dsll32 $22,$22,15`, which is what `dli` produces). Delete it when the prelude is extended.
- */
-__asm__(".macro li.d reg, val\n"
-        "    .ifnc \\val,1.00000000000000000000e1\n"
-        "    .error \"menu_za_d.c: li.d only knows 10.0\"\n"
-        "    .endif\n"
-        "    dli \\reg, 0x4024000000000000\n"
-        ".endm");
+/* ReplayMenu_Draw has the project's first `double` constant (pow(10.0, n)): `li.d` is in include/gcc_prelude.inc. */
 
 void ReplayMenu_SetPlayable(s32 on);
 

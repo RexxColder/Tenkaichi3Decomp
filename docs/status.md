@@ -496,3 +496,38 @@ start / save path.
 Decision recorded 2026-10-04: the decomp phase ends when all game code of both binaries is
 linked, SDK and CRI libraries excluded. Port and decomp will be separate repos (recommended,
 port forked from a tagged decomp commit). Now running: overlay integrator (first pass).
+
+## Eleventh step: linking the menu overlay (2026-10-05, in progress)
+
+State file for a second integrator; updated after every group. Tools: build/scratch_integ11/ (`ov.py <stem>` =
+relocated byte compare of one file's `.text` / `.rodata` / `.data` against DBZP.BIN; `linked.txt` = stems linked;
+`mk.py` rewrites the subsegments of config/DBZP.yaml from it; `go.sh` = configure + gate; `raw.py` = fallback .s
+for INCLUDE_ASM; MERGE_BRIEF.md = what the merge agents were told).
+Infrastructure done: DBZP target reads sources from src/menu (`src_path: src`, subsegments `menu/<file>`,
+`nonmatchings_path: ../nonmatchings`); every config/symbols/menu_*.txt listed in both yamls and names applied;
+configure.py writes `build/<target>_extern_syms.ld` (listed symbols outside the image) for both targets;
+config/linker_script_extra_dbzp.ld (`litodp` / `dptoli`); `li.d` in the prelude; `Snd_PlaySe` is `s32` in
+menu_a.h; `.rodata` subsegments carry `linker_section_order: .data` so data and read-only data interleave in
+yaml order; menu_t_b.c is assembled with -G8 (`AS_G_FLAGS`), `SimEv28` is C now.
+Merges were done by eight parallel agents (one per run of chunks) and verified with `ov.py`; tails deleted.
+
+**DONE: the whole overlay is linked.** 0x334C00..0x3B0E04 from 69 C files (table of merged objects in
+docs/systems/menu_overlay.md "Link state"); build/DBZP.BIN and build/SLUS_216.78.rom byte-identical; the only
+non-C subsegment left in config/DBZP.yaml is the zero padding `[0x07C204, data]` (0x3B0E04..0x3B0E80).
+`python3 scripts/fdiff.py` prints OK for all 737 functions over the 69 files.
+- Newly matching through the merges / toolchain: `CharSel_Input`, `Train_Update`, `Train_Input`, `DcList_Draw`,
+  `SimEv28`. INCLUDE_ASM left in the overlay (9; rows in docs/open_questions.md): `Train_BuildLists`, `SimEv34`,
+  `Option_Draw`, `Dc_Main`, `DcMenu_DrawPlates`, `DcPass_WrapPos`, `DcPass_Decode`, `DcPass_DrawStatus`,
+  `DcPass_DrawRows`. Main executable unchanged: 174 INCLUDE_ASM, 86.91%.
+- scripts/progress.py: DBZP 0x78990 / 0x7C204 bytes in C (97.16%); it now reads only the assembly files the
+  yaml names (old split files stay under asm/).
+- Link-time fixes: menu_z_c.c (`DcMenu_Init` lacked its twelve "host:" path strings; two inline helpers moved
+  behind `DcMenu_DrawPlates` for the string order; section fix after the INCLUDE_ASM); EvoTop / DcList got their
+  host path strings and helper order from the merge agent; menu_u_g / menu_u_h are two objects; `gBracket` is
+  defined in menu_k_b.c; named shared strings for the INCLUDE_ASM functions (`sSimPopoX`, `sSimPopoClip`,
+  `sDcMenuPlateClip`, `sDcPassPlate2Clip`, `sOptOnStart`, `sOptClip*`).
+- Not done (optional clean-up): the remaining duplicated struct views across include/menu/*.h (e.g. `Bracket`
+  in menu_k.h vs `LBracket` in menu_l.h, `SimDay` / `TSimDay` / `USimDay`, `EvoZ` / `UEvoZ`, flat vs nested save
+  views, `ubFlags` vs `discFlags` for gProgress + 0x684); stale file names in comments of config/symbols/menu_*.txt
+  and a few sources; `MSave` should move to include/sys/save.h.
+Next: near-miss cleanup rounds on the INCLUDE_ASM functions of both binaries.

@@ -3,6 +3,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+HistOutro *gHistOutro = NULL; /* 0x3B12F8 */
+
 /*
  * HistOutro, 0x33ABA0..0x33CBF8: the scene shown when a saga of the story mode was completed (progress mode 9):
  * the saga's guide and a partner talk through a scripted dialogue, then the saga's closing text scrolls in and is
@@ -19,7 +21,7 @@ extern void Flash_StepFrames(MFlash *flash, s32 step);
 extern void Voice_StopWithLip(void);
 extern void StreamSe_FadeOutStep(s32 se);
 extern void Movie_PlayEnding(void);
-extern s32 func_0033F440(s32 section);
+extern s32 HistSel_Run(s32 section);
 extern s32 HistResult_Run(s32 section);
 extern s32 HistSave_Run(s32 section);
 
@@ -838,7 +840,7 @@ s32 Hist_Main(void) {
         switch (gProgress->mode) {
         case 6:
             Bgm_Play(0x10B18);
-            r = func_0033F440(1);
+            r = HistSel_Run(1);
             Adx_StopAll();
             gProgress->prevMode = gProgress->mode;
             switch (r) {

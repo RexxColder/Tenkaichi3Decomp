@@ -2,6 +2,9 @@
 #include "menu/menu_p.h"
 #include "sys/pad.h"
 
+/* The screen's work area (.data, 0x3B737C). */
+MisResult *gMisResult = NULL;
+
 /*
  * MisResult, 0x37B7C0..0x37DC38: the result screen of a mission (mode 16), shown after the battle. The score
  * sheet (UbScore) is filled from the battle result; its lines and bonuses count into the total page by page, a

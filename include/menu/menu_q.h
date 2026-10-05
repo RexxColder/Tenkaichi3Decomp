@@ -8,25 +8,22 @@
 extern s32 Snd_PlaySe(u32 mask, s32 id);
 
 /*
- * Menu overlay DBZP.BIN, 0x37F430..0x3840E0 (placeholder stem "menu_q"): mode group 13..30 (handler 0x379A58,
+ * Menu overlay DBZP.BIN, 0x37F430..0x3851B0 (placeholder stem "menu_q"): mode group 13..30 (handler 0x379A58,
  * archive gMenuArc3, main-menu item 1). Two pieces, cut at an object boundary:
  *
- *   menu_q.c    0x37F430..0x37F850  UbScore  tail of the score sheet module (head: src/menu/menu_p_d.c, the object
- *                                            starts at 0x37EE18): money conversion step, bonus page, plate
- *                                            animation, the save's ranking and best-result records, the reward
- *                                            item table
- *   menu_q_b.c  0x37F850..0x3840E0  SimDay   head of the day screen of mode 22 (work pointer gSimDay 0x3B7384,
- *                                            0xBBC bytes). The object goes on in menu_r (src/menu/menu_r.c: the
- *                                            guide's lines, pad handler 0x384260, 0x384D48, portrait loader, frame
- *                                            loop 0x385020), which named it; this header has the full layout of
- *                                            the structure that include/menu/menu_r.h declares in part under the
- *                                            same name, so the two headers cannot be included together.
+ *   (menu_q.c)  0x37F430..0x37F850  UbScore  tail of the score sheet module: merged into src/menu/menu_p_d.c (the
+ *                                            object starts at 0x37EE18); its views are in include/menu/menu_p.h
+ *   menu_q_b.c  0x37F850..0x3851B0  SimDay   the day screen of mode 22 (work pointer gSimDay 0x3B7384, 0xBBC
+ *                                            bytes), a whole object: the former src/menu/menu_r.c (0x3840E0..:
+ *                                            the guide's lines, pad handler 0x384260, 0x384D48, portrait loader,
+ *                                            frame loop 0x385020) is merged into it. This header has the layout of
+ *                                            the structure; include/menu/menu_r.h only declares the type's name.
+ *                                            The two headers cannot be included together (gSaveData).
  *
  * The movie labels call the mode "sim" ("mc_sim_botan", "mc_sim_monita", "fl_syugyo_*" = training): a run is a
  * ladder of rounds of ten turns; on nine of them the player picks a button of a board and an event plays, the
  * tenth is the round's fight. All names are guesses from what the code does ("Ub" = the group of modes 13..30,
- * as in menu_m.h / menu_p.h). The structures are this chunk's own views (QScore is UbScore of
- * include/menu/menu_p.h under another name, so that the two headers do not depend on each other).
+ * as in menu_m.h / menu_p.h). The structures are this chunk's own views.
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -43,6 +40,10 @@ extern void Num_DrawChild(MFlash *flash, char *parent, char *fmt, s32 first, s32
 extern void Dialog_Draw(s32 visible);
 extern void Dialog_Start(s32 cmd);
 extern void Dialog_SetChoices(s32 on);
+extern void Dialog_SetMsg(s32 idx);
+extern s32 Dialog_Input(s32 allowCancel);
+extern s32 Dialog_IsClosed(void);
+extern void Voice_StopWithLip(void);
 extern void Dialog_SetCursor(s32 choice);
 extern void Battle_ClearWork(void);
 extern void BattleSetup_SetRule(s32 screenMode, s32 mode, s32 bgm, s32 timeLimit, s32 announcer, s32 stage, s32 unk10);
@@ -162,43 +163,6 @@ typedef struct QProgress {
 
 #define QPROG ((QProgress *)gProgress)
 
-/* ---- UbScore (menu_q.c; UbScore of include/menu/menu_p.h) ---- */
-
-typedef struct QScoreLine {
-    /* 0x00 */ s32 value;
-    /* 0x04 */ s32 remain;
-    /* 0x08 */ s32 points;
-} QScoreLine; /* 0xC */
-
-typedef struct QScore {
-    /* 0x000 */ s32 total;
-    /* 0x004 */ s32 count;
-    /* 0x008 */ s32 convert;    /* money paid so far (a tenth of the points taken from total) */
-    /* 0x00C */ s32 unkC;
-    /* 0x010 */ QScoreLine line[4];
-    /* 0x040 */ QScoreLine bonus[48];
-    /* 0x280 */ s32 shown[3];   /* bonus indices on the page shown */
-    /* 0x28C */ s32 lineCount;
-    /* 0x290 */ s32 bonusCount;
-    /* 0x294 */ u32 ticks;      /* battle clock at the end */
-    /* 0x298 */ s16 hours;
-    /* 0x29A */ s16 minutes;
-    /* 0x29C */ s16 seconds;
-    /* 0x29E */ s16 unk29E[3];
-    /* 0x2A4 */ s32 rank;       /* 0 = none, 1..4 */
-} QScore; /* 0x2A8 */
-
-extern s32 UbScore_Transfer(s32 *from, s32 *to, s32 step, f32 rate);   /* menu_p_d.c, 0x37F2B0 */
-
-s32 UbScore_ConvertStep(QScore *score, s32 step);
-void UbScore_SetPage(QScore *score, s32 page);
-void UbScore_PlateGoto(MFlash *flash, s32 plate, s32 on);
-void UbScore_AddRanking(s32 score, s32 chara, s32 cleared);
-s32 UbScore_SaveMissionBest(s32 mission, s32 total, QScore *score);
-s32 UbScore_SaveBestB(s32 course, s32 total, QScore *score);
-s32 UbScore_SaveBestC(s32 course, s32 total, QScore *score);
-s32 UbScore_GetRewardItem(s32 idx);
-
 /* ---- SimDay (menu_q_b.c) ---- */
 
 /* One rank of a training (gSimTrain0 the card game, gSimTrain1 and gSimTrain2 the two others). */
@@ -254,8 +218,14 @@ typedef struct SimEventRow {
 } SimEventRow; /* 0x14 */
 
 #define SIMDAY_BGM_FIRST 0x10B16  /* Bgm_Play id of music 0 */
+#define SIMDAY_FACE_FILE 0x2F9     /* + character id: compressed portrait */
 #define SIMDAY_FACE_SIZE 0x16800
 #define SIMDAY_FACE_RES_SIZE 0x20800
+
+/* Voice_GetStat result when nothing is playing. */
+#define SIMDAY_VOICE_IDLE 5
+/* Voice bank base of this mode group's guides (Voice_PlayWithSubtitle). */
+#define SIMDAY_VOICE_BASE 0x8765
 
 #define SIMDAY_RANDOM 998
 #define SIMDAY_NONE 999
@@ -283,7 +253,7 @@ typedef struct SimChange {
 typedef struct SimDay {
     /* 0x000 */ void *pack;         /* file baseFile + 0x1A (compressed) */
     /* 0x004 */ u32 *res;           /* the same unpacked: a pack of 34 sections */
-    /* 0x008 */ void *faceFile[2];  /* 0x16800 bytes each: compressed portraits (loaded by menu_r) */
+    /* 0x008 */ void *faceFile[2];  /* 0x16800 bytes each: compressed portraits (the player's character, the round's opponent) */
     /* 0x010 */ void *faceRes[2];   /* 0x20800 bytes each: the same unpacked */
     /* 0x018 */ void *msgText;      /* section 24 */
     /* 0x01C */ void *text;         /* section 32 */
@@ -295,23 +265,23 @@ typedef struct SimDay {
     /* 0x298 */ u8 *tex2[16];       /* cards */
     /* 0x2D8 */ u8 *tex3[15];
     /* 0x314 */ u8 *tex4[18];
-    /* 0x35C */ u8 *tex6[16];       /* round; [13] and [14] are the two portraits (set by menu_r) */
+    /* 0x35C */ u8 *tex6[16];       /* round; [13] and [14] are the two portraits: the opponent's, the player's (SimDay_UpdateFaceLoad) */
     /* 0x39C */ MTexRes *numRes;    /* section 22 */
     /* 0x3A0 */ MTexRes *faceResA;  /* section 6: pictures for tex0[32] */
     /* 0x3A4 */ MTexRes *faceResB;  /* section 7: pictures for tex0[33] */
     /* 0x3A8 */ u8 *faceDefault;    /* shown for picture 12 */
     /* 0x3AC */ MTextBox box[3];    /* item names */
     /* 0x550 */ s32 flags;          /* SIMDAY_ */
-    /* 0x554 */ s32 loadState;      /* portrait loader (menu_r) */
+    /* 0x554 */ s32 loadState;      /* portrait loader: SIMDAY_LOAD_ */
     /* 0x558 */ s32 cur[13];        /* cursor of each state */
     /* 0x58C */ s32 timer;
     /* 0x590 */ s32 state;          /* SIMDAY_ST_ */
     /* 0x594 */ s32 prevState;      /* state the window was opened from */
-    /* 0x598 */ s32 talk[2];        /* the guide's closing line and the last one said (menu_r) */
+    /* 0x598 */ s32 talk[2];        /* [0] the guide's closing line to say (1..5), 0 = none; [1] the last one said */
     /* 0x5A0 */ s32 msgLine;        /* line of the message window, -1 = none */
     /* 0x5A4 */ s32 menuText;       /* 1 = the window shows the item names, 0 = its plates */
     /* 0x5A8 */ s32 bgm;            /* + 0x10B16 = music of the round */
-    /* 0x5AC */ s32 wait;           /* frames the "versus" picture stays (menu_r) */
+    /* 0x5AC */ s32 wait;           /* frames the round picture stays (300) */
     /* 0x5B0 */ s32 day;            /* turn of the round, 0..9 */
     /* 0x5B4 */ s32 preview[5];     /* what a script wants shown for each stat */
     /* 0x5C8 */ s32 own[Q_ITEM_NUM]; /* owned items an event can hand out */
@@ -331,20 +301,31 @@ typedef struct SimDay {
     /* 0xB78 */ s32 faceA;          /* pictures the monitor goes back to */
     /* 0xB7C */ s32 faceB;
     /* 0xB80 */ s32 rank[SIMDAY_TRAIN_KINDS]; /* rank of each training at the current turn */
-    /* 0xB8C */ s32 unkB8C;
+    /* 0xB8C */ s32 unkB8C;         /* answer of the two-row menu: 1 = first row */
     /* 0xB90 */ SimChange chg;
     /* 0xBB4 */ s32 potara;         /* bit n: item plate n is lit */
     /* 0xBB8 */ s32 levelUp;        /* a level-up is due when the board comes back */
 } SimDay; /* 0xBBC */
 
+#define SIMDAY_DONE 1
+#define SIMDAY_LEAVING 2
+#define SIMDAY_STARTED 4
+#define SIMDAY_GREETED 8
+#define SIMDAY_FACES_READY 0x10   /* the two portraits of the round picture are loaded */
 #define SIMDAY_FACE_ON 0x20       /* the monitor shows a character */
-#define SIMDAY_BUSY 0x40          /* (menu_r) set while the monitor closes */
+#define SIMDAY_BUSY 0x40          /* set while the monitor closes: the pad handler waits */
+#define SIMDAY_WAIT_KEY 0x80      /* the script waits for the confirm button */
 #define SIMDAY_SAME_TURN 0x100    /* the board comes back without a turn passing */
 #define SIMDAY_SKIP_TURNS 0x200   /* five turns pass at once */
 #define SIMDAY_LEVEL_UP 0x400     /* the level-up animation runs */
 #define SIMDAY_WINDOW 0x2000      /* the window is open: only its movie advances */
 
-/* state (menu_r.h has the same list as SIMDAY_ST_TOP .. SIMDAY_ST_QUIT, named from the pad handler) */
+#define SIMDAY_LOAD_IDLE 0
+#define SIMDAY_LOAD_REQUEST 1
+#define SIMDAY_LOAD_READ 2
+#define SIMDAY_LOAD_UNPACK 3
+
+/* state */
 #define SIMDAY_ST_BOARD 0        /* the board's four buttons */
 #define SIMDAY_ST_TRAIN 1        /* the three trainings (button 0) */
 #define SIMDAY_ST_SELECT 2       /* a two-row choice of an event */
@@ -352,13 +333,16 @@ typedef struct SimDay {
 #define SIMDAY_ST_WAIT 4         /* an animation started by SimDay_Cmd runs */
 #define SIMDAY_ST_VERSUS 5       /* the fight is announced */
 #define SIMDAY_ST_WINDOW 6       /* the three-row window (movie 5) is open */
+#define SIMDAY_ST_WINDOW_ITEMS 7 /* the window shows the carried items */
 #define SIMDAY_ST_CONFIRM 8      /* its row 2: the yes / no dialog */
 #define SIMDAY_ST_BACK 9         /* back from the dialog to the window */
 #define SIMDAY_ST_ROUND 10       /* the round number is shown */
+#define SIMDAY_ST_ROUND_WAIT 11
+#define SIMDAY_ST_QUIT 12
 
 extern SimDay *gSimDay;   /* 0x3B7384 */
 
-extern void SimDay_ClipGoto(s32 movie, s32 kind, char *label);   /* menu_r: plays a label on the cursor's plate */
+extern s32 SimEvent_Run(SimDay *day, u32 event);   /* menu_r_b.c: one step of event script `event` */
 
 s32 SimDay_GetTrainRank(s32 kind);
 void SimDay_SetFaceA(s32 n);
@@ -379,11 +363,16 @@ void SimDay_ShowChange(void);
 void SimDay_SetMenuAlpha(s32 text);
 void SimDay_PlayBgm(void);
 void SimDay_Cmd(s32 cmd);
-void SimDay_PickEvent(void);
+void SimDay_PickEvent(s32 unused);   /* both callers pass an argument (0 / 1) that it does not use */
 void SimDay_RefreshBoard(void);
 void SimDay_Init(s32 section);
 void SimDay_Term(void);
 void SimDay_Draw(void);
 void SimDay_Update(void);
+void SimDay_UpdateTalk(void);
+void SimDay_Input(s32 *result);
+void SimDay_ClipGoto(s32 movie, s32 kind, char *label);   /* plays a label on the cursor's plate */
+void SimDay_UpdateFaceLoad(void);
+s32 SimDay_Run(s32 section);
 
 #endif

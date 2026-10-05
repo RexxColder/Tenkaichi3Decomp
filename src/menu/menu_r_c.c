@@ -2,6 +2,9 @@
 #include "menu/menu_r.h"
 #include "sys/pad.h"
 
+/* The screen's work area (.data, 0x3B741C). */
+SimResult *gSimResult = NULL;
+
 /*
  * SimResult, 0x3851E8..0x387880: the result screen of the "sim" ladder (mode 23, shown after a round's fight). A
  * whole object: work pointer 0x3B741C (.data), .rodata 0x3B98F0..0x3B9EC4 (its first string is the first one this

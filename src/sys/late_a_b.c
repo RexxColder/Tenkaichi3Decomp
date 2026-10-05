@@ -30,11 +30,11 @@ extern void Flash_ClipSetColor(Flash *flash, FlashRef *ref, f32 v);
 extern void Flash_ClipSetUv(Flash *flash, FlashRef *ref, FlashUv *uv);
 
 /* The item details page, in the menu overlay (DBZP.BIN). */
-extern void func_00399240(void *pack);
-extern void func_00399430(void);
-extern void func_00399478(s32 item);
-extern void func_00399730(void);
-extern void func_00399760(void);
+extern void ItemHelp_Init(void *pack);
+extern void ItemHelp_Term(void);
+extern void ItemHelp_Draw(s32 item);
+extern void ItemHelp_Open(void);
+extern void ItemHelp_Close(void);
 
 /* Defined here: this object's .data (0x2EB34C). */
 ShenCfm *gShenCfm = NULL;
@@ -78,7 +78,7 @@ void ShenCfm_Init(u32 *pack) {
     Flash_Play(gShenCfm->flash, 1);
 
     ShenCfm_DebugFile("host:data/ps2/test/main/SR/reconfir/ez_item_details_JP_PS2_.pak");
-    func_00399240(PACK_AT(pack, 4));
+    ItemHelp_Init(PACK_AT(pack, 4));
 }
 
 /* Frees the window and the item details page. */
@@ -88,7 +88,7 @@ void ShenCfm_Term(void) {
     for (i = 0; i < SHEN_FLASH_COUNT; i++) {
         Flash_Destroy(&gShenCfm->flash[i]);
     }
-    func_00399430();
+    ItemHelp_Term();
     if (gShenCfm != NULL) {
         Heap_Free(gShenCfm);
         gShenCfm = NULL;
@@ -159,7 +159,7 @@ void ShenCfm_Draw(void) {
         Flash_Draw(&gShenCfm->flash[i]);
     }
     if (gShenCfm->kind == SHEN_WISH_ITEM) {
-        func_00399478(gShenCfm->id);
+        ItemHelp_Draw(gShenCfm->id);
     }
 }
 
@@ -234,7 +234,7 @@ s32 ShenCfm_Update(s32 *answer) {
                 Snd_PlaySe(1, 1);
                 if (gShenCfm->cursor == 2) {
                     gShenCfm->detail = 1;
-                    func_00399730();
+                    ItemHelp_Open();
                 } else {
                     *answer = gShenCfm->cursor;
                     return 1;
@@ -249,7 +249,7 @@ s32 ShenCfm_Update(s32 *answer) {
     case 1:
         if (SHEN_PRESSED_CROSS_OR_TRIANGLE()) {
             gShenCfm->detail = 0;
-            func_00399760();
+            ItemHelp_Close();
         }
         break;
     }

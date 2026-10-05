@@ -1,6 +1,8 @@
 #include "common.h"
 #include "menu/menu_c.h"
 
+HistSave *gHistSave = NULL; /* 0x3B1304 */
+
 /*
  * HistSave, 0x341E08..0x342190: the save screen of the story mode (progress mode 10). A black screen that runs
  * the memory-card save flow McFlow_Start(0) after the fade in and leaves 15 frames after the flow reports back.

@@ -17,6 +17,7 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  *
  *   menu_v.c    0x395E30..0x396838  EvoZ_Load: the LAST function of the customising screen's first source file
  *                                   (0x392F10..0x396838, the rest is in src/menu/menu_u*.c)
+ *                                   -- now appended to src/menu/menu_u_h.c (object 0x393C58..0x396838)
  *   menu_v_b.c  0x396838..0x399240  EvoZ, second source file: input, dialog, status, edits of the saved sets
  *   menu_v_c.c  0x399240..0x399790  ItemHelp: the item details page shared by many screens
  *   menu_v_d.c  0x399790..0x39A978  Shop: head of the item shop object (the rest is in src/menu/menu_w*.c)
@@ -226,9 +227,9 @@ typedef struct EvoZ {
 #define EVOZ_CLIP_ZP 5
 #define EVOZ_CLIP_LIST 10
 
-extern void func_003AE648(void *pack);
-extern void func_003AEA28(u16 *ids, s32 chara, s32 level);  /* next chunks: opens the password page of an item set (guess) */
-extern void func_003AEA88(void);                           /* closes it */
+extern void PassWin_Init(void *pack);
+extern void PassWin_OpenEx(u16 *ids, s32 chara, s32 level);  /* next chunks: opens the password page of an item set (guess) */
+extern void PassWin_Close(void);                           /* closes it */
 extern void ChrGrid_MoveLeft(VChrCell *cells, s32 *col, s32 row);
 extern void ChrGrid_MoveRight(VChrCell *cells, s32 *col, s32 row);
 extern void ChrGrid_MoveUp(VChrCell *cells, s32 *col, s32 *row, s32 rows);
@@ -287,54 +288,10 @@ void ItemHelp_Draw(s32 item);
 void ItemHelp_Open(void);
 void ItemHelp_Close(void);
 
-/* ---- Shop (menu_v_d.c; the object continues past 0x39A978 in the next chunk) ---- */
-
-#define SHOP_FLASH_NUM 6
-#define SHOP_BOX_NUM 14
-#define SHOP_VOICE_BASE 0x86DB
-
-typedef struct Shop {
-    /* 0x0000 */ void *pack;          /* this screen's section of archive 7 (compressed) */
-    /* 0x0004 */ u32 *res;            /* the same unpacked: a pack of 34 sections */
-    /* 0x0008 */ void *msgText;       /* section 32 */
-    /* 0x000C */ void *subtitles;     /* section 26 */
-    /* 0x0010 */ void *itemText;      /* section 30: item names */
-    /* 0x0014 */ MFlash flash[SHOP_FLASH_NUM]; /* sections 6, 17, 19, 9, 29, 33 */
-    /* 0x011C */ MTexRes *bg;         /* section 1 */
-    /* 0x0120 */ MTexRes *guideRes[2]; /* sections 7, 8: the two guides' textures */
-    /* 0x0128 */ u8 *tex0[15];
-    /* 0x0164 */ u8 *tex3[5];         /* the guide's movie: [0] body, [1] / [2] guide 1's eyes and mouth, [3] / [4] guide 0's */
-    /* 0x0178 */ u8 *tex1[21];
-    /* 0x01CC */ u8 *tex2[18];
-    /* 0x0214 */ u8 *tex4[6];
-    /* 0x022C */ u8 *tex5[2];
-    /* 0x0234 */ s32 page;            /* 0 = buy, 1 = collection (see Shop_SetListScissor) */
-    /* 0x0238 */ s32 unk238[8];       /* see include/menu/menu_w.h */
-    /* 0x0258 */ s32 voiceLine;       /* subtitle line of the guide's voice, -1 = none */
-    /* 0x025C */ s32 guide;           /* which of the two guides talks (Rand_Range(2) at Init, swapped by Shop_SwapGuide) */
-    /* 0x0260 */ s32 unk260[5];
-    /* 0x0274 */ s32 total;           /* collectable items */
-    /* 0x0278 */ s32 owned;           /* of those, owned */
-    /* 0x027C */ s32 percent;         /* owned * 100 / total, at least 1 once anything is owned */
-    /* 0x0280 */ s32 unk280;
-    /* 0x0284 */ VItemList list[2];    /* [0] what the shop sells now, [1] every item */
-    /* 0x2EE4 */ VItemEntry *items;   /* item table of common file 4 */
-    /* 0x2EE8 */ MTextBox box[SHOP_BOX_NUM];
-} Shop; /* 0x3690 */
-
-extern Shop *gShop; /* 0x3BB148 */
+/* ---- Shop (menu_v_d.c): merged with menu_w.c; the Shop structure, gShop and the prototypes are in
+ * include/menu/menu_w.h (this header's partial view was removed). ---- */
 
 extern void Sprite_SetScissor(s32 x0, s32 x1, s32 y0, s32 y1);
 extern void TextBox_SetRect(MTextBox *box, s32 a, s32 b, s32 c, s32 d);
-
-void Shop_CheckStockLevel(void);
-s32 Shop_IsSoldOut(void);
-s32 Shop_CanBuy(s32 item, VItemEntry *table);
-void Shop_PlayVoice(void);
-void Shop_SetListScissor(void);
-void Shop_SetWindowScissor(void);
-void Shop_ResetScissor(void);
-void Shop_SwapGuide(void);
-void Shop_Init(s32 section);
 
 #endif

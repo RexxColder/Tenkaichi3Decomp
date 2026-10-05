@@ -14,12 +14,13 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  * Menu overlay DBZP.BIN, 0x3A7D98..0x3AC440 (placeholder stem "menu_z"): the "Data Center" (main-menu item 7,
  * progress modes 53..56; the development paths in the objects' data are "host:data/ps2/test/main/DC/").
  *
- *   menu_z.c    0x3A7D98..0x3A9850  DcList   tail of the saved-custom-character list (mode 55); the head of the
- *                                            object is in the previous chunk (stem menu_y)
+ *   (menu_z.c)  0x3A7D98..0x3A9850  DcList   tail of the saved-custom-character list (mode 55): now merged
+ *                                            into src/menu/menu_y_b.c (0x3A65E8..0x3A9850), which uses the
+ *                                            DcList layout below
  *   menu_z_b.c  0x3A9850..0x3A9A70  Dc_Main, the handler of modes 53..56
  *   menu_z_c.c  0x3A9A70..0x3AAF30  DcMenu   the mode's top menu (mode 53), a whole object
- *   menu_z_d.c  0x3AAF30..0x3AC440  DcPass   head of the password screen object (mode 54); it goes on in the
- *                                            next chunk (stem menu_za)
+ *   menu_z_d.c  0x3AAF30..0x3AE648  DcPass   the password screen object (mode 54); menu_za.c, its tail
+ *                                            (from 0x3AC440), was merged in
  *
  * Every structure here is this chunk's own view: the neighbours' headers were not written yet.
  */
@@ -27,6 +28,11 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
 /* ---- Main executable, beyond what menu_a.h declares ---- */
 
 extern s32 atoi(const char *);
+extern char *strcpy(char *, const char *);
+extern void Sprite_SetScissor(s32 x0, s32 x1, s32 y0, s32 y1);
+extern void Flash_ClipSetCallbackA(MFlash *flash, MFlashRef *ref, void *fn, void *arg);
+extern void Flash_ClipSetCallbackB(MFlash *flash, MFlashRef *ref, void *fn, void *arg);
+extern void Flash_ClipSetScale(MFlash *flash, MFlashRef *ref, f32 x, f32 y);
 extern u32 strlen(const char *);
 extern void Flash_ClipSetOffset(MFlash *flash, MFlashRef *ref, s32 x, s32 y);
 extern void Flash_ClipGetPos(MFlash *flash, MFlashRef *ref, s32 *x, s32 *y);
@@ -39,6 +45,15 @@ extern s32 Dialog_IsClosed(void);
 extern void Dialog_Draw(s32 visible);
 extern void Dialog_Start(s32 kind);
 extern void Dialog_SetChoices(s32 on);
+extern void Dialog_SetCursor(s32 choice);
+extern void Dialog_SetMsg(s32 idx);
+extern void Dialog_SetLayout(s32 layout);
+extern void Voice_StopWithLip(void);
+extern void McFlow_SetModeCb(s32 mode, s32 idx, void *cb, s32 arg);
+extern void McFlow_SetSlot(s32 slot);
+extern s32 McFlow_PollCard(void);
+extern void Progress_ClearTeams(void);
+extern double pow(double, double);
 
 /* Voice_GetStat result when nothing is playing. */
 #define MVOICE_IDLE 5
@@ -107,31 +122,49 @@ typedef struct ZSave {
 
 #define ZSAVE ((ZSave *)gSaveData)
 
-/* ---- DcList: the list of saved custom characters (mode 55). Head of the object: previous chunk. ---- */
+/* ---- DcList (src/menu/menu_y_b.c): the list of saved custom characters (mode 55). ---- */
 
 #define DCLIST_FLASH_NUM 2
 #define DCLIST_ITEM_ROWS 8
+#define DC_ROWS 3                  /* plates the cursor can be on; a fourth shows the row scrolling in or out */
+#define DC_TOP_MAX 11              /* SAVE_REC_COUNT - DC_ROWS */
 
-/* The cursor of the list and a copy of the fourteen records. */
-typedef struct DcRecList {
-    /* 0x000 */ s32 unk0[3];
-    /* 0x00C */ ZSaveRec rec[SAVE_REC_COUNT];
-} DcRecList; /* 0x194 */
+/* The list and its cursor, with a copy of the fourteen records. */
+typedef struct DcChars {
+    /* 0x000 */ s32 top;           /* record on the first plate, 0..11 */
+    /* 0x004 */ s32 row;           /* plate the cursor is on, 0..2 */
+    /* 0x008 */ s32 extra;         /* record shown on the fourth plate while the list scrolls, -1 = none */
+    /* 0x00C */ ZSaveRec rec[SAVE_REC_COUNT]; /* copy of gSaveData->rec */
+} DcChars; /* 0x194 */
+
+/*
+ * What the details panel shows for the chosen record. Not ZStatus: here ItemSet_GetBonus writes to offset 0
+ * (DcStatus_Calc), in the password screen to offset 4.
+ */
+typedef struct DcStatus {
+    /* 0x00 */ s32 bonus[5];       /* ItemSet_GetBonus: [0] item slots used (0..7), [1..4] stat changes -3..3 */
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 attr;           /* picture of "mc_status_attribute" */
+    /* 0x1C */ ZSaveRec rec;       /* the character under the cursor */
+} DcStatus; /* 0x38 */
 
 /* The part of the work the drawing helpers take (the movies, their textures and the text boxes). */
-typedef struct DcListView {
-    /* 0x000 */ MFlash flash[DCLIST_FLASH_NUM]; /* 0 the list (section 5), 1 the item page (section 9) */
+typedef struct DcView {
+    /* 0x000 */ MFlash flash[DCLIST_FLASH_NUM]; /* 0 the list ("chara_list_top", section 5), 1 the item page
+                                                   ("chara_list_z_item", section 9) */
     /* 0x058 */ MTexRes *bg;        /* section 1 */
     /* 0x05C */ u8 *tex0[38];
-    /* 0x0F4 */ u8 *tex1[19];
-    /* 0x140 */ MTextBox nameBox[4];
-    /* 0x370 */ MTextBox formBox[4];
-    /* 0x5A0 */ MTextBox nameBoxB;
-    /* 0x62C */ MTextBox formBoxB;
-    /* 0x6B8 */ MTextBox nameBoxL;  /* "mc_name_text_l" */
-    /* 0x744 */ MTextBox formBoxL;  /* "mc_form_text_l" */
+    /* 0x0F4 */ u8 *tex1[17];
+    /* 0x138 */ s32 blink;          /* the guide's blink timer; starts at Rand_Range(32) */
+    /* 0x13C */ s32 talk;
+    /* 0x140 */ MTextBox nameBox[4]; /* character name of each list plate */
+    /* 0x370 */ MTextBox formBox[4]; /* second text line of each list plate */
+    /* 0x5A0 */ MTextBox nameBoxB;  /* "mc_name_text_l" of the details panel */
+    /* 0x62C */ MTextBox formBoxB;  /* "mc_form_text_l" of the details panel */
+    /* 0x6B8 */ MTextBox nameBoxL;  /* "mc_name_text_l" of the item page */
+    /* 0x744 */ MTextBox formBoxL;  /* "mc_form_text_l" of the item page */
     /* 0x7D0 */ MTextBox itemBox[DCLIST_ITEM_ROWS];
-} DcListView; /* 0xC30 */
+} DcView; /* 0xC30 */
 
 typedef struct DcList {
     /* 0x000 */ void *pack;         /* this screen's section of archive 8 (compressed) */
@@ -139,7 +172,7 @@ typedef struct DcList {
     /* 0x008 */ void *faceFile;     /* 0x16800 bytes: file 0x2F9 + character, compressed */
     /* 0x00C */ MTexRes *faceRes;   /* 0x20800 bytes: the same unpacked */
     /* 0x010 */ s32 section;
-    /* 0x014 */ DcListView view;
+    /* 0x014 */ DcView view;
     /* 0xC44 */ u8 unkC44[0x3C];    /* passed to MsgWin_Init, which does not take it */
     /* 0xC80 */ void *msgText;      /* section 13 */
     /* 0xC84 */ void *dialogMsg;    /* section 22 */
@@ -147,15 +180,15 @@ typedef struct DcList {
     /* 0xC8C */ void *nameText;     /* section 17: character names */
     /* 0xC90 */ void *formText;     /* section 18: form names */
     /* 0xC94 */ void *itemText;     /* section 21: item names */
-    /* 0xC98 */ s32 unkC98;
-    /* 0xC9C */ s32 result;
+    /* 0xC98 */ f32 cloudX;         /* scroll of "mc_compane_3" */
+    /* 0xC9C */ s32 result;         /* what DcList_Run returns; cleared when the list is left */
     /* 0xCA0 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
     /* 0xCA4 */ s32 state;          /* DCLIST_ST_ */
-    /* 0xCA8 */ s32 cursor;
+    /* 0xCA8 */ s32 menuCursor;     /* details menu: 0 items, 1 password, 2 delete */
     /* 0xCAC */ s32 itemCursor;     /* row of the item page, 0..7 */
-    /* 0xCB0 */ DcRecList list;
-    /* 0xE44 */ ZStatus status;     /* the character under the cursor */
-    /* 0xE7C */ s32 unkE7C;
+    /* 0xCB0 */ DcChars chars;
+    /* 0xE44 */ DcStatus status;    /* the character under the cursor */
+    /* 0xE7C */ s32 unkE7C;         /* 30 at start */
     /* 0xE80 */ ZItemEntry *itemTbl; /* section 15 */
     /* 0xE84 */ s32 flags;          /* DCLIST_ */
     /* 0xE88 */ s32 nextState;      /* state the dialog leads to when it has closed */
@@ -225,16 +258,19 @@ typedef struct DcMenu {
 #define DCLINE_REPLAY 15           /* plate 2, then one of 16..18 */
 #define DCLINE_LIST 22             /* plate 1, then one of 23..25 */
 
-/* ---- DcPass: the password screen (mode 54). Head of the object; the rest is in the next chunk. ---- */
+/* ---- DcPass (src/menu/menu_z_d.c): the password screen (mode 54). ---- */
 
+#define DCPASS_FLASH_NUM 2
 #define DCPASS_PAGES 2          /* capitals / small letters */
 #define DCPASS_ROWS 5           /* four rows of keys and the row of three buttons */
 #define DCPASS_COLS 14
 #define DCPASS_TEXT_LEN 0x22    /* 34 cells: two lines of 17 */
+#define DCPASS_TEXT_LAST 0x21   /* index of the last of the 34 password characters */
+#define DCPASS_LIST_ROWS 3      /* rows of the "which slot" list that the cursor can be on */
 #define DCPASS_FACE_FILE 0x2F9
 #define DCPASS_FACE_SIZE 0x16800
 
-/* Codes in the key table that are not characters */
+/* Codes in the key table that are not characters: where they are ... */
 #define DCKEY_BUTTON_L 0        /* bottom row, columns 0..3 */
 #define DCKEY_BUTTON_M 1        /* bottom row, columns 4..9 */
 #define DCKEY_BUTTON_R 2        /* bottom row, columns 10..13 */
@@ -242,10 +278,17 @@ typedef struct DcMenu {
 #define DCKEY_ZERO 4            /* row 3, columns 0..1: DcPass_GetKey gives '0' for it */
 #define DCKEY_WIDE_D1 5         /* rows 1 and 2, column 12 */
 #define DCKEY_WIDE_D2 6         /* rows 1 and 2, column 13 */
+/* ... and what they do (DcPass_Input; the same codes) */
+#define DCPASS_KEY_QUIT 0
+#define DCPASS_KEY_PAGE 1
+#define DCPASS_KEY_OK 2
+#define DCPASS_KEY_BACK 3
+#define DCPASS_KEY_LEFT 5
+#define DCPASS_KEY_RIGHT 6
 
-/* A cell of the on-screen keyboard. */
+/* A cell of the on-screen keyboard; the keyboard's cursor. */
 typedef struct DcKeyPos {
-    /* 0x00 */ s32 page;
+    /* 0x00 */ s32 page;        /* which of the keyboard's character sets is shown */
     /* 0x04 */ s32 row;
     /* 0x08 */ s32 col;
 } DcKeyPos; /* 0xC */
@@ -256,14 +299,17 @@ typedef struct DcPassText {
     /* 0x23 */ char pass[0x25];     /* the same up to the first empty cell: what the decoders get */
     /* 0x48 */ s32 cursor;          /* cell the next character goes to, 0..33 */
     /* 0x4C */ s32 len;             /* strlen(pass): 32 = the previous game's format, 34 = this game's */
-} DcPassText; /* 0x50 */
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ s32 unk54;
+    /* 0x58 */ s32 unk58;
+} DcPassText; /* 0x5C */
 
-/* The list of save slots a decoded character can be stored in. */
+/* The slot list shown after a password was accepted: fourteen slots, four plates on screen. */
 typedef struct DcPassList {
-    /* 0x00 */ s32 top;
-    /* 0x04 */ s32 cur;
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 chara[SAVE_REC_COUNT]; /* character id of each saved custom character, -1 = empty */
+    /* 0x00 */ s32 top;         /* first slot shown, 0..11 */
+    /* 0x04 */ s32 cursor;      /* row the cursor is on, 0..2 */
+    /* 0x08 */ s32 extra;       /* slot shown on the fourth plate while the list scrolls */
+    /* 0x0C */ s32 chara[SAVE_REC_COUNT]; /* character id of each saved custom character, -1 = free */
 } DcPassList; /* 0x44 */
 
 /* A cell of the character grid (ChrGrid): only the id is used here. */
@@ -279,54 +325,106 @@ typedef struct ZChrEntry {
     /* 0x0A */ u8 unkA[0x32];
 } ZChrEntry; /* 0x3C */
 
-/* The two movies, as the status drawing takes them. */
+/* The part of the work that the drawing helpers take. */
 typedef struct DcPassView {
-    /* 0x00 */ MFlash flash[2];     /* 0 the keyboard, 1 the status page */
-} DcPassView;
+    /* 0x000 */ MFlash flash[DCPASS_FLASH_NUM]; /* 0 the keyboard (section 17), 1 the new character / status
+                                                   page (section 18) */
+    /* 0x058 */ MTexRes *bg;        /* section 10 */
+    /* 0x05C */ u8 *tex0[30];
+    /* 0x0D4 */ u8 *tex1[37];       /* [7]: the character's large picture */
+    /* 0x168 */ s32 blink;
+    /* 0x16C */ s32 talk;
+    /* 0x170 */ void *msgText;      /* section 8 */
+    /* 0x174 */ void *dialogMsg;    /* section 21 */
+    /* 0x178 */ void *subtitles;    /* section 9 */
+    /* 0x17C */ u8 unk17C[0x3C];    /* passed to MsgWin_Init, which does not take it */
+    /* 0x1B8 */ MTextBox nameBox[DCPASS_LIST_ROWS];
+    /* 0x35C */ MTextBox formBox[DCPASS_LIST_ROWS];
+    /* 0x500 */ MTextBox nameBoxB;  /* the fourth plate */
+    /* 0x58C */ MTextBox formBoxB;
+    /* 0x618 */ MTextBox nameBoxL;  /* "mc_name_text_l" */
+    /* 0x6A4 */ MTextBox formBoxL;
+    /* 0x730 */ MTextBox nameBoxR;  /* "mc_name_text_r" */
+    /* 0x7BC */ MTextBox formBoxR;
+    /* 0x848 */ void *nameText;     /* section 13: character names */
+    /* 0x84C */ void *formText;     /* section 14: form names */
+    /* 0x850 */ f32 scroll;         /* backdrop pattern offset */
+} DcPassView; /* 0x854 */
 
 typedef struct DcPass {
-    /* 0x000 */ void *pack;
-    /* 0x004 */ u32 *res;
+    /* 0x000 */ void *pack;         /* this screen's section of archive 8 (compressed) */
+    /* 0x004 */ u32 *res;           /* the same unpacked: a pack of 22 sections */
     /* 0x008 */ void *faceFile;     /* 0x16800 bytes: file 0x2F9 + character, compressed */
-    /* 0x00C */ MTexRes *faceRes;   /* the same unpacked */
-    /* 0x010 */ s32 unk10;
+    /* 0x00C */ MTexRes *faceRes;   /* 0x20800 bytes: the same unpacked */
+    /* 0x010 */ s32 section;
     /* 0x014 */ DcPassView view;
-    /* 0x06C */ u8 unk6C[0x104 - 0x6C];
-    /* 0x104 */ u8 *faceTex;        /* texture slot of the character's large picture */
-    /* 0x108 */ u8 unk108[0x868 - 0x108];
     /* 0x868 */ DcPassText text;
-    /* 0x8B8 */ u8 unk8B8[0x8D4 - 0x8B8];
-    /* 0x8D4 */ DcKeyPos keyPos;
+    /* 0x8C4 */ s32 result;
+    /* 0x8C8 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
+    /* 0x8CC */ s32 movie;          /* which of the two movies is shown */
+    /* 0x8D0 */ u32 state;          /* DCPASS_ST_ */
+    /* 0x8D4 */ DcKeyPos keyPos;    /* the keyboard's cursor */
     /* 0x8E0 */ DcPassList list;
-    /* 0x924 */ ZStatus status;     /* the decoded character */
-    /* 0x95C */ s32 unk95C[2];
+    /* 0x924 */ ZStatus status;     /* the character the password decodes to */
+    /* 0x95C */ s32 timer;
+    /* 0x960 */ s32 unk960;
     /* 0x964 */ s32 flags;          /* DCPASS_ */
-    /* 0x968 */ ZItemEntry *itemTbl;
-    /* 0x96C */ DcGridCell *grid;   /* the unlocked characters */
-    /* 0x970 */ s32 gridCount;
-    /* 0x974 */ s32 unk974;
+    /* 0x968 */ ZItemEntry *itemTbl; /* section 12 */
+    /* 0x96C */ DcGridCell *grid;   /* section 20 + 0x10: the character select order (the unlocked characters) */
+    /* 0x970 */ s32 gridCount;      /* first word of section 20 */
+    /* 0x974 */ u32 nextState;      /* state the dialog leads to when it has closed */
     /* 0x978 */ f32 faceAlpha;
-} DcPass; /* at least 0x97C */
+} DcPass; /* 0x97C */
 
+#define DCPASS_ST_TYPE 0        /* typing the password */
+#define DCPASS_ST_FAILED 1      /* the guide says the password is wrong */
+#define DCPASS_ST_SHOWN 2       /* the new character is shown */
+#define DCPASS_ST_LIST 3        /* choosing the slot to store it in */
+#define DCPASS_ST_ASK_QUIT 4    /* "give the character up?" */
+#define DCPASS_ST_ASK_OVER 5    /* "overwrite this slot?" */
+#define DCPASS_ST_STORED 6      /* the guide's line after storing */
+
+#define DCPASS_LEAVE 1
+#define DCPASS_LEAVING 2
+#define DCPASS_STARTED 4
 #define DCPASS_FACE_CHANGE 8    /* a password was decoded: request the character's picture */
 #define DCPASS_FACE_LOADING 0x10
 #define DCPASS_FACE_READY 0x20
 
-/* Previous chunk (head of the DcList object). */
-extern void DcList_Reset(DcList *list);
-extern void DcList_UpdateGuide(DcList *list);
-extern void DcList_ScrollCloud(DcList *list);
-extern void DcView_LightRow(DcListView *view, DcRecList *recs, s32 on);
-extern s32 DcChars_GetCursor(DcRecList *recs);
-extern ZSaveRec DcChars_GetRec(DcRecList *recs);
-extern void DcList_DrawList(DcList *list);
-extern void DcList_InputList(DcList *list);
-extern void DcView_SetMenuText(DcListView *view);
-extern void DcView_SetStatus(DcListView *view, ZStatus *status);
-extern void DcView_LightMenu(DcListView *view, s32 cursor, s32 on);
-extern void DcView_HideNamePlates(DcListView *view);
-extern void DcView_SetNameText(DcListView *view, s32 chara);
-extern void DcList_InputMenu(DcList *list);
+/* DcList (src/menu/menu_y_b.c) */
+extern void PassWin_OpenEx(ZSaveRec *rec, s32 chara, s32 level);
+void DcView_InitBlink(DcView *v);
+void DcChars_Load(DcChars *c);
+void DcStatus_Calc(DcStatus *s, ZItemEntry *table);
+void DcList_Reset(DcList *d);
+void DcList_UpdateGuide(DcList *d);
+void DcList_ScrollCloud(DcList *d);
+void DcList_SetListScissor(void);
+void DcList_ResetScissor(void);
+void DcView_SetRowCallbacks(DcView *v);
+void DcView_HideArrow(DcView *v, s32 up);
+void DcView_SetArrows(DcView *v, DcChars *c);
+void DcView_SetScrollBar(DcView *v, DcChars *c);
+void DcView_LightRow(DcView *v, DcChars *c, s32 on);
+s32 DcChars_ClampTop(DcChars *c);
+s32 DcChars_ClampRow(DcChars *c);
+void DcView_SetRows(DcView *v, DcChars *c);
+s32 DcChars_GetCursor(DcChars *c);
+ZSaveRec DcChars_GetRec(DcChars *c);
+void DcList_PickRec(DcList *d);
+void DcList_RowOk(DcList *d);
+void DcList_DrawList(DcList *d);
+void DcList_InputList(DcList *d);
+void DcView_SetMenuText(DcView *v);
+void DcView_SetStatus(DcView *v, DcStatus *s);
+void DcView_LightMenu(DcView *v, s32 item, s32 on);
+void DcList_WrapMenu(s32 *cursor);
+void DcView_HideNamePlates(DcView *v);
+void DcView_SetNameText(DcView *v, s32 line);
+void DcView_MenuOk(DcView *v, s32 item);
+s32 DcRec_IsSlotEmpty(u16 *items, s32 slot);
+void DcView_LightItem(DcView *v, s32 row, s32 on);
+void DcList_InputMenu(DcList *d);
 
 /* Item details page (src/menu/menu_v_c.c). */
 extern void ItemHelp_Init(void *pack);
@@ -341,6 +439,8 @@ extern void PassWin_Init(void *pack);
 extern void PassWin_Term(void);
 extern void PassWin_Draw(void);
 extern void PassWin_Close(void);
+extern void PassChk_Init(u32 *pack);
+extern void PassChk_Term(void);
 extern void PassChk_ConvertOld(void *out, void *old);   /* converts a decoded old password to the current content */
 extern s32 PassChk_IsOldValid(void *old);               /* validates a decoded old password */
 extern s32 PassChk_IsValid(void *data);              /* validates a decoded password */

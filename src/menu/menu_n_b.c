@@ -8,6 +8,8 @@
  * from 0x3B7AE0 (sUbzFoeTex) to 0x3B7C70.
  */
 
+UbzSel *gUbzSel = NULL; /* 0x3B7350 */
+
 /*
  * This file saw Snd_PlaySe as a function returning a value (an implicit declaration, presumably): UbzSel_Input
  * only matches that way ($v0 stays reserved behind each call).

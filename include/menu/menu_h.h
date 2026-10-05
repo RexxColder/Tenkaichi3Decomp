@@ -11,12 +11,11 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
 /*
  * Menu overlay DBZP.BIN, 0x356090..0x35A558 (placeholder stem "menu_h"). Four pieces:
  *
- *   menu_h.c    0x356090..0x3562B8  DuelMenu_Run: the last function of the previous chunk's object (menu_g)
+ *   (menu_h.c  0x356090..0x3562B8  DuelMenu_Run: merged into menu_g_c.c, the object it ends; view in menu_g.h)
  *   menu_h_b.c  0x3562B8..0x3590A8  CharRef     the character reference screen (mode 60)
  *   menu_h_c.c  0x3590A8..0x359358  the handlers of mode 60 and of modes 44..45 (not part of the CharRef object;
  *                                               possibly the head of the Train object)
- *   menu_h_d.c  0x359358..0x35A558  Train       head of the training menu (mode 44); the object goes on after
- *                                               0x35A558
+ *   menu_h_d.c  0x359358..0x35D660  Train       the training menu (mode 44), with menu_i.c (0x35A558..) merged in
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -63,41 +62,6 @@ typedef struct MChrTblEntry {
 } MChrTblEntry; /* 0x3C */
 
 extern MCommonRes *gCommonRes;
-
-/* ---- DuelMenu (menu_h.c): the fields of the previous chunk's work area that its frame loop uses ---- */
-
-typedef struct DuelMenuView {
-    /* 0x000 */ u8 unk0[0xC];
-    /* 0x00C */ void *subtitles;
-    /* 0x010 */ s32 unk10;
-    /* 0x014 */ MFlash flash[1];
-    /* 0x040 */ u8 unk40[0xCC];
-    /* 0x10C */ s32 flags;         /* DUELMENU_ */
-    /* 0x110 */ s32 pick[3];       /* what was chosen: copied to gProgress +0x620, +0x624, +0x630 on leaving */
-    /* 0x11C */ s32 unk11C[2];
-    /* 0x124 */ s32 timer;         /* frames until the fade out starts after a choice */
-    /* 0x128 */ s32 unk128;
-    /* 0x12C */ s32 voiceLine;
-    /* 0x130 */ u8 unk130[0x18];
-    /* 0x148 */ s32 unk148;        /* non-zero: input is not read */
-    /* 0x14C */ s32 unk14C;
-    /* 0x150 */ u8 unk150[0x34];
-    /* 0x184 */ s32 unk184;        /* non-zero: input is not read */
-} DuelMenuView;
-
-#define DUELMENU_LEAVING 2
-#define DUELMENU_GREETED 8
-
-/* gProgress fields written when the duel menu is left. */
-typedef struct MenuProgressDuel {
-    /* 0x000 */ u8 unk0[0x620];
-    /* 0x620 */ s32 unk620;
-    /* 0x624 */ s32 unk624;
-    /* 0x628 */ s32 unk628[2];
-    /* 0x630 */ s32 unk630;
-} MenuProgressDuel;
-
-extern DuelMenuView *gDuelMenu; /* 0x3B38E8 (defined by an earlier object) */
 
 /* ---- CharRef (menu_h_b.c): the character reference with Chi-Chi's comments (mode 60) ---- */
 
@@ -205,54 +169,18 @@ extern void (*gCharRefState[CHARREF_STATE_NUM])(void); /* 0x31EA80: in the main 
 #define TRAIN_LESSON_MAX 15
 #define TRAIN_ROWS 3             /* lesson rows the cursor can be on */
 
-/* gSaveData (include/sys/save.h): one word of "lesson cleared" bits per class. */
-typedef struct MSaveTrain {
-    /* 0x000 */ u8 unk0[0xE0C];
-    /* 0xE0C */ s32 trainClear[TRAIN_CLASS_NUM];
-} MSaveTrain;
-
 /* The five words Train_CopyCursor copies */
 typedef struct TrainCursor {
     /* 0x00 */ s32 sel[2];                  /* [0] item of the top menu, [1] class */
     /* 0x08 */ s32 saved[TRAIN_CLASS_NUM];  /* per class */
 } TrainCursor;
 
-typedef struct Train {
-    /* 0x0000 */ u32 *pack;
-    /* 0x0004 */ u32 *res;
-    /* 0x0008 */ MFlash flash[TRAIN_FLASH_NUM];
-    /* 0x0034 */ u8 unk34[0xDC];
-    /* 0x0110 */ MTextBox box[5];           /* the lesson names: three rows and two scrolling in or out */
-    /* 0x03CC */ u8 unk3CC[0x4C];
-    /* 0x0418 */ void *subtitlesA;          /* used with voice base 0x87BD while level is 0 */
-    /* 0x041C */ void *subtitlesB;          /* used with voice base 0x8278 otherwise */
-    /* 0x0420 */ u8 unk420[0x1C];
-    /* 0x043C */ s32 voiceLine;
-    /* 0x0440 */ s32 unk440;
-    /* 0x0444 */ s32 sel[2];                /* cursor of menu level 0 and 1 ([1] is the class) */
-    /* 0x044C */ s32 saved[TRAIN_CLASS_NUM];
-    /* 0x0458 */ s32 level;                 /* 0 top menu, 1 class menu, 2 lesson list, 3..5 further pages */
-    /* 0x045C */ s32 top;                   /* first visible lesson */
-    /* 0x0460 */ s32 row;                   /* row the cursor is on, 0..2 */
-    /* 0x0464 */ s32 extra;                 /* lesson shown on the fourth plate while the list scrolls */
-    /* 0x0468 */ s32 extra2;                /* lesson shown on the fifth plate */
-    /* 0x046C */ u8 unk46C[0x1528];
-    /* 0x1994 */ s32 nameLine[TRAIN_CLASS_NUM][TRAIN_LESSON_MAX];  /* text line of each lesson's name */
-    /* 0x1A48 */ s32 voiceTbl[TRAIN_CLASS_NUM][TRAIN_LESSON_MAX];  /* subtitle line of each lesson */
-    /* 0x1AFC */ u8 unk1AFC[0xB4];
-    /* 0x1BB0 */ s32 count[TRAIN_CLASS_NUM]; /* lessons per class */
-    /* 0x1BBC */ u8 unk1BBC[0x14];
-    /* 0x1BD0 */ s32 clipX;
-    /* 0x1BD4 */ s32 clipY;
-    /* 0x1BD8 */ s32 unk1BD8;
-} Train;
+/* The work area `Train` (0x1BE0 bytes), the save view and `gTrain` (0x3B4BA8) are in menu/menu_i.h: the object
+   is menu_h_d.c with the next chunk's menu_i.c merged in, and it includes both headers. */
 
 #define TRAIN_VOICE_BASE_A 0x87BD
 #define TRAIN_VOICE_BASE_B 0x8278
 
-extern Train *gTrain; /* 0x3B4BA8 */
-
-s32 DuelMenu_Run(s32 section);
 s32 CharRef_Run(s32 section);
 s32 CharRefMode_Main(void);
 s32 TrainMode_Main(void);

@@ -240,3 +240,19 @@ __gp_lis
     __gp_note 0
     .word 0x46000004 | (.L__gp_ft << 16) | (.L__gp_fd << 6)
 .endm
+
+# `li.d` into an integer register (a `double` constant handled by the soft-float library, e.g. `pow(10.0, n)` in
+# src/menu/menu_za_d.c): gas refuses the mnemonic for the r5900, Sony's assembler encoded it like `dli` of the
+# constant's bits (10.0 is `ori $22,$0,0x8048 / dsll32 $22,$22,15`). Assembled as mips3, gas does the same.
+# Its size is not measured for the delay-slot rules above.
+.macro __gp_lid
+    .macro li.d reg, value
+        .purgem li.d
+        .set push
+        .set mips3
+        li.d \reg, \value
+        .set pop
+        __gp_lid
+    .endm
+.endm
+__gp_lid

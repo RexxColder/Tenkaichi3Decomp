@@ -8,13 +8,13 @@
  * archive gMenuArc3). Four pieces, cut where the read-only data says a new object starts (the string
  * "mc_guide_17go" exists three times in this range):
  *
- *   menu_o.c    0x376920..0x3782A8  UbResult    tail of the result screen of modes 27 and 30 (work pointer
- *                                               0x3B7358; the object's head, with Init at 0x376150, is in the
- *                                               previous chunk, menu_n)
+ *   (menu_o.c)  0x376920..0x3782A8  UbResult    tail of the result screen of modes 27 and 30 (work pointer
+ *                                               0x3B7358): merged into src/menu/menu_n_d.c, which has the
+ *                                               object's head (0x3760C8, Init at 0x376150)
  *   menu_o_b.c  0x3782A8..0x379908  DiscFusion  the disc-swap screen of mode 24 (work pointer 0x3B735C)
  *   menu_o_c.c  0x379908..0x379F58  Ub_Main     the handler of modes 13..30 and its three battle hand-offs
- *   menu_o_d.c  0x379F58..0x37AFF8  MisSel   head of the mission list of mode 14 (work pointer 0x3B7360; the
- *                                               object goes on in the next chunk, menu_p)
+ *   menu_o_d.c  0x379F58..0x37B7C0  MisSel      the mission list of mode 14 (work pointer 0x3B7360); merged with
+ *                                               its tail (0x37AFF8.., formerly menu_p.c)
  *
  * All names are guesses from what the code does unless the symbol file says otherwise. The structures are this
  * chunk's own views.
@@ -32,6 +32,7 @@ extern void Num_Draw(MFlash *flash, char *fmt, s32 first, s32 count, s32 value, 
 extern void Num_DrawChild(MFlash *flash, char *parent, char *fmt, s32 first, s32 count, s32 value, s32 w, s32 h,
                           s32 mode, s32 parentFmt);
 extern void IconWin_SetIcon(s32 icon);
+extern void Save_AddItem(s32 idx);
 extern void Dialog_Draw(s32 visible);
 extern void Dialog_Start(s32 cmd);
 extern s32 Dialog_Input(s32 allowCancel);
@@ -88,8 +89,9 @@ typedef struct UoProgress {
     /* 0x64C */ u8 unk64C[0x28];
     /* 0x674 */ s32 unk674;     /* counted up each time mode 23 goes back to mode 22 */
     /* 0x678 */ s32 unk678[3];
-    /* 0x684 */ s32 discFlags;  /* UB_DISC_; bit 8 is read by the result screen */
-    /* 0x688 */ s32 course;     /* copied to UbResult.course when cursor == 1 */
+    /* 0x684 */ s32 discFlags;  /* UB_DISC_; bit 8 is read by the result screen (menu_n.h: ubFlags, where bit 8 is
+                                   NPROG_UB_UPWARD: the place challenged on the ladder is above the player's) */
+    /* 0x688 */ s32 course;     /* copied to UbResult.course when cursor == 1 (menu_n.h: ubChoice) */
 } UoProgress;
 
 #define UO_PROG ((UoProgress *)gProgress)
@@ -110,18 +112,31 @@ typedef struct UoMissionRec {
     /* 0x8 */ s32 score;        /* shown * 100 */
 } UoMissionRec;
 
+/* Best result of one course (NCourseRec of include/menu/menu_n.h). */
+typedef struct UoCourseRec {
+    /* 0x0 */ u8 cleared;
+    /* 0x1 */ u8 rank;
+    /* 0x2 */ u8 time[3];
+    /* 0x5 */ u8 unk5[3];
+    /* 0x8 */ s32 score;
+} UoCourseRec; /* 0xC */
+
+#define UO_COURSE_NUM 5
+
 /*
  * gSaveData as this chunk reads it: one flat structure. (menu_c.h's view nests a body behind the 8-byte checksum;
  * here the flat form is the one that reproduces the address arithmetic: 0x28C splits into 0x280 + 0xC.)
  */
 typedef struct UoSave {
-    /* 0x0000 */ u8 unk0[0x20C];
+    /* 0x0000 */ u8 unk0[0x208];
+    /* 0x0208 */ s32 unk208;            /* bit 0x10: the reward for clearing all five courses was given */
     /* 0x020C */ s32 missionPages;      /* pages of five missions the list shows */
     /* 0x0210 */ u8 unk210[0x7C];
     /* 0x028C */ UoMissionRec mission[100];
     /* 0x073C */ u8 unk73C[0x40];
-    /* 0x077C */ s32 unk77C;
-    /* 0x0780 */ u8 unk780[0x28A8];
+    /* 0x077C */ s32 rank;              /* the player's place on the ladder (menu_n.h: 99 by default, 0 = first) */
+    /* 0x0780 */ UoCourseRec course[UO_COURSE_NUM];
+    /* 0x07BC */ u8 unk7BC[0x286C];
     /* 0x3028 */ s32 money;             /* Z points */
 } UoSave;
 
@@ -133,7 +148,7 @@ extern UoSave *gSaveData;
 
 /* ---- UbResult (menu_o.c): result screen of the two disc modes ---- */
 
-/* The score sheet (filled by func_0037EE18 / 0037F008 / 0037F180 of the next chunk). */
+/* The score sheet (filled by UbScore_Fill / 0037F008 / 0037F180 of the next chunk). */
 typedef struct UoScoreRow {
     /* 0x0 */ s32 value;        /* base rows: a percentage; bonus rows: text line - 0x20 */
     /* 0x4 */ s32 unk4;
@@ -219,9 +234,13 @@ extern s32 UbScore_ConvertStep(UoScore *score, s32 step);
 extern void UbScore_SetPage(UoScore *score, s32 page);
 extern void UbScore_PlateGoto(MFlash *flash, s32 which, s32 on);
 extern s32 UbScore_GetRewardItem(s32 kind);
-/* previous chunk (menu_n): head of the UbResult object */
-extern void UbResult_Init(s32 section);
+extern s32 UbScore_Fill(s32 kind, UoScore *score, s32 *pageCount);
+extern void UbScore_CalcPoints(void *bonusTbl, UoScore *score);
+extern s32 UbScore_CalcRank(s32 kind, UoScore *score);
+extern s32 UbScore_SaveBestC(s32 course, s32 rank, UoScore *score);
 
+s32 UbResult_MarkCourseCleared(s32 course);
+void UbResult_Init(s32 section);
 void UbResult_Term(void);
 void UbResult_Draw(void);
 void UbResult_Update(void);
@@ -319,6 +338,7 @@ s32 Ub_Main(void);
 #define MISSEL_RANDOM 0x3E6
 #define MISSEL_ROWS 5
 #define MISSEL_CHIP_NUM 165
+#define MISSEL_FLASH_NUM 1
 
 /* Section 10: one mission (0x34 bytes). */
 typedef struct MisSelDef {
@@ -351,22 +371,32 @@ typedef struct MisSel {
     /* 0x014 */ MTextBox box[7];    /* 0..4 mission names, 5 team kind, 6 DP rule */
     /* 0x3E8 */ MisSelDef *missions; /* section 10 */
     /* 0x3EC */ MisSelOpp *opps; /* section 11 */
-    /* 0x3F0 */ MFlash flash[1];
+    /* 0x3F0 */ MFlash flash[MISSEL_FLASH_NUM];
     /* 0x41C */ void *bg;
     /* 0x420 */ u8 *tex[39];
-    /* 0x4BC */ s32 unk4BC;
-    /* 0x4C0 */ s32 cursor;         /* row 0..4 */
-    /* 0x4C4 */ s32 unk4C4[9];
-    /* 0x4E8 */ s32 unk4E8;
-    /* 0x4EC */ s32 voiceLine;
+    /* 0x4BC */ s32 flags;          /* MISSEL_ */
+    /* 0x4C0 */ s32 cursor[4];      /* cursor of each level; only [0] (row 0..4) is used */
+    /* 0x4D0 */ s32 timer;          /* frames until the fade out starts after the choice */
+    /* 0x4D4 */ s32 unk4D4[2];
+    /* 0x4DC */ s32 level;          /* 0 = choosing, 1 = the mission's window is open */
+    /* 0x4E0 */ s32 voiceReq;       /* line the guide is asked to say (1 greeting, 2 idle), 0 = none */
+    /* 0x4E4 */ s32 voiceLast;
+    /* 0x4E8 */ s32 voiceSkip;      /* confirm was pressed while the guide spoke */
+    /* 0x4EC */ s32 voiceLine;      /* subtitle line, -1 = none */
     /* 0x4F0 */ s32 unk4F0;
     /* 0x4F4 */ s32 blink;
     /* 0x4F8 */ s32 talk;
-    /* 0x4FC */ s32 pageCount;
+    /* 0x4FC */ s32 pageCount;      /* pages available (five missions each) */
     /* 0x500 */ s32 page;
-    /* 0x504 */ s32 cur;            /* mission under the cursor */
-    /* 0x508 */ s32 unk508;
+    /* 0x504 */ s32 mission;        /* mission under the cursor: page * 5 + row */
+    /* 0x508 */ s32 idle;           /* frames without input */
 } MisSel; /* 0x50C */
+
+#define MISSEL_CHOSEN 1
+#define MISSEL_LEAVING 2
+#define MISSEL_STARTED 4
+#define MISSEL_GREETED 8
+#define MISSEL_IDLE_FRAMES 0x708
 
 extern MisSel *gMisSel;   /* 0x3B7360 */
 extern s32 gMisSelFaceTex[MISSEL_ROWS]; /* 0x3B7368: {19, 22, 23, 24, 25}, tex slots of the opponents' chips */
@@ -376,5 +406,10 @@ void MisSel_SetupBattle(void);
 void MisSel_Init(s32 section);
 void MisSel_Term(void);
 void MisSel_Draw(void);
+void MisSel_Update(void);
+void MisSel_UpdateVoice(void);
+void MisSel_Input(s32 *result);
+void MisSel_ClipGoto(s32 movie, s32 level, char *label);
+s32 MisSel_Run(s32 section);
 
 #endif

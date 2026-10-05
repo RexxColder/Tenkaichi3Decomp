@@ -10,15 +10,13 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
 /*
  * Menu overlay DBZP.BIN, 0x39EFC0..0x3A3848 (placeholder stem "menu_x"). Three pieces:
  *
- *   menu_x.c    0x39EFC0..0x39FAA8  EvoTop      tail of the top menu of Evolution Z, mode 48 (the object starts
- *                                               at 0x39EB08 in the previous chunk, src/menu/menu_w_c.c)
+ *   (menu_x.c)  0x39EFC0..0x39FAA8  EvoTop      tail of the top menu of Evolution Z, mode 48: now merged into
+ *                                               src/menu/menu_w_c.c (0x39EB08..0x39FAA8), which uses the
+ *                                               EvoTop layout below
  *
- * EvoTop below is the full layout of the structure that include/menu/menu_w.h declares from its head only (same
- * name: the two headers cannot be included together until that one is dropped). include/menu/menu_y.h carries
- * a copy of Option that is skipped when this header is included first.
  *   menu_x_b.c  0x39FAA8..0x39FBB8  OptMode_Main, the handler of mode 62 (the options)
- *   menu_x_c.c  0x39FBB8..0x3A3848  Option      head of the options screen object (it goes on in the next
- *                                               chunk, menu_y: draw, plate helper, key page, term)
+ *   menu_x_c.c  0x39FBB8..0x3A65E8  Option      the options screen object (menu_y.c, its tail, was merged in;
+ *                                               include/menu/menu_y.h has the prototypes that half added)
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -54,7 +52,7 @@ extern s32 DcSave_GetState(void);            /* McFlow_Update's last result whil
 extern s32 DcSave_IsDone(void);              /* 1 when not started, else whether the flow has ended */
 extern s32 DcSave_IsStarted(void);
 
-/* ---- EvoTop (menu_x.c): the top menu of Evolution Z (mode 48), guide Krillin ---- */
+/* ---- EvoTop (menu_w_c.c): the top menu of Evolution Z (mode 48), guide Krillin ---- */
 
 /* gProgress + 0x7D0: the plate the Evolution Z top menu was left on (-1 when the mode is entered). */
 #ifndef EVO_PROGRESS_CURSOR
@@ -94,7 +92,7 @@ typedef struct EvoTop {
 #define EVOTOP_LINE_EXPLAIN_LAST 0x10
 #define EVOTOP_LINE_IDLE 0x11
 
-/* head of the object: previous chunk (src/menu/menu_w_c.c) */
+/* src/menu/menu_w_c.c */
 void EvoTop_PlayVoice(EvoTop *m, s32 line);          /* plays a guide line and shows it */
 s32 EvoTop_Wrap(s32 value, s32 min, s32 max);        /* wraps value into min..max */
 void EvoTop_SetPlate(EvoTop *m, s32 on);             /* lights / dims the cursor plate */
@@ -206,7 +204,7 @@ extern Option *gOption;
 #define OPT_CLIP_VOL_SE 9
 #define OPT_CLIP_ROW_CTRL 10   /* the controller page (cursor - 16) */
 
-/* tail of the object: next chunk (src/menu/menu_y.c) */
+/* second half of the object (was src/menu/menu_y.c) */
 void Option_Draw(void);
 void Option_PlateGoto(s32 unused, s32 clip, char *label);  /* sends a plate / cursor clip to a label */
 s32 Option_SetKeyMark(s32 row);                            /* key page: moves the cursor mark */

@@ -6,6 +6,8 @@
  * used by the entrant select and by the bracket. Work area gTourBg, 0x68 bytes.
  */
 
+TourBg *gTourBg = NULL; /* 0x3B591C */
+
 #define TB_RES(n) \
     res = (MTexRes *)MPACK_AT(gTourBg->res, n); \
     Res_RelocateOffsets(&res, res, res)

@@ -47,3 +47,5 @@ ModeMenu_Init = 0x003382C8; // type:func // guess
 ModeMenu_Term = 0x00338DD0; // type:func // guess
 ModeMenu_Draw = 0x00338EC8; // type:func // guess
 gModeMenu = 0x003B12F0; // size:0x4
+// thirteenth archive pointer, file baseFile + 0x18, also loaded by the wish screen (src/sys/late_a.c)
+gMenuArc12 = 0x003B0EB4; // size:0x4

@@ -38,3 +38,6 @@ gSimPopoB = 0x0031EB2C; // size:0x4 // guess
 gSimPopoCount = 0x0031EB30; // size:0x4 // guess
 gSimPopoWon = 0x0031EB34; // size:0x4 // guess
 gSimPopoRank = 0x0031EB38; // size:0x4 // guess
+// Read-only objects of menu_u_d.c that SimEv34 (INCLUDE_ASM) shares with the C functions.
+sSimPopoX = 0x003BAFB0; // size:0x14 force_not_migration:True
+sSimPopoClip = 0x003BAFD8; // size:0xC force_not_migration:True

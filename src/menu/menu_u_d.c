@@ -7,8 +7,14 @@
  * event 33 and repeats a string of event 32's file ("mc_lose_text").
  */
 
+/* While SimEv34 is INCLUDE_ASM its jump table comes from the assembly file, which only aligns it to 8: the
+   original object's .rodata was 16-aligned (it starts at 0x3BAFB0, 8 bytes behind the previous object). */
+RODATA_ALIGN16();
+
 static const s32 sSimPopoX[5] = { 76, 150, 224, 298, 372 };
 static const s32 sSimPopoSpeed[3] = { 6, 10, 14 };
+/* A named object because SimEv34 (INCLUDE_ASM) uses it too; it sits where the first literal of the pool was. */
+static const char sSimPopoClip[] __attribute__((aligned(8))) = "mc_popo%02d";
 
 /* Swaps two of the five figures: down, across, up. Returns 1 when the swap is over. */
 s32 SimPopo_Swap(USimDay *day, s32 a, s32 b) {
@@ -54,10 +60,10 @@ s32 SimPopo_Swap(USimDay *day, s32 a, s32 b) {
         break;
     }
     flash = &day->flash[3];
-    sprintf(name, "mc_popo%02d", a);
+    sprintf(name, sSimPopoClip, a);
     Flash_FindLabel(flash, 0, name, &ref);
     Flash_ClipSetOffset(flash, &ref, gSimPopoDx, gSimPopoDy);
-    sprintf(name, "mc_popo%02d", b);
+    sprintf(name, sSimPopoClip, b);
     Flash_FindLabel(flash, 0, name, &ref);
     Flash_ClipSetOffset(flash, &ref, -gSimPopoDx, gSimPopoDy);
     return done;
@@ -69,7 +75,7 @@ void SimPopo_CursorOn(USimDay *day) {
     char name[64];
     MFlash *flash = &day->flash[3];
 
-    sprintf(name, "mc_popo%02d", day->cur[3]);
+    sprintf(name, sSimPopoClip, day->cur[3]);
     Flash_FindLabel(flash, 0, name, &ref);
     Flash_ClipGotoLabel(flash, &ref, "fl_select_loop");
 }
@@ -80,7 +86,7 @@ void SimPopo_CursorOff(USimDay *day) {
     char name[64];
     MFlash *flash = &day->flash[3];
 
-    sprintf(name, "mc_popo%02d", day->cur[3]);
+    sprintf(name, sSimPopoClip, day->cur[3]);
     Flash_FindLabel(flash, 0, name, &ref);
     Flash_ClipGotoLabel(flash, &ref, "fl_select_off");
 }
@@ -380,7 +386,7 @@ s32 SimEv34(USimDay *day) {
             uv.x1 = 0x40;
             uv.y1 = 0x40;
         }
-        sprintf(name, "mc_popo%02d", i);
+        sprintf(name, sSimPopoClip, i);
         Flash_FindLabel(flash, name, "mc_maru_batsu", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
         if (i != gSimPopoTarget) {

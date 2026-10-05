@@ -7,12 +7,13 @@
  * Menu overlay DBZP.BIN, 0x364358..0x368C18 (placeholder stem "menu_k"): Dragon World Tour (progress modes 33..35),
  * the end of the tournament menu and the bracket screen. Six pieces:
  *
- *   menu_k.c    0x364358..0x364DA8  TourMenu  tail of the tournament menu of mode 33 (object starts at 0x3623A8)
+ *   (menu_k.c)  0x364358..0x364DA8  TourMenu  tail of the tournament menu of mode 33: merged into menu_j_b.c
  *   menu_k_b.c  0x364DA8..0x3660A0  Bracket   the bracket screen of mode 35: init, frame loop, input
  *   menu_k_c.c  0x3660A0..0x366F58  Bracket   the guide's speech and the result sequence (another source file)
  *   menu_k_d.c  0x366F58..0x3673F8  TourBg    the cloud backdrop shared with the entrant select
  *   menu_k_e.c  0x3673F8..0x368068  Bracket   per-frame clip set-up
- *   menu_k_f.c  0x368068..0x368C18  Bracket   the loader: first function of the object that goes on in menu_l
+ *   menu_k_f.c  0x368068..0x36B3E0  Bracket   the loader and the bracket logic (merged with the former menu_l.c;
+ *                                             that file uses the LBracket view of menu_l.h)
  *
  * Object boundaries the data proves: one between Bracket_Update and Bracket_UpdateSeq ("fl_guide_out" exists at
  * 0x3B6168 and at 0x3B6480; put at 0x3660A0, where the functions start taking the work pointer as an argument), and
@@ -20,8 +21,8 @@
  * at 0x3B6FC4, and repeats "fl_guide_in"). The cuts at 0x364DA8, 0x366F58 and 0x3673F8 are module cuts; the data
  * neither confirms nor excludes them (menu_k_c / _d / _e may be one source file).
  *
- * This header does not include menu_j.h (written in parallel, it changed while this chunk was done): TourMenuK,
- * BrkCell and BrkEntrant below are this chunk's own views of TourMenu, the character-grid cell and TourEntrant.
+ * This header does not include menu_j.h (written in parallel, it changed while this chunk was done): BrkCell
+ * and BrkEntrant below are this chunk's own views of the character-grid cell and TourEntrant.
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -70,57 +71,10 @@ extern void ChrGrid_Build(s32 *outCount, BrkCell *out, s32 *inCount, BrkCell *in
 #define TOUR_OTHERWORLD 3        /* Otherworld Tournament ("mc_guide_anoyo") */
 #define TOUR_YAMCHA 4            /* Yamcha Game (Yamcha and Puar) */
 
-/* ---- TourMenu (menu_j_b.c + menu_k.c): this chunk's view of the work area ---- */
-
-#define TOURMENU_FLASH_NUM 2
-#define TOURMENU_LV_TOP 0        /* 0 the real tournament, 1 free play */
-#define TOURMENU_LV_TOUR 1       /* which of the five tournaments */
-#define TOURMENU_LV_INFO 2
-#define TOURMENU_LV_LEVEL 3      /* difficulty, 0..2 */
-#define TOURMENU_LV_NUM 4        /* number of entrants - 1 */
-#define TOURMENU_LV_MAX 5
-
-typedef struct TourMenuK {
-    /* 0x000 */ u32 *pack;
-    /* 0x004 */ u32 *res;
-    /* 0x008 */ void *imageFile;
-    /* 0x00C */ void *imageRes;
-    /* 0x010 */ void *msgText;
-    /* 0x014 */ void *subtitles;
-    /* 0x018 */ MFlash flash[TOURMENU_FLASH_NUM]; /* 0 the menu, 1 the invitation */
-    /* 0x070 */ void *bg;
-    /* 0x074 */ u8 *tex[31];
-    /* 0x0F0 */ u8 *texB[6];
-    /* 0x108 */ s32 flags;          /* TOURMENU_ */
-    /* 0x10C */ s32 cursor[TOURMENU_LV_MAX];
-    /* 0x120 */ s32 leaveTimer;     /* frames until the fade out starts */
-    /* 0x124 */ s32 iconTimer;
-    /* 0x128 */ s32 iconFrame;
-    /* 0x12C */ s32 level;          /* TOURMENU_LV_ */
-    /* 0x130 */ s32 invite;
-    /* 0x134 */ s32 seq;            /* step of TourMenu_UpdateSeq, 0 = idle (the menu takes input) */
-    /* 0x138 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
-    /* 0x13C */ s32 blink;
-    /* 0x140 */ s32 talk;
-    /* 0x144 */ void *unk144;
-} TourMenuK; /* 0x148 */
-
-#define TOURMENU_DONE 1
-#define TOURMENU_LEAVING 2
-#define TOURMENU_GREETED 8      /* the opening step was chosen once the movie accepted input */
-#define TOURMENU_INVITE 0x10    /* an invitation arrived */
+/* TourMenu (the former menu_k.c, 0x364358..0x364DA8) is now part of menu_j_b.c; its view is TourMenu of menu_j.h. */
 
 /* gSaveData->unkA08 */
 #define TOUR_SAVE_STARTED 0x20  /* the first-visit speech was heard */
-
-extern TourMenuK *gTourMenu;    /* 0x3B5914 */
-
-extern void TourMenu_Init(s32 section);
-extern void TourMenu_Term(void);
-extern void TourMenu_Draw(void);
-extern void TourMenu_ClipGoto(s32 movie, s32 kind, char *label);
-extern void TourMenu_Update(void);
-extern void TourMenu_Input(s32 *result);
 
 /* What the tournament keeps of one entrant: gProgress + 0x98, 0x28 bytes each (TourEntrant of menu_j.h). */
 typedef struct BrkEntrant {
@@ -312,9 +266,6 @@ extern void Bracket_UpdateImages(Bracket *b);              /* background loader 
 extern void Bracket_LoadImages(Bracket *b);
 extern void Bracket_SetupBattle(Bracket *b);               /* the battle hand-off (BattleSetup_*) */
 extern void Bracket_GivePrizes(Bracket *b, s32 second);    /* fills reward[] and the save */
-
-void TourMenu_UpdateSeq(void);
-s32 TourMenu_Run(s32 section);
 
 void Bracket_OnSaveDone(void);
 void Bracket_Init(void);

@@ -1,10 +1,22 @@
 #include "common.h"
 #include "menu/menu_o.h"
+#include "sys/pad.h"
 
 /*
- * MisSel, 0x379F58..0x37AFF8: head of the mission list of mode 14 (the object goes on in the next chunk, menu_p:
- * Update, Input and the frame loop MisSel_Run at 0x37B640). Read-only data from 0x3B8400.
+ * MisSel, 0x379F58..0x37B7C0: the mission list of mode 14. Work pointer gMisSel (0x3B7360), one initialised table
+ * (gMisSelFaceTex, 0x3B7368), .rodata 0x3B8400..0x3B8630. Merged from two chunks: the head (0x379F58..0x37AFF8:
+ * SetRank, SetupBattle, Init, Term, Draw; written as menu_o_d.c) and the last five functions (0x37AFF8..: Update,
+ * UpdateVoice, Input, ClipGoto and the frame loop MisSel_Run at 0x37B640; written as menu_p.c with the MisSelP view
+ * of include/menu/menu_p.h). The one view used now is MisSel / UoProgress / UoSave of include/menu/menu_o.h.
  */
+
+MisSel *gMisSel = NULL; /* 0x3B7360 */
+/*
+ * The movie's texture slots of the five opponent chips. The word between the pointer and this table (0x3B7364) is
+ * zero and nothing refers to it: it is the padding of the table's 8-byte alignment (the compiler aligns arrays
+ * to 8).
+ */
+s32 gMisSelFaceTex[MISSEL_ROWS] = { 19, 22, 23, 24, 25 }; /* 0x3B7368..0x3B737C */
 
 /* Shows a mission's rank letter on its row, and enlarged when the row is under the cursor. */
 void MisSel_SetRank(s32 row, s32 rank) {
@@ -20,7 +32,7 @@ void MisSel_SetRank(s32 row, s32 rank) {
     sprintf(name, "mc_window_plate%02d", row + 1);
     Flash_FindLabel(flash, name, "mc_rankmoji", &ref);
     Flash_ClipSetUv(flash, &ref, &uv);
-    if (row == gMisSel->cursor) {
+    if (row == gMisSel->cursor[0]) {
         uv.x0 = rank * 0x40;
         uv.y0 = 0;
         uv.x1 = uv.x0 + 0x40;
@@ -39,7 +51,7 @@ void MisSel_SetupBattle(void) {
     u16 items[8];
     s32 unk1FC;
     s32 unk10;
-    MisSelDef *def = &gMisSel->missions[gMisSel->cur];
+    MisSelDef *def = &gMisSel->missions[gMisSel->mission];
     s32 announcer;
     s32 timeLimit;
     s32 stage;
@@ -199,8 +211,8 @@ void MisSel_Init(s32 section) {
     }
     gMisSel->voiceLine = -1;
     gMisSel->page = UO_PROG->missionPage;
-    gMisSel->cursor = UO_PROG->cursor;
-    gMisSel->unk4E8 = 0;
+    gMisSel->cursor[0] = UO_PROG->cursor;
+    gMisSel->voiceSkip = 0;
     gMisSel->pageCount = UO_SAVE->missionPages;
 }
 
@@ -264,7 +276,7 @@ void MisSel_Draw(void) {
         TextBox_AttachLine(flash, &ref, 0, 0, n + 0xD8, &gMisSel->box[i]);
         MisSel_SetRank(i, rank);
     }
-    cur = gMisSel->cur;
+    cur = gMisSel->mission;
     Flash_FindLabel(flash, NULL, "mc_missionkari01", &ref);
     TextBox_AttachLine(flash, &ref, 0, 0, gMisSel->missions[cur].kind + 0x148, &gMisSel->box[5]);
     Flash_FindLabel(flash, NULL, "mc_missionkari02", &ref);
@@ -305,4 +317,201 @@ void MisSel_Draw(void) {
     }
     Flash_Draw(&gMisSel->flash[0]);
     IconWin_Draw();
+}
+
+/* Runs the leave timer and the movie. */
+void MisSel_Update(void) {
+    s32 i;
+
+    if (gProgress->flags & MPROG_FREEZE) {
+        return;
+    }
+    if (gMisSel->timer > 0) {
+        gMisSel->timer--;
+    }
+    for (i = 0; i < MISSEL_FLASH_NUM; i++) {
+        Flash_Advance(&gMisSel->flash[i]);
+    }
+}
+
+/* Starts the line the guide was asked for; confirm cuts the running line short. */
+void MisSel_UpdateVoice(void) {
+    if (gProgress->flags & MPROG_FREEZE) {
+        return;
+    }
+    if (gMisSel->voiceSkip == 0) {
+        if (gMisSel->voiceReq == 0) {
+            return;
+        }
+        if (gMisSel->voiceLine != -1 && Voice_GetStat(0) != UB_VOICE_IDLE_O && gMisSel->voiceReq == gMisSel->voiceLast) {
+            if (gPad[0].gamePressed & PADG_CROSS) {
+                Snd_PlaySe(1, 1);
+                gMisSel->voiceSkip = 1;
+            }
+            return;
+        }
+    } else {
+        gMisSel->voiceSkip = 0;
+    }
+    switch (gMisSel->voiceReq) {
+    case 1:
+        gMisSel->voiceLine = 0x33;
+        break;
+    case 2:
+        gMisSel->voiceLine = 0x35;
+        break;
+    }
+    gMisSel->voiceReq = 0;
+    Voice_PlayWithSubtitle(gMisSel->subtitles, UB_VOICE_BASE_O, gMisSel->voiceLine);
+    gMisSel->voiceLast = gMisSel->voiceReq;
+}
+
+/* Pad 0. Level 0: up / down the plate, left / right the page; level 1: confirm or back. */
+void MisSel_Input(s32 *result) {
+    char name[64];
+    s32 up = gPad[0].gameRepeat & PADG_UP;
+    s32 down = gPad[0].gameRepeat & PADG_DOWN;
+    s32 left = gPad[0].gameRepeat & PADG_LEFT;
+    s32 right = gPad[0].gameRepeat & PADG_RIGHT;
+    s32 confirm = gPad[0].gamePressed & PADG_CROSS;
+    s32 cancel = gPad[0].gamePressed & PADG_TRIANGLE;
+
+    if (!(gMisSel->flash[0].flags & MFLASH_PAD)) {
+        return;
+    }
+    if (!(gMisSel->flags & MISSEL_STARTED)) {
+        gMisSel->voiceReq = 1;
+        MisSel_ClipGoto(0, 0, "fl_on_start");
+        gMisSel->flags |= MISSEL_STARTED;
+    }
+    switch (gMisSel->level) {
+    case 0:
+        if (up) {
+            MisSel_ClipGoto(0, 0, "fl_off_start");
+            if (--gMisSel->cursor[gMisSel->level] < 0) {
+                gMisSel->cursor[gMisSel->level] = MISSEL_ROWS - 1;
+            }
+            MisSel_ClipGoto(0, 0, "fl_on_start");
+            Snd_PlaySe(1, 0);
+            gMisSel->idle = 0;
+        } else if (down) {
+            MisSel_ClipGoto(0, 0, "fl_off_start");
+            if (++gMisSel->cursor[gMisSel->level] >= MISSEL_ROWS) {
+                gMisSel->cursor[gMisSel->level] = 0;
+            }
+            MisSel_ClipGoto(0, 0, "fl_on_start");
+            Snd_PlaySe(1, 0);
+            gMisSel->idle = 0;
+        } else if (left) {
+            if (gMisSel->page != 0) {
+                gMisSel->page--;
+                Snd_PlaySe(1, 0);
+                gMisSel->idle = 0;
+            }
+        } else if (right) {
+            if ((u32)gMisSel->page < (u32)(gMisSel->pageCount - 1)) {
+                gMisSel->page++;
+                Snd_PlaySe(1, 0);
+                gMisSel->idle = 0;
+            }
+        } else if (confirm) {
+            gMisSel->mission = gMisSel->page * MISSEL_ROWS + gMisSel->cursor[0];
+            MisSel_ClipGoto(0, 0, "fl_rank_out");
+            sprintf(name, "fl_mission_%02d_in", gMisSel->cursor[gMisSel->level] + 1);
+            Flash_GotoLabel(&gMisSel->flash[0], name, 1);
+            gMisSel->level = 1;
+            Snd_PlaySe(1, 1);
+            gMisSel->idle = 0;
+        } else if (cancel) {
+            ColorFade_StartOut(0, 0, 0, 0x14);
+            *result = 0;
+            Flash_GotoLabel(&gMisSel->flash[0], "fl_mission100_menu_cansel", 1);
+            Snd_PlaySe(1, 2);
+            gMisSel->idle = 0;
+        } else {
+            gMisSel->idle++;
+            if (gMisSel->idle == MISSEL_IDLE_FRAMES) {
+                gMisSel->voiceReq = 2;
+                gMisSel->idle = 0;
+            }
+        }
+        break;
+    case 1:
+        if (confirm) {
+            gMisSel->flags |= MISSEL_CHOSEN;
+            gMisSel->flags |= MISSEL_LEAVING;
+            gMisSel->timer = 15;
+            UO_PROG->missionPage = gMisSel->page;
+            UO_PROG->cursor = gMisSel->cursor[0];
+            Snd_PlaySe(1, 1);
+        } else if (cancel) {
+            gMisSel->level = 0;
+            MisSel_ClipGoto(0, 0, "fl_rank_in");
+            sprintf(name, "fl_mission_%02d_cansel", gMisSel->cursor[gMisSel->level] + 1);
+            Flash_GotoLabel(&gMisSel->flash[0], name, 1);
+            Snd_PlaySe(1, 2);
+        }
+        break;
+    }
+}
+
+/* Sends the plate under the cursor of `level` to a label. */
+void MisSel_ClipGoto(s32 movie, s32 level, char *label) {
+    MFlashRef ref;
+    char name[64];
+    MFlash *flash = &gMisSel->flash[movie];
+
+    sprintf(name, "mc_window_plate%02d", gMisSel->cursor[level] + 1);
+    Flash_FindLabel(flash, NULL, name, &ref);
+    Flash_ClipGotoLabel(flash, &ref, label);
+}
+
+/*
+ * The mission select (mode 14). Returns 1 when a mission was chosen (its page and plate are then in gProgress and
+ * the rule and the opponents were written to the battle setup by MisSel_SetupBattle), 0 when the player backed out.
+ */
+s32 MisSel_Run(s32 section) {
+    s32 result = 1;
+
+    MisSel_Init(section);
+    ColorFade_StartIn(0, 0, 0, 0x14);
+    while (1) {
+        Gfx_BeginFrame();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        MisSel_Update();
+        MisSel_UpdateVoice();
+        MisSel_Draw();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (ColorFade_IsInDone()) {
+            if (!(gMisSel->flags & MISSEL_GREETED) && (gMisSel->flash[0].flags & MFLASH_PAD)) {
+                gMisSel->flags |= MISSEL_GREETED;
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Bgm_FadeOutStep();
+            Voice_FadeOutStep(0);
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            break;
+        }
+        if (gMisSel->flags & MISSEL_LEAVING) {
+            if (gMisSel->timer == 0) {
+                ColorFade_StartOut(0, 0, 0, 0x14);
+            }
+        } else if (gMisSel->voiceReq == 0) {
+            MisSel_Input(&result);
+        }
+    }
+    if (result) {
+        MisSel_SetupBattle();
+    }
+    MisSel_Term();
+    Dma_ResetBuffers();
+    return result;
 }

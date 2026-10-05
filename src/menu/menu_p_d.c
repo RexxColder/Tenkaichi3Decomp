@@ -2,15 +2,17 @@
 #include "menu/menu_p.h"
 
 /*
- * UbScore, 0x37EE18..0x37F430: head of the score sheet module of the result screens of the mode group 13..30
- * (the object continues in the next chunk: src/menu/menu_q.c, 0x37F430..0x37F850, must be appended to this file).
- * Its .rodata starts at 0x3B8DD8 with the reward item table (six words), then the time steps below (0x3B8DF0),
- * the initialiser of UbScore_CalcRank (0x3B8F80) and, from 0x3B8FA0, the strings of the tail.
+ * UbScore, 0x37EE18..0x37F850: the score sheet module of the result screens of the mode group 13..30 (one object;
+ * it was written as two halves, src/menu/menu_p_d.c 0x37EE18..0x37F430 and src/menu/menu_q.c 0x37F430..0x37F850,
+ * merged here). Its .rodata starts at 0x3B8DD8 with the reward item table (six words), then the time steps below
+ * (0x3B8DF0), the initialiser of UbScore_CalcRank (0x3B8F80) and, from 0x3B8FA0, the strings of
+ * UbScore_PlateGoto (0x3B8FA0..0x3B9008). The object has no .data.
  */
 
 /*
- * Item ids handed out as rewards (read by UbScore_GetRewardItem, next chunk). It is the first thing in the object's
- * read-only data, so it is defined here; src/menu/menu_q.c carries a second definition until the two are merged.
+ * Item ids handed out as rewards by the result screens (read by UbScore_GetRewardItem, the object's last function).
+ * It is the first thing in the object's read-only data. UbScore_GetRewardItem only matches with the table defined
+ * in the file (the load sits in the delay slot of the return).
  */
 const s32 gUbRewardItems[6] = { 0x7E, 0x57, 0x6B, 0x6A, 0x7F, 0x80 };
 
@@ -184,4 +186,116 @@ s32 UbScore_CountLine(UbScore *score, s32 isBonus, s32 index, s32 step) {
         }
     }
     return done;
+}
+
+/* Pays out up to `step` points of the total as money, at a tenth; returns 1 when the total is used up. */
+s32 UbScore_ConvertStep(UbScore *score, s32 step) {
+    return UbScore_Transfer(&score->total, &score->convert, step, 0.1f);
+}
+
+/* Shows bonus page `page` (1-based): its three lines, as far as the sheet has them. */
+void UbScore_SetPage(UbScore *score, s32 page) {
+    s32 i;
+    s32 first;
+
+    if (page > 0) {
+        first = page * 3 - 3;
+        for (i = 0; i < 3 && first + i < score->bonusCount; i++) {
+            score->shown[i] = first + i;
+        }
+    }
+}
+
+/* Lights or dims plate `plate` of the money conversion and its arrow. */
+void UbScore_PlateGoto(MFlash *flash, s32 plate, s32 on) {
+    MFlashRef ref;
+    char name[64];
+    char *plateFmt = "mc_pt_convert_plate%d";
+    char *arrowFmt = "mc_blue_yajirusi%02d";
+
+    if (on) {
+        sprintf(name, plateFmt, plate);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipGotoLabel(flash, &ref, "fl_on_start");
+        sprintf(name, arrowFmt, plate);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipGotoLabel(flash, &ref, "fl_on_loop");
+    } else {
+        sprintf(name, plateFmt, plate);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipGotoLabel(flash, &ref, "fl_off_start");
+        sprintf(name, arrowFmt, plate);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipGotoLabel(flash, &ref, "fl_stop");
+    }
+}
+
+/* Enters a result into the save's ranking (ten entries, best first); a score below the tenth is dropped. */
+void UbScore_AddRanking(s32 score, s32 chara, s32 cleared) {
+    UbSaveRank *rank = UB_SAVE->rank;
+    s32 i;
+    s32 j;
+
+    for (i = 0; i < UB_RANK_NUM; i++) {
+        if (rank[i].score < score) {
+            for (j = UB_RANK_NUM - 2; j >= i; j--) {
+                rank[j + 1] = rank[j];
+            }
+            rank[i].score = score;
+            rank[i].chara = chara;
+            rank[i].cleared = cleared != 0;
+            return;
+        }
+    }
+}
+
+/* Keeps a mission's best total with its rank and battle time; returns 1 for a new record. */
+s32 UbScore_SaveMissionBest(s32 mission, s32 total, UbScore *score) {
+    s32 record = 0;
+
+    if (UB_SAVE->mission[mission].total < total) {
+        UB_SAVE->mission[mission].total = total;
+        record = 1;
+        UB_SAVE->mission[mission].rank = score->rank;
+        UB_SAVE->mission[mission].hours = score->clock.hours;
+        UB_SAVE->mission[mission].minutes = score->clock.minutes;
+        UB_SAVE->mission[mission].seconds = score->clock.seconds;
+    }
+    return record;
+}
+
+/* The same for a course of modes 17..19, which also keeps the sheet's fourth line. */
+s32 UbScore_SaveBestB(s32 course, s32 total, UbScore *score) {
+    s32 record = 0;
+
+    if (UB_SAVE->bestB[course].total < total) {
+        UB_SAVE->bestB[course].total = total;
+        record = 1;
+        UB_SAVE->bestB[course].rank = score->rank;
+        UB_SAVE->bestB[course].hours = score->clock.hours;
+        UB_SAVE->bestB[course].minutes = score->clock.minutes;
+        UB_SAVE->bestB[course].seconds = score->clock.seconds;
+        UB_SAVE->bestB[course].value = score->line[3].value;
+    }
+    return record;
+}
+
+/* The same for a course of modes 24..30. */
+s32 UbScore_SaveBestC(s32 course, s32 total, UbScore *score) {
+    s32 record = 0;
+
+    if (UB_SAVE->bestC[course].total < total) {
+        UB_SAVE->bestC[course].total = total;
+        record = 1;
+        UB_SAVE->bestC[course].rank = score->rank;
+        UB_SAVE->bestC[course].hours = score->clock.hours;
+        UB_SAVE->bestC[course].minutes = score->clock.minutes;
+        UB_SAVE->bestC[course].seconds = score->clock.seconds;
+    }
+    return record;
+}
+
+/* Reward item `idx` of the result screens. */
+s32 UbScore_GetRewardItem(s32 idx) {
+    return gUbRewardItems[idx];
 }

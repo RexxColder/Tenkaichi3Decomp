@@ -7,14 +7,15 @@
  * Menu overlay DBZP.BIN, 0x372148..0x376920 (placeholder stem "menu_n"): screens of the mode group 13..30
  * (handler 0x379A58, main-menu item 1). Four pieces, cut at object boundaries:
  *
- *   menu_n.c    0x372148..0x372560  UbTeamSel  tail of the team select of mode 15 (the object starts at 0x36E028,
- *                                              src/menu/menu_m_b.c): the guide's closing line and the frame loop
+ *   (menu_n.c)  0x372148..0x372560  UbTeamSel  tail of the team select of mode 15: merged into
+ *                                              src/menu/menu_m_b.c (the object starts at 0x36E028)
  *   menu_n_b.c  0x372560..0x373A68  UbzSel     mode 28: the course select (five courses of up to eight opponents
  *                                              fought in a row) and the first half of its battle set-up
  *   menu_n_c.c  0x373A68..0x3760C8  UbRank     mode 26: the ranking ladder of 100 places (challenge a place above,
  *                                              intruders) and its battle set-up
- *   menu_n_d.c  0x3760C8..0x376920  UbResult   head of the result screen of modes 27 / 30 (0x378138; the object
- *                                              goes on in the next chunk, menu_o)
+ *   menu_n_d.c  0x3760C8..0x3782A8  UbResult   the result screen of modes 27 / 30 (Run is 0x378138); merged with
+ *                                              its tail (menu_o.c) and built with include/menu/menu_o.h, not with
+ *                                              this header
  *
  * All names are guesses from what the code does. (inferred, from the game itself: modes 24..30 are the two modes
  * unlocked by "Disc Fusion": "Ultimate Battle" = the ranking ladder, "Ultimate Battle Z" = the courses.)
@@ -137,52 +138,6 @@ typedef struct NRankRule {
     /* 0x18 */ s32 foe;         /* index into the NFoe table */
 } NRankRule; /* 0x1C */
 
-/* ---- UbTeamSel (menu_m_b.c): the fields its last two functions touch ---- */
-
-typedef struct NTeamMember {
-    s32 unk0[12];
-} NTeamMember; /* 0x30: UbMember of menu_m.h */
-
-typedef struct NTeam {
-    NTeamMember member[5];
-} NTeam; /* 0xF0 */
-
-typedef struct NTeamState {
-    /* 0x000 */ NTeam team;
-    /* 0x0F0 */ u8 unkF0[0x44];
-    /* 0x134 */ s32 memberCount;
-} NTeamState;
-
-typedef struct NTeamSel {
-    /* 0x0000 */ u8 unk0[0x20];
-    /* 0x0020 */ void *subtitles;
-    /* 0x0024 */ MFlash flash[4];
-    /* 0x00D4 */ u8 unkD4[0x118];
-    /* 0x01EC */ s32 flags;      /* NTEAM_ */
-    /* 0x01F0 */ s32 voiceLine;
-    /* 0x01F4 */ s32 loadState;  /* the portrait loader (4 = idle) */
-    /* 0x01F8 */ s32 timer;      /* frames until the fade out starts */
-    /* 0x01FC */ u8 unk1FC[0x148];
-    /* 0x0344 */ NTeamState *sel;
-    /* 0x0348 */ u8 unk348[0x178C];
-    /* 0x1AD4 */ s32 endStep;    /* NTEAM_END_ */
-    /* 0x1AD8 */ s32 talker;     /* which of the two guides is talking */
-} NTeamSel;
-
-#define NTEAM_DONE 8
-#define NTEAM_LEAVING 0x10
-#define NTEAM_GREETED 0x80      /* the guide's greeting was started */
-
-#define NTEAM_END_NONE 0
-#define NTEAM_END_SPEAK 1
-#define NTEAM_END_WAIT 2
-#define NTEAM_END_LEAVE 3
-
-#define NTEAM_LOAD_IDLE 4
-
-/* gProgress + 0x440: the team the select hands to the mode (UbProgress of menu_m.h). */
-#define NPROG_TEAM (*(NTeam *)((u8 *)gProgress + 0x440))
-
 /* ---- UbzSel (menu_n_b.c) ---- */
 
 #define UBZSEL_FLASH_NUM 1
@@ -300,58 +255,6 @@ typedef struct UbRank {
 
 extern UbRank *gUbRank;         /* 0x3B7354 */
 
-/* ---- UbResult (menu_n_d.c: head; the rest and the full layout are in menu_o) ---- */
-
-#define UBRESULT_FLASH_NUM 1
-
-typedef struct NResult {
-    /* 0x000 */ u32 *pack;          /* this screen's section of archive 3 (compressed) */
-    /* 0x004 */ u32 *res;           /* the same unpacked: a pack of 14 sections */
-    /* 0x008 */ s32 unk8;
-    /* 0x00C */ void *text;         /* section 12 */
-    /* 0x010 */ void *subtitles;    /* section 11 */
-    /* 0x014 */ void *itemText;     /* section 14 */
-    /* 0x018 */ MTextBox box[4];
-    /* 0x248 */ MTextBox itemBox;
-    /* 0x2D4 */ u8 unk2D4[0x8C];
-    /* 0x360 */ void *bonusTbl;     /* section 13: what UbScore_CalcPoints prices the score sheet with */
-    /* 0x364 */ MFlash flash[UBRESULT_FLASH_NUM];
-    /* 0x390 */ void *bg;           /* section 5: background picture */
-    /* 0x394 */ u8 *tex[47];
-    /* 0x450 */ u8 unk450[0x34];
-    /* 0x484 */ s32 timer;
-    /* 0x488 */ u8 unk488[0x14];
-    /* 0x49C */ s32 skip;
-    /* 0x4A0 */ s32 voiceLine;      /* -1 = none yet */
-    /* 0x4A4 */ s32 unk4A4;
-    /* 0x4A8 */ s32 blink;
-    /* 0x4AC */ s32 talk;
-    /* 0x4B0 */ s32 pageCount;      /* written by UbScore_Fill */
-    /* 0x4B4 */ s32 page;
-    /* 0x4B8 */ s32 lose;           /* UbScore_Fill's result: 0 = the battle was won */
-    /* 0x4BC */ s32 newRecord;      /* the course's best result was beaten */
-    /* 0x4C0 */ s32 gotItem;        /* a reward item was added to the save */
-    /* 0x4C4 */ u8 pageDone;
-    /* 0x4C5 */ u8 unk4C5[3];
-    /* 0x4C8 */ s32 kind;           /* gProgress->ubKind */
-    /* 0x4CC */ s32 course;         /* gProgress->ubChoice when kind == 1 */
-    /* 0x4D0 */ u8 score[0x2A8];    /* the score sheet (UoScore of menu_o.h) */
-    /* 0x778 */ s32 counting;
-    /* 0x77C */ s32 count;
-    /* 0x780 */ s32 ready;
-} NResult; /* 0x784 */
-
-extern NResult *gUbResult;      /* 0x3B7358 (named in config/symbols/menu_o.txt) */
-
-/* later chunks (menu_p / menu_q): the score sheet */
-extern s32 UbScore_Fill(s32 kind, void *score, s32 *pageCount);
-extern void UbScore_CalcPoints(void *bonusTbl, void *score);
-extern s32 UbScore_CalcRank(s32 kind, void *score);
-extern s32 UbScore_SaveBestC(s32 course, s32 rank, void *score);
-extern s32 UbScore_GetRewardItem(s32 kind);
-
-void UbTeamSel_UpdateEnd(void);
-s32 UbTeamSel_Run(s32 section);
 void UbzSel_SetupBattle(void);
 void UbzSel_Init(void);
 void UbzSel_Term(void);
@@ -375,7 +278,5 @@ void UbRank_Input(s32 *result);
 void UbRank_ClipGoto(s32 movie, s32 state, char *label);
 void UbRank_UpdateFaceLoad(void);
 s32 UbRank_Run(void);
-s32 UbResult_MarkCourseCleared(s32 course);
-void UbResult_Init(s32 section);
 
 #endif

@@ -71,7 +71,7 @@ extern void ShenCfm_Close(void);
 extern s32 ShenSave_Run(s32 section);
 
 /* The menu overlay's archive pointer (DBZP.BIN data): file `gProgress->unk4 + 0x18`. */
-extern u32 *D_003B0EB4;
+extern u32 *gMenuArc12;
 extern ViewProgress *gProgress;
 
 /* A debug build loaded each resource from the host by name; here only the names are left. */
@@ -86,8 +86,8 @@ s32 Shen_Main(void) {
     s32 done = 0;
     s32 ret = 1;
 
-    if (D_003B0EB4 == NULL) {
-        D_003B0EB4 = File_LoadSync(gProgress->unk4 + 0x18, NULL, 0);
+    if (gMenuArc12 == NULL) {
+        gMenuArc12 = File_LoadSync(gProgress->unk4 + 0x18, NULL, 0);
     }
     do {
         switch (gProgress->mode) {
@@ -109,9 +109,9 @@ s32 Shen_Main(void) {
         }
         sceGsSyncPath(0, 0);
     } while (!done);
-    if (D_003B0EB4 != NULL) {
-        Heap_Free(D_003B0EB4);
-        D_003B0EB4 = NULL;
+    if (gMenuArc12 != NULL) {
+        Heap_Free(gMenuArc12);
+        gMenuArc12 = NULL;
     }
     return ret;
 }
@@ -549,7 +549,7 @@ void Shen_Init(ShenWork *work, s32 section) {
     FlashTexRes *res = NULL;
     s32 i;
 
-    work->pack = PACK_AT(D_003B0EB4, section);
+    work->pack = PACK_AT(gMenuArc12, section);
     work->res = Sprite_Unpack(work->pack, NULL, NULL);
 
     Shen_DebugFile("host:data/test/shenron/sr_select_top_tex_PS2_.dbt");

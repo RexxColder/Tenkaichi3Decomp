@@ -7,12 +7,12 @@
  * Menu overlay DBZP.BIN, 0x35F650..0x364358 (placeholder stem "menu_j"): Dragon World Tour (the tournament mode,
  * progress modes 33..35, main-menu item 2, archive gMenuArc4). Two pieces:
  *
- *   menu_j.c    0x35F650..0x3623A8  EntrySel  rest of the entrant select (mode 34; the object starts at 0x35E0F8 in
- *                                             menu_i_d.c) and Tour_Main, the handler of modes 33..35
- *   menu_j_b.c  0x3623A8..0x364358  TourMenu  head of the tournament menu (mode 33); the object goes on in menu_k
+ *   (menu_j.c  0x35F650..0x3623A8  EntrySel  rest of the entrant select (mode 34) and Tour_Main, the handler of
+ *                                             modes 33..35: merged into menu_i_d.c, where the object starts)
+ *   menu_j_b.c  0x3623A8..0x364DA8  TourMenu  the tournament menu (mode 33); merged with the former menu_k.c
  *
- * This header does not include menu_i.h (written in parallel): ESel below is this chunk's own, complete view of
- * the EntrySel work area.
+ * ESel below is the one view of the EntrySel work area (menu_i_d.c includes menu_i.h and then this header; the
+ * partial view that menu_i.h had is gone).
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -37,9 +37,19 @@ typedef struct ESelCell {
     /* 0x08 */ s32 form[7];
 } ESelCell; /* 0x24 */
 
+#define ESEL_ID_NONE 0xA4         /* filler: no character */
 #define ESEL_ID_RANDOM 0xA1       /* a random character is drawn when the entrant is decided */
 #define ESEL_ID_REC 0xA3          /* the cell of the saved custom characters (gSaveData->rec) */
 
+/* A grid as stored in a menu pack (section 29 of the entrant select). */
+typedef struct ESelGridList {
+    /* 0x00 */ s32 count;
+    /* 0x04 */ s32 unk4[3];
+    /* 0x10 */ ESelCell cell[1];
+} ESelGridList;
+
+extern s32 ChrGrid_IsSelectable(ESelCell *cells, s32 index);
+extern void ChrGrid_Build(s32 *outCount, ESelCell *out, s32 *inCount, ESelCell *in, s32 *customCount, ESelCell *custom);
 extern void ChrGrid_MoveLeft(ESelCell *cells, s32 *col, s32 row);
 extern void ChrGrid_MoveRight(ESelCell *cells, s32 *col, s32 row);
 extern void ChrGrid_MoveUp(ESelCell *cells, s32 *col, s32 *row, s32 rows);
@@ -56,17 +66,16 @@ extern s32 ItemPanel_Input(s32 side, s32 pad);
 extern void ItemPanel_SetChara(s32 side, s32 chara, s32 slot, s32 set, s32 fromRec);
 extern void ItemPanel_Show(s32 side);
 extern void ItemPanel_Hide(s32 side);
-extern void func_00399240(void *pack);                /* item help window: init (EntrySel_Init) */
-extern void func_00399430(void);                      /* item help window: term */
-extern void func_00399478(s32 item);                  /* item help window: draw */
-extern void func_00399730(void);                      /* item help window: open */
-extern void func_00399760(void);                      /* item help window: close */
+extern void ItemHelp_Init(void *pack);                /* item help window: init (EntrySel_Init) */
+extern void ItemHelp_Term(void);                      /* item help window: term */
+extern void ItemHelp_Draw(s32 item);                  /* item help window: draw */
+extern void ItemHelp_Open(void);                      /* item help window: open */
+extern void ItemHelp_Close(void);                      /* item help window: close */
 extern void TourBg_Term(void);                        /* menu_k: the cloud backdrop (work pointer 0x3B591C) */
 extern void TourBg_Draw(void);
-extern s32 TourMenu_Run(s32 section);                 /* menu_k: the frame loop of the tournament menu */
 extern s32 Bracket_Run(s32 section);                  /* menu_k: the bracket screen, which sets up the battles */
 
-/* ---- EntrySel (menu_i_d.c + menu_j.c) ---- */
+/* ---- EntrySel (menu_i_d.c) ---- */
 
 #define ESEL_COLS 7
 #define ESEL_CELL_MAX 165
@@ -127,11 +136,19 @@ typedef struct ESelState {
 #define ESEL_STEP_HELP 4        /* item help window */
 #define ESEL_STEP_COLOR 5       /* costume plates */
 
+/* loadState: the same machine as ModeMenu's */
+#define ESEL_LOAD_REQUEST 1
+#define ESEL_LOAD_READ 2
+#define ESEL_LOAD_UNPACK 3
+#define ESEL_LOAD_SHOWN 4
+#define ESEL_LOAD_ABORT 5
+#define ESEL_LOAD_RESTART 6
+
 typedef struct ESel {
     /* 0x0000 */ u32 *pack;          /* this screen's section of archive 4 (compressed) */
     /* 0x0004 */ u32 *res;           /* the same unpacked */
     /* 0x0008 */ void *imageFile;    /* 0x16800 bytes: compressed large picture (file 0x2F9 + character) */
-    /* 0x000C */ void *imageRes;     /* 0x20800 bytes: the same unpacked */
+    /* 0x000C */ MTexRes *imageRes;  /* 0x20800 bytes: the same unpacked */
     /* 0x0010 */ u32 *chips;         /* section 32: pack of the small character pictures */
     /* 0x0014 */ void *nameText;     /* section 30 */
     /* 0x0018 */ void *formText;     /* section 31 */
@@ -147,7 +164,7 @@ typedef struct ESel {
     /* 0x01DC */ s32 unk1DC;
     /* 0x01E0 */ s32 timer;          /* frames until the fade out starts once all entrants are chosen */
     /* 0x01E4 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
-    /* 0x01E8 */ s32 loadState;      /* the large picture's loader (4 = shown) */
+    /* 0x01E8 */ s32 loadState;      /* ESEL_LOAD_: the large picture's loader */
     /* 0x01EC */ s32 unk1EC;
     /* 0x01F0 */ s32 helpItem;       /* item the help window explains */
     /* 0x01F4 */ s32 endStep;        /* ESEL_END_: the guide's closing line */
@@ -218,6 +235,7 @@ typedef struct TourProgress {
     /* 0x018 */ s32 mode;
     /* 0x01C */ u8 unk1C[0x60];
     /* 0x07C */ TourSession t;
+    /* 0x440 */ ESelEntry lastEntry; /* EntrySel: cursor of the previous visit */
 } TourProgress;
 
 #define TOUR_PROG ((TourProgress *)gProgress)
@@ -279,25 +297,28 @@ typedef struct TourMenu {
     /* 0x0F0 */ u8 *texB[6];
     /* 0x108 */ s32 flags;          /* TOURMENU_ */
     /* 0x10C */ s32 cursor[TOURMENU_LV_MAX];
-    /* 0x120 */ s32 leaveTimer;     /* frames until the fade out starts (TourMenu_Run, menu_k) */
+    /* 0x120 */ s32 leaveTimer;     /* frames until the fade out starts (TourMenu_Run) */
     /* 0x124 */ s32 iconTimer;
     /* 0x128 */ s32 iconFrame;
     /* 0x12C */ s32 level;          /* TOURMENU_LV_ */
     /* 0x130 */ s32 invite;         /* tournament the invitation is for */
-    /* 0x134 */ s32 seq;            /* step of the guide's scripted speech (TourMenu_UpdateSeq, menu_k), 0 = idle */
+    /* 0x134 */ s32 seq;            /* step of the guide's scripted speech (TourMenu_UpdateSeq), 0 = idle */
     /* 0x138 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
     /* 0x13C */ s32 blink;
     /* 0x140 */ s32 talk;
     /* 0x144 */ TourInfo *info;     /* section 27: one entry per tournament */
 } TourMenu; /* 0x148 */
 
+#define TOURMENU_DONE 1
+#define TOURMENU_LEAVING 2
 #define TOURMENU_STARTED 4
-#define TOURMENU_GREETED 8      /* the opening speech was started (set in menu_k) */
+#define TOURMENU_GREETED 8      /* the opening step was chosen once the movie accepted input */
 #define TOURMENU_INVITE 0x10    /* an invitation arrived: its picture is loaded */
 
 /* gSaveData->unkA08: bit n (0..4) = tournament n is the open one; 0x20 = the mode was visited (the clock runs) */
 #define TOUR_SAVE_INVITE_MASK 0x1F
-#define TOUR_SAVE_STARTED 0x20
+#define TOUR_SAVE_STARTED 0x20  /* the first-visit speech was heard */
+#define TOUR_SAVE_EXPLAINED 0x40 /* the guide's long explanation was heard */
 #define TOUR_HOURS 24           /* gSaveData->unkA0C, the mode's clock, runs 0..23 */
 
 extern TourMenu *gTourMenu;      /* 0x3B5914 */
@@ -309,5 +330,7 @@ void TourMenu_Draw(void);
 void TourMenu_ClipGoto(s32 movie, s32 kind, char *label);
 void TourMenu_Update(void);
 void TourMenu_Input(s32 *result);
+void TourMenu_UpdateSeq(void);
+s32 TourMenu_Run(s32 section);
 
 #endif

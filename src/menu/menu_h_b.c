@@ -3,6 +3,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+CharRef *gCharRef = NULL; /* 0x3B4854 */
+
 /*
  * CharRef: the character reference (progress mode 60), 0x3562B8..0x3590A8. Chi-Chi guides: a scrolling list of
  * the unlocked characters; for each one a large picture (loaded in the background), a profile text, a voice

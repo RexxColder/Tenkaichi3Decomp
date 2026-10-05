@@ -15,7 +15,7 @@
  *   late_a_c.c  0x2BF370..0x2BF6B0  ShenSave  the save screen that follows (memory-card flow 0)
  *
  * Reached from the menu overlay's mode table: gProgress->mode 70 dispatches to Shen_Main. The resources are
- * sections of the menu archive (D_003B0EB4, overlay data); the debug names left in the read-only data give
+ * sections of the menu archive (gMenuArc12, overlay data); the debug names left in the read-only data give
  * the original file names ("host:data/test/shenron/...").
  *
  * Matching notes for this code: movies are arrays of SHEN_FLASH_COUNT (1) and are stepped, drawn and destroyed

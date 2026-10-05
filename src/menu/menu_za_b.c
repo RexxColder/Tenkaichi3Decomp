@@ -11,7 +11,9 @@
  */
 
 /* The pictures of the password characters: four rows of fourteen (lower-case letters are four rows further). */
-extern char gPassKeys[4][14];
+/* Overlay .data: the window's work (0x3BC9B8) and the key table (0x3BC9C0). */
+PassWin *gPassWin = NULL;
+char gPassKeys[4][14] = {"ABCDEFGHIJKLMN", "OPQRSTUVWXYZ", "#$%&@!?-+*()", "0123456789"};
 
 /* Bit 1 of the C library's character class table: a lower-case letter. */
 extern u8 _ctype_[];

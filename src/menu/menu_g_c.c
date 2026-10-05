@@ -3,11 +3,13 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+DuelMenu *gDuelMenu = NULL; /* 0x3B38E8 */
+
 /*
- * DuelMenu, 0x352EC0..0x356090: the duel mode's menu (progress mode 38). Two guide characters (Vegeta and
+ * DuelMenu, 0x352EC0..0x3562B8: the duel mode's menu (progress mode 38). Two guide characters (Vegeta and
  * Nappa), a top list (1P vs COM, 1P vs 2P, COM vs COM, battle settings), then the battle type (single, team,
  * DP battle), for a DP battle the DP limit, and under "battle settings" a list of five settings plus "restore
- * defaults" with a value picker. The screen's frame loop (DuelMenu_Run, 0x356090) is in the next chunk.
+ * defaults" with a value picker. The screen's frame loop (DuelMenu_Run, 0x356090) is the last function.
  */
 
 #define DM gDuelMenu
@@ -942,4 +944,66 @@ void DuelMenu_UpdateReset(void) {
     }
     Dialog_SetMsg(r->msg);
     Dialog_Draw(1);
+}
+
+/*
+ * 0x356090..0x3562B8: the frame loop of the duel menu (modes 38..41), the last function of the object (it was
+ * in the next chunk's file menu_h.c until the merge). DuelMenu_UpdateStart and DuelMenu_UpdateReset are called
+ * where a second update and a second draw would be.
+ */
+
+/* Runs the screen until its fade out is over; returns what the input handler set (1 if it set nothing). */
+s32 DuelMenu_Run(s32 section) {
+    s32 result = 1;
+
+    DuelMenu_Init(section);
+    ColorFade_StartIn(0, 0, 0, 0x14);
+    while (1) {
+        Gfx_BeginFrame();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        if (!(gProgress->flags & MPROG_FREEZE)) {
+            DuelMenu_Update();
+            DuelMenu_UpdateStart();
+        }
+        DuelMenu_Draw();
+        DuelMenu_UpdateReset();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (gProgress->flags & MPROG_FREEZE) {
+            continue;
+        }
+        if (ColorFade_IsInDone()) {
+            if (!(gDuelMenu->flags & DUELMENU_GREETED) && (gDuelMenu->flash[0].flags & MFLASH_PAD)) {
+                gDuelMenu->flags |= DUELMENU_GREETED;
+                gDuelMenu->talker = 0;
+                gDuelMenu->voiceLine = 0;
+                Voice_PlayWithSubtitle(gDuelMenu->subtitles, DUEL_VOICE_BASE, gDuelMenu->voiceLine);
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Voice_FadeOutStep(0);
+            Bgm_FadeOutStep();
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            break;
+        }
+        if (gDuelMenu->flags & DUELMENU_LEAVING) {
+            if (--gDuelMenu->timer == -1) {
+                ColorFade_StartOut(0, 0, 0, 0x14);
+                DUEL_PROG->versus = gDuelMenu->sel[0];
+                DUEL_PROG->battleType = gDuelMenu->sel[1];
+                DUEL_PROG->dpLimit = gDuelMenu->sel[2];
+            }
+        } else if (gDuelMenu->startState == 0 && gDuelMenu->reset.state == 0) {
+            DuelMenu_Input(&result);
+        }
+    }
+    DuelMenu_Term();
+    Dma_ResetBuffers();
+    return result;
 }

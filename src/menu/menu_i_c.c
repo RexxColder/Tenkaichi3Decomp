@@ -2,6 +2,8 @@
 #include "menu/menu_i.h"
 #include "sys/pad.h"
 
+Logo *gLogo = NULL; /* 0x3B590C */
+
 /*
  * Logo / FirstRun, 0x35D948..0x35E0F8: what the overlay does the first time it runs after boot
  * (Progress_Main calls FirstRun_Main when gProgress->flags has MPROG_FIRST_RUN): start loading partition 2 in

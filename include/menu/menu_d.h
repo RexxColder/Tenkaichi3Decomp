@@ -4,10 +4,10 @@
 #include "menu/menu_a.h"
 
 /*
- * Menu overlay DBZP.BIN, 0x342588..0x348710 (placeholder stem "menu_d"): the middle of ONE object, the
- * character / stage / music select screen of the versus modes ("CharSel"; names are guesses). The object
- * starts at 0x342190 (three functions in the previous chunk: CharSel_SetStageChips, CharSel_SetRowChips,
- * CharSel_SetCellFormChips) and ends with CharSel_Run at 0x348710 (next chunk).
+ * Menu overlay DBZP.BIN, 0x342190..0x348D78: ONE object, the character / stage / music select screen of the
+ * versus modes ("CharSel"; names are guesses), src/menu/menu_c_e.c. (The header keeps the placeholder stem
+ * "menu_d" of the chunk that held the middle of the object, 0x342588..0x348710; the three functions in front
+ * came from chunk "menu_c" and CharSel_Run at 0x348710 from chunk "menu_e".)
  */
 
 /* A cell of the character grid (include/battle/view_a.h has the original). */
@@ -19,8 +19,8 @@ typedef struct MChrCell {
 
 #define MCHR_COLS 7
 /* What this screen does with the marker cells: 0xA1 is the RANDOM cell (a character is drawn with Rand_Range
-   when it is confirmed) and 0xA3 opens the list of saved custom characters (gSaveData->rec). The names in
-   include/battle/view_a.h (CHRGRID_ID_CUSTOM 0xA1, CHRGRID_ID_RANDOM 0xA3) are the other way round. */
+   when it is confirmed) and 0xA3 opens the list of saved custom characters (gSaveData->rec). 
+   include/battle/view_a.h has the same values (CHRGRID_ID_RANDOM 0xA1, CHRGRID_ID_CUSTOM 0xA3). */
 #define MCHR_RANDOM 0xA1
 #define MCHR_LOCKED 0xA2
 #define MCHR_CUSTOM 0xA3
@@ -100,7 +100,8 @@ typedef struct CharSelSide {
 typedef struct CharSelStage {
     /* 0x00 */ s32 col;        /* cursor column in the stage grid (6 columns) */
     /* 0x04 */ s32 row;
-    /* 0x08 */ s32 unk8[13];
+    /* 0x08 */ s32 chip[2][6]; /* stage ids on the six chips of the reel: [0] now, [1] before the last change */
+    /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 stage;      /* stage id under the cursor: picture file 0x39D + stage */
     /* 0x40 */ s32 state;      /* step of the stage / music choice (CharSel_Input) */
     /* 0x44 */ s32 mask;       /* non-zero while the stage chips are hidden */
@@ -130,6 +131,8 @@ typedef struct CharSelProgress {
 #define CSPROG ((CharSelProgress *)gProgress)
 
 #define CHARSEL_BGM_RANDOM 0x18          /* the "random" entry of the music list */
+#define CHARSEL_STAGE_RANDOM 0x23        /* the "random" stage id; ids from here on are not real stages */
+#define CHARSEL_STAGE_COLS 6             /* columns of the stage grid (gProgress keeps col + row * 6) */
 #define CHARSEL_BGM_FIRST 0x10B16        /* Bgm_Play id of music list entry 0 */
 #define CHARSEL_BGM_RANDOM_FIRST 0x10B1E /* + Rand_Range(9) */
 
@@ -155,7 +158,7 @@ typedef struct CharSel {
     /* 0x0308 */ s32 faceSide;              /* side whose portrait is being loaded */
     /* 0x030C */ s32 stageBuf;              /* which of stageRes the next picture goes to */
     /* 0x0310 */ s32 timer;                 /* 60 when the stage is confirmed (counted by the Run function) */
-    /* 0x0314 */ s32 itemInfo;              /* item shown by the description window (func_00399478), from ItemPanel_Input */
+    /* 0x0314 */ s32 itemInfo;              /* item shown by the description window (ItemHelp_Draw), from ItemPanel_Input */
     /* 0x0318 */ CharSelSide sideData[CHARSEL_SIDES];
     /* 0x04F8 */ CharSelSide *side[CHARSEL_SIDES];
     /* 0x0500 */ CharSelStage stageData;
@@ -187,7 +190,7 @@ typedef struct CharSel {
 #define CHARSEL_STARTED 2          /* the cursors were lit once */
 #define CHARSEL_STAGE_PHASE 4      /* both sides are done: the stage / music choice has the input */
 #define CHARSEL_LEAVING 8          /* the stage is confirmed */
-#define CHARSEL_FLAG10 0x10        /* set together with CHARSEL_LEAVING */
+#define CHARSEL_FLAG10 0x10        /* set together with CHARSEL_LEAVING; the one CharSel_Run tests to count the timer */
 #define CHARSEL_STAGE_CHANGE 0x20  /* the stage under the cursor changed: load its picture */
 #define CHARSEL_STAGE_READY 0x40   /* the picture is loaded and fades in */
 
@@ -216,6 +219,9 @@ typedef struct CharSel {
 
 extern CharSel *gCharSel; /* 0x3B38D4, first word of the object's .data */
 
+void CharSel_SetStageChips(void);
+void CharSel_SetRowChips(s32 side);
+void CharSel_SetCellFormChips(s32 side);
 void CharSel_SetCustomChips(s32 side);
 void CharSel_SetFormChips(s32 side);
 void CharSel_UpdateFaceLoad(void);
@@ -228,5 +234,6 @@ void CharSel_Term(void);
 void CharSel_Draw(void);
 void CharSel_Update(void);
 void CharSel_Input(s32 *running);
+s32 CharSel_Run(s32 section);
 
 #endif

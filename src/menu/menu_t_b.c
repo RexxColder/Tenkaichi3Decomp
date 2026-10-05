@@ -96,18 +96,12 @@ void SimEv28_Deal(s32 n) {
  * the switch every frame sets the picture of each card and the cross of a wrong pick. Pad 0: left / right
  * (gameRepeat 1 / 2), confirm (gamePressed 0x200).
  *
- * NOT MATCHING with scripts/fdiff.py by one swapped pair, in case 8:
- *     original   lw $a0,%lo(gSimTrain0)($a0) / jal SimEv28_Deal / nop
- *     fdiff      jal SimEv28_Deal / lw $a0,%lo(gSimTrain0)($a0)
- * (3 of 546 instructions: the pair, and the alignment nop behind the case moves). The compiler output is right
- * (`lw $4,gSimTrain0($2)` / `jal SimEv28_Deal` in reorder mode); the difference is the ASSEMBLER: Sony's did not
- * give the last instruction of a `symbol(reg)` load to the delay slot when the symbol was not defined yet (it
- * deferred the small-data decision even under -G0), the modern gas under -G0 does, and include/gcc_prelude.inc
- * has no rule for it. This is the only `lui / addu / lw %lo(sym) / jal / nop` site in the whole overlay.
- * Assembled with -G8 (compiler still -G0) the attempt is byte-identical to the original with every relocation
- * applied: build/scratch_menu_t/fdiff_g8.py and `linkcheck.py -g8`. Enable it once the prelude has the rule.
+ * Toolchain note: in case 8 the original has `lw $a0,%lo(gSimTrain0)($a0) / jal SimEv28_Deal / nop`. Sony's
+ * assembler did not give the last instruction of a `symbol(reg)` load to the delay slot when the symbol was not
+ * defined yet (it deferred the small-data decision even under -G0); the modern gas under -G0 does. This is the
+ * only such site in the overlay, so this file alone is ASSEMBLED with -G8 (the compiler still gets -G0): see
+ * AS_G_FLAGS in configure.py and scripts/fdiff.py. That is only safe because the file has no float constants.
  */
-#if 0
 s32 SimEv28(TSimDay *day) {
     char name[0x40];
     MFlashRef ref;
@@ -387,9 +381,6 @@ s32 SimEv28(TSimDay *day) {
     }
     return 0;
 }
-#else
-INCLUDE_ASM("asm/nonmatchings/menu/menu_t_b", SimEv28);
-#endif
 
 /* Random event 24: pictures 8 / 9 ask; yes = attack + 15, defence + 15 and a level-up (command 33). */
 s32 SimEv29(TSimDay *day) {

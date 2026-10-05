@@ -3,12 +3,15 @@
 #include "sys/pad.h"
 
 /*
- * SoloSel, 0x36B3E0..0x36DBE8: the one-character select of the modes 13..30 group (archive gMenuArc3; run for
+ * SoloSel, 0x36B3E0..0x36E028: the one-character select of the modes 13..30 group (archive gMenuArc3; run for
  * progress modes 15, 18, 21, 25 and 29 by the handler at 0x379A58). A variant of EntrySel (menu_i_d.c, menu_j.c)
- * with a single entrant, three movies and the two guides "17go" / "18go". The object starts here (its .rodata
- * starts at 0x3B7450, behind the work pointers of this group of modules at 0x3B7348) and goes on to 0x36E028 in
- * the next chunk: the closing step (0x36DBE8) and SoloSel_Run (0x36DD58).
+ * with a single entrant, three movies and the two guides "17go" / "18go". One object: its work pointer gSoloSel
+ * (0x3B7348) is the first of this group of modules, its .rodata runs 0x3B7450..0x3B7738 and ends with the jump
+ * table of its pad handler. Was written as two chunks: menu_l_b.c (up to 0x36DBE8) and menu_m.c (the closing step
+ * 0x36DBE8 and SoloSel_Run 0x36DD58, which emit no read-only data).
  */
+
+SoloSel *gSoloSel = NULL; /* 0x3B7348 */
 
 #define SS_CUR (gSoloSel->sel->entry)
 #define SS_CELL (gSoloSel->grid[SS_CUR.row * SOLOSEL_COLS + SS_CUR.col])
@@ -208,7 +211,7 @@ void SoloSel_Init(s32 section) {
     gSoloSel->subtitles = MPACK_AT(gSoloSel->res, 26);
     MsgWin_Init(MPACK_AT(gSoloSel->res, 23), gSoloSel->msgText, 1, 0);
     MsgWin_Open();
-    func_00399240(MPACK_AT(gSoloSel->res, 24));
+    ItemHelp_Init(MPACK_AT(gSoloSel->res, 24));
     gSoloSel->items = MPACK_AT(gCommonRes->data[2], 2);
     gSoloSel->nameText = MPACK_AT(gSoloSel->res, 28);
     gSoloSel->formText = MPACK_AT(gSoloSel->res, 29);
@@ -263,7 +266,7 @@ void SoloSel_Init(s32 section) {
 void SoloSel_Term(void) {
     s32 i;
 
-    func_00399430();
+    ItemHelp_Term();
     MsgWin_Term();
     ItemPanel_Term(0);
     for (i = 0; i < SOLOSEL_FLASH_NUM; i++) {
@@ -424,7 +427,7 @@ void SoloSel_Draw(void) {
     Flash_Draw(&gSoloSel->flash[2]);
     MsgWin_Draw(0, 0, gSoloSel->voiceLine);
     ItemPanel_Draw(0);
-    func_00399478(gSoloSel->helpItem);
+    ItemHelp_Draw(gSoloSel->helpItem);
 }
 
 /* Advances the movies and the item panel; ends the chip-row scroll when its clip says so. */
@@ -616,7 +619,7 @@ void SoloSel_Input(s32 *result) {
         s32 item = ItemPanel_Input(0, 0);
 
         if (item > 0) {
-            func_00399730();
+            ItemHelp_Open();
             gSoloSel->helpItem = item - 1;
             gSoloSel->sel->step = SOLOSEL_STEP_HELP;
         } else if (item < 0) {
@@ -628,7 +631,7 @@ void SoloSel_Input(s32 *result) {
     }
     case SOLOSEL_STEP_HELP:
         if (gPad[0].gamePressed & 0x600) {
-            func_00399760();
+            ItemHelp_Close();
             gSoloSel->sel->step = SOLOSEL_STEP_PANEL;
             Snd_PlaySe(1, 2);
         }
@@ -674,7 +677,7 @@ void SoloSel_Input(s32 *result) {
                 }
                 SoloSel_ClipGoto(1, 0, "fl_off_start");
             }
-            gSoloSel->endStep = 1;
+            gSoloSel->endStep = SOLOSEL_END_SPEAK;
             Snd_PlaySe(1, 1);
         } else if (gPad[0].gamePressed & 0x400) {
             Flash_GotoLabel(&gSoloSel->flash[2], "fl_color_cansel", 1);
@@ -685,4 +688,111 @@ void SoloSel_Input(s32 *result) {
         }
         break;
     }
+}
+
+/* Once the fighter is chosen: the guide's closing line, then the leave timer. */
+void SoloSel_UpdateEnd(void) {
+    s32 step = gSoloSel->endStep;
+
+    if (step == SOLOSEL_END_NONE) {
+        return;
+    }
+    switch (step) {
+    case SOLOSEL_END_SPEAK:
+        if (gProgress->mode == 21) {
+            gSoloSel->talker = 1;
+            gSoloSel->voiceLine = 0x17;
+            if (gSoloSel->sel->image == 0x66) {
+                gSoloSel->voiceLine++;
+            }
+        } else {
+            gSoloSel->talker = 0;
+            gSoloSel->voiceLine = 0x37;
+        }
+        Voice_PlayWithSubtitle(gSoloSel->subtitles, SOLO_VOICE_BASE, gSoloSel->voiceLine);
+        gSoloSel->endStep++;
+        break;
+    case SOLOSEL_END_WAIT:
+        if (Voice_GetStat(0) == SOLO_VOICE_IDLE) {
+            gSoloSel->endStep++;
+        } else if (gPad[0].gamePressed & 0x200) {
+            gSoloSel->endStep++;
+            Snd_PlaySe(1, 1);
+        }
+        break;
+    case SOLOSEL_END_LEAVE:
+        gSoloSel->flags |= SOLOSEL_DONE;
+        gSoloSel->flags |= SOLOSEL_LEAVING;
+        gSoloSel->timer = 15;
+        gSoloSel->endStep = SOLOSEL_END_NONE;
+        break;
+    }
+}
+
+/*
+ * The one-character select (modes 15 with a team size below 2, 18, 21, 25 and 29). Returns 1 when a fighter was
+ * chosen (the choice is then in gProgress->team[0]), 0 when the player backed out.
+ */
+s32 SoloSel_Run(s32 section) {
+    s32 result = 1;
+
+    SoloSel_Init(section);
+    ColorFade_StartIn(0, 0, 0, 0x14);
+    while (1) {
+        Gfx_BeginFrame();
+        SoloSel_UpdateImage();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        if (!(gProgress->flags & MPROG_FREEZE)) {
+            SoloSel_Update();
+            SoloSel_UpdateEnd();
+        }
+        SoloSel_Draw();
+        Font_FlushAll();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (gProgress->flags & MPROG_FREEZE) {
+            continue;
+        }
+        if (ColorFade_IsInDone()) {
+            if (!(gSoloSel->flags & SOLOSEL_GREETED) && (gSoloSel->flash[0].flags & MFLASH_PAD)) {
+                gSoloSel->flags |= SOLOSEL_GREETED;
+                if (gProgress->mode == 21) {
+                    gSoloSel->talker = 1;
+                    gSoloSel->voiceLine = 0x16;
+                    Voice_PlayWithSubtitle(gSoloSel->subtitles, SOLO_VOICE_BASE, gSoloSel->voiceLine);
+                } else {
+                    gSoloSel->talker = 0;
+                    gSoloSel->voiceLine = 0x36;
+                    Voice_PlayWithSubtitle(gSoloSel->subtitles, SOLO_VOICE_BASE, gSoloSel->voiceLine);
+                }
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Voice_FadeOutStep(0);
+            Bgm_FadeOutStep();
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            if (gSoloSel->loadState != SOLOSEL_LOAD_SHOWN) {
+                continue;
+            }
+            break;
+        }
+        if (gSoloSel->flags & SOLOSEL_LEAVING) {
+            if (--gSoloSel->timer == -1) {
+                ColorFade_StartOut(0, 0, 0, 0x14);
+                /* hand the choice to the mode */
+                SOLO_PROG->lastEntry = gSoloSel->sel->entry;
+            }
+        } else if (gSoloSel->endStep == SOLOSEL_END_NONE) {
+            SoloSel_Input(&result);
+        }
+    }
+    SoloSel_Term();
+    Dma_ResetBuffers();
+    return result;
 }

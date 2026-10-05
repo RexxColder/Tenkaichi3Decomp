@@ -14,6 +14,8 @@ extern s32 Snd_PlaySe(u32 mask, s32 id);
  *
  *   menu_t.c    0x38CB38..0x3900D0  gSimEvent[3..27]; the object starts in the previous chunk (menu_s_d.c,
  *                                   0x38C360: gSimEvent[0..2])
+ *                                   -- now merged into src/menu/menu_s_d.c (0x38C360..0x3900D0), which
+ *                                   includes this header
  *   menu_t_b.c  0x3900D0..0x3911A8  the card game: four helpers and gSimEvent[28]; then gSimEvent[29..30]
  *                                   (the events go on in the next chunk, menu_u, at 0x3911A8)
  *
@@ -53,6 +55,18 @@ extern TSave *gSaveData;
 
 #define SIMEV_FLASH_CARD 2          /* the movie of the card game */
 
+#define SIMTRAIN_OUTCOMES 6
+
+/* Section 29 of the day screen's pack: one block per training (0xC0 bytes). (From menu_s.h, with menu_s_d.c.) */
+typedef struct SimTrainTbl {
+    /* 0x00 */ s32 weight[3][SIMTRAIN_OUTCOMES]; /* by times the training was repeated: chance of each outcome, of 100 */
+    /* 0x48 */ s32 hp[SIMTRAIN_OUTCOMES];        /* change of stat 2 */
+    /* 0x60 */ s32 atkMin[SIMTRAIN_OUTCOMES];    /* change of stat 0: drawn from min..max */
+    /* 0x78 */ s32 atkMax[SIMTRAIN_OUTCOMES];
+    /* 0x90 */ s32 defMin[SIMTRAIN_OUTCOMES];    /* change of stat 1 */
+    /* 0xA8 */ s32 defMax[SIMTRAIN_OUTCOMES];
+} SimTrainTbl; /* 0xC0 */
+
 typedef struct TSimDay {
     /* 0x000 */ u8 unk0[0x20];
     /* 0x020 */ MFlash flash[7];
@@ -65,7 +79,9 @@ typedef struct TSimDay {
     /* 0x594 */ s32 prevState;
     /* 0x598 */ s32 unk598[2];
     /* 0x5A0 */ s32 msgLine;        /* line of the message window, -1 = none */
-    /* 0x5A4 */ u8 unk5A4[0x5C0];
+    /* 0x5A4 */ u8 unk5A4[0x5B8];
+    /* 0xB5C */ SimTrainTbl *train; /* section 29 */
+    /* 0xB60 */ void *level;
     /* 0xB64 */ s32 event;          /* index into gSimEvent */
     /* 0xB68 */ s32 seq;            /* step of the running handler */
     /* 0xB6C */ s32 seqTimer;       /* frames in this step */
@@ -129,6 +145,20 @@ extern s32 gSimCardRank;            /* 0x31EAF4: the rank the game is played at 
 extern u8 gSimCardPicked;           /* 0x31EAF8: bit n = place n was picked */
 extern u8 gSimCardWrong;            /* 0x31EAF9: bit n = place n was the wrong pick */
 
+/*
+ * Outcome of the last training of each kind. In the main executable's .bss (common symbols of overlay source,
+ * like gCharRefState at 0x31EA80, whose nine entries would overlap these: see the report).
+ */
+extern s32 gSimTrainOutcome0; /* 0x31EA94 */
+extern s32 gSimTrainOutcome1; /* 0x31EA98 */
+extern s32 gSimTrainOutcome2; /* 0x31EA9C */
+
+s32 SimEv00_Roll(TSimDay *day);
+s32 SimEv00(TSimDay *day);
+s32 SimEv01_Roll(TSimDay *day);
+s32 SimEv01(TSimDay *day);
+s32 SimEv02_Roll(TSimDay *day);
+s32 SimEv02(TSimDay *day);
 s32 SimEv03(TSimDay *day);
 s32 SimEv04(TSimDay *day);
 s32 SimEv05(TSimDay *day);

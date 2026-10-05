@@ -1,10 +1,13 @@
 #include "common.h"
-#include "menu/menu_a.h"
+#include "menu/menu_b.h"
+#include "sys/pad.h"
 #include "sys/save.h"
 
+ModeMenu *gModeMenu = NULL; /* 0x3B12F0 */
+
 /*
- * ModeMenu, from 0x338020 (this file ends at 0x339610; the object goes on in the next chunk, which has
- * func_0033A360, func_0033A798 and func_0033A800). The sub menu of one game mode (gProgress->subMenu, 0..7):
+ * ModeMenu, 0x338020..0x33A360 (one object; it was written as two halves cut at 0x339610, the former menu_b.c,
+ * and the next object has ModeBg_Init, ModeBg_Term and ModeBg_Draw). The sub menu of one game mode (gProgress->subMenu, 0..7):
  * a horizontal list of up to 16 items of which three are visible, a guide character with voice, a large picture
  * of the current item that is loaded from disc in the background, and three lines of description.
  */
@@ -14,10 +17,6 @@ extern void TextBox_SetUnk80(MTextBox *box, s32 value);
 extern void TextBox_SetUnk50(MTextBox *box, s32 value);
 extern void TextBox_SetRect(MTextBox *box, s32 a, s32 b, s32 c, s32 d);
 extern void TextBox_AttachLine(MFlash *flash, MFlashRef *ref, s32 x, s32 y, s32 line, MTextBox *box);
-
-extern void func_0033A360(u32 *fileRes);
-extern void func_0033A798(void);
-extern void func_0033A800(void);
 
 #define MODEMENU_BGM 0x10B1C
 
@@ -65,7 +64,7 @@ void ModeMenu_UpdateImage(void) {
         break;
     case MODEMENU_LOAD_REQUEST:
         File_CancelRequests();
-        File_Request(gModeMenu->imageBase + gModeMenu->items[gModeMenu->cursor], gModeMenu->imageFile, 0x1C000);
+        File_Request(gModeMenu->imageBase + gModeMenu->items[gModeMenu->cursor[0]], gModeMenu->imageFile, 0x1C000);
         gModeMenu->loadState = MODEMENU_LOAD_READ;
         break;
     case MODEMENU_LOAD_READ:
@@ -112,7 +111,7 @@ void ModeMenu_ChangeImage(void) {
 #define MD_SETUP(max, voice, v10C, image) \
     gModeMenu->itemMax = (max); \
     gModeMenu->voiceBase = (voice); \
-    gModeMenu->unk10C = (v10C); \
+    gModeMenu->lineBase = (v10C); \
     gModeMenu->imageBase = (image)
 
 /* Loads the screen (section `section` of archive 2 and the sub menu's own file), builds the list of unlocked
@@ -127,7 +126,7 @@ void ModeMenu_Init(s32 section) {
     gModeMenu->res = Sprite_Unpack(gModeMenu->pack, NULL, NULL);
     gModeMenu->file = File_LoadSync(gProgress->baseFile + gProgress->subMenu + 0x10, NULL, 0);
     gModeMenu->fileRes = Sprite_Unpack(gModeMenu->file, NULL, NULL);
-    func_0033A360(gModeMenu->fileRes);
+    ModeBg_Init(gModeMenu->fileRes);
     MD_RES(gModeMenu->fileRes, 7);
     switch (gProgress->subMenu) {
     case 0:
@@ -218,19 +217,19 @@ void ModeMenu_Init(s32 section) {
     for (i = gModeMenu->itemCount; i < MODEMENU_ROWS; i++) {
         gModeMenu->items[gModeMenu->itemCount++] = gModeMenu->itemMax;
     }
-    gModeMenu->descr = (ModeMenuText *)MPACK_AT(gModeMenu->fileRes, 6);
+    gModeMenu->descr = (ModeMenuDescr *)MPACK_AT(gModeMenu->fileRes, 6);
     if (gProgress->subMenu == 7) {
         gModeMenu->descr->count = 2;
     }
     if (gProgress->prevMode == 10 || gProgress->prevMode == 8) {
         for (i = 0; i < gModeMenu->itemCount; i++) {
             if (gModeMenu->items[i] == gProgress->subMenuItem) {
-                gModeMenu->cursor = i;
+                gModeMenu->cursor[0] = i;
                 break;
             }
         }
     }
-    gModeMenu->top = gModeMenu->cursor;
+    gModeMenu->top = gModeMenu->cursor[0];
     gModeMenu->bottom = gModeMenu->top + 2;
     while (gModeMenu->bottom >= gModeMenu->itemCount) {
         gModeMenu->top--;
@@ -287,7 +286,7 @@ void ModeMenu_Init(s32 section) {
 void ModeMenu_Term(void) {
     s32 i;
 
-    func_0033A798();
+    ModeBg_Term();
     MsgWin_Term();
     for (i = 0; i < MODEMENU_FLASH_NUM; i++) {
         Flash_Destroy(&gModeMenu->flash[i]);
@@ -312,7 +311,7 @@ void ModeMenu_Draw(void) {
     s32 i;
     MFlash *flash;
 
-    func_0033A800();
+    ModeBg_Draw();
     flash = &gModeMenu->flash[0];
     sprintf(name, "mc_guide_%02d", gProgress->subMenu);
     sprintf(sub, "mc_guide_%02d_eye", gProgress->subMenu);
@@ -337,16 +336,16 @@ void ModeMenu_Draw(void) {
     Flash_ClipSetFlags(flash, &ref, 0x100, 1);
 
     uv.x0 = 0;
-    uv.y0 = (gModeMenu->items[gModeMenu->cursor] % 4) * 0x40;
+    uv.y0 = (gModeMenu->items[gModeMenu->cursor[0]] % 4) * 0x40;
     uv.x1 = 0x200;
     uv.y1 = uv.y0 + 0x40;
     Flash_FindLabel(flash, NULL, "mc_battle_text_1", &ref);
     Flash_ClipSetAlpha(flash, &ref, gModeMenu->imageAlpha);
     Flash_ClipSetUv(flash, &ref, &uv);
-    Flash_ClipSetTex(flash, &ref, gModeMenu->items[gModeMenu->cursor] / 4);
+    Flash_ClipSetTex(flash, &ref, gModeMenu->items[gModeMenu->cursor[0]] / 4);
 
     Flash_FindLabel(flash, NULL, "mc_clear", &ref);
-    if (MD_SAVE_BIT(1, gModeMenu->items[gModeMenu->cursor])) {
+    if (MD_SAVE_BIT(1, gModeMenu->items[gModeMenu->cursor[0]])) {
         Flash_ClipSetFlags(flash, &ref, 2, 1);
         Flash_ClipSetAlpha(flash, &ref, gModeMenu->imageAlpha);
     } else {
@@ -399,11 +398,11 @@ void ModeMenu_Draw(void) {
     for (i = 0; i < 3; i++) {
         sprintf(name, "mc_episode_text_%d", i + 1);
         Flash_FindLabel(flash, NULL, name, &ref);
-        if (i >= gModeMenu->descr[gModeMenu->items[gModeMenu->cursor]].count) {
+        if (i >= gModeMenu->descr[gModeMenu->items[gModeMenu->cursor[0]]].count) {
             TextBox_AttachLine(flash, &ref, 0, -(s32)gModeMenu->scroll, -1, &gModeMenu->box[i]);
         } else {
             TextBox_AttachLine(flash, &ref, 0, -(s32)gModeMenu->scroll,
-                               gModeMenu->descr[gModeMenu->items[gModeMenu->cursor]].line + i, &gModeMenu->box[i]);
+                               gModeMenu->descr[gModeMenu->items[gModeMenu->cursor[0]]].line + i, &gModeMenu->box[i]);
         }
     }
     Flash_FindLabel(flash, NULL, "mc_episode_next", &ref);
@@ -414,4 +413,296 @@ void ModeMenu_Draw(void) {
     }
     Font_FlushAll();
     MsgWin_Draw(0, 0, gModeMenu->voiceLine);
+}
+
+/*
+ * 0x339610..0x33A360: what was the tail half (menu_b.c). Its strings are shared with the head
+ * ("mc_menu_plate_%d" is ModeMenu_Draw's), which is why the two halves are one source.
+ */
+
+extern void Voice_StopWithLip(void);
+extern void StreamSe_FadeOutStep(s32 se);
+extern void BattleSetup_Clear(void);
+extern void BattleSetup_SetScript(s32 script);
+
+#define MODEMENU_ITEM(m) ((m)->items[(m)->cursor[0]])
+
+/* Advances the movie, the greeting voice and the scroll of the description. */
+void ModeMenu_Update(void) {
+    s32 i;
+
+    if ((gModeMenu->flags & MODEMENU_GREETED) &&
+        (gModeMenu->voiceLine == gModeMenu->lineBase || gModeMenu->voiceLine == gModeMenu->lineBase + 3)) {
+        if (Voice_GetStat(0) == 5) {
+            gModeMenu->voiceLine = MODEMENU_ITEM(gModeMenu) + gModeMenu->lineBase + 4;
+            Voice_PlayWithSubtitle(gModeMenu->subtitles, gModeMenu->voiceBase, gModeMenu->voiceLine);
+        }
+    }
+    for (i = 0; i < MODEMENU_FLASH_NUM; i++) {
+        Flash_Advance(&gModeMenu->flash[i]);
+    }
+    if (!(gModeMenu->flags & MODEMENU_STARTED) && (gModeMenu->flash[0].trig & 2)) {
+        MsgWin_Open();
+    }
+    if (gModeMenu->flags & MODEMENU_SCROLLING) {
+        gModeMenu->scroll += 0.23333333f;
+        if (gModeMenu->scroll >= gModeMenu->scrollMax) {
+            gModeMenu->scroll = gModeMenu->scrollMax;
+            gModeMenu->flags &= ~MODEMENU_SCROLLING;
+            gModeMenu->flags |= MODEMENU_NEXT;
+        }
+    }
+}
+
+/* Sends the plate under the cursor to a label of its clip (kind 0; other kinds do nothing). */
+void ModeMenu_PlateGoto(s32 movie, s32 kind, char *label) {
+    MFlashRef ref;
+    char name[64];
+    MFlash *flash = &gModeMenu->flash[movie];
+
+    if (kind == 0) {
+        sprintf(name, "mc_menu_plate_%d", gModeMenu->cursor[0] - gModeMenu->top + 1);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipGotoLabel(flash, &ref, label);
+    }
+}
+
+#define MODEMENU_VOICE(line) \
+    gModeMenu->voiceLine = (line); \
+    Voice_PlayWithSubtitle(gModeMenu->subtitles, gModeMenu->voiceBase, gModeMenu->voiceLine)
+
+/* The cursor moved: light its plate, let the guide present the item and load its picture. */
+#define MODEMENU_MOVED() \
+    ModeMenu_PlateGoto(0, 0, "fl_on_start"); \
+    MODEMENU_VOICE(MODEMENU_ITEM(gModeMenu) + gModeMenu->lineBase + 4); \
+    ModeMenu_ChangeImage(); \
+    Snd_PlaySe(1, 0)
+
+/* Pad handling: the list (focus 0) or the description of the chosen item (focus 1). */
+void ModeMenu_Input(s32 *result) {
+    if (!(gModeMenu->flash[0].flags & MFLASH_PAD)) {
+        return;
+    }
+    if (!(gModeMenu->flags & MODEMENU_STARTED)) {
+        ModeMenu_PlateGoto(0, 0, "fl_on_start");
+        gModeMenu->flags |= MODEMENU_STARTED;
+    }
+    switch (gModeMenu->focus) {
+    case 0:
+        if (gPad[0].gameRepeat & 1) {
+            gModeMenu->unk124 = 0;
+            if (gModeMenu->cursor[gModeMenu->focus] > 0 &&
+                gModeMenu->items[gModeMenu->cursor[gModeMenu->focus] - 1] != gModeMenu->itemMax) {
+                ModeMenu_PlateGoto(0, 0, "fl_off_start");
+                gModeMenu->cursor[gModeMenu->focus]--;
+                if (gModeMenu->cursor[gModeMenu->focus] < gModeMenu->top) {
+                    Flash_GotoLabel(&gModeMenu->flash[0], "fl_battle_right", 1);
+                    gModeMenu->extra = gModeMenu->bottom;
+                    gModeMenu->top--;
+                    gModeMenu->bottom--;
+                }
+                MODEMENU_MOVED();
+            }
+        } else if (gPad[0].gameRepeat & 2) {
+            gModeMenu->unk124 = 0;
+            if (gModeMenu->cursor[gModeMenu->focus] < gModeMenu->itemCount - 1 &&
+                gModeMenu->items[gModeMenu->cursor[gModeMenu->focus] + 1] != gModeMenu->itemMax) {
+                ModeMenu_PlateGoto(0, 0, "fl_off_start");
+                gModeMenu->cursor[gModeMenu->focus]++;
+                if (gModeMenu->cursor[gModeMenu->focus] > gModeMenu->bottom) {
+                    Flash_GotoLabel(&gModeMenu->flash[0], "fl_battle_left", 1);
+                    gModeMenu->extra = gModeMenu->top;
+                    gModeMenu->top++;
+                    gModeMenu->bottom++;
+                }
+                MODEMENU_MOVED();
+            }
+        } else if (gPad[0].gamePressed & 0x200) {
+            gModeMenu->unk124 = 0;
+            ModeMenu_PlateGoto(0, 0, "fl_ok");
+            gModeMenu->step = MODEMENU_STEP_GUIDE;
+            gModeMenu->scroll = 0.0f;
+            gModeMenu->scrollMax = gModeMenu->descr[MODEMENU_ITEM(gModeMenu)].count * 40.0f + 160.0f;
+            gModeMenu->flags &= ~MODEMENU_NEXT;
+            gModeMenu->focus = 1;
+            Snd_PlaySe(1, 1);
+        } else if (gPad[0].gamePressed & 0x400) {
+            gModeMenu->unk124 = 0;
+            ColorFade_StartOut(0, 0, 0, 0x14);
+            *result = 0;
+            Snd_PlaySe(1, 2);
+        }
+        break;
+    case 1:
+        if (gPad[0].gamePressed & 0x1200) {
+            gModeMenu->flags |= MODEMENU_CHOSEN;
+            gModeMenu->flags |= MODEMENU_LEAVING;
+            gModeMenu->timer = 15;
+            Snd_PlaySe(1, 1);
+        } else if (gPad[0].gamePressed & 0x400) {
+            ModeMenu_PlateGoto(0, 0, "fl_on_start");
+            Flash_GotoLabel(&gModeMenu->flash[0], "fl_battle_cansel", 1);
+            MsgWin_Open();
+            MODEMENU_VOICE(gModeMenu->cursor[0] + gModeMenu->lineBase + 4);
+            gModeMenu->focus = 0;
+            Snd_PlaySe(1, 2);
+        }
+        break;
+    }
+}
+
+/* The sequence that follows the choice of an item: guide comment, description scrolled in and read out. */
+void ModeMenu_UpdateStep(void) {
+    if (gModeMenu->step == 0) {
+        return;
+    }
+    switch (gModeMenu->step) {
+    case MODEMENU_STEP_GUIDE:
+        MODEMENU_VOICE(gModeMenu->lineBase + 1);
+        gModeMenu->step++;
+        break;
+    case MODEMENU_STEP_GUIDE_WAIT:
+        if (Voice_GetStat(0) == 5) {
+            gModeMenu->step++;
+        } else if (gPad[0].gamePressed & 0x200) {
+            gModeMenu->step++;
+            Voice_StopWithLip();
+            Snd_PlaySe(1, 1);
+        }
+        break;
+    case MODEMENU_STEP_OPEN:
+        Flash_GotoLabel(&gModeMenu->flash[0], "fl_battle_ok", 1);
+        MsgWin_Close();
+        gModeMenu->step++;
+        break;
+    case MODEMENU_STEP_OPENED:
+        gModeMenu->step = MODEMENU_STEP_NARR_INIT;
+        break;
+    case MODEMENU_STEP_NARR_INIT:
+        gModeMenu->narrWait = 0;
+        gModeMenu->narrLine = 0;
+        gModeMenu->step++;
+        break;
+    case MODEMENU_STEP_NARR_START:
+        if (gModeMenu->flash[0].trig & 1) {
+            gModeMenu->flags |= MODEMENU_SCROLLING;
+            gModeMenu->step++;
+        }
+        break;
+    case MODEMENU_STEP_NARR_LINE:
+        if (gModeMenu->descr[MODEMENU_ITEM(gModeMenu)].delay[gModeMenu->narrLine] <= gModeMenu->narrWait++) {
+            Voice_PlayWithSubtitle(NULL, MODEMENU_NARR_VOICE,
+                                   gModeMenu->descr[MODEMENU_ITEM(gModeMenu)].line + gModeMenu->narrLine);
+            gModeMenu->narrWait = 0;
+            gModeMenu->step++;
+        }
+        break;
+    case MODEMENU_STEP_NARR_WAIT:
+        if (Voice_GetStat(0) == 5) {
+            if (gModeMenu->descr[MODEMENU_ITEM(gModeMenu)].count <= ++gModeMenu->narrLine) {
+                gModeMenu->step++;
+            } else {
+                gModeMenu->step--;
+            }
+        } else if (gPad[0].gamePressed & 0x1000) {
+            gModeMenu->step = MODEMENU_STEP_GO;
+            Snd_PlaySe(1, 1);
+        } else if (gPad[0].gamePressed & 0x400) {
+            ModeMenu_PlateGoto(0, 0, "fl_on_start");
+            Flash_GotoLabel(&gModeMenu->flash[0], "fl_battle_cansel", 1);
+            MsgWin_Open();
+            MODEMENU_VOICE(gModeMenu->cursor[0] + gModeMenu->lineBase + 4);
+            gModeMenu->narrWait = 0;
+            gModeMenu->narrLine = 0;
+            gModeMenu->step++;
+            gModeMenu->focus = 0;
+            Snd_PlaySe(1, 2);
+        }
+        break;
+    case MODEMENU_STEP_NARR_END:
+        gModeMenu->step = 0;
+        break;
+    case MODEMENU_STEP_GO:
+        gModeMenu->step = 0;
+        gModeMenu->flags |= MODEMENU_CHOSEN;
+        gModeMenu->flags |= MODEMENU_LEAVING;
+        gModeMenu->timer = 15;
+        break;
+    }
+}
+
+/* The sub menu's own frame loop. Returns 1 when a battle was chosen (the battle setup is prepared), 0 on cancel. */
+s32 ModeMenu_Run(s32 section) {
+    s32 result = 1;
+
+    ModeMenu_Init(section);
+    if (gProgress->prevMode == 6) {
+        ColorFade_StartIn(0xFF, 0xFF, 0xFF, 0x14);
+    } else {
+        ColorFade_StartIn(0, 0, 0, 0x14);
+    }
+    while (1) {
+        Gfx_BeginFrame();
+        ModeMenu_UpdateImage();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        if (!(gProgress->flags & MPROG_FREEZE)) {
+            ModeMenu_Update();
+            ModeMenu_UpdateStep();
+        }
+        ModeMenu_Draw();
+        ColorFade_Draw();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        File_Stub264D90();
+        if (gProgress->flags & MPROG_FREEZE) {
+            continue;
+        }
+        if (ColorFade_IsInDone()) {
+            if (!(gModeMenu->flags & MODEMENU_GREETED) && (gModeMenu->flash[0].flags & MFLASH_PAD)) {
+                gModeMenu->flags |= MODEMENU_GREETED;
+                {
+                    SaveSlot *slot = &gSaveData->slot[gProgress->subMenu];
+
+                    if (slot->flags & SAVESLOT_GREET_FIRST) {
+                        gModeMenu->voiceLine = gModeMenu->lineBase + 3;
+                        slot = gSaveData->slot;
+                        slot += gProgress->subMenu;
+                        slot->flags &= ~SAVESLOT_GREET_FIRST;
+                    } else {
+                        gModeMenu->voiceLine = gModeMenu->lineBase;
+                    }
+                }
+                Voice_PlayWithSubtitle(gModeMenu->subtitles, gModeMenu->voiceBase, gModeMenu->voiceLine);
+            }
+        }
+        if (ColorFade_IsFadingOut()) {
+            Voice_FadeOutStep(0);
+            Bgm_FadeOutStep();
+            StreamSe_FadeOutStep(0);
+            continue;
+        }
+        if (ColorFade_IsOutDone()) {
+            if (gModeMenu->loadState != MODEMENU_LOAD_SHOWN) {
+                continue;
+            }
+            break;
+        } else if (gModeMenu->flags & MODEMENU_LEAVING) {
+            if (--gModeMenu->timer == -1) {
+                ColorFade_StartOut(0, 0, 0, 0x14);
+                gProgress->subMenuItem = MODEMENU_ITEM(gModeMenu);
+            }
+        } else if (gModeMenu->step == 0) {
+            ModeMenu_Input(&result);
+        }
+    }
+    if (result) {
+        gSaveData->slot[gProgress->subMenu].val[2] &= ~(1 << MODEMENU_ITEM(gModeMenu));
+        BattleSetup_Clear();
+        BattleSetup_SetScript(ModeMenu_GetLine(gProgress->subMenu, MODEMENU_ITEM(gModeMenu)));
+    }
+    ModeMenu_Term();
+    Dma_ResetBuffers();
+    return result;
 }

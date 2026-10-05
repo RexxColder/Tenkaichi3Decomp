@@ -175,7 +175,7 @@ void EvoZ_Input(EvoZ *ez, s32 *result) {
             case 1:
                 EvoZ_ClipGoto(ez, 0, EVOZ_CLIP_MENU, 0, "fl_ok");
                 EvoZ_ClipGoto(ez, 0, EVOZ_CLIP_SET, 0, "fl_off_start");
-                func_003AEA28(EZ_SET.id, ez->side->chara, VSAVE->custom[EZ_CELL].level);
+                PassWin_OpenEx(EZ_SET.id, ez->side->chara, VSAVE->custom[EZ_CELL].level);
                 ez->state = EVOZ_ST_PASSWORD;
                 Snd_PlaySe(1, 1);
                 break;
@@ -315,7 +315,7 @@ void EvoZ_Input(EvoZ *ez, s32 *result) {
         break;
     case EVOZ_ST_PASSWORD:
         if (gPad[0].gamePressed & 0x400) {
-            func_003AEA88();
+            PassWin_Close();
             EvoZ_ClipGoto(ez, 0, EVOZ_CLIP_MENU, 0, "fl_on_start");
             EvoZ_ClipGoto(ez, 0, EVOZ_CLIP_SET, 0, "fl_on_start");
             ez->state = EVOZ_ST_MENU;

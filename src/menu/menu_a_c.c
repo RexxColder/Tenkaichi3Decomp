@@ -2,6 +2,9 @@
 #include "menu/menu_a.h"
 #include "sys/pad.h"
 
+/* The screen's work (overlay .data, 0x3B0EB8). */
+Title *gTitle = NULL;
+
 /*
  * Title: the title screen (progress mode 1), 0x336FC0..0x338020. A still picture for 300 frames, then the
  * "press start" movie and a one- or two-item menu (new game / continue) that runs the memory-card flow. After

@@ -7,13 +7,12 @@
  * Menu overlay DBZP.BIN, 0x36DBE8..0x372148 (placeholder stem "menu_m"): the two character selects of the mode
  * group 13..30 (handler 0x379A58, archive gMenuArc3, main-menu item 1). Two pieces, cut at an object boundary:
  *
- *   menu_m.c    0x36DBE8..0x36E028  SoloSel     tail of the one-character select (work pointer 0x3B7348; the
- *                                               object starts in the previous chunk, menu_l): the guide's closing
- *                                               line and the frame loop
+ *   (menu_m.c)  0x36DBE8..0x36E028  SoloSel     tail of the one-character select (work pointer 0x3B7348): the
+ *                                               guide's closing line and the frame loop; merged into menu_l_b.c
  *   menu_m_b.c  0x36E028..0x372148  UbTeamSel   the team select (one side, up to five fighters, optional DP
- *                                               limit; work pointer 0x3B734C); its last two functions
- *                                               (0x372148 the guide's closing line, 0x372260 the frame loop) are in
- *                                               the next chunk, menu_n
+ *                                               limit; work pointer 0x3B734C), up to 0x372560: its last
+ *                                               two functions (0x372148 the guide's closing line, 0x372260 the
+ *                                               frame loop) come from the next chunk, menu_n
  *
  * All names are guesses from what the code does ("Ub" = the group of modes 13..30). The structures are this
  * chunk's own views; the member record and the grid cell are those of include/menu/menu_e.h (TsMember, TsCell).
@@ -121,38 +120,14 @@ extern s32 ItemPanel_Input(s32 side, s32 pad);
 extern void ItemPanel_SetChara(s32 side, s32 chara, s32 slot, s32 set, s32 fromRec);
 extern void ItemPanel_Show(s32 side);
 extern void ItemPanel_Hide(s32 side);
-extern void func_00399240(void *pack);                /* item help window: init */
-extern void func_00399430(void);                      /* item help window: term */
-extern void func_00399478(s32 item);                  /* item help window: draw */
-extern void func_00399730(void);                      /* item help window: open */
-extern void func_00399760(void);                      /* item help window: close */
+extern void ItemHelp_Init(void *pack);                /* item help window: init */
+extern void ItemHelp_Term(void);                      /* item help window: term */
+extern void ItemHelp_Draw(s32 item);                  /* item help window: draw */
+extern void ItemHelp_Open(void);                      /* item help window: open */
+extern void ItemHelp_Close(void);                      /* item help window: close */
 
-/* ---- SoloSel (previous chunk, include/menu/menu_l.h has the full layout; this is a local view of what its
-   last two functions touch, so that this header does not depend on one written in parallel) ---- */
-
-typedef struct SoloSelStateM {
-    /* 0x00 */ UbMember member;
-    /* 0x30 */ s32 chip[2][UB_COLS];
-    /* 0x68 */ s32 flags;
-    /* 0x6C */ s32 chara;       /* character whose portrait is shown */
-} SoloSelStateM;
-
-typedef struct SoloSelM {
-    /* 0x0000 */ u8 unk0[0x20];
-    /* 0x0020 */ void *subtitles;
-    /* 0x0024 */ MFlash flash[1];
-    /* 0x0050 */ u8 unk50[0x13C];
-    /* 0x018C */ s32 flags;      /* UBSEL_ */
-    /* 0x0190 */ s32 voiceLine;
-    /* 0x0194 */ s32 loadState;  /* the portrait loader (4 = idle) */
-    /* 0x0198 */ s32 unk198;
-    /* 0x019C */ s32 timer;      /* frames until the fade out starts */
-    /* 0x01A0 */ u8 unk1A0[0x7C];
-    /* 0x021C */ SoloSelStateM *sel;
-    /* 0x0220 */ u8 unk220[0x1750];
-    /* 0x1970 */ s32 endStep;    /* UBSEL_END_ */
-    /* 0x1974 */ s32 talker;     /* which of the two guides is talking */
-} SoloSelM;
+/* SoloSel (the former menu_m.c, 0x36DBE8..0x36E028) is now part of menu_l_b.c; its work area is SoloSel of
+   include/menu/menu_l.h. */
 
 /* flags of both screens */
 #define UBSEL_STARTED 2         /* the first chip was lit */
@@ -174,8 +149,6 @@ typedef struct SoloSelM {
 #define UBSEL_LOAD_IDLE 4
 #define UBSEL_LOAD_ABORT 5
 #define UBSEL_LOAD_RESTART 6
-
-extern SoloSelM *gSoloSel;    /* 0x3B7348 */
 
 /* ---- UbTeamSel ---- */
 
@@ -261,8 +234,6 @@ typedef struct UbTeamSel {
 
 extern UbTeamSel *gUbTeamSel;    /* 0x3B734C */
 
-void SoloSel_UpdateEnd(void);
-s32 SoloSel_Run(s32 section);
 void UbTeamSel_SumCost(s32 skipCur);
 s32 UbTeamSel_IsCharaFree(s32 chara);
 s32 UbTeamSel_FitsDp(s32 chara);
@@ -278,5 +249,7 @@ void UbTeamSel_Term(void);
 void UbTeamSel_Draw(void);
 void UbTeamSel_Update(void);
 void UbTeamSel_Input(s32 *result);
+void UbTeamSel_UpdateEnd(void);
+s32 UbTeamSel_Run(s32 section);
 
 #endif

@@ -7,11 +7,12 @@
  * Menu overlay DBZP.BIN, 0x37AFF8..0x37F430 (placeholder stem "menu_p"): screens of the mode group 13..30
  * (handler 0x379A58, archive gMenuArc3, main-menu item 1). Four pieces, cut at object boundaries:
  *
- *   menu_p.c    0x37AFF8..0x37B7C0  MisSel     tail of the mission select of mode 14 (the object starts in the
- *                                              previous chunk, menu_o; work pointer 0x3B7360)
+ *   (menu_p.c)  0x37AFF8..0x37B7C0  MisSel     tail of the mission select of mode 14: merged into
+ *                                              src/menu/menu_o_d.c (the object starts at 0x379F58)
  *   menu_p_b.c  0x37B7C0..0x37DC38  MisResult  the mission result screen of mode 16 (work pointer 0x3B737C)
  *   menu_p_c.c  0x37DC38..0x37EE18  UbMenu     the menu of mode 13 (work pointer 0x3B7380)
- *   menu_p_d.c  0x37EE18..0x37F430  UbScore    head of the score sheet module (continues in menu_q)
+ *   menu_p_d.c  0x37EE18..0x37F850  UbScore    the score sheet module (its tail was written as menu_q.c and
+ *                                              merged into menu_p_d.c)
  *
  * All names are guesses from what the code does ("Ub" = the group of modes 13..30, as in menu_m.h). The
  * structures are this chunk's own views.
@@ -123,7 +124,7 @@ typedef struct PProgress {
 
 #define P_PROG ((PProgress *)gProgress)
 
-/* ---- UbScore (menu_p_d.c, continues in menu_q) ---- */
+/* ---- UbScore (menu_p_d.c) ---- */
 
 /* One line of the score sheet. */
 typedef struct UbScoreLine {
@@ -163,51 +164,71 @@ s32 UbScore_CalcRank(s32 kind, UbScore *score);
 s32 UbScore_Transfer(s32 *from, s32 *to, s32 step, f32 rate);
 s32 UbScore_CountLine(UbScore *score, s32 isBonus, s32 index, s32 step);
 
-/* The rest of the module (next chunk, menu_q; names from config/symbols/menu_q.txt). */
-extern s32 UbScore_ConvertStep(UbScore *score, s32 step);      /* total -> convert at one tenth; 1 when done */
-extern void UbScore_SetPage(UbScore *score, s32 page);         /* fills UbScore.shown for a bonus page */
-extern void UbScore_PlateGoto(MFlash *flash, s32 plate, s32 on);
-extern s32 UbScore_SaveMissionBest(s32 mission, s32 total, UbScore *score); /* 1 = a new record was saved */
-extern s32 UbScore_GetRewardItem(s32 kind);
+s32 UbScore_ConvertStep(UbScore *score, s32 step);      /* total -> convert at one tenth; 1 when done */
+void UbScore_SetPage(UbScore *score, s32 page);         /* fills UbScore.shown for a bonus page */
+void UbScore_PlateGoto(MFlash *flash, s32 plate, s32 on);
+void UbScore_AddRanking(s32 score, s32 chara, s32 cleared);
+s32 UbScore_SaveMissionBest(s32 mission, s32 total, UbScore *score); /* 1 = a new record was saved */
+s32 UbScore_SaveBestB(s32 course, s32 total, UbScore *score);
+s32 UbScore_SaveBestC(s32 course, s32 total, UbScore *score);
+s32 UbScore_GetRewardItem(s32 idx);
 
-/* ---- MisSel (menu_p.c; the object starts in menu_o: a local view of what its last five functions touch) ---- */
+/*
+ * gSaveData as the module's record functions use it (the views of the tail half, formerly QSave* of menu_q.h):
+ * the body behind the 8-byte checksum, nested as in include/menu/menu_c.h (it reproduces the address arithmetic).
+ */
 
-#define MISSEL_FLASH_NUM 1
+/* An entry of the ranking of the mode 22 ladder, best first. */
+typedef struct UbSaveRank {
+    /* 0x00 */ s32 chara;
+    /* 0x04 */ s32 score;
+    /* 0x08 */ u8 cleared;      /* 1 = the ladder was finished */
+} UbSaveRank; /* 0xC */
 
-typedef struct MisSelP {
-    /* 0x000 */ u32 *pack;
-    /* 0x004 */ u32 *res;
-    /* 0x008 */ void *unk8[2];
-    /* 0x010 */ void *subtitles;
-    /* 0x014 */ u8 unk14[0x3DC];
-    /* 0x3F0 */ MFlash flash[MISSEL_FLASH_NUM];
-    /* 0x41C */ u8 unk41C[0xA0];
-    /* 0x4BC */ s32 flags;       /* MISSEL_ */
-    /* 0x4C0 */ s32 cur[4];      /* cursor of each level; only cur[0] (plate 0..4) is used */
-    /* 0x4D0 */ s32 timer;       /* frames until the fade out starts after the choice */
-    /* 0x4D4 */ s32 unk4D4[2];
-    /* 0x4DC */ s32 level;       /* 0 = choosing, 1 = the mission's window is open */
-    /* 0x4E0 */ s32 voiceReq;    /* line the guide is asked to say (1 greeting, 2 idle), 0 = none */
-    /* 0x4E4 */ s32 voiceLast;
-    /* 0x4E8 */ s32 voiceSkip;   /* confirm was pressed while the guide spoke */
-    /* 0x4EC */ s32 voiceLine;   /* subtitle line, -1 = none */
-    /* 0x4F0 */ s32 unk4F0[3];
-    /* 0x4FC */ s32 rankCount;   /* pages available */
-    /* 0x500 */ s32 rank;        /* page */
-    /* 0x504 */ s32 mission;     /* rank * 5 + plate */
-    /* 0x508 */ s32 idle;        /* frames without input */
-} MisSelP;
+#define UB_RANK_NUM 10
 
-#define MISSEL_CHOSEN 1
-#define MISSEL_LEAVING 2
-#define MISSEL_STARTED 4
-#define MISSEL_GREETED 8
-#define MISSEL_ROWS 5
-#define MISSEL_IDLE_FRAMES 0x708
+/* Best result of one mission (PSaveMission above) and of one course of modes 24..30. */
+typedef struct UbSaveBest {
+    /* 0x00 */ u8 cleared;
+    /* 0x01 */ u8 rank;
+    /* 0x02 */ u8 hours;
+    /* 0x03 */ u8 minutes;
+    /* 0x04 */ u8 seconds;
+    /* 0x08 */ s32 total;
+} UbSaveBest; /* 0xC */
 
-extern MisSelP *gMisSel;   /* 0x3B7360; named in config/symbols/menu_o.txt */
+/* Best result of one course of modes 17..19. */
+typedef struct UbSaveBestB {
+    /* 0x00 */ s32 value;       /* the sheet's fourth line */
+    /* 0x04 */ s32 total;
+    /* 0x08 */ u8 rank;
+    /* 0x09 */ u8 hours;
+    /* 0x0A */ u8 minutes;
+    /* 0x0B */ u8 seconds;
+} UbSaveBestB; /* 0xC */
 
-s32 MisSel_Run(s32 section);
+typedef struct UbSaveBody {
+    /* 0x0008 */ u8 unk8[0x200];
+    /* 0x0208 */ s32 ubFlags;
+    /* 0x020C */ s32 unk20C;
+    /* 0x0210 */ UbSaveRank rank[UB_RANK_NUM];
+    /* 0x0288 */ s32 unk288;
+    /* 0x028C */ UbSaveBest mission[100];
+    /* 0x073C */ UbSaveBestB bestB[5];
+    /* 0x0778 */ s32 unk778[2];
+    /* 0x0780 */ UbSaveBest bestC[54];
+} UbSaveBody;
+
+typedef struct UbSave {
+    /* 0x00 */ s32 sum[2];
+    /* 0x08 */ UbSaveBody body;
+} UbSave;
+
+#define UB_SAVE (&((UbSave *)gSaveData)->body)
+
+/* ---- MisSel: merged into src/menu/menu_o_d.c, built with include/menu/menu_o.h (which has its layout) ---- */
+
+#define MISSEL_ROWS 5           /* missions on a page of the mission select */
 
 /* ---- MisResult (menu_p_b.c) ---- */
 

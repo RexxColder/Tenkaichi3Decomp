@@ -157,11 +157,28 @@ Still pulled from assembly inside linked files:
 | `ShenScene_StepSeq` | `view_b_d.c` | about 30 instructions around 0x2620D8 ordered differently: the original converts the constant 0.0f of the third blur layer with the full float-to-unsigned sequence on `$f0`, this keeps it in `$f20` and folds the arm; owns the tables at 0x2F33D0..0x2F3450, the jump table at 0x2F3450 and the constants 0x2FE7AC / 0x2FE7B0 |
 | `Shen_DrawList`, `Shen_BuildList` | `sys/late_a.c` | same instruction count (229), which of the two registers holding `&ref` each call uses; 4 of 121, two registers that both hold `&work->list` swapped |
 
+Menu overlay (DBZP.BIN, src/menu/), all with a behaviourally exact attempt in `#if 0` above the INCLUDE_ASM:
+
+| Function | File | What differs |
+|---|---|---|
+| `Train_BuildLists` (0x35A610) | `menu/menu_h_d.c` | 11 of 118 instructions: a folded compare |
+| `SimEv34` (0x392190, the shell game) | `menu/menu_u_d.c` | 15 of 551: registers and store order in the block that starts the game |
+| `Option_Draw` (0x3A3848) | `menu/menu_x_c.c` | 14 of 2153: register choices only; ten of its clip-name strings are shared with later C functions and live in its .s file meanwhile (`sOptClip*`, `force_migration`) |
+| `Dc_Main` (0x3A9850) | `menu/menu_z_b.c` | flow identical; see the note in the source |
+| `DcMenu_DrawPlates` (0x3A9BC8) | `menu/menu_z_c.c` | see the note in the source |
+| `DcPass_WrapPos`, `DcPass_Decode`, `DcPass_DrawStatus` | `menu/menu_z_d.c` | see the notes in the source |
+| `DcPass_DrawRows` (0x3AC858) | `menu/menu_z_d.c` | 47 of 161: saved registers assigned differently |
+
 `StgVu_RotateZ`, `StgVu_RotateX`, `StgVu_RotateY` (0x240C68..0x240DB8) are hand-written VU0 macro code and stay an
 assembly chunk between `stg_a.c` and `stg_a_b.c`. They cannot be INCLUDE_ASM: the per-function files splat writes
 for a C segment spell the VU0 registers `ACC` / `Q` without `$`, which the assembler rejects. The vector library
 (`src/sys/vu0_a_c*.c`, `vu0_b_c.c`) carries its hand-written routines as top-level `__asm__` blocks instead; the
 same could be done here.
+
+- Why several overlay modules' uninitialised globals overlap at 0x31EA80..0x31EAA4 in the main executable's
+  `.bss` (CharRef's state table against UbMenu / sim words): kept as fixed-address symbols.
+- Whether `gBracket` (0x3B5918) was defined by the Bracket screen file (menu_k_b.c, as linked) or elsewhere: any
+  object between TourMenu and TourBg in link order gives the same image.
 
 ## Game structure
 
@@ -175,7 +192,6 @@ same could be done here.
 ## Not started
 
 - The 3D renderer, the model/texture/animation formats and the nine VU1 microprograms.
-- The menu overlay (737 functions): being decompiled under src/menu/, nothing linked yet.
 - `SOUNDS.IRX` (the sound driver) and the bank format.
 - The archives: nothing has been extracted or catalogued.
 - The Wii build's netcode.

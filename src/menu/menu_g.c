@@ -4,6 +4,8 @@
 #include "sys/save.h"
 #include "sys/common.h"
 
+ItemPanel *gItemPanel[2] = {NULL, NULL}; /* 0x3B38E0, one per side */
+
 /*
  * ItemPanel, 0x351C38..0x352CB8: the panel that lists the items equipped by the character under the cursor
  * of a character select, one instance per side (movie labels "fl_evo_in" / "fl_evo_cansel"). The callers are

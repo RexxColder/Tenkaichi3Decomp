@@ -9,6 +9,8 @@
  * loader and bracket logic (menu_k_f.c, menu_l) take the work pointer as an argument and are other source files.
  */
 
+Bracket *gBracket = NULL; /* 0x3B5918 */
+
 #define BRK_ENT(n) (gBracket->ents.e[n])
 #define BRK_MATCH (gBracket->matches.m[gBracket->match])
 

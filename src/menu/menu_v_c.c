@@ -1,6 +1,9 @@
 #include "common.h"
 #include "menu/menu_v.h"
 
+/* The details page's work pointer (0x3BB144): this object owns it. */
+ItemHelp *gItemHelp = NULL;
+
 /*
  * Menu overlay DBZP.BIN, 0x399240..0x399790: ItemHelp, the item details page (a picture, the name and the
  * description of one item). A module of its own: every character select, the tournament entrant select, the

@@ -3,6 +3,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+HistResult *gHistResult = NULL; /* 0x3B1300 */
+
 /*
  * HistResult, 0x3405A0..0x341E08: the result screen after a story-mode battle (progress mode 8). An object of
  * its own: its read-only data (0x3B3720..0x3B38D4) repeats "fl_out" of the previous object. A win marks the

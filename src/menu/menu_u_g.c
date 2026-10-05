@@ -1,4 +1,8 @@
+#include "common.h"
 #include "menu/menu_u.h"
+
+/* The customising screen's work pointer (0x3BB140): this object owns it. */
+UEvoZ *gEvoZ = NULL;
 
 /*
  * EvoZ, 0x392F10..0x393C58: the character customising screen (gProgress->mode 49; the callers' debug strings
@@ -83,7 +87,7 @@ void EvoZ_Init(s32 section) {
 void EvoZ_Term(void) {
     s32 i;
 
-    func_003AE760();
+    PassWin_Term();
     Dialog_Term();
     ItemHelp_Term();
     for (i = 0; i < UEVOZ_FLASH_NUM; i++) {
@@ -127,7 +131,7 @@ void EvoZ_Draw(void) {
         }
     }
     Font_FlushAll();
-    func_003AE840();
+    PassWin_Draw();
     ItemHelp_Draw(gEvoZ->helpItem);
 }
 

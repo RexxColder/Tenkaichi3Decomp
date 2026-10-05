@@ -4,23 +4,18 @@
 /*
  * Menu overlay DBZP.BIN, 0x339610..0x33E108 (placeholder stem "menu_b").
  *
- *   menu_b.c    0x339610..0x33A360  ModeMenu   tail of the object whose head is menu_a_d.c
+ *   (menu_b.c   0x339610..0x33A360  ModeMenu   tail of the object; now merged into menu_a_d.c, 0x338020..0x33A360)
  *   menu_b_b.c  0x33A360..0x33ABA0  ModeBg     the animated background shared by ModeMenu and HistOutro
  *   menu_b_c.c  0x33ABA0..0x33CFC8  HistOutro  the scene after a completed saga (mode 9), and Hist_Main, the
  *                                              handler of progress modes 6..10 (the story mode)
- *   menu_b_d.c  0x33CFC8..0x33E108  HistSel    head of the saga select (mode 6); its object goes on in the next chunk
+ *   menu_b_d.c  0x33CFC8..0x33F700  HistSel    the saga select (mode 6), merged with its tail (the former menu_c.c);
+ *                                              it includes menu/menu_c.h, not this header
  *
  * ModeMenu is the story mode's episode list (mode 7): gProgress->subMenu is the saga (0..7), an item an episode.
- *
- * menu_a.h declares ModeMenu from its head only; the full layout is here, so the head's view is renamed away.
  */
-#define ModeMenu ModeMenuHead
-#define gModeMenu gModeMenuHead
 #include "menu/menu_a.h"
-#undef ModeMenu
-#undef gModeMenu
 
-/* ---- ModeMenu (menu_a_d.c + menu_b.c) ---- */
+/* ---- ModeMenu (menu_a_d.c) ---- */
 
 /* One entry per item in section 6 of the sub menu's own archive (menu_a.h has the head's view, ModeMenuText). */
 typedef struct ModeMenuDescr {
@@ -171,50 +166,7 @@ void HistOutro_GuideGoto(s32 movie, s32 side, s32 out);
 s32 HistOutro_Run(s32 section);
 s32 Hist_Main(void);
 
-/* ---- HistSel (menu_b_d.c, head only): the saga select of the story mode ---- */
-
-#define HISTSEL_ITEM_MAX 9
-
-typedef struct HistSel {
-    /* 0x000 */ u32 *pack;          /* this screen's section of archive 2 (compressed) */
-    /* 0x004 */ u32 *res;           /* the same unpacked: a pack of 41 sections at least */
-    /* 0x008 */ void *msgText[9];   /* message-window text per guide: sections 16..23, and 15 for guide 8 */
-    /* 0x02C */ void *subtitles[9]; /* subtitles per guide: sections 25..32, and 24 for guide 8 */
-    /* 0x050 */ MFlash flash[1];    /* section 10 */
-    /* 0x07C */ void *bg;           /* section 1: background picture */
-    /* 0x080 */ u8 *tex[83];        /* 46 + 3 * n: the three face textures of guide n (sections 33..40) */
-    /* 0x1CC */ s32 flags;          /* HISTSEL_ */
-    /* 0x1D0 */ s32 unk1D0;
-    /* 0x1D4 */ s32 cursor;         /* index into items */
-    /* 0x1D8 */ s32 unk1D8[2];
-    /* 0x1E0 */ s32 voiceLine;      /* -1 = none */
-    /* 0x1E4 */ s32 guide;          /* whose voice set and subtitles are used (0..8) */
-    /* 0x1E8 */ s32 idle;           /* frames without input */
-    /* 0x1EC */ s32 unk1EC[2];
-    /* 0x1F4 */ s32 items[HISTSEL_ITEM_MAX]; /* unlocked sagas (slot ids 0..8); padded with 9 up to three */
-    /* 0x218 */ s32 itemCount;
-    /* 0x21C */ s32 top;            /* list index of the plate before the cursor (the list is a ring) */
-    /* 0x220 */ s32 unk220[2];
-    /* 0x228 */ s32 percent;        /* cleared episodes of the 48, in percent (at least 1 once one is cleared) */
-    /* 0x22C */ s32 event;          /* saga picked by HistSel_RollEvent, -1 = none */
-    /* 0x230 */ s32 unk230;
-    /* 0x234 */ s32 blink[2];
-    /* 0x23C */ s32 unk23C[5];
-    /* 0x250 */ s32 unk250;         /* 300 + 60 * Rand_Range(10): a delay in frames, guess */
-} HistSel; /* 0x254 */
-
-#define HISTSEL_FIRST 0x10        /* gSaveData->unlockFlags bit 7 is not set yet */
-#define HISTSEL_EVENT 0x20        /* a saga was picked by HistSel_RollEvent */
-#define HISTSEL_COMPLETE 0x40     /* 100 % and gSaveData->unlockFlags bit 8 not set yet */
-
-#define SAVESLOT_EVENT_DONE 0x20  /* excludes the saga from HistSel_RollEvent */
-
-extern HistSel *gHistSel; /* 0x3B12FC */
-
-void HistSel_PlayVoice(void);
-void HistSel_Idle(void);
-void HistSel_SayItem(void);
-void HistSel_RollEvent(void);
-void HistSel_Init(s32 section);
+/* ---- HistSel (menu_b_d.c): the saga select of the story mode. Its work struct, flags and functions are in
+   include/menu/menu_c.h (the full layout; the head-only view that was here is gone). ---- */
 
 #endif

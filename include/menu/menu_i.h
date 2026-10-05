@@ -6,14 +6,13 @@
 /*
  * Menu overlay DBZP.BIN, 0x35A558..0x35F650 (placeholder stem "menu_i"). Four pieces:
  *
- *   menu_i.c    0x35A558..0x35D660  Train     rest of the training menu (mode 44); the object starts in menu_h
+ *   (menu_i.c  0x35A558..0x35D660  Train     rest of the training menu (mode 44): merged into menu_h_d.c)
  *   menu_i_b.c  0x35D660..0x35D948  BootCard  the memory card check of the first run
  *   menu_i_c.c  0x35D948..0x35E0F8  Logo / FirstRun: the boot logos and the first-run sequence
- *   menu_i_d.c  0x35E0F8..0x35F650  EntrySel  head of the tournament's entrant select (mode 34; goes on in menu_j)
+ *   menu_i_d.c  0x35E0F8..0x3623A8  EntrySel  the tournament's entrant select (mode 34), with menu_j.c merged in
  *
- * This header does not include menu_h.h (written in parallel): Train below is this chunk's own view, complete
- * for the whole object. It uses the field names of menu_h.h's partial view, except `page` (there unk440) and
- * `pageNum` (there unk1BD8); menu_h_d.c + menu_i.c compile as one file against it (build/scratch_menu_i/comb.py).
+ * Train below is the view of the whole object (menu_h_d.c, which includes menu_h.h and then this header; the
+ * partial view that menu_h.h had is gone).
  */
 
 /* ---- Main executable, beyond what menu_a.h declares ---- */
@@ -195,7 +194,8 @@ typedef struct MSaveTrain {
     /* 0xE0C */ s32 trainClear[TRAIN_CLASS_NUM];
 } MSaveTrain;
 
-extern void *gSaveData;
+struct SaveData;
+extern struct SaveData *gSaveData; /* include/sys/save.h */
 #define gSaveTrain ((MSaveTrain *)gSaveData)
 
 extern Train *gTrain; /* 0x3B4BA8 */
@@ -281,13 +281,13 @@ void FirstRun_WaitPartition(s32 pt);
 s32 FirstRun_Main(void);
 s32 FirstRun_WaitPad();
 
-/* ---- EntrySel (menu_i_d.c): the entrant select of the tournament mode (mode 34); only its head is in this
-   chunk. menu_j.h has the complete view of the work area (ESel). ---- */
+/* ---- EntrySel (menu_i_d.c): the entrant select of the tournament mode (mode 34): what its first half needs
+   beyond menu_j.h. ---- */
 
 extern s32 ChrTbl_WrapCostume(s32 chara, s32 *costume);
 extern void ItemPanel_Init(u32 *pack, s32 side);     /* menu_g */
 extern void TourBg_Init(void *file, u32 kind, u8 **tex); /* menu_k (0x366F58) */
-extern void func_00399240(void *pack);
+extern void ItemHelp_Init(void *pack);
 
 /* Always-loaded resources (include/sys/common.h): common file 4 is data[2]. menu_h.h has the same view. */
 #ifndef MENU_MENU_H_H
@@ -299,118 +299,7 @@ typedef struct MCommonRes {
 extern MCommonRes *gCommonRes;
 #endif
 
-/* A cell of the character grid (include/battle/view_a.h). */
-typedef struct MChrGridCell {
-    /* 0x00 */ s32 id;          /* character id (0..0xA0), above that a special cell */
-    /* 0x04 */ s32 formCount;
-    /* 0x08 */ s32 form[7];
-} MChrGridCell; /* 0x24 */
-
-/* A grid as stored in a menu pack (section 29 of the entrant select). */
-typedef struct MChrGridList {
-    /* 0x00 */ s32 count;
-    /* 0x04 */ s32 unk4[3];
-    /* 0x10 */ MChrGridCell cell[1];
-} MChrGridList;
-
-extern s32 ChrGrid_IsSelectable(MChrGridCell *cells, s32 index);
-extern void ChrGrid_Build(s32 *outCount, MChrGridCell *out, s32 *inCount, MChrGridCell *in, s32 *customCount,
-                          MChrGridCell *custom);
-
-#define ENTRYSEL_COLS 7
-#define ENTRYSEL_CELL_MAX 165
-#define ENTRYSEL_CHARA_NONE 0xA4
-#define ENTRYSEL_ENTRY_MAX 8
-
-/* One chosen (or being chosen) entrant. */
-typedef struct EntrySelEntry {
-    /* 0x00 */ s32 col;        /* grid column */
-    /* 0x04 */ s32 row;        /* grid row */
-    /* 0x08 */ s32 form;       /* index into the cell's form list */
-    /* 0x0C */ s32 unkC[2];
-    /* 0x14 */ s32 custom;     /* "mc_custom_plate_%d" - 1 (0..3) */
-    /* 0x18 */ s32 costume;    /* "mc_color_plate_%d" - 1 */
-    /* 0x1C */ s32 chara;      /* character id (indexes the chip pack) */
-    /* 0x20 */ s32 unk20[4];
-} EntrySelEntry; /* 0x30 */
-
-typedef struct EntrySelState {
-    /* 0x000 */ EntrySelEntry entry[ENTRYSEL_ENTRY_MAX];
-    /* 0x180 */ s32 rowChara[ENTRYSEL_COLS];     /* character shown by each of the seven chips */
-    /* 0x19C */ s32 prevRowChara[ENTRYSEL_COLS]; /* the same before the last change */
-    /* 0x1B8 */ s32 flags;                       /* ENTRYSEL_ */
-    /* 0x1BC */ s32 image;                       /* character whose large picture is shown (file 0x2F9 + id) */
-    /* 0x1C0 */ s32 cur;                         /* entrant being chosen */
-    /* 0x1C4 */ s32 unk1C4[2];
-} EntrySelState; /* 0x1CC */
-
-#define ENTRYSEL_IMAGE_CHANGE 1
-#define ENTRYSEL_IMAGE_READY 2
-
-/* loadState: the same machine as ModeMenu's */
-#define ENTRYSEL_LOAD_REQUEST 1
-#define ENTRYSEL_LOAD_READ 2
-#define ENTRYSEL_LOAD_UNPACK 3
-#define ENTRYSEL_LOAD_SHOWN 4
-#define ENTRYSEL_LOAD_ABORT 5
-#define ENTRYSEL_LOAD_RESTART 6
-
-typedef struct EntrySel {
-    /* 0x0000 */ u32 *pack;          /* this screen's section of archive 4 (compressed) */
-    /* 0x0004 */ u32 *res;           /* the same unpacked: 40 sections */
-    /* 0x0008 */ void *imageFile;    /* 0x16800 bytes: compressed large picture (file 0x2F9 + character) */
-    /* 0x000C */ MTexRes *imageRes;  /* 0x20800 bytes: the same unpacked */
-    /* 0x0010 */ u32 *chips;         /* section 32: a pack of 165 small character pictures (section id + 1) */
-    /* 0x0014 */ void *nameText;     /* section 30 */
-    /* 0x0018 */ void *formText;     /* section 31 */
-    /* 0x001C */ void *msgText;      /* section 33 */
-    /* 0x0020 */ void *subtitles;    /* section 36 */
-    /* 0x0024 */ void *file;         /* file 0x3C9 + tournament: handed to TourBg_Init */
-    /* 0x0028 */ MFlash flash[4];    /* 0 picture and entry list, 1 chips, 2 custom / colour plates, 3 guide */
-    /* 0x00D8 */ u8 *texA[19];       /* textures of movie 0; [5] the large picture, [10..17] the entrants' chips */
-    /* 0x0124 */ u8 *texC[11];       /* movie 2 */
-    /* 0x0150 */ u8 *texB[25];       /* movie 1; [8], [11..16] the seven row chips, [18..24] the previous ones */
-    /* 0x01B4 */ u8 *texD[9];        /* movie 3 (the guide of this tournament) */
-    /* 0x01D8 */ s32 unk1D8[3];      /* used by the rest of the object (menu_j) */
-    /* 0x01E4 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
-    /* 0x01E8 */ s32 loadState;      /* ENTRYSEL_LOAD_ */
-    /* 0x01EC */ s32 unk1EC[3];
-    /* 0x01F8 */ EntrySelState state;
-    /* 0x03C4 */ EntrySelState *sel; /* &state */
-    /* 0x03C8 */ s32 gridCount;
-    /* 0x03CC */ MChrGridCell *grid;
-    /* 0x03D0 */ s32 gridOutCount;
-    /* 0x03D4 */ MChrGridCell gridBuf[ENTRYSEL_CELL_MAX];
-    /* 0x1B08 */ s32 rows;           /* grid rows */
-    /* 0x1B0C */ s32 unk1B0C[4];
-    /* 0x1B1C */ s32 blink[2];
-    /* 0x1B24 */ s32 unk1B24[2];
-    /* 0x1B2C */ MTextBox box[2];    /* character name, form name */
-    /* 0x1C44 */ void *items;        /* item table of common file 4 */
-} EntrySel; /* 0x1C48 */
-
-/* gProgress fields of this screen. */
-typedef struct MenuProgressEntry {
-    /* 0x000 */ u8 unk0[0x84];
-    /* 0x084 */ s32 tour;           /* which tournament, 0..4; 4 (the Yamcha Game) draws the entrants at random */
-    /* 0x088 */ s32 unk88;
-    /* 0x08C */ s32 entryNum;       /* entrants to choose */
-    /* 0x090 */ s32 unk90[2];
-    /* 0x098 */ u8 entrant[0x2A8];  /* the tournament's entrant records (menu_j); cleared by EntrySel_Init */
-    /* 0x340 */ u8 unk340[0x100];
-    /* 0x440 */ EntrySelEntry lastEntry; /* cursor of the previous visit */
-} MenuProgressEntry;
-
-#define ENTRY_PROG ((MenuProgressEntry *)gProgress)
-
-extern EntrySel *gEntrySel; /* 0x3B5910 */
-
-void EntrySel_SwapRowTex(void);
-void EntrySel_SetRowTex(void);
-void EntrySel_SetMemberTex(void);
-void EntrySel_UpdateImage(void);
-void EntrySel_ChangeImage(void);
-void EntrySel_ClipGoto(s32 movie, s32 kind, char *label);
-void EntrySel_Init(s32 section);
+/* The work area (ESel), the grid views, the gProgress view, gEntrySel (0x3B5910) and the prototypes are in
+   menu/menu_j.h. */
 
 #endif

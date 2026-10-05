@@ -9,7 +9,7 @@
  *   menu_a.c    0x334C00..0x336A90  MainMenu   the main menu (mode 4)
  *   menu_a_b.c  0x336A90..0x336FC0  Progress_Main, the overlay entry and mode dispatcher
  *   menu_a_c.c  0x336FC0..0x338020  Title      the title screen (mode 1)
- *   menu_a_d.c  0x338020..0x339610  ModeMenu   head of the per-mode sub menu (the object goes on after 0x339610)
+ *   menu_a_d.c  0x338020..0x33A360  ModeMenu   the per-mode sub menu (layout in menu_b.h)
  *
  * The overlay is compiled with -G0: nothing is reached through $gp, not even the main executable's small data.
  */
@@ -124,7 +124,7 @@ extern s32 Voice_GetStat(s32 voice);
 extern void Voice_PlayWithSubtitle(void *subtitles, s32 base, s32 line);
 extern void Voice_FadeOutStep(s32 voice);
 extern void Bgm_FadeOutStep(void);
-extern void Snd_PlaySe(u32 mask, s32 id);
+extern s32 Snd_PlaySe(u32 mask, s32 id);
 extern void Snd_Update(void);
 extern void Pad_Update(void);
 extern void Gfx_BeginFrame(void);
@@ -240,18 +240,19 @@ typedef struct Title {
  * Progress_Main when the overlay returns to the main executable.
  */
 extern MainMenu *gMainMenu; /* 0x3B0E80 */
-extern void *gMenuArc0;     /* 0x3B0E84: func_0035DF70 (first run) */
+extern void *gMenuArc0;     /* 0x3B0E84: FirstRun_Main (first run) */
 extern void *gMenuArc1;     /* 0x3B0E88: file baseFile + 1: title and main menu */
-extern void *gMenuArc2;     /* 0x3B0E8C: modes 6-10 (func_0033CBF8) and ModeMenu */
-extern void *gMenuArc3;     /* 0x3B0E90: modes 13-30 (func_00379A58) */
-extern void *gMenuArc4;     /* 0x3B0E94: modes 33-35 (func_00362160) */
-extern void *gMenuArc5;     /* 0x3B0E98: modes 38-41 (func_00352CB8) */
-extern void *gMenuArc6;     /* 0x3B0E9C: modes 44-45 (func_003591C8) */
-extern void *gMenuArc7;     /* 0x3B0EA0: modes 48-50 (func_0039E940) */
-extern void *gMenuArc8;     /* 0x3B0EA4: modes 53-56 (func_003A9850) */
-extern void *gMenuArc9;     /* 0x3B0EA8: mode 60 (func_003590A8) */
-extern void *gMenuArc10;    /* 0x3B0EAC: mode 62 (func_0039FAA8) */
+extern void *gMenuArc2;     /* 0x3B0E8C: modes 6-10 (Hist_Main) and ModeMenu */
+extern void *gMenuArc3;     /* 0x3B0E90: modes 13-30 (Ub_Main) */
+extern void *gMenuArc4;     /* 0x3B0E94: modes 33-35 (Tour_Main) */
+extern void *gMenuArc5;     /* 0x3B0E98: modes 38-41 (Duel_Main) */
+extern void *gMenuArc6;     /* 0x3B0E9C: modes 44-45 (TrainMode_Main) */
+extern void *gMenuArc7;     /* 0x3B0EA0: modes 48-50 (EvoMode_Main) */
+extern void *gMenuArc8;     /* 0x3B0EA4: modes 53-56 (Dc_Main) */
+extern void *gMenuArc9;     /* 0x3B0EA8: mode 60 (CharRefMode_Main) */
+extern void *gMenuArc10;    /* 0x3B0EAC: mode 62 (OptMode_Main) */
 extern void *gMenuArc11;    /* 0x3B0EB0: only freed here; no loader found in this range */
+extern void *gMenuArc12;    /* 0x3B0EB4: file baseFile + 0x18, the wish screen (src/sys/late_a.c, main executable) */
 extern Title *gTitle;       /* 0x3B0EB8 */
 
 /* ---- ModeMenu (menu_a_d.c): the sub menu of one game mode, with a guide character and a large picture ---- */
@@ -261,53 +262,11 @@ typedef struct MTextBox {
     u8 unk0[0x8C];
 } MTextBox;
 
-/* One entry per item in section 6 of the sub menu's own archive: which lines of the text describe it. */
-typedef struct ModeMenuText {
-    /* 0x00 */ s32 count;      /* lines shown (up to 3) */
-    /* 0x04 */ s32 line;       /* first line in the text file */
-    /* 0x08 */ s32 unk8[6];
-} ModeMenuText; /* 0x20 */
-
+/* The work struct (ModeMenu) and its item table are in include/menu/menu_b.h (the object was first decompiled in
+   two halves; the head's partial view that stood here is gone). */
 #define MODEMENU_FLASH_NUM 1
 #define MODEMENU_ITEM_MAX 16
 #define MODEMENU_ROWS 3        /* plates visible at once */
-
-typedef struct ModeMenu {
-    /* 0x000 */ u32 *pack;          /* this screen's section of archive 2 (compressed) */
-    /* 0x004 */ u32 *res;           /* the same unpacked */
-    /* 0x008 */ void *file;         /* file baseFile + 0x10 + subMenu (compressed) */
-    /* 0x00C */ u32 *fileRes;       /* the same unpacked: this sub menu's own pack */
-    /* 0x010 */ void *imageFile;    /* 0x1C000 bytes: the compressed large picture of the current item */
-    /* 0x014 */ MTexRes *imageRes;  /* 0x20800 bytes: the same unpacked */
-    /* 0x018 */ void *msgText;      /* fileRes section 4 */
-    /* 0x01C */ void *subtitles;    /* fileRes section 5 */
-    /* 0x020 */ void *text;         /* res section 6: text of the three description lines */
-    /* 0x024 */ MFlash flash[MODEMENU_FLASH_NUM];
-    /* 0x050 */ u8 *tex[41];
-    /* 0x0F4 */ s32 flags;          /* MODEMENU_ */
-    /* 0x0F8 */ s32 cursor;         /* index into items */
-    /* 0x0FC */ s32 unkFC[3];
-    /* 0x108 */ s32 voiceBase;      /* first voice id of this sub menu's guide */
-    /* 0x10C */ s32 unk10C;
-    /* 0x110 */ s32 imageBase;      /* file id of item 0's large picture */
-    /* 0x114 */ s32 unk114;
-    /* 0x118 */ s32 voiceLine;      /* subtitle line shown by the message window, -1 = none */
-    /* 0x11C */ s32 blink;
-    /* 0x120 */ s32 talk;
-    /* 0x124 */ s32 unk124;
-    /* 0x128 */ s32 items[MODEMENU_ITEM_MAX]; /* unlocked item ids; padded with itemMax up to three */
-    /* 0x168 */ s32 itemCount;
-    /* 0x16C */ s32 top;            /* first visible list index */
-    /* 0x170 */ s32 bottom;         /* last visible list index (top + 2) */
-    /* 0x174 */ s32 extra;          /* list index shown on plates 4 and 5 while the list scrolls */
-    /* 0x178 */ s32 itemMax;        /* items this sub menu has */
-    /* 0x17C */ f32 scroll;         /* vertical offset of the description text */
-    /* 0x180 */ s32 unk180[3];
-    /* 0x18C */ s32 loadState;      /* MODEMENU_LOAD_ */
-    /* 0x190 */ f32 imageAlpha;
-    /* 0x194 */ MTextBox box[3];
-    /* 0x338 */ ModeMenuText *descr; /* fileRes section 6 */
-} ModeMenu; /* 0x33C */
 
 #define MODEMENU_NEXT 0x20            /* shows "mc_episode_next" */
 #define MODEMENU_IMAGE_CHANGE 0x40    /* the current item changed: load its picture */
@@ -321,7 +280,6 @@ typedef struct ModeMenu {
 #define MODEMENU_LOAD_ABORT 5
 #define MODEMENU_LOAD_RESTART 6
 
-extern ModeMenu *gModeMenu; /* 0x3B12F0, first word of the second object's .data */
 
 s32 MainMenu_Run(s32 section);
 s32 Title_Run(s32 section);

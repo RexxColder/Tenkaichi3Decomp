@@ -33,7 +33,7 @@ extern void McFlow_SetDoneCb(s32 idx, void (*cb)(s32 arg), s32 arg);
 extern s32 McFlow_Update(void);
 
 /* The menu overlay's archive pointer (DBZP.BIN data). */
-extern u32 *D_003B0EB4;
+extern u32 *gMenuArc12;
 
 /* Defined here: this object's .data (0x2EB350). */
 ShenSave *gShenSave = NULL;
@@ -48,7 +48,7 @@ void ShenSave_OnFlowDone(s32 arg) {
 void ShenSave_Init(s32 section) {
     gShenSave = Heap_Alloc(sizeof(ShenSave), 0x20, 0, HEAP_ANY);
     memset(gShenSave, 0, sizeof(ShenSave));
-    gShenSave->pack = PACK_AT(D_003B0EB4, section);
+    gShenSave->pack = PACK_AT(gMenuArc12, section);
     gShenSave->res = Sprite_Unpack(gShenSave->pack, NULL, NULL);
     Dialog_Init(PACK_AT(gShenSave->res, 10), NULL, 0);
     McFlow_Init(1);
