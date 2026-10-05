@@ -457,3 +457,23 @@ Tools
 - An object whose only jump table belongs to an INCLUDE_ASM function has an 8-aligned `.rodata`; when the
   original was 16-aligned put `RODATA_ALIGN16();` at the TOP of the file (in front of the first table), not in
   front of the INCLUDE_ASM, if strings of the C part end in between (src/menu/menu_u_d.c).
+
+## Matching lessons from cleanup round 2 (2026-10-05, added as agents report)
+
+- Branch prediction decides delay-slot filling: this compiler tags `==` branches 40 % and `!=`
+  60 %, anything else 50 %; at 50 % or above the slot is filled from the target (`beqzl` +
+  the target's first instruction), below from the fall-through. A range flag kept in a
+  variable and tested later counts as `x == 0`; with the compare next to its branch it is an
+  unsigned compare.
+- This code base precomputes biased values into locals before earlier tests
+  (`s32 cls = (s8)tbl->stateClass[state] - 15;` ... later `if ((u32)cls < 3)`): a subtraction
+  in front of an unrelated branch with its `sltiu` in that branch's delay slot is the sign.
+- `if (f() == 0) { ...; return 0; }` drops the `move v0,zero` (v0 still holds the call's 0).
+  A path that uses v0 as a temporary before a `return 0` reached a SHARED `return 0` by
+  control flow.
+- `if (phase) X; else X;` with identical arms on an already-loaded register is a block
+  boundary until the last jump pass and changes argument-load order before it.
+- Allocator priority is `floor_log2(refs) * refs / live_length`; ties go to the lower pseudo.
+  The `-da` dumps (`.lreg` "Register N used X times across Y insns", `.greg`) give the exact
+  numbers: compute how many references must change before trying forms.
+- `move rX,rY` is also what an int-to-long sign extension compiles to (`(s64)u0 << 4`).
