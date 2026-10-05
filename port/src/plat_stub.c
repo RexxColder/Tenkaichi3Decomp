@@ -4,6 +4,7 @@
  * implementation later and then moves to its own file. Arguments are ignored (the callers clean the stack).
  */
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <time.h>
