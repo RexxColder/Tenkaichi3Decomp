@@ -6,13 +6,21 @@ layout(location = 1) in vec3 vStq;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAux; // .r: the alpha byte exactly as the GS stores it (object numbers live there)
 layout(set = 2, binding = 0) uniform sampler2D tex;
+layout(set = 2, binding = 1) uniform sampler2D dateTex; // a copy of the target's alpha bytes, for the destination alpha test
 layout(set = 3, binding = 0) uniform Params {
     ivec4 mode;  // x: textured (1 from GS memory, 2 a frame buffer), y: TFX, z: TCC, w: alpha test (0 off, else ATST + 1)
-    vec4 misc;   // x: AREF in GS units (0..255)
+    vec4 misc;   // x: AREF in GS units (0..255); y: destination alpha test (0 off, 1 pass where bit 7 of the
+                 // stored alpha is 0, 2 where it is 1); z: 1 = FBA, the alpha written gets bit 7 set
     vec4 rect;   // textured from a frame buffer (mode.x == 2): the uv range that may be sampled
 } p;
 void main() {
     float k = 255.0 / 128.0;
+    if (p.misc.y != 0.0) {
+        // TEST.DATE: the GS looks at bit 7 of the alpha already in the frame buffer. A GPU cannot read what it is
+        // drawing to, so the back end hands over a copy made just before this run of draws.
+        bool set = texelFetch(dateTex, ivec2(gl_FragCoord.xy), 0).r >= 127.5 / 255.0;
+        if (set != (p.misc.y > 1.5)) discard;
+    }
     vec3 rgb = vColor.rgb;
     float a = vColor.a * k;
     if (p.mode.x != 0) {
@@ -40,5 +48,7 @@ void main() {
         if (!pass) discard;
     }
     outColor = vec4(clamp(rgb, 0.0, 1.0), clamp(a, 0.0, 1.0));
-    outAux = vec4(clamp(a * 128.0 / 255.0, 0.0, 1.0), 0.0, 0.0, 1.0);
+    float ab = clamp(a * 128.0 / 255.0, 0.0, 1.0);
+    if (p.misc.z != 0.0) ab = (float(int(ab * 255.0 + 0.5) | 128)) / 255.0; // FBA
+    outAux = vec4(ab, 0.0, 0.0, 1.0);
 }

@@ -17,6 +17,7 @@ typedef struct GsState {
     uint64_t primRaw; /* PRIM as written */
     uint64_t rgbaq, st, uv, texa, prmodecont, prmode;
     uint64_t tex0[2], tex1[2], clamp[2], xyoffset[2], scissor[2], alpha[2], test[2], frame[2], zbuf[2];
+    uint64_t fba[2]; /* FBA: 1 = every pixel written gets alpha bit 7 set (the masks of the HUD bars) */
     uint64_t bitbltbuf, trxpos, trxreg, trxdir;
     float q;
     GsVertex vtx[3];

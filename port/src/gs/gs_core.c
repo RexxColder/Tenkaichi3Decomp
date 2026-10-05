@@ -659,6 +659,7 @@ static void reg_write(uint32_t addr, uint64_t d) {
     case 0x40: case 0x41: gs.scissor[addr - 0x40] = d; break;
     case 0x42: case 0x43: gs.alpha[addr - 0x42] = d; break;
     case 0x47: case 0x48: gs.test[addr - 0x47] = d; break;
+    case 0x4A: case 0x4B: gs.fba[addr - 0x4A] = d & 1; break;
     case 0x4C: case 0x4D: gs.frame[addr - 0x4C] = d; break;
     case 0x4E: case 0x4F: gs.zbuf[addr - 0x4E] = d; break;
     case 0x50: gs.bitbltbuf = d; break;

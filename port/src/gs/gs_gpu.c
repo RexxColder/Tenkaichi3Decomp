@@ -83,6 +83,7 @@ static SDL_GPUTexture *sWhite;
 static SDL_GPUGraphicsPipeline *sOutlinePipe, *sKeyPipe;
 static SDL_GPUTexture *sFbTex[2]; /* pictures uploaded into the two display buffers (movies) */
 static SDL_GPUShader *sFxVs, *sDclutFs;
+static SDL_GPUTexture *sDateCopy; /* the alpha bytes as they were before a run of draws that test them (TEST.DATE) */
 static SDL_GPUTexture *sAuxCopy;  /* the alpha bytes, copied so that a pass can read them while it writes them */
 /* The top byte of the depth page as the game last left it: 0 = a copy of the frame's alpha (ids), 1 = the fog
    value made from the depth. Follows the two passes that write it (see draw_state). */
@@ -173,7 +174,7 @@ int GsGpu_Init(void) {
         fprintf(stderr, "bt3: present mode %s\n", mode == SDL_GPU_PRESENTMODE_MAILBOX ? "mailbox" : mode == SDL_GPU_PRESENTMODE_IMMEDIATE ? "immediate" : "vsync");
     }
     sVs = shader(kGsVertSpv, sizeof(kGsVertSpv), SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
-    sFs = shader(kGsFragSpv, sizeof(kGsFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    sFs = shader(kGsFragSpv, sizeof(kGsFragSpv), SDL_GPU_SHADERSTAGE_FRAGMENT, 2, 1);
     if (sVs == NULL || sFs == NULL) {
         fprintf(stderr, "bt3: shaders: %s\n", SDL_GetError());
         return 0;
@@ -276,6 +277,7 @@ int GsGpu_Init(void) {
         ci.layer_count_or_depth = 1;
         ci.num_levels = 1;
         sAuxCopy = SDL_CreateGPUTexture(sDev, &ci);
+        sDateCopy = SDL_CreateGPUTexture(sDev, &ci);
     }
     sFxOff = getenv("BT3_FX_OFF") != NULL ? (unsigned)atoi(getenv("BT3_FX_OFF")) : 0;
     sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : GLOW_DEFAULT;
@@ -827,6 +829,8 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
     d->mode[2] = (int32_t)((t0 >> 34) & 1);
     d->mode[3] = (test & 1) && ((test >> 12) & 3) == 0 ? (int32_t)((test >> 1) & 7) + 1 : 0;
     d->misc[0] = (float)((test >> 4) & 0xFF);
+    d->misc[1] = ((test >> 14) & 1) ? (float)(1 + (int)((test >> 15) & 1)) : 0.0f; /* DATE, DATM */
+    d->misc[2] = (float)(gGs.fba[ctx] & 1);
     d->blendc = (float)((gGs.alpha[ctx] >> 32) & 0xFF) / 128.0f;
     d->scissor.x = (int)(sc & 0x7FF) * SCALE;
     d->scissor.y = (int)((sc >> 32) & 0x7FF) * SCALE;
@@ -837,7 +841,8 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
 
 static int same_state(const Draw *a, const Draw *b) {
     return !a->native && a->vu == b->vu && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
-           memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->blendc == b->blendc &&
+           memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
+           a->misc[2] == b->misc[2] && a->blendc == b->blendc &&
            memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 &&
            memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
 }
@@ -857,6 +862,20 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     }
     if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
         return;
+    }
+    if (d.misc[1] != 0.0f) {
+        /* A draw that tests the alpha already in the frame buffer (the fill of a HUD bar, cut to length by a mask
+           drawn just before it): at the start of a run of such draws, keep a copy of the alpha bytes for them. */
+        Draw *prev = sDrawCount ? &sDraws[sDrawCount - 1] : NULL;
+        if (prev == NULL || prev->native || prev->misc[1] == 0.0f || prev->target != d.target) {
+            Draw c;
+            memset(&c, 0, sizeof(c));
+            c.native = 5;
+            c.target = d.target;
+            if (sDrawCount + 1 < MAX_DRAWS) {
+                sDraws[sDrawCount++] = c;
+            }
+        }
     }
     for (i = 0; i < n; i++) {
         if (fst) {
@@ -1276,6 +1295,26 @@ static void frame_end(void) {
             }
             continue;
         }
+        if (d->native == 5) { /* the alpha bytes as they are now, for the draws that test them (TEST.DATE) */
+            SDL_GPUCopyPass *cp;
+            SDL_GPUTextureLocation from, to;
+            if (pass != NULL) {
+                SDL_EndGPURenderPass(pass);
+                pass = NULL;
+            }
+            cur = -1;
+            if (!sTargets[d->target].cleared) {
+                continue;
+            }
+            cp = SDL_BeginGPUCopyPass(cmd);
+            SDL_zero(from);
+            SDL_zero(to);
+            from.texture = sTargets[d->target].aux;
+            to.texture = sDateCopy;
+            SDL_CopyGPUTextureToTexture(cp, &from, &to, GS_W * SCALE, GS_H * SCALE, 1, false);
+            SDL_EndGPUCopyPass(cp);
+            continue;
+        }
         if (d->native == 4) { /* the ids as they are now (GfxPost_CopyAlphaToDepth): kept for the passes that index them */
             SDL_GPUCopyPass *cp;
             SDL_GPUTextureLocation from, to;
@@ -1406,9 +1445,14 @@ static void frame_end(void) {
             SDL_PushGPUVertexUniformData(cmd, 0, &sVuUni[d->uniform], sizeof(Vu0Uniform));
         }
         SDL_BindGPUGraphicsPipeline(pass, sPipes[d->pipeline].p);
-        ts.texture = d->tex;
-        ts.sampler = sSamplers[d->sampler];
-        SDL_BindGPUFragmentSamplers(pass, 0, &ts, 1);
+        {
+            SDL_GPUTextureSamplerBinding two[2];
+            two[0].texture = d->tex;
+            two[0].sampler = sSamplers[d->sampler];
+            two[1].texture = sDateCopy;
+            two[1].sampler = sSamplers[6];
+            SDL_BindGPUFragmentSamplers(pass, 0, two, 2);
+        }
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
         memcpy(fu.rect, d->rect, sizeof(fu.rect));
