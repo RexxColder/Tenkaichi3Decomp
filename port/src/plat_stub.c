@@ -46,11 +46,8 @@ int ADXT_GetStat() { return 0; }       /* ADXT_STAT_STOP */
 static int (*sVsyncHandler)(int);
 void sceGsResetGraph() {}
 void sceGsResetPath() {}
-int sceGsSetDefDBuff() { return 0; }
 void sceGsSetDefStoreImage() {}
 int sceGsExecStoreImage() { return 0; }
-int sceGsPutDrawEnv() { return 0; }
-int sceGsSwapDBuff() { return 0; }
 int sceGsSyncPath() { return 0; }
 void *sceGsSyncVCallback(int (*handler)(int)) { void *old = (void *)sVsyncHandler; sVsyncHandler = handler; return old; }
 /* One vertical blank: runs the game's VBlank handler, as the interrupt would. */
