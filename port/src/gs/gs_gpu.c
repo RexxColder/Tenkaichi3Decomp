@@ -979,13 +979,17 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         }
         if (type == 6 && !d.mode[0] && y1 - y0 >= 400.0f) {
             pivot = -1.0f;
+        } else if (x1 - x0 >= 480.0f) {
+            /* as wide as the screen (the bands and streaks of READY / FIGHT, flashes, speed lines): meant to
+               reach from edge to edge, so it keeps the full width */
+            pivot = -1.0f;
         } else if (sAnchor != 0) {
             pivot = sAnchor == 1 ? 0.0f : sAnchor == 2 ? 512.0f : 256.0f;
             if (sAnchor == 4) { /* a part without a fixed side (captions: technique names): the side it is on */
                 float cx = (x0 + x1) * 0.5f;
                 pivot = x1 <= 300.0f || cx < 180.0f ? 0.0f : x0 >= 212.0f || cx > 332.0f ? 512.0f : 256.0f;
             }
-        } else if (!(type == 6 && x1 - x0 >= 480.0f)) {
+        } else {
             /* 2D outside the HUD (the pause menu, messages): one page about the middle of the screen. (Narrowing
                each piece about its own middle pulled panels apart and spread the letters of the text.) A marker
                the game places over a fighter is pulled a little towards the middle by this: known, not handled.
