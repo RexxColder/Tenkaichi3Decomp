@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile the game sources to 32-bit host objects and list what a link would still need, by kind.
 Usage: port/tools/undefined.py [-v]   (objects go to port/build/obj)"""
-import collections, concurrent.futures, os, pathlib, re, subprocess, sys
+import collections, concurrent.futures, os, pathlib, re, shutil, subprocess, sys
 import portsrc
 import eeconst
 
@@ -115,10 +115,13 @@ def main():
         stage = src.suffix[1:]
         name = "k" + src.stem.capitalize() + stage.capitalize() + "Spv"
         spv = gen / (src.name + ".spv")
-        r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(src), "-o", str(spv)], capture_output=True, text=True)
-        if r.returncode:
-            print("FAILED shader", src.name, r.stderr[:300])
-            continue
+        if shutil.which("glslc") is None and spv.exists() and spv.stat().st_mtime >= src.stat().st_mtime:
+            pass  # no shader compiler here (the release container): the compiled shader that was put in place is current
+        else:
+            r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(src), "-o", str(spv)], capture_output=True, text=True)
+            if r.returncode:
+                print("FAILED shader", src.name, r.stderr[:300])
+                continue
         arrays.append(f"static const unsigned char {name}[] = {{" + ",".join(str(b) for b in spv.read_bytes()) + "};\n")
     (gen / "shaders.h").write_text("/* generated from port/src/gs/shaders by port/tools/undefined.py */\n" + "".join(arrays))
     for f in sorted((ROOT / "port/src/gs").glob("*.c")):

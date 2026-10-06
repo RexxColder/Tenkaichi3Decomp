@@ -17,7 +17,7 @@ if [ "$1" = win ]; then
            SDL="-I$S/include -L$S/lib" ;;
     esac
 else
-    O=port/build/setup; OUT=bt3-setup; CXX=g++; SDL=""; LIBS="-lSDL3 -lpthread -Wl,-rpath,\$ORIGIN/lib"
+    O=port/build/setup; OUT=bt3-setup; CXX=g++; SDL=""; LIBS="-lSDL3 -lpthread -static-libstdc++ -static-libgcc -Wl,-rpath,\$ORIGIN/lib"
 fi
 mkdir -p $O
 for f in $I/imgui.cpp $I/imgui_draw.cpp $I/imgui_tables.cpp $I/imgui_widgets.cpp $I/imgui_impl_sdl3.cpp $I/imgui_impl_sdlgpu3.cpp port/setup/native.cpp port/setup/setup.cpp; do

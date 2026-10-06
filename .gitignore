@@ -29,3 +29,4 @@ port/tests/ps2float/*.o
 /bt3-setup
 /play.sh
 install.log
+port/build_release/

@@ -1027,3 +1027,22 @@ and exit when it is drawn. It is the only game function without code in the port
   the first time there), sound, the movie (needs ffmpeg.exe), the settings window, a gamepad.
 - The recorded sessions (`*.pad`) do not replay under Wine: without ffmpeg the opening movie takes a different
   number of frames, so the inputs arrive at the wrong moments.
+
+## A Linux release that runs on other machines (2026-10-06)
+
+The zip made on the development machine did not: "CPU ISA level is lower than required" on another computer.
+Three causes, all from building on a distribution compiled for one CPU family (CachyOS, znver4):
+- the system's start-up object (`crt1.o`) is stamped "x86 ISA needed: x86-64-v4" and the stamp ends up in every
+  program linked there, although our own code has no AVX instruction in it (0 uses of ymm / zmm registers);
+- the bundled `lib/libSDL3.so.0` was the system's copy, which really is AVX-512 code (29,991 zmm uses);
+- the programs asked for glibc 2.43.
+`port/release/build_linux.sh` builds the release in a container instead (`port/release/Dockerfile`: Ubuntu 22.04,
+glibc 2.35, clang/LLVM 22.1.8 from apt.llvm.org as on the host, SDL3 3.4.12 built from source there) into
+`port/build_release/` -> `port/build_release/bt3-port-linux-x64.zip`. The container has no shader compiler and not
+the decompilation's checkout, so the script hands it the compiled shaders and the data tables' assembly sources of
+a host build. libstdc++ and libgcc are linked in. `package.py` ends with a check (`portable:`): no ISA stamp above
+baseline, no AVX in our programs, no AVX-512 anywhere, glibc <= 2.35.
+Checked: the three files need at most glibc 2.34 and carry no stamp; a fresh install from that zip and the replay
+check on the host; the demo fight run inside a plain `ubuntu:22.04` container; the setup window and the renderer
+start with the bundled SDL3. The Windows zip was never affected (0 AVX in our programs, the official SDL3.dll).
+Rule: release zips come from `port/release/build_linux.sh` (and the mingw cross-build), never from a plain host build.

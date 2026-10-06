@@ -92,7 +92,7 @@ def main():
         sys.exit("strip_data.py failed or left game data in the program: not packaging\n" + r.stderr)
     shutil.copy2(setup, OUT / "bt3-setup")
     (OUT / "lib").mkdir()
-    lib = next((p for d in ("/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu") for p in sorted(pathlib.Path(d).glob("libSDL3.so.0"))), None)
+    lib = next((p for d in ("/usr/local/lib", "/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu") for p in sorted(pathlib.Path(d).glob("libSDL3.so.0"))), None)
     if lib is None:
         sys.exit("libSDL3.so.0 not found")
     shutil.copy2(lib.resolve(), OUT / "lib/libSDL3.so.0")
@@ -118,6 +118,27 @@ def main():
     for p in sorted(OUT.rglob("*")):
         if p.is_file():
             print(f"  {p.stat().st_size:>10,}  {p.relative_to(OUT)}")
+    portable(OUT)
+
+def portable(out):
+    """Says whether the release would run on other people's machines: no CPU level above the baseline demanded
+    or used, and no newer C library than Ubuntu 22.04's (2.35). Build with port/release/build_linux.sh to pass."""
+    bad = []
+    for f in ("bt3", "bt3-setup", "lib/libSDL3.so.0"):
+        note = subprocess.run(["readelf", "-n", str(out / f)], capture_output=True, text=True).stdout
+        need = next((l.split(":", 1)[1].strip() for l in note.splitlines() if "ISA needed" in l), "")
+        if any(v in need for v in ("x86-64-v2", "x86-64-v3", "x86-64-v4")):
+            bad.append(f"{f}: stamped as needing {need}")
+        dis = subprocess.run(["objdump", "-d", str(out / f)], capture_output=True, text=True).stdout
+        if f != "lib/libSDL3.so.0" and ("%ymm" in dis or "%zmm" in dis):
+            bad.append(f"{f}: contains AVX instructions")
+        if "%zmm" in dis:
+            bad.append(f"{f}: contains AVX-512 instructions")
+        syms = subprocess.run(["objdump", "-T", str(out / f)], capture_output=True, text=True).stdout
+        vers = sorted({tuple(int(x) for x in v.split(".")) for v in __import__("re").findall(r"GLIBC_(\d+\.\d+)", syms)})
+        if vers and vers[-1] > (2, 35):
+            bad.append(f"{f}: needs glibc {vers[-1][0]}.{vers[-1][1]}")
+    print("portable: yes (baseline x86-64, glibc <= 2.35)" if not bad else "NOT PORTABLE:\n  " + "\n  ".join(bad))
 
 if os.environ.get("BT3_CC") == "win64":
     main_win()
