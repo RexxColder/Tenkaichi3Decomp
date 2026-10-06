@@ -1200,3 +1200,18 @@ and a processor from before 2015.
 - Not reached within 12 to 20 s of the demo for the other 18 ids of the scan (3..9, 17..20, 26, 60, 61, 69, 101,
   102, 118): cause unknown (the costume numbers I passed, or the seam is only drawn in some states). The demo's
   opponent is a Super Saiyan Goku, so screenshots alone do not tell those apart.
+
+## The seam routine is written (2026-10-06)
+
+- `ObjSeam_TransformVtx` (0x10FFD0) is now `Ref_ObjSeam_TransformVtx` in `src/port/vu0_a.c`: the 128 instructions
+  translated one for one onto the library's per-instruction helpers (new: `op_vftoi`, `op_vmfir`). No game function
+  is a stub any more. `port/src/plat_seam.c` and `BT3_SEAM_SKIP` are gone again.
+- Check built in: `BT3_SEAM_CHECK=<path of SLUS_216.78>` executes every call a second time with a small interpreter
+  from the instruction words of the original program and compares everything both write (the vertex, the work
+  block, all vector registers, ACC, Q, the status flags). Demo battles with characters 55, 56 (Videl), 57, 110,
+  134: 0 differences (56: over 40,000 vertices on each of the three programs; 57: over 20,000). The interpreter
+  uses the library's arithmetic, so this proves the translation, not the number model.
+- One thing the bytes do not say: `qmtc2 $v0, vf19` moves 128 bits and the upper 64 of `$v0` are whatever was there;
+  both versions put 0 into vf19.z / w (only x and y are read here).
+- Seen: Videl (first costume) is drawn completely in the demo battle. Not compared with the software reference
+  renderer or with a console picture yet.
