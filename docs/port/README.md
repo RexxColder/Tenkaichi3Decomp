@@ -1220,3 +1220,19 @@ and a processor from before 2015.
   stages, music, items, unlock flags, maximum Zenni; it also empties the records list. Requested by the window,
   carried out at the next vertical blank on the game's side (`Port_Trace`). The user tried the function itself
   (first on a bare F9 key, removed again): it works.
+
+## Windows: the program was movable (2026-10-06)
+
+- Report from a second Windows machine (same hardware as the user's): the setup unpacked the data, the self-test
+  failed, `install.log` empty. With the setup's new exit-code line: 0xC0000005, and no `bt3_crash.txt` even with the
+  crash report as a vectored handler. So: a crash before any of the port's start-up code had installed anything.
+- Cause (fits everything; the machine's setting itself was not confirmed): `bt3.exe` was linked with
+  `--disable-dynamicbase` but still had a `.reloc` section, and a Windows set to "Force randomization for images
+  (Mandatory ASLR)" moves any program that has one. The first write of `Port_LoadGameData` then goes to
+  0x20000000-based addresses where nothing is. Linked with `--disable-reloc-section` now ("relocations stripped"):
+  **with that build the same machine runs the setup and the game.**
+- Also new: a check at start (`GetModuleHandle(NULL) != 0x20000000` -> a plain message naming the setting, exit 4);
+  the crash report is a vectored handler written without the C library, installed with constructor priority 101,
+  with registers, module names and `gPortStage` (the last start-up step); stdout / stderr unbuffered on Windows;
+  the setup's `install.log` ends with the game's exit code and includes `bt3_crash.txt`.
+  Test switches: `BT3_CRASH_TEST=1`, `BT3_STACK_TEST=1` (forces the move to a low stack).
