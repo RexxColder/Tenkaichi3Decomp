@@ -985,7 +985,9 @@ and exit when it is drawn. It is the only game function without code in the port
 - Checked (2026-10-06, windowless because the desktop reported no displays at that hour): the zip unpacked into an
   empty folder, `bt3-setup --install` with the disc image: 8 seconds, 68,611 files, identical file by file
   (`diff -rq`) to the extraction made by extract_disc.py; the demo fight ran; the replay check from that folder
-  prints the same line as the other builds. NOT checked: the window on the native path (pages, Play), which only
-  differs from the tested script path in where the events come from; another machine or distribution.
+  prints the same line as the other builds. Later the same night, with the display back: the window on the native path from a
+  freshly unzipped folder (first page, the three steps to the Ready page in 8 s, started again when installed,
+  and the failure page for a file that is not a disc image), by pictures from the test hook. NOT checked:
+  clicking (Browse, drag and drop, Play, Cancel); another machine or distribution.
 - Fixed on the way: the developer's heap dump of `BT3_AT` wrote through a NULL file where `port/build` does not
   exist (crash in a release folder); the last event line of the native installer could be dropped.

@@ -347,7 +347,8 @@ static void page_pick() {
 
     heading("Budokai Tenkaichi 3 for PC", "This sets the game up on your computer from your own PlayStation 2 disc.");
     ImGui::TextWrapped("Choose your disc image of Dragon Ball Z: Budokai Tenkaichi 3, USA release (SLUS-21678), as an .iso file. "
-                       "The game's data is taken from it and stays on this computer; nothing is downloaded except one small tool.");
+                       "The game's data is taken from it and stays on this computer. %s",
+                       sRelease ? "Nothing is downloaded." : "Nothing is downloaded except one small tool.");
     ImGui::Dummy(ImVec2(0.0f, 10.0f));
     ImGui::TextUnformatted("Disc image");
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 130.0f);
