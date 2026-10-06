@@ -235,6 +235,41 @@ static void audio_tab(PortVideo &v) {
     ImGui::SetItemTooltip("Takes effect with the next sound that starts.");
 }
 
+// Cheats. "Unlock everything" is the game's own leftover debug function (Save_UnlockAll, which nothing in the game
+// calls): the request is set here and carried out on the game's side at the next vertical blank (headless.c).
+extern "C" {
+extern volatile int gPortUnlockAll, gPortUnlockDone;
+}
+
+static void cheats_tab(void) {
+    ImGui::TextWrapped("Unlock everything: all characters, stages, music and items, and the largest amount of Zenni. "
+                       "This is a debug function the game's developers left in.");
+    ImGui::Spacing();
+    ImGui::TextWrapped("It also empties your records list, and it becomes permanent the next time the game saves. "
+                       "Use it after your save has been loaded (from the main menu on).");
+    ImGui::Spacing();
+    if (ImGui::Button("Unlock everything...")) {
+        ImGui::OpenPopup("Unlock everything?");
+    }
+    if (gPortUnlockDone) {
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Done.");
+    }
+    if (ImGui::BeginPopupModal("Unlock everything?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Your records list will be emptied. This cannot be undone once the game saves.");
+        ImGui::Spacing();
+        if (ImGui::Button("Unlock", ImVec2(140.0f, 0.0f))) {
+            gPortUnlockAll = 1;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(140.0f, 0.0f))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
 static void controls_tab(void) {
     static int player;
     char label[96];
@@ -321,6 +356,7 @@ static void build(void) {
             if (tab("Effects", 1)) { effects_tab(v); ImGui::EndTabItem(); }
             if (tab("Audio", 2)) { audio_tab(v); ImGui::EndTabItem(); }
             if (tab("Controls", 3)) { controls_tab(); ImGui::EndTabItem(); }
+            if (tab("Cheats", 4)) { cheats_tab(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();
         }
         if (ImGui::GetFrameCount() > 3) {
