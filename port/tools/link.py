@@ -15,8 +15,9 @@ DATA = "obj_data64" if VARIANT == "clang64" else "obj_data"
 BASE64 = ["-Wl,-Ttext-segment=0x20000000", "-Wl,--wrap=main"] if VARIANT == "clang64" else []
 
 def link(objs, extra):
+    # -rpath $ORIGIN/lib: a release folder carries its own SDL3 in lib/
     return subprocess.run(["gcc", M, "-no-pie", "-w", "-o", str(B / EXE)] + extra + objs +
-                          ["-lstdc++", "-lm", "-lpthread", "-lSDL3", "-Wl,--defsym=D_3BE71C=0x3BE71C", "-Wl,--wrap=Progress_Main", "-rdynamic"] + BASE64, capture_output=True, text=True)
+                          ["-lstdc++", "-lm", "-lpthread", "-lSDL3", "-Wl,--defsym=D_3BE71C=0x3BE71C", "-Wl,--wrap=Progress_Main", "-rdynamic", f"-Wl,-Map={B / EXE}.map", "-Wl,-rpath,$ORIGIN/lib"] + BASE64, capture_output=True, text=True)
 
 def main():
     objs = [str(o) for o in sorted((B / OBJ).glob("*.o")) + sorted((B / DATA).glob("*.o"))]

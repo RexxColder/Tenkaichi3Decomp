@@ -962,3 +962,14 @@ and exit when it is drawn. It is the only game function without code in the port
   llvm, glslc, SDL3, Python and 7z. A download-and-run release needs the program prebuilt, and the program
   contains the game's own data tables (linked in from the user's executable), so a prebuilt program cannot be
   shipped as it is: the tables would have to be loaded from the user's disc at start instead.
+- **A program that can be given away** (`port/tools/strip_data.py`, `Port_LoadGameData` in plat_mem.c): the linked
+  program carries 219,504 bytes in 69 data objects taken from the user's executable (the data tables of both
+  programs and the VU1 microprograms). The tool finds them through the linker's map (link.py now writes
+  `<program>.map`) and symbols with known PS2 addresses, zeroes every run of bytes that equals the user's
+  executable (178,906 bytes in 272 runs; what stays are addresses the linker filled in, and zeros), sets
+  `gPortDataStripped` to 1 and writes `port/build/release/bt3` and `bt3.dat` (the list of runs and a checksum, 4 KB,
+  numbers only). At start, before anything else, the program copies the runs back from
+  `gamedata/disc/SLUS_216.78` and `gamedata/disc/BIN/DBZP.BIN` and checks the checksum. Checked: the stripped
+  program gives the replay result of the other builds; without `bt3.dat` and without the game data it stops with a
+  plain message. A developer's build (no `.dat` next to it, flag 2) is unchanged. The decompiled code itself,
+  including tables written as C, is of course still in the program.

@@ -71,8 +71,128 @@ int __wrap_main(int argc, char **argv) {
 }
 #endif
 
+/* ---- The game's own data, fetched from the user's disc (release builds).
+   A program made by port/tools/strip_data.py has the data tables of the game's two programs and the VU1
+   microprograms set to zero, and a list next to it (<program>.dat) of where each run of bytes comes from: the
+   user's SLUS_216.78 (as a flat image from 0x100000) or BIN/DBZP.BIN. This copies them in before anything else
+   runs. A program without that list still has the data linked in (the developer's build) and nothing happens. */
+#include <string.h>
+#include <unistd.h>
+#define ROM_BASE 0x100000u
+#define ROM_END 0x2FF180u
+
+/* Set to 1 in the file by strip_data.py: this program does not work without its list. (2, not 0: it has to be in
+   the file, not in the zero-filled part of memory.) */
+volatile uint32_t gPortDataStripped = 2;
+
+static uint8_t *read_file(const char *path, size_t *size) {
+    FILE *fp = fopen(path, "rb");
+    uint8_t *buf;
+    long n;
+
+    if (fp == NULL) {
+        return NULL;
+    }
+    fseek(fp, 0, SEEK_END);
+    n = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    buf = malloc((size_t)n + 1);
+    if (buf == NULL || fread(buf, 1, (size_t)n, fp) != (size_t)n) {
+        fclose(fp);
+        free(buf);
+        return NULL;
+    }
+    fclose(fp);
+    *size = (size_t)n;
+    return buf;
+}
+
+static void data_fail(const char *what, const char *path) {
+    fprintf(stderr, "bt3: %s%s%s\n     The game's data comes from your own disc image; run the setup (bt3-setup) to unpack it.\n", what,
+            path != NULL ? ": " : "", path != NULL ? path : "");
+    exit(2);
+}
+
+static void Port_LoadGameData(void) {
+    char exe[1024], path[1200];
+    const char *root = getenv("BT3_DATA") != NULL ? getenv("BT3_DATA") : "gamedata";
+    uint8_t *list, *elf, *src[2] = {NULL, NULL};
+    size_t listSize = 0, elfSize = 0, srcSize[2] = {0, 0};
+    uint64_t hash = 0xCBF29CE484222325ull, want;
+    uint32_t count, i, k;
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+
+    if (n <= 0) {
+        return;
+    }
+    exe[n] = '\0';
+    snprintf(path, sizeof(path), "%s.dat", exe);
+    list = read_file(path, &listSize);
+    if (list == NULL) {
+        if (gPortDataStripped == 1) {
+            data_fail("this program needs the file that came with it", path);
+        }
+        return; /* no list: the data is linked in */
+    }
+    if (listSize < 16 || memcmp(list, "BT3D", 4) != 0) {
+        data_fail("damaged file", path);
+    }
+    memcpy(&count, list + 4, 4);
+    memcpy(&want, list + 8, 8);
+    if (listSize < 16 + (size_t)count * 16) {
+        data_fail("damaged file", path);
+    }
+    snprintf(path, sizeof(path), "%s/disc/SLUS_216.78", root);
+    elf = read_file(path, &elfSize);
+    if (elf == NULL || elfSize < 0x34 || memcmp(elf, "\177ELF", 4) != 0) {
+        data_fail("the game's program was not found", path);
+    }
+    {   /* the loaded sections as one image from 0x100000 */
+        uint32_t shoff, sh[6];
+        uint16_t shentsize, shnum;
+        memcpy(&shoff, elf + 0x20, 4);
+        memcpy(&shentsize, elf + 0x2E, 2);
+        memcpy(&shnum, elf + 0x30, 2);
+        srcSize[0] = ROM_END - ROM_BASE;
+        src[0] = calloc(1, srcSize[0]);
+        for (i = 0; i < shnum && (size_t)shoff + (size_t)(i + 1) * shentsize <= elfSize; i++) {
+            memcpy(sh, elf + shoff + (size_t)i * shentsize, sizeof(sh)); /* name, type, flags, addr, offset, size */
+            if ((sh[2] & 2) && sh[1] != 8 && sh[5] != 0 && sh[3] >= ROM_BASE && sh[3] + sh[5] <= ROM_END &&
+                (size_t)sh[4] + sh[5] <= elfSize) {
+                memcpy(src[0] + (sh[3] - ROM_BASE), elf + sh[4], sh[5]);
+            }
+        }
+        free(elf);
+    }
+    snprintf(path, sizeof(path), "%s/disc/BIN/DBZP.BIN", root);
+    src[1] = read_file(path, &srcSize[1]);
+    if (src[1] == NULL) {
+        data_fail("the game's menu program was not found", path);
+    }
+    for (i = 0; i < count; i++) {
+        uint32_t r[4]; /* address in this program, source, offset in it, length */
+        const uint8_t *from;
+        memcpy(r, list + 16 + (size_t)i * 16, 16);
+        if (r[1] > 1 || (size_t)r[2] + r[3] > srcSize[r[1]]) {
+            data_fail("damaged file (list of the game's data)", NULL);
+        }
+        from = src[r[1]] + r[2];
+        memcpy((void *)(uintptr_t)r[0], from, r[3]);
+        for (k = 0; k < r[3]; k++) {
+            hash = (hash ^ from[k]) * 0x100000001B3ull;
+        }
+    }
+    free(src[0]);
+    free(src[1]);
+    free(list);
+    if (hash != want) {
+        data_fail("the game's programs in your game data are not the unmodified USA release (SLUS-21678)", NULL);
+    }
+}
+
 static void map(uint32_t addr, uint32_t size, const char *what);
 __attribute__((constructor)) static void Port_MapMemory(void) {
+    Port_LoadGameData();
 #ifdef __x86_64__
     mallopt(M_MMAP_MAX, 0);
     mallopt(M_ARENA_MAX, 1);
