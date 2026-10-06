@@ -22,6 +22,9 @@
 
 static uint32_t sHeapNext = HEAP_FIRST, sHeapEnd = HEAP_END;
 
+/* How far the start got, for the crash report (plat_crash.c). */
+const char *volatile gPortStage = "starting";
+
 #ifdef _WIN32
 #include <direct.h> /* chdir */
 /* ------------------------------------------------------------------------------------------------------ Windows
@@ -103,9 +106,17 @@ int __wrap_main(int argc, char **argv) {
 
     sArgc = argc;
     sArgv = argv;
+    if (getenv("BT3_CRASH_TEST") != NULL) { /* testing the crash report */
+        *(volatile int *)(uintptr_t)8 = 0;
+    }
+    if (getenv("BT3_STACK_TEST") != NULL) { /* testing the move to a low stack where the process's own is low already */
+        tib = (NT_TIB *)NtCurrentTeb();
+    } else
     if ((uintptr_t)&stack < 0xFFF00000u) {
+        gPortStage = "the game is running (on the process's own stack)";
         return __real_main(argc, argv); /* the process's own stack is low already */
     }
+    gPortStage = "moving to a stack below 4 GB";
     stack = low_alloc(STACK_SIZE);
     if (stack == NULL) {
         fprintf(stderr, "bt3: no room for the game's stack below 2 GB\n");
@@ -114,6 +125,7 @@ int __wrap_main(int argc, char **argv) {
     tib->StackBase = stack + STACK_SIZE; /* the system checks these on exceptions and when the stack grows */
     tib->StackLimit = stack;
     *dealloc = stack;
+    gPortStage = "the game is running (on a stack of its own below 4 GB)";
     Port_CallOnStack(game_main, stack + STACK_SIZE);
     tib->StackBase = base;
     tib->StackLimit = limit;
@@ -333,7 +345,9 @@ static void Port_LoadGameData(void) {
 }
 
 __attribute__((constructor)) static void Port_MapMemory(void) {
+    gPortStage = "reading the game's programs from gamedata";
     Port_LoadGameData();
+    gPortStage = "reserving the game's memory";
 #if defined(__x86_64__) && !defined(_WIN32)
     mallopt(M_MMAP_MAX, 0);
     mallopt(M_ARENA_MAX, 1);
@@ -343,6 +357,7 @@ __attribute__((constructor)) static void Port_MapMemory(void) {
     map(0x10000000u, 0x10000, "the hardware registers");
     map(0x12000000u, 0x2000, "the GS registers");
     map(0x70000000u, 0x4000, "the scratchpad");
+    gPortStage = "memory ready, before the program's main";
 }
 
 /* The game's malloc (include/port_compat.h renames it): a bump allocator over the heap region, 16-byte aligned. */

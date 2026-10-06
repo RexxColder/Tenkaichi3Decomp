@@ -7,33 +7,109 @@
 /* Windows: the exception code, the faulting address and the return addresses on the stack. The program is linked
    at a fixed address (0x20000000), so the numbers can be looked up in bt3.exe.map of the same build. */
 #include <windows.h>
+#include <stdint.h>
 #include <stdio.h>
 
-static LONG WINAPI on_crash(EXCEPTION_POINTERS *e) {
-    void *frames[48];
-    USHORT n = RtlCaptureStackBackTrace(0, 48, frames, NULL), i;
-    int k;
+extern const char *volatile gPortStage; /* plat_mem.c: how far the start got */
 
+/* The report is written with the system's own file calls and no C library (the crash may be inside it), from a
+   VECTORED handler: those are called first, before the system checks the stack, so a crash on a stack the system
+   does not like (the game runs on its own stack below 4 GB) is still reported. The handler only reports; what
+   happens to the exception afterwards is unchanged. */
+static HANDLE sCrashOut[2];
+
+static void crash_put(const char *s) {
+    DWORD n = 0, done, k;
+    while (s[n] != '\0') {
+        n++;
+    }
     for (k = 0; k < 2; k++) {
-        FILE *out = k == 0 ? stderr : fopen("bt3_crash.txt", "w");
-        if (out == NULL) {
-            continue;
-        }
-        fprintf(out, "bt3: crashed: exception %08lX at %p", (unsigned long)e->ExceptionRecord->ExceptionCode, e->ExceptionRecord->ExceptionAddress);
-        if (e->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && e->ExceptionRecord->NumberParameters >= 2) {
-            fprintf(out, " (%s address %p)", e->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
-                    (void *)e->ExceptionRecord->ExceptionInformation[1]);
-        }
-        fprintf(out, "\nbacktrace (innermost first; addresses of bt3.exe, see bt3.exe.map):\n");
-        for (i = 0; i < n; i++) {
-            fprintf(out, "%p\n", frames[i]);
-        }
-        if (k == 1) {
-            fclose(out);
-            fprintf(stderr, "bt3: the same report is in bt3_crash.txt\n");
+        if (sCrashOut[k] != NULL && sCrashOut[k] != INVALID_HANDLE_VALUE) {
+            WriteFile(sCrashOut[k], s, n, &done, NULL);
         }
     }
-    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static void crash_hex(unsigned long long v) {
+    char b[20];
+    int i;
+    b[0] = '0'; b[1] = 'x';
+    for (i = 0; i < 16; i++) {
+        b[2 + i] = "0123456789ABCDEF"[(v >> (60 - i * 4)) & 15];
+    }
+    b[18] = '\0';
+    crash_put(b);
+}
+
+/* " (in <module file> + offset)" for an address */
+static void crash_where(void *addr) {
+    HMODULE m = NULL;
+    char name[MAX_PATH];
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &m) && m != NULL &&
+        GetModuleFileNameA(m, name, sizeof(name)) != 0) {
+        crash_put(" (");
+        crash_put(name);
+        crash_put(" + ");
+        crash_hex((unsigned long long)((char *)addr - (char *)m));
+        crash_put(")");
+    }
+}
+
+static LONG WINAPI on_crash(EXCEPTION_POINTERS *e) {
+    static LONG once;
+    DWORD code = e->ExceptionRecord->ExceptionCode;
+    NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+    void *frames[32];
+    USHORT n, i;
+
+    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION && code != EXCEPTION_STACK_OVERFLOW &&
+        code != EXCEPTION_INT_DIVIDE_BY_ZERO && code != EXCEPTION_PRIV_INSTRUCTION && code != EXCEPTION_IN_PAGE_ERROR) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    if (InterlockedExchange(&once, 1) != 0) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    sCrashOut[0] = GetStdHandle(STD_ERROR_HANDLE);
+    sCrashOut[1] = CreateFileA("bt3_crash.txt", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    crash_put("bt3: crashed: exception ");
+    crash_hex(code);
+    crash_put(" at ");
+    crash_hex((unsigned long long)(uintptr_t)e->ExceptionRecord->ExceptionAddress);
+    crash_where(e->ExceptionRecord->ExceptionAddress);
+    if (code == EXCEPTION_ACCESS_VIOLATION && e->ExceptionRecord->NumberParameters >= 2) {
+        crash_put(e->ExceptionRecord->ExceptionInformation[0] == 1 ? "\r\nwriting address " : e->ExceptionRecord->ExceptionInformation[0] == 8 ? "\r\nexecuting address " : "\r\nreading address ");
+        crash_hex(e->ExceptionRecord->ExceptionInformation[1]);
+    }
+    crash_put("\r\nlast step reached: ");
+    crash_put(gPortStage);
+#ifdef __x86_64__
+    crash_put("\r\nrsp "); crash_hex(e->ContextRecord->Rsp);
+    crash_put(" rbp "); crash_hex(e->ContextRecord->Rbp);
+    crash_put("\r\nrax "); crash_hex(e->ContextRecord->Rax);
+    crash_put(" rbx "); crash_hex(e->ContextRecord->Rbx);
+    crash_put(" rcx "); crash_hex(e->ContextRecord->Rcx);
+    crash_put(" rdx "); crash_hex(e->ContextRecord->Rdx);
+    crash_put("\r\nrsi "); crash_hex(e->ContextRecord->Rsi);
+    crash_put(" rdi "); crash_hex(e->ContextRecord->Rdi);
+    crash_put(" r8 "); crash_hex(e->ContextRecord->R8);
+    crash_put(" r9 "); crash_hex(e->ContextRecord->R9);
+#endif
+    crash_put("\r\nthread stack as the system knows it: ");
+    crash_hex((unsigned long long)(uintptr_t)tib->StackLimit);
+    crash_put(" to ");
+    crash_hex((unsigned long long)(uintptr_t)tib->StackBase);
+    crash_put("\r\nbacktrace (innermost first; addresses in Tenkaichi3Decomp.exe are looked up in the build's map file):\r\n");
+    n = RtlCaptureStackBackTrace(0, 32, frames, NULL);
+    for (i = 0; i < n; i++) {
+        crash_hex((unsigned long long)(uintptr_t)frames[i]);
+        crash_where(frames[i]);
+        crash_put("\r\n");
+    }
+    crash_put("bt3: the same report is in bt3_crash.txt\r\n");
+    if (sCrashOut[1] != INVALID_HANDLE_VALUE) {
+        CloseHandle(sCrashOut[1]);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 __attribute__((constructor)) static void crash_init(void) {
@@ -43,7 +119,10 @@ __attribute__((constructor)) static void crash_init(void) {
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
     }
-    SetUnhandledExceptionFilter(on_crash);
+    /* nothing held back in a buffer: what was printed before a crash is in the log */
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+    AddVectoredExceptionHandler(1, on_crash);
 }
 #else
 #include <execinfo.h>
