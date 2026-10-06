@@ -161,6 +161,22 @@ static uint32_t vram_rw(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint
     }
 }
 
+const uint8_t *Gs_BlockPtr(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y) {
+    uint32_t bn;
+
+    if (bw == 0) {
+        bw = 1;
+    }
+    if (psm == 0x13) {
+        bn = bp + ((y >> 1) & ~0x1Fu) * (bw >> 1) + ((x >> 2) & ~0x1Fu) + kBlock32[(y >> 4) & 3][(x >> 4) & 7];
+    } else if (psm == 0x14) {
+        bn = bp + ((y >> 2) & ~0x1Fu) * (bw >> 1) + ((x >> 2) & ~0x1Fu) + kBlock16[(y >> 4) & 7][(x >> 5) & 3];
+    } else {
+        bn = bp + (y & ~0x1Fu) * bw + ((x >> 1) & ~0x1Fu) + kBlock32[(y >> 3) & 3][(x >> 3) & 7];
+    }
+    return (const uint8_t *)sVram + ((bn & 0x3FFF) << 8);
+}
+
 uint32_t Gs_VramRead(uint32_t bp, uint32_t bw, uint32_t psm, uint32_t x, uint32_t y) {
     return vram_rw(bp, bw, psm, x, y, 0, 0);
 }

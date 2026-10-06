@@ -55,6 +55,9 @@ typedef struct Tex {
     uint32_t gen;
     SDL_GPUTexture *tex;
     unsigned last; /* frame last used */
+    int replaced;  /* from a texture pack: several times the size, so always filtered (texture_get) */
+    uint32_t ow, oh, rw, rh; /* then: the original's size and the replacement's */
+    uint32_t amax;           /* and the largest alpha byte of the original */
 } Tex;
 
 typedef struct Draw {
@@ -71,7 +74,9 @@ typedef struct Draw {
     int pipeline;
     int32_t mode[4];
     float misc[4];
-    float rect[4];  /* a frame buffer as texture: the part of it the GS would address (u0, v0, u1, v1 in its uv) */
+    float rect[4];  /* a frame buffer as texture: the part of it the GS would address (u0, v0, u1, v1 in its uv);
+                       a texture pack's replacement drawn as 2D art: the piece's own rectangle of the sheet */
+    float orig[4];  /* that replacement: x, y = the original texture's size in texels */
     float blendc;
     SDL_Rect scissor;
 } Draw;
@@ -86,7 +91,7 @@ static SDL_GPUDevice *sDev;
 static SDL_GPUShader *sVs, *sFs;
 static SDL_GPUBuffer *sVbuf;
 static SDL_GPUTransferBuffer *sVxfer;
-static SDL_GPUSampler *sSamplers[8]; /* bit 0: linear, bit 1: clamp U, bit 2: clamp V */
+static SDL_GPUSampler *sSamplers[16]; /* bit 0 filtered, bit 1 / 2 clamped in u / v, bit 3 with the smaller copies (mip levels) */
 static SDL_GPUTexture *sWhite;
 static SDL_GPUGraphicsPipeline *sOutlinePipe, *sKeyPipe;
 static SDL_GPUTexture *sFbTex[2]; /* pictures uploaded into the two display buffers (movies) */
@@ -111,6 +116,7 @@ extern int gPortMenuMode;       /* headless.c: the menus are running */
    10). Default 60: the user's choice on 2026-10-06 (100 looked too strong at the glare's peaks). */
 #define GLOW_DEFAULT 60
 static int sGlowPercent = GLOW_DEFAULT;
+static int sTexPackOn = 1; /* the setting: use the texture pack (if one was found) */
 #define MAX_TARGETS 24
 static Target sTargets[MAX_TARGETS];
 static int sTargetCount;
@@ -141,13 +147,14 @@ static Draw *sDraws;
 static uint32_t sDrawCount;
 static unsigned sNative; /* native effect markers seen this frame */
 unsigned gGpuNewTex, gGpuNewTexPixels, gGpuNewPipes; /* created since the front end last cleared them (slow-frame report) */
+unsigned gGpuTexReplaced; /* textures taken from a texture pack so far */
 uint64_t gGpuTexNs, gGpuPipeNs, gGpuEndNs; /* time spent decoding textures, creating pipelines, in GsGpu_FrameEnd */
 static uint64_t gpu_now(void) { return SDL_GetTicksNS(); }
 static unsigned sSkipped; /* primitives of PS2-only passes dropped this frame */
 
 /* textures created this frame, to upload in the copy pass */
 #define MAX_PENDING 4096
-static struct { SDL_GPUTexture *tex; uint32_t w, h; uint32_t *px; } sPending[MAX_PENDING];
+static struct { SDL_GPUTexture *tex; uint32_t w, h; uint32_t *px; uint32_t bytes, level; /* bytes 0: w * h * 4 */ } sPending[MAX_PENDING];
 static int sPendingCount;
 
 static SDL_GPUShader *shader(const unsigned char *code, size_t size, SDL_GPUShaderStage stage, int samplers, int ubos) {
@@ -184,6 +191,8 @@ static void copies_create(void) {
    F1 opens it (ui.cpp, Dear ImGui): mouse-driven, drawn over the finished picture in the window, so nothing of it
    reaches the game's buffers or the screenshots. This side holds what it changes in the renderer. */
 #include "ui.h"
+#include "gs_texpack.h"
+#include <math.h>
 extern int gPortMusicPercent, gPortSePercent;
 extern void Port_SetAspectMilli(int milli), Port_AudioRefresh(void), Port_SettingsWrite(void);
 static int sPendingScale, sDisplaySetting;
@@ -220,6 +229,8 @@ void GsGpu_GetSettings(PortVideo *v) {
     v->music = gPortMusicPercent;
     v->effects = gPortSePercent;
     v->display = sDisplaySetting;
+    v->texPack = sTexPackOn;
+    v->texPackCount = TexPack_Count();
 }
 
 /* Applies what differs from the current state, all of it at once, and keeps it for the next run. */
@@ -244,6 +255,8 @@ void GsGpu_SetSettings(const PortVideo *v) {
         Port_AudioRefresh();
     }
     sDisplaySetting = v->display;
+    sTexPackOn = v->texPack != 0;
+    Port_SettingSave("texture_pack", sTexPackOn);
     Port_SettingSave("scale", sPendingScale ? sPendingScale : sScale);
     Port_SettingSave("aspect_milli", Port_AspectMilli());
     Port_SettingSave("fullscreen", sFullscreen);
@@ -364,11 +377,16 @@ int GsGpu_Init(void) {
     ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     ti.size = MAX_VERTS * sizeof(Vtx);
     sVxfer = SDL_CreateGPUTransferBuffer(sDev, &ti);
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 16; i++) {
         SDL_GPUSamplerCreateInfo si;
         SDL_zero(si);
         si.min_filter = si.mag_filter = (i & 1) ? SDL_GPU_FILTER_LINEAR : SDL_GPU_FILTER_NEAREST;
-        si.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
+        /* The game's own textures have one level. A texture pack's have smaller copies as well, used (bit 3) where
+           the texture is on 3D geometry. Not for 2D art: a smaller copy averages neighbouring texels, and on a
+           sheet of HUD pieces those are another piece (the next colour layer of the health bar showed in the bar
+           once widescreen drew the HUD narrower and the smaller copies came into use). */
+        si.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+        si.max_lod = (i & 8) ? 16.0f : 0.0f;
         si.address_mode_u = (i & 2) ? SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE : SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
         si.address_mode_v = (i & 4) ? SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE : SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
         si.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
@@ -396,6 +414,7 @@ int GsGpu_Init(void) {
         ci.num_levels = 1;
         sWhite = SDL_CreateGPUTexture(sDev, &ci);
         sPending[sPendingCount].tex = sWhite;
+        sPending[sPendingCount].bytes = sPending[sPendingCount].level = 0;
         sPending[sPendingCount].w = sPending[sPendingCount].h = 1;
         sPending[sPendingCount].px = malloc(4);
         memcpy(sPending[sPendingCount].px, &white, 4);
@@ -449,9 +468,11 @@ int GsGpu_Init(void) {
     }
     sFxOff = (unsigned)(getenv("BT3_FX_OFF") != NULL ? atoi(getenv("BT3_FX_OFF")) : Port_Setting("fx_off", 0)) & 31;
     sGlowPercent = getenv("BT3_GLOW") != NULL ? atoi(getenv("BT3_GLOW")) : Port_Setting("glow", GLOW_DEFAULT);
+    sTexPackOn = Port_Setting("texture_pack", 1) != 0;
     gPortMusicPercent = Port_Setting("music", 100);
     gPortSePercent = Port_Setting("effects", 100);
     fprintf(stderr, "bt3: GPU renderer: %s\n", SDL_GetGPUDeviceDriver(sDev));
+    TexPack_Init();
     fprintf(stderr, "bt3: %d logical processors, %d MB of memory\n", SDL_GetNumLogicalCPUCores(), SDL_GetSystemRAM());
     pipelines_preload();
     return 1;
@@ -549,6 +570,10 @@ static SDL_GPUTexture *texture_get(int ctx) {
     SDL_GPUTextureCreateInfo ci;
     Tex *t;
     uint64_t tex_t0;
+    TexPackImage pack;
+    uint32_t packMaxAlpha = 255;
+    SDL_GPUTextureFormat packFormat = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    int replaced = 0;
 
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
@@ -559,6 +584,9 @@ static SDL_GPUTexture *texture_get(int ctx) {
     }
     if (bits <= 8) {
         gen = (gen ^ clut_hash(cbp, cpsm, bits == 8 ? 256 : 16)) * 16777619u;
+    }
+    if (sTexPackOn && TexPack_Count() != 0) {
+        gen ^= 0x5BD1E995u; /* with the pack and without it are different textures: switching it takes effect at once */
     }
     if (sLast != NULL && sLast->tex0 == t0 && sLast->texa == texa && sLast->gen == gen) {
         sLast->last = gGsFrame;
@@ -607,8 +635,24 @@ static SDL_GPUTexture *texture_get(int ctx) {
         }
     }
     tex_t0 = gpu_now();
-    px = malloc((size_t)tw * th * 4);
-    for (y = 0; y < th; y++) {
+    /* a texture pack's replacement for this texture, if there is one (gs_texpack.c) */
+    if (sTexPackOn && TexPack_Count() != 0) {
+        const char *path = TexPack_Lookup(tbp, tbw, psm, tw, th, (uint32_t)((t0 >> 34) & 1), cbp, cpsm, &packMaxAlpha);
+        if (path != NULL && TexPack_Load(path, &pack)) {
+            static const SDL_GPUTextureFormat kFormat[4] = {SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_TEXTUREFORMAT_BC1_RGBA_UNORM,
+                                                            SDL_GPU_TEXTUREFORMAT_BC2_RGBA_UNORM, SDL_GPU_TEXTUREFORMAT_BC3_RGBA_UNORM};
+            packFormat = kFormat[pack.format];
+            if (sPendingCount + pack.levels <= MAX_PENDING &&
+                SDL_GPUTextureSupportsFormat(sDev, packFormat, SDL_GPU_TEXTURETYPE_2D, SDL_GPU_TEXTUREUSAGE_SAMPLER)) {
+                replaced = 1;
+                gGpuTexReplaced++;
+            } else {
+                TexPack_Free(&pack);
+            }
+        }
+    }
+    px = replaced ? NULL : malloc((size_t)tw * th * 4);
+    for (y = 0; !replaced && y < th; y++) {
         for (x = 0; x < tw; x++) {
             uint32_t c = Gs_VramRead(tbp, tbw, psm, x, y), a;
             if (bits > 8) {
@@ -632,6 +676,12 @@ static SDL_GPUTexture *texture_get(int ctx) {
     ci.height = th;
     ci.layer_count_or_depth = 1;
     ci.num_levels = 1;
+    if (replaced) {
+        ci.format = packFormat;
+        ci.width = pack.w;
+        ci.height = pack.h;
+        ci.num_levels = (Uint32)pack.levels;
+    }
     gGpuTexNs += gpu_now() - tex_t0;
     t = &sTex[sTexCount++];
     {
@@ -649,10 +699,33 @@ static SDL_GPUTexture *texture_get(int ctx) {
     t->gen = gen;
     t->last = gGsFrame;
     t->tex = SDL_CreateGPUTexture(sDev, &ci);
+    t->replaced = replaced;
+    t->ow = tw;
+    t->oh = th;
+    t->rw = replaced ? pack.w : tw;
+    t->rh = replaced ? pack.h : th;
+    t->amax = packMaxAlpha;
+    if (replaced) {
+        int level;
+        for (level = 0; level < pack.levels; level++) {
+            sPending[sPendingCount].tex = t->tex;
+            sPending[sPendingCount].w = pack.w >> level ? pack.w >> level : 1;
+            sPending[sPendingCount].h = pack.h >> level ? pack.h >> level : 1;
+            sPending[sPendingCount].px = malloc(pack.bytes[level]);
+            memcpy(sPending[sPendingCount].px, pack.data[level], pack.bytes[level]);
+            sPending[sPendingCount].bytes = pack.bytes[level];
+            sPending[sPendingCount].level = (uint32_t)level;
+            sPendingCount++;
+        }
+        TexPack_Free(&pack);
+        return t->tex;
+    }
     sPending[sPendingCount].tex = t->tex;
     sPending[sPendingCount].w = tw;
     sPending[sPendingCount].h = th;
     sPending[sPendingCount].px = px;
+    sPending[sPendingCount].bytes = 0;
+    sPending[sPendingCount].level = 0;
     sPendingCount++;
     return t->tex;
 }
@@ -907,6 +980,7 @@ static SDL_GPUTexture *clut_texture(uint32_t cbp) {
     sCluts[old].hash = hash;
     sCluts[old].last = gGsFrame;
     sPending[sPendingCount].tex = sCluts[old].tex;
+    sPending[sPendingCount].bytes = sPending[sPendingCount].level = 0;
     sPending[sPendingCount].w = 256;
     sPending[sPendingCount].h = 1;
     sPending[sPendingCount].px = malloc(sizeof(px));
@@ -1082,8 +1156,21 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
         }
     }
     d->sampler = (int)((gGs.tex1[ctx] >> 5) & 1) | ((cl & 3) ? 2 : 0) | (((cl >> 2) & 3) ? 4 : 0);
+    /* A replacement is several times the original's size: with the nearest-texel sampling the game asks for on
+       its text and 2D art (right for a texture drawn 1:1) it is shown smaller than it is, and its edges come out
+       jagged. Replacements are always sampled with filtering. */
+    if (d->tex != NULL && sLast != NULL && sLast->tex == d->tex && sLast->replaced) {
+        d->sampler |= 1 | 8; /* (GsGpu_Draw takes the 8 off again for 2D art) */
+    }
+
     d->pipeline = pipeline_get(ctx, topo, vu);
     d->mode[0] = !tme ? 0 : d->tex_is_target ? 2 : 1; /* 2: a frame buffer as texture, its alpha is already rescaled */
+    /* (BT3_TEX_ALPHA=0 and BT3_TEX_2D=0 switch the two special treatments of replacements off, for telling which one
+       a fault comes from) */
+    if (d->mode[0] == 1 && sLast != NULL && sLast->tex == d->tex && sLast->replaced && !(getenv("BT3_TEX_ALPHA") != NULL && atoi(getenv("BT3_TEX_ALPHA")) == 0)) {
+        d->mode[0] = 3; /* a texture pack's replacement: the alpha test allows for its filtered, compressed alpha (gs.frag) */
+        d->orig[2] = (float)sLast->amax / 128.0f; /* its alpha is kept at or below the original's largest (1.0 = 0x80) */
+    }
     d->mode[1] = (int32_t)((t0 >> 35) & 3);
     d->mode[2] = (int32_t)((t0 >> 34) & 1);
     d->mode[3] = (test & 1) && ((test >> 12) & 3) == 0 ? (int32_t)((test >> 1) & 7) + 1 : 0;
@@ -1102,7 +1189,7 @@ static int same_state(const Draw *a, const Draw *b) {
     return !a->native && a->vu == b->vu && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
            a->misc[2] == b->misc[2] && a->misc[3] == b->misc[3] && a->blendc == b->blendc &&
-           memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 &&
+           memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 && memcmp(a->orig, b->orig, sizeof(a->orig)) == 0 &&
            memcmp(&a->scissor, &b->scissor, sizeof(SDL_Rect)) == 0;
 }
 
@@ -1134,7 +1221,7 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     float s[3], t[3], q[3];
     const GsVertex *flat = &v[n - 1];
     Draw d, *last;
-    int i;
+    int i, packed2d = 0;
 
     if (sVertCount + 6 > MAX_VERTS || sDrawCount == MAX_DRAWS) {
         return;
@@ -1142,10 +1229,18 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
         return;
     }
+    if (type == 6 || fst) {
+        d.sampler &= 7; /* 2D art: never the smaller copies of a replacement */
+    }
     if ((type == 6 || fst) && !d.tex_is_target) {
         /* 2D art: sprites, and triangles with whole-texel coordinates (the logo, HUD pieces drawn as quads):
-           texture coordinates per GS pixel (gs.frag) */
-        d.misc[3] = (float)SCALE;
+           texture coordinates per GS pixel (gs.frag). Not for a texture pack's replacement: that has several
+           texels per GS pixel, and sampling it once per GS pixel would show it at the original's resolution. */
+        if (sLast != NULL && sLast->tex == d.tex && sLast->replaced && !(getenv("BT3_TEX_2D") != NULL && atoi(getenv("BT3_TEX_2D")) == 0)) {
+            packed2d = 1; /* its rectangle is worked out below, from the vertices */
+        } else {
+            d.misc[3] = (float)SCALE;
+        }
     }
     date_snapshot(&d);
     for (i = 0; i < n; i++) {
@@ -1158,6 +1253,44 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             t[i] = v[i].t * vs;
             q[i] = v[i].q != 0.0f ? v[i].q : 1.0f;
         }
+    }
+    if (packed2d) {
+        /* A texture pack's replacement as 2D art: sampled per output pixel (it has several texels per original
+           texel), but only inside the rectangle of the sheet this piece shows on the console: the original texels
+           from the one its first GS pixel takes to the one its last GS pixel takes. Without the limit the
+           filtering reaches the neighbouring picture of the sheet (lines along HUD panels). */
+        int lo[2] = {0, 0}, hi[2] = {0, 0}, k, axis;
+        for (axis = 0; axis < 2; axis++) {
+            float size = axis ? th : tw, pmin = 0, pmax = 0, cmin = 0, cmax = 0, cAtMin = 0, cAtMax = 0, step, first, lastc;
+            for (k = 0; k < n; k++) {
+                /* (a sprite's coordinates are both divided by the SECOND vertex's Q, as below) */
+                float pos = axis ? v[k].y : v[k].x, c = (axis ? t[k] : s[k]) / (type == 6 ? q[1] : q[k]) * size;
+                if (k == 0 || pos < pmin) { pmin = pos; cAtMin = c; }
+                if (k == 0 || pos > pmax) { pmax = pos; cAtMax = c; }
+                if (k == 0 || c < cmin) { cmin = c; }
+                if (k == 0 || c > cmax) { cmax = c; }
+            }
+            step = pmax > pmin ? (cmax - cmin) / (pmax - pmin) : 0.0f; /* texels per GS pixel */
+            first = cAtMax >= cAtMin ? cmin : cmin + step;             /* lowest coordinate a GS pixel takes */
+            lastc = cAtMax >= cAtMin ? cmax - step : cmax;             /* highest */
+            lo[axis] = (int)floorf(first + 1.0f / 64.0f);
+            /* A mirrored piece (coordinates falling along the screen) starts exactly ON the boundary to the next
+               picture of the sheet (16.0 down to 8.0): one GS pixel's worth on the console, but the filtered
+               replacement blends that neighbour in over a visible stretch when the piece is drawn enlarged
+               (a strip of the yellow layer at the end of the second player's health bar). The boundary itself
+               does not count as inside. */
+            hi[axis] = (int)floorf(lastc + (cAtMax >= cAtMin ? 1.0f / 64.0f : -1.0f / 64.0f)) + 1;
+            if (hi[axis] <= lo[axis]) {
+                hi[axis] = lo[axis] + 1;
+            }
+        }
+        d.misc[3] = -(float)SCALE;
+        d.rect[0] = (float)lo[0] / tw;
+        d.rect[1] = (float)lo[1] / th;
+        d.rect[2] = (float)hi[0] / tw;
+        d.rect[3] = (float)hi[1] / th;
+        d.orig[0] = tw;
+        d.orig[1] = th;
     }
     d.first = sVertCount;
     if (type == 6) { /* sprite: two corners, flat colour and depth of the second vertex */
@@ -1478,7 +1611,7 @@ static void frame_end(void) {
     uint64_t sEndT[5];
     int lastPipe = -1, lastUni = -1, lastSampler = -1, haveFu = 0, haveScissor = 0; /* what the pass has set (the replay loop) */
     SDL_GPUTexture *lastTex = NULL;
-    struct { int32_t mode[4]; float misc[4]; float rect[4]; } lastFu;
+    struct { int32_t mode[4]; float misc[4]; float rect[4]; float orig[4]; } lastFu;
     SDL_Rect lastScissor;
     float lastBlend = -1.0f;
     uint32_t n;
@@ -1572,7 +1705,7 @@ static void frame_end(void) {
         void *p;
         SDL_zero(ti);
         ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        ti.size = sPending[i].w * sPending[i].h * 4;
+        ti.size = sPending[i].bytes ? sPending[i].bytes : sPending[i].w * sPending[i].h * 4;
         tb = SDL_CreateGPUTransferBuffer(sDev, &ti);
         p = SDL_MapGPUTransferBuffer(sDev, tb, false);
         memcpy(p, sPending[i].px, ti.size);
@@ -1581,6 +1714,7 @@ static void frame_end(void) {
         src.transfer_buffer = tb;
         SDL_zero(dst);
         dst.texture = sPending[i].tex;
+        dst.mip_level = sPending[i].level;
         dst.w = sPending[i].w;
         dst.h = sPending[i].h;
         dst.d = 1;
@@ -1643,7 +1777,7 @@ static void frame_end(void) {
         SDL_GPUBufferBinding vb;
         SDL_GPUTextureSamplerBinding ts;
         SDL_FColor bc;
-        struct { int32_t mode[4]; float misc[4]; float rect[4]; } fu;
+        struct { int32_t mode[4]; float misc[4]; float rect[4]; float orig[4]; } fu;
 
         if (d->native >= 100) { /* a picture uploaded into this display buffer (GsGpu_FbUpload): scaled into its texture */
             SDL_GPUBlitInfo bl;
@@ -1842,6 +1976,7 @@ static void frame_end(void) {
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
         memcpy(fu.rect, d->rect, sizeof(fu.rect));
+        memcpy(fu.orig, d->orig, sizeof(fu.orig));
         if (!haveFu || memcmp(&fu, &lastFu, sizeof(fu)) != 0) {
             SDL_PushGPUFragmentUniformData(cmd, 0, &fu, sizeof(fu));
             memcpy(&lastFu, &fu, sizeof(fu));

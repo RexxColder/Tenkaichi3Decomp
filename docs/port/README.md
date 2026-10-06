@@ -1255,3 +1255,28 @@ File name: `<texture hash>-<palette hash>-<bits>.dds`, the hashes in hexadecimal
   the palettes (tint, flash, dimming), so a pack never has all of them: 3 of the 347 had a known texture hash
   with an unknown palette.
 The replacements are DXT5 at 4 times the size (512 x 512 for a 128 x 128 original).
+
+## Texture packs implemented (2026-10-06)
+
+- `port/src/gs/gs_texpack.c` (index of the `textures` folder or `BT3_TEXTURES`, PCSX2 names, DDS reader with mip
+  levels), xxHash vendored in `port/third_party/xxhash`; looked up in `texture_get` on a cache miss; switch in
+  F1 > Video (`texture_pack` in the settings file). `BT3_TEX_LOG=1` prints each lookup as found / missing with the
+  name it needs. Without a pack the picture is byte-identical to before (6 of 6 screenshots of session5).
+- What a replacement needs that an original does not (each found on the user's pack, each seen fixed):
+  1. **Filtering**: always sampled with filtering (the game asks for nearest on text and 2D art).
+  2. **2D art**: the per-GS-pixel sampling of gs.frag (misc.w) would show it at the original's resolution. A
+     replacement is sampled per output pixel instead (misc.w negative), limited to the rectangle of the sheet the
+     piece shows on the console (worked out from the primitive's vertices in `GsGpu_Draw`; rect / orig uniforms).
+     Limiting per original texel left steps on stretched logos; no limit brought back the lines along HUD panels.
+     A mirrored piece starts exactly on the boundary to its neighbour: the boundary does not count as inside.
+  3. **No mip levels for 2D art** (samplers 8..15 have them, used for 3D only): a smaller copy averages
+     neighbouring pieces of a sheet.
+  4. **Alpha test**: compression moves 0x7F to 0x7C..0x7E and filtering fades cut-out edges, so a test against the
+     exact value dropped most of a tree's leaves: for a replacement the line is at half the reference (mode.x = 3).
+  5. **Bit 7 of the written alpha** (the health bar): its layers are drawn with the destination alpha test, each
+     writing its texture's alpha; the original stays at 0x7F, the pack's redrawn sheet reaches 0x80..0x8E near
+     one end, so the first layer set bit 7 there and the next was not drawn (seen in 16:9, by luck not in 4:3).
+     A replacement's alpha is kept at or below the ORIGINAL's largest (`TexPack_Lookup` returns it; orig.z).
+- Not done: PNG; textures smaller than one block; loading in the background (files are read when first needed);
+  choosing between a pack's alternative folders (first name found wins); a pack on the Windows program has not
+  been run.

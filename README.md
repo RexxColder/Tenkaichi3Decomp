@@ -13,6 +13,7 @@ game's data from it, and it stays on your computer.
 - A GPU renderer (Vulkan) with the PS2's effects (outline, glow, depth tint, distance blur), each switchable.
 - Internal resolution from 1x to 8x; 4:3, 16:9, 21:9 and wider without stretching the fight.
 - Music, voices and sound effects; keyboard and controllers, fully rebindable; two players.
+- Texture packs made for PCSX2 (`.dds`): copied into the `textures` folder next to the game, they are used as they are.
 - In the game, **F1** opens the settings. Its Cheats tab has "Unlock everything" (a debug function the game's
   developers left in: all characters, stages, music, items and Zenni).
 

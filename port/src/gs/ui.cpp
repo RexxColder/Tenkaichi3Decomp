@@ -209,6 +209,19 @@ static void video_tab(PortVideo &v) {
     }
     ImGui::SetItemTooltip("Takes effect the next time the game starts.");
     SDL_free(displays);
+    ImGui::Spacing();
+    if (v.texPackCount > 0) {
+        bool on = v.texPack != 0;
+        snprintf(label, sizeof(label), "Texture pack (%d textures)", v.texPackCount);
+        if (ImGui::Checkbox(label, &on)) { v.texPack = on; }
+        ImGui::SetItemTooltip("Replacement textures from the folder \"textures\" next to the game.");
+    } else {
+        ImGui::BeginDisabled();
+        bool off = false;
+        ImGui::Checkbox("Texture pack (none found)", &off);
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("Put a pack's files (PCSX2 naming, .dds) into a folder \"textures\" next to the game.");
+    }
 }
 
 static void effects_tab(PortVideo &v) {

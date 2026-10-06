@@ -29,12 +29,23 @@ README = """Dragon Ball Z: Budokai Tenkaichi 3 - PC port (Linux, 64-bit)
 
 In the game, F1 opens the settings: resolution, widescreen, controls and sound.
 Saves are kept in saves/. A file placed in gamedata/mods/<same path as the original> replaces the original.
+Texture packs (PCSX2 naming, .dds) go into textures/: see the note there.
 
 This package contains no game data. The game's data comes from your disc and stays on your computer.
 """
 
 WIN_README = README.replace("(Linux, 64-bit)", "(Windows, 64-bit)").replace("Start  Tenkaichi3Decomp-setup\n", "Start  Tenkaichi3Decomp-setup.exe\n") \
     .replace("start  Tenkaichi3Decomp-setup  again and press Play, or run  ./play.sh", "start  Tenkaichi3Decomp-setup.exe  again and press Play, or run  play.bat")
+
+TEXTURES_NOTE = """Texture packs go here.
+
+Put a pack's replacement textures into this folder, in subfolders or not: the game looks through all of it when it
+starts. The files have to be named the way the PCSX2 emulator names texture replacements for this game
+(for example 1dd4c76113969303-56e3d4469d2ad392-00005e54.dds), so a pack made for PCSX2 can be copied in as it is.
+Read so far: .dds files (DXT1, DXT3, DXT5 or plain 32-bit).
+
+In the game, F1 > Video has a switch for the pack.
+"""
 
 def take_program(exe, out):
     """The program without the game's data, and its list, into the release folder. A program built from the blank
@@ -81,6 +92,9 @@ def main_win():
     lic.mkdir()
     shutil.copy2(ROOT / "port/third_party/imgui/LICENSE.txt", lic / "dear-imgui.txt")
     shutil.copy2(ROOT / "port/third_party/newlib_libm/COPYING.NEWLIB", lic / "newlib.txt")
+    shutil.copy2(ROOT / "port/third_party/xxhash/LICENSE", lic / "xxhash.txt")
+    (out / "textures").mkdir()
+    (out / "textures/README.txt").write_text(TEXTURES_NOTE.replace("\n", "\r\n"))
     (lic / "sdl3.txt").write_text("SDL3 (SDL3.dll) is distributed under the zlib license: https://www.libsdl.org/license.php\n")
     for f in (out / "Tenkaichi3Decomp.exe", out / "Tenkaichi3Decomp-setup.exe"):
         subprocess.run([toolchain.PREFIX + "strip", "--strip-debug", str(f)], check=False)
@@ -117,6 +131,9 @@ def main():
     lic.mkdir()
     shutil.copy2(ROOT / "port/third_party/imgui/LICENSE.txt", lic / "dear-imgui.txt")
     shutil.copy2(ROOT / "port/third_party/newlib_libm/COPYING.NEWLIB", lic / "newlib.txt")
+    shutil.copy2(ROOT / "port/third_party/xxhash/LICENSE", lic / "xxhash.txt")
+    (OUT / "textures").mkdir()
+    (OUT / "textures/README.txt").write_text(TEXTURES_NOTE)
     (lic / "sdl3.txt").write_text("SDL3 (lib/libSDL3.so.0) is distributed under the zlib license: https://www.libsdl.org/license.php\n")
     for f in (OUT / "Tenkaichi3Decomp", OUT / "Tenkaichi3Decomp-setup"):
         subprocess.run(["strip", "--strip-debug", str(f)], check=False)  # the symbol names stay (crash reports use them)
