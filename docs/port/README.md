@@ -1152,3 +1152,20 @@ program from before the changes.
 What is left in the profile, largest first: the software float add and multiply themselves (about a quarter:
 `f_mul`, `add_core`; the next step there would be the host's float instructions with the PS2's rounding, which
 needs care for determinism), the GIF packet walk, the page hash, the graphics driver (8%).
+
+## Render thread, re-tested (2026-10-06)
+
+- `BT3_GS_THREAD=1` stays opt-in. (The note above blaming it for a camera jump was wrong: that was a separate bug,
+  fixed since.) On the user's i5 VM at normal speed it ran menus and a fight correctly, the game's side of a frame
+  dropping to 3.5 to 4.1 ms; frames it draws are byte-identical to unthreaded ones (replay fight and demo fights),
+  except 4 of 121 demo-fight frames that differed in the rightmost one or two pixel columns.
+- It is NOT safe yet: played back uncapped (`session5.pad`, split screen), the threaded program stops at frame
+  2010, where the fight would begin, interpreting garbage as a vertex program. `BT3_GS_RACE=1` (new: hashes the
+  list's blocks at hand-over and again after drawing) reports 12 frames between 489 and 2015 in which the game
+  rewrote the list while it was drawn (the list "had N blocks when handed over and 1 after"), all in menus and
+  loading, none in the fight frames it reached. At normal speed the drawing is done long before the game gets
+  there; on a slow machine it would not be. Fix to try: hand the render thread its own copy of the list.
+- The old pad recordings (session1..4) no longer replay: they stall at the title screen (start-up changed since;
+  cause not found). `session5.pad` was recorded with `BT3_NOMOVIE=1` and is played back with it.
+- The speed changes of v0.1.4 re-checked on session5 (menus and a split-screen fight): 62 of 62 screenshots
+  byte-identical to the code before them.

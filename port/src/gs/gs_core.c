@@ -971,6 +971,64 @@ static uint32_t sJobTadr;
 static int sJobTte, sInitResult;
 static void run_chain(uint32_t tadr, int tte);
 
+/* BT3_GS_RACE=1 (with the render thread): finds data of a frame's list that the game changes while the list is
+   being drawn. The list's blocks are hashed when the game hands the list over and again when the drawing is
+   done; a block that differs is reported with its address. */
+static struct { uint32_t tag, data, qwc, id; uint64_t hash; } sRace[2][8192];
+static uint32_t sRaceCount[2];
+
+static void race_walk(uint32_t tadr, int which) {
+    uint32_t stack[2], sp = 0, n = 0;
+    int guard;
+
+    for (guard = 0; guard < 8192; guard++) {
+        const uint32_t *tag = (const uint32_t *)(uintptr_t)tadr, *data;
+        uint32_t qwc = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7, addr = tag[1], i;
+        uint64_t h = 1469598103934665603ull;
+        int end = 0;
+
+        switch (id) {
+        case 0: data = (const uint32_t *)(uintptr_t)addr; end = 1; break;
+        case 1: data = tag + 4; tadr += 16 + qwc * 16; break;
+        case 2: data = tag + 4; tadr = addr; break;
+        case 3: case 4: data = (const uint32_t *)(uintptr_t)addr; tadr += 16; break;
+        case 5: data = tag + 4; if (sp < 2) { stack[sp++] = tadr + 16 + qwc * 16; } tadr = addr; break;
+        case 6: data = tag + 4; if (sp > 0) { tadr = stack[--sp]; } else { end = 1; } break;
+        default: data = tag + 4; end = 1; break;
+        }
+        for (i = 0; i < 4; i++) {
+            h = (h ^ tag[i]) * 1099511628211ull;
+        }
+        for (i = 0; i < qwc * 4; i++) {
+            h = (h ^ data[i]) * 1099511628211ull;
+        }
+        sRace[which][n].tag = (uint32_t)(uintptr_t)tag;
+        sRace[which][n].data = (uint32_t)(uintptr_t)data;
+        sRace[which][n].qwc = qwc;
+        sRace[which][n].id = id;
+        sRace[which][n].hash = h;
+        n++;
+        if (end) {
+            break;
+        }
+    }
+    sRaceCount[which] = n;
+}
+
+static void race_compare(void) {
+    uint32_t i, shown = 0;
+    if (sRaceCount[0] != sRaceCount[1]) {
+        fprintf(stderr, "race: frame %u: the list had %u blocks when handed over and %u after drawing\n", sFrame, sRaceCount[0], sRaceCount[1]);
+    }
+    for (i = 0; i < sRaceCount[0] && i < sRaceCount[1] && shown < 6; i++) {
+        if (sRace[0][i].hash != sRace[1][i].hash || sRace[0][i].tag != sRace[1][i].tag) {
+            fprintf(stderr, "race: frame %u: block %u of %u changed while drawn: tag at %08x id %u, %u quadwords of data at %08x\n", sFrame, i,
+                    sRaceCount[0], sRace[0][i].tag, sRace[0][i].id, sRace[0][i].qwc, sRace[0][i].data);
+            shown++;
+        }
+    }
+}
+
 static void *render_thread(void *arg) {
     (void)arg;
     pthread_mutex_lock(&sLock);
@@ -985,6 +1043,10 @@ static void *render_thread(void *arg) {
             int tte = sJobTte;
             pthread_mutex_unlock(&sLock);
             run_chain(tadr, tte);
+            if (getenv("BT3_GS_RACE") != NULL) {
+                race_walk(tadr, 1);
+                race_compare();
+            }
             pthread_mutex_lock(&sLock);
         }
         sJob = 0;
@@ -1198,6 +1260,9 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     }
     start = t;
     if (sThreaded) {
+        if (getenv("BT3_GS_RACE") != NULL) {
+            race_walk(tadr, 0);
+        }
         render_post(2, tadr, tte);
     }
 }
