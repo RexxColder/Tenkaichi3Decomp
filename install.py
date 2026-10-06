@@ -327,8 +327,8 @@ def step_test(args, exe):
         return
     s = Step("Self-test")
     s.note = "the game's demo fight, no window"
-    env = dict(os.environ, BT3_DEMO="1", BT3_SETTINGS="", BT3_SAVES=str(ROOT / "port/build/selftest_saves"))
-    for k in ("BT3_GS", "BT3_REPLAY", "BT3_PAD_PLAY", "BT3_PAD_REC"):
+    env = dict(os.environ, BT3_DEMO="1", BT3_SETTINGS="", BT3_SAVES=str(ROOT / "port/build/selftest_saves"), BT3_GS="none")
+    for k in ("BT3_REPLAY", "BT3_PAD_PLAY", "BT3_PAD_REC"):
         env.pop(k, None)
     log(f"\n$ BT3_DEMO=1 {exe}")
     try:

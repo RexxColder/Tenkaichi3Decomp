@@ -23,6 +23,7 @@
 static uint32_t sHeapNext = HEAP_FIRST, sHeapEnd = HEAP_END;
 
 #ifdef _WIN32
+#include <direct.h> /* chdir */
 /* ------------------------------------------------------------------------------------------------------ Windows
    The same needs, with Windows' means (the 64-bit build only; its pointers are 4 bytes wide, see ptr32.py):
      - the program is linked at 0x20000000 and not relocated (port/tools/link.py);
@@ -236,6 +237,34 @@ static void Port_LoadGameData(void) {
         return;
     }
     exe[n] = '\0';
+    if (gPortDataStripped == 1 && getenv("BT3_DATA") == NULL) {
+        /* A release program started from another folder (a double click, a shortcut): its data, saves and
+           settings are next to it. If there is no gamedata here but there is next to the program, work there. */
+        char dir[1024], probe[1200];
+        char *slash;
+        FILE *here = fopen("gamedata/disc/SLUS_216.78", "rb");
+        if (here != NULL) {
+            fclose(here);
+        } else {
+            snprintf(dir, sizeof(dir), "%s", exe);
+            slash = strrchr(dir, '/');
+#ifdef _WIN32
+            if (strrchr(dir, '\\') > slash) {
+                slash = strrchr(dir, '\\');
+            }
+#endif
+            if (slash != NULL) {
+                *slash = '\0';
+                snprintf(probe, sizeof(probe), "%s/gamedata/disc/SLUS_216.78", dir);
+                here = fopen(probe, "rb");
+                if (here != NULL) {
+                    fclose(here);
+                    if (chdir(dir) != 0) {
+                    }
+                }
+            }
+        }
+    }
     if (n > 4 && (strcmp(exe + n - 4, ".exe") == 0 || strcmp(exe + n - 4, ".EXE") == 0)) {
         exe[n - 4] = '\0'; /* Name.exe keeps its list in Name.dat */
     }

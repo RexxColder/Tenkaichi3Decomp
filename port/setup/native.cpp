@@ -341,7 +341,8 @@ void step_test(const std::string &root) {
     SDL_SetEnvironmentVariable(env, "BT3_DEMO", "1", true);
     SDL_SetEnvironmentVariable(env, "BT3_SETTINGS", "", true);
     SDL_SetEnvironmentVariable(env, "BT3_SAVES", saves.c_str(), true);
-    for (const char *name : {"BT3_GS", "BT3_REPLAY", "BT3_PAD_PLAY", "BT3_PAD_REC", "BT3_DATA"}) {
+    SDL_SetEnvironmentVariable(env, "BT3_GS", "none", true); // no window: a release program opens one by default
+    for (const char *name : {"BT3_REPLAY", "BT3_PAD_PLAY", "BT3_PAD_REC", "BT3_DATA"}) {
         SDL_UnsetEnvironmentVariable(env, name);
     }
     SDL_PropertiesID props = SDL_CreateProperties();

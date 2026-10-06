@@ -1094,3 +1094,8 @@ In a release the program is `Tenkaichi3Decomp` (`.exe` on Windows) with `Tenkaic
 user's request). Inside the build the programs are still `port/build/bt3`, `bt3_64`, `bt3.exe`; messages keep the
 `bt3:` prefix, and the files the game writes keep their names (`bt3_settings.txt`, `bt3_crash.txt`,
 `bt3_pipelines.txt`).
+- **Started by a double click:** a release program (flag `gPortDataStripped` = 1) opens its window when `BT3_GS` is
+  not set, and if there is no `gamedata` in the current folder but there is next to the program it works from the
+  program's folder (data, saves, settings). `BT3_GS=none` means no renderer; the setup's self-test and install.py
+  set it. A developer's build (data linked in) still draws nothing by default. Checked: the Linux release
+  started from `/` with nothing set opens the window and writes its files next to itself.

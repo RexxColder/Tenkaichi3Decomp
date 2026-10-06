@@ -940,11 +940,24 @@ static uint64_t now_ns(void) {
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
+/* Which renderer: BT3_GS = "gpu" (the window), "1" (the software reference), "none" (nothing is drawn: tests).
+   Without the variable a release program opens its window, so that it can be started by a double click; a
+   developer's build draws nothing, as the checks expect. */
+static const char *gs_mode(void) {
+    extern volatile uint32_t gPortDataStripped; /* plat_mem.c: 1 in a release program */
+    const char *m = getenv("BT3_GS");
+
+    if (m == NULL) {
+        return gPortDataStripped == 1 ? "gpu" : NULL;
+    }
+    return strcmp(m, "none") == 0 || strcmp(m, "off") == 0 || strcmp(m, "0") == 0 ? NULL : m;
+}
+
 static int gs_on(void) {
     static int on = -1;
 
     if (on < 0) {
-        on = getenv("BT3_GS") != NULL;
+        on = gs_mode() != NULL;
         tables_init();
         gs.prmodecont = 1; /* the GS starts with the attributes in PRIM */
         sDrawFrom = getenv("BT3_GS_FROM") != NULL ? atoi(getenv("BT3_GS_FROM")) : 0;
@@ -952,7 +965,7 @@ static int gs_on(void) {
         if (getenv("BT3_GS_PROBE") != NULL) {
             sscanf(getenv("BT3_GS_PROBE"), "%d,%d", &sProbeX, &sProbeY);
         }
-        if (on && strcmp(getenv("BT3_GS"), "gpu") == 0) {
+        if (on && strcmp(gs_mode(), "gpu") == 0) {
             /* BT3_GS_THREAD=1: the back end and the list run on the render thread (experimental: the game was seen
                to change data a list still refers to, which shows as a jumping camera). Default: this thread. */
             sThreaded = getenv("BT3_GS_THREAD") != NULL;
