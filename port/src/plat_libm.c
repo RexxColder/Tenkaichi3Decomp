@@ -39,3 +39,4 @@ int __ltdf2(uint64_t a, uint64_t b) { return dcmp(a, b); }
 int __ledf2(uint64_t a, uint64_t b) { return dcmp(a, b); }
 int __gtdf2(uint64_t a, uint64_t b) { return dcmp(a, b); }
 int __gedf2(uint64_t a, uint64_t b) { return dcmp(a, b); }
+int __unorddf2(uint64_t a, uint64_t b) { return d(a) != d(a) || d(b) != d(b); } /* clang asks for it; gcc does not */

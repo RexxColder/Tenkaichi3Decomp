@@ -883,3 +883,12 @@ mapping); leave locals and parameters as ordinary pointers. Layouts, file format
 then stay as they are. Checks available: every structure's size compared between the 32-bit and 64-bit builds,
 and the replay result. Open: clang instead of gcc for the game code (does the replay still match?), the
 function-pointer call sites, ARM64's arithmetic, low memory on macOS and Windows.
+- **64-bit step 1: the game code built with clang, still 32-bit** (`BT3_CC=clang` for undefined.py and link.py;
+  objects in `port/build/obj_clang`, program `port/build/bt3_clang`; the gcc build is unchanged and stays the
+  default). Result: the replay check prints the same line (`tick 2111 ... hp 23050 0`), and the whole heap at
+  that tick (7.1 million words) differs from the gcc build's in 399 words, all of them addresses (of the program
+  image or of host allocations). Needed for it: preprocessed input passed as `-x cpp-output`; `-mno-x87`;
+  `-Wno-error=return-mismatch` (three old-style functions); `__unorddf2` (plat_libm.c); and in `StgPanBlur_DrawView`
+  two float -> u64 conversions written through u32 under `PORT`, because clang's 32-bit software-float code
+  generator stops with an internal error on any float -> 64-bit integer conversion (the 64-bit target compiles
+  them). Only the windowless replay was run with the clang build; it has not been played.

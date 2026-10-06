@@ -416,7 +416,14 @@ void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
     p[0] = 0x116;
     p[1] = GS_PRIM;
     p += 2;
+#ifdef PORT
+    /* clang's software-float code generator cannot convert a float to a 64-bit integer on 32-bit x86 (it stops
+       with an internal error; the 64-bit target is fine). The value is an alpha, 0..128: through 32 bits it is
+       the same. */
+    p[0] = ((u64)(u32)(view->maxAlpha * view->strength) << 24) | 0x3F80000000808080;
+#else
     p[0] = ((u64)(view->maxAlpha * view->strength) << 24) | 0x3F80000000808080;
+#endif
     p[1] = GS_RGBAQ;
     p += 2;
     {
@@ -462,7 +469,11 @@ void StgPanBlur_DrawView(StgPanBlurView *view, s32 split) {
         p[1] = 0x10;
         p += 2;
         p[0] = 0x156;
+#ifdef PORT
+        p[1] = ((u64)(u32)layer->color.w << 24) | 0x3F80000000808080; /* as above: an alpha, same value */
+#else
         p[1] = ((u64)layer->color.w << 24) | 0x3F80000000808080;
+#endif
         p += 2;
         p[0] = GIF_TAG_EX(n, 0, GIF_FLG_REGLIST, 4);
         p[1] = 0x5353;

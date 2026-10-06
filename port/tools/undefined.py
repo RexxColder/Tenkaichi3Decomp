@@ -1,24 +1,44 @@
 #!/usr/bin/env python3
 """Compile the game sources to 32-bit host objects and list what a link would still need, by kind.
 Usage: port/tools/undefined.py [-v]   (objects go to port/build/obj)"""
-import collections, concurrent.futures, pathlib, re, subprocess, sys
+import collections, concurrent.futures, os, pathlib, re, subprocess, sys
 import portsrc
 import eeconst
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-OBJ = ROOT / "port/build/obj"
+# BT3_CC=clang: the game code and everything else built with software float goes through clang instead of gcc
+# (objects in port/build/obj_clang, linked to port/build/bt3_clang). The step towards a 64-bit build, where only
+# clang can send float operations to our PS2-accurate routines.
+VARIANT = os.environ.get("BT3_CC", "gcc")
+OBJ = ROOT / ("port/build/obj" if VARIANT == "gcc" else "port/build/obj_" + VARIANT)
+
+def variant(cmd):
+    if VARIANT == "gcc" or "-msoft-float" not in cmd:
+        return cmd
+    return ["clang"] + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"]
 CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O2", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msoft-float", "-mno-sse", "-mno-mmx", "-malign-double", "-include", "port_libm.h",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
 def compile_ee(cmd, src, o):
     """Compiles src with the PS2 compiler's float constants: preprocess, eeconst.transform, compile the result."""
+    cmd = variant(cmd)
     pre = [a for a in cmd if a != "-c"] + ["-E", str(src)]
     r = subprocess.run(pre, cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         return r
     i = pathlib.Path(str(o)[:-2] + ".i")
     i.write_text(eeconst.transform(r.stdout))
+    if cmd[0] == "clang":  # no -fpreprocessed: the input is named as preprocessed, and the forced includes are dropped
+        c2, skip = [], False
+        for a in cmd:
+            if skip:
+                skip = False
+            elif a == "-include":
+                skip = True
+            else:
+                c2.append(a)
+        return subprocess.run(c2 + ["-x", "cpp-output", str(i), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
     return subprocess.run(cmd + ["-fpreprocessed", str(i), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
 
 def cc(f):
@@ -95,7 +115,7 @@ def main():
         if soft and not names:  # the port's own soft-float code: PS2 constants; the vector references are written for the host
             r = compile_ee(cmd, f, o)
         else:
-            r = subprocess.run(cmd + [str(f), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
+            r = subprocess.run(variant(cmd) + [str(f), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
             print("FAILED", f.name, r.stderr.splitlines()[0][:150])
         else:
