@@ -19,7 +19,7 @@ def link(objs, extra):
         lib = [f"-L{sdl3() / 'lib'}"] if sdl3() else []
         cmd = [PREFIX + "gcc", "-w", "-o", str(EXE)] + extra + objs + lib + \
               ["-lSDL3", "-lm", "-lwinmm", "-static-libgcc", "-Wl,-Bstatic", "-lstdc++", "-lwinpthread", "-Wl,-Bdynamic",
-               "-Wl,--image-base,0x20000000", "-Wl,--disable-dynamicbase", "-Wl,--disable-high-entropy-va", "-Wl,--wrap=main",
+               "-Wl,--image-base,0x20000000", "-Wl,--disable-dynamicbase", "-Wl,--disable-reloc-section", "-Wl,--disable-high-entropy-va", "-Wl,--wrap=main",
                "-Wl,--stack,0x1000000", "-mwindows"] + common
         return subprocess.run(cmd, capture_output=True, text=True)
     m = "-m64" if VARIANT == "clang64" else "-m32"

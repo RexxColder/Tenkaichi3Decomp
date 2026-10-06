@@ -112,7 +112,8 @@ static LONG WINAPI on_crash(EXCEPTION_POINTERS *e) {
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-__attribute__((constructor)) static void crash_init(void) {
+/* (priority 101: before the other start-up code of the port, which reads the game data and reserves memory) */
+__attribute__((constructor(101))) static void crash_init(void) {
     /* The program is a window program (no console window of its own). Started from a terminal, its messages go
        to that terminal; started by the setup with a pipe, the pipe is kept. */
     if (GetStdHandle(STD_OUTPUT_HANDLE) == NULL && AttachConsole(ATTACH_PARENT_PROCESS)) {

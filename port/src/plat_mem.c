@@ -345,6 +345,25 @@ static void Port_LoadGameData(void) {
 }
 
 __attribute__((constructor)) static void Port_MapMemory(void) {
+#ifdef _WIN32
+    /* The program only works at the address it was linked for (the game's pointers are 4 bytes and absolute). It
+       carries no relocation table, so Windows has to load it there; should it be somewhere else all the same (a
+       system set to move every program, "Mandatory ASLR", moved builds that still had the table: a crash at the
+       first write, before anything was printed), say so instead of crashing. */
+    if ((uintptr_t)GetModuleHandleA(NULL) != 0x20000000u) {
+        static const char msg[] = "Tenkaichi3Decomp was loaded at a different address than the one it needs (0x20000000) and cannot run.\n"
+                                  "If \"Force randomization for images (Mandatory ASLR)\" is switched on in Windows Security > App & browser "
+                                  "control > Exploit protection, switch it off for this program.\n";
+        HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
+        DWORD done;
+        if (err != NULL && err != INVALID_HANDLE_VALUE) {
+            WriteFile(err, msg, sizeof(msg) - 1, &done, NULL);
+        } else {
+            MessageBoxA(NULL, msg, "Tenkaichi3Decomp", MB_OK | MB_ICONERROR);
+        }
+        ExitProcess(4);
+    }
+#endif
     gPortStage = "reading the game's programs from gamedata";
     Port_LoadGameData();
     gPortStage = "reserving the game's memory";
