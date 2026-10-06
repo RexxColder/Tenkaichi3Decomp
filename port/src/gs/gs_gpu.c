@@ -987,6 +987,19 @@ static int draw_state(int ctx, int topo, int sprite, int vu, Draw *d, float *us,
             }
         }
         if (Gs_PsmBits(fpsm) == 16 || fbp == zbp) {
+            if (fbp != zbp && fbp != (uint32_t)gGsMainFbp) {
+                /* A work buffer drawn through a 16-bit view (the outline's edge image): not drawable here, but
+                   the game has now written the buffer, so whatever samples it next means this buffer and not the
+                   stage textures that share its address. Without this the outline's later passes read those
+                   textures as its mask whenever nothing else had drawn into the buffer since the last upload
+                   (split screen: blocks of noise over the picture). */
+                int t = target_get(fbp, 1);
+                if (t >= 0) {
+                    sTargets[t].stale = 1;
+                    sTargets[t].cleared = 1;
+                    sTargets[t].gen = gGsPageGen[fbp & 511];
+                }
+            }
             sSkipped++;
             return 0;
         }
@@ -1483,6 +1496,17 @@ static void frame_end(void) {
     if (getenv("BT3_GS_VERBOSE") != NULL && gGsFrame % 30 == 0) {
         fprintf(stderr, "gpu: frame %u: %u draws, %u vertices, %d targets, %d textures, %d pipelines, %u primitives of PS2-only passes dropped, %u native effects\n",
                 gGsFrame, sDrawCount, sVertCount + sVuVertCount, sTargetCount, sTexCount, sPipeCount, sSkipped, sNative);
+    }
+    if (getenv("BT3_GPU_CUT") != NULL && (int)gGsFrame == atoi(getenv("BT3_GPU_CUT")) && strchr(getenv("BT3_GPU_CUT"), ':') != NULL) {
+        /* BT3_GPU_CUT=<frame>:<n>: only the first n draws of that frame (finding the draw that spoils a picture) */
+        uint32_t n = (uint32_t)atoi(strchr(getenv("BT3_GPU_CUT"), ':') + 1);
+        fprintf(stderr, "cut: frame %u has %u draws, keeping %u\n", gGsFrame, sDrawCount, n < sDrawCount ? n : sDrawCount);
+        if (n < sDrawCount) {
+            const Draw *d = &sDraws[n];
+            fprintf(stderr, "cut: first dropped draw: native %d target %d (fbp %03x) vu %d count %u tex_is_target %d mode %d %d %d %d\n", d->native,
+                    d->target, d->target >= 0 ? sTargets[d->target].fbp : 0, d->vu, d->count, d->tex_is_target, d->mode[0], d->mode[1], d->mode[2], d->mode[3]);
+            sDrawCount = n;
+        }
     }
     if (getenv("BT3_GPU_TAIL") != NULL && (int)gGsFrame == atoi(getenv("BT3_GPU_TAIL"))) { /* the frame's last draws */
         uint32_t k;

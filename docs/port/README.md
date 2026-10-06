@@ -843,3 +843,12 @@ with a third of the interpreter's work gone.
   window's picture with the settings window on it. Checked that way: all four tabs draw. NOT checked (needs a
   person): clicking, rebinding a key and a controller button, controller assignment with real controllers, the
   second player on the keyboard.
+- **Split screen: blocks of noise over both views** (user's `session3.pad`; GPU renderer only, 4:3 and 16:9; the
+  software reference was clean). Found with the new `BT3_GPU_CUT=<frame>:<n>` (only the first n draws of a
+  frame) and a bisection: the outline's own PS2 passes. `ObjOutline_Draw` builds its edge image in work buffer
+  0x150 through a 16-bit view (dropped here, the outline is native), then copies it into the frame's alpha and
+  darkens by that alpha. Buffer 0x150 shares its address with the stage textures (tbp 0x2A00); the later passes
+  were only recognised as "reads the buffer" if something had drawn into it since the last texture upload. In a
+  single view the glare does; in split screen nothing had, so the copy read stage texture data as the mask. Fix:
+  a dropped 16-bit-view pass now marks the buffer as written (and stale), so its readers are dropped too.
+  Confirmed by the user in play; the replay check is unchanged. Not re-captured by me afterwards.
