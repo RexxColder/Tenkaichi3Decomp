@@ -1236,3 +1236,22 @@ and a processor from before 2015.
   with registers, module names and `gPortStage` (the last start-up step); stdout / stderr unbuffered on Windows;
   the setup's `install.log` ends with the game's exit code and includes `bt3_crash.txt`.
   Test switches: `BT3_CRASH_TEST=1`, `BT3_STACK_TEST=1` (forces the move to a low stack).
+
+## Texture packs: how PCSX2 names a replacement (found 2026-10-06, nothing implemented yet)
+
+Worked out against a user's 18,700-file DDS pack for this game and a dump of the textures the port decodes
+(menus and a fight, `session5.pad`): 320 of 347 paletted textures have a file in the pack under this rule.
+
+File name: `<texture hash>-<palette hash>-<bits>.dds`, the hashes in hexadecimal WITHOUT leading zeros, bits as 8 digits.
+- texture hash = XXH3 (64 bits, seed 0) over the texture's raw 256-byte GS memory BLOCKS, block after block in
+  row-major block order over the texture's rectangle (a block is 16 x 16 pixels of 8 bits, 32 x 16 of 4 bits):
+  the data as it lies in GS memory, not unswizzled. (Seen from two blank textures of different formats sharing
+  one hash; unswizzled pixels match nothing but blank textures.)
+- palette hash = XXH3 over the palette's 32-bit entries, in index order: for most files only from the lowest to
+  the highest index the texture uses; for 63 of the 320 the whole palette (16 or 256 entries) matched and the
+  range did not (which rule applies when is not worked out; both can simply be looked up).
+- bits = PSM | log2(width) << 6 | log2(height) << 10 | TCC << 14 (the TEXA fields above are zero for these).
+- One texture comes with many palettes in the pack (Goku: 127 files, few texture hashes): the game paints into
+  the palettes (tint, flash, dimming), so a pack never has all of them: 3 of the 347 had a known texture hash
+  with an unknown palette.
+The replacements are DXT5 at 4 times the size (512 x 512 for a 128 x 128 original).
