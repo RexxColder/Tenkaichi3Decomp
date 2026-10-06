@@ -1281,3 +1281,8 @@ The replacements are DXT5 at 4 times the size (512 x 512 for a 128 x 128 origina
 - Not done: textures smaller than one block; loading in the background (files are read when first needed);
   choosing between a pack's alternative folders (first name found wins); a pack on the Windows program has not
   been run.
+- A user's PNG pack (1,501 files, 1.8 GB) run on session5 in 16:9: 1,497 indexed (4 with other names skipped), 17
+  files used, picture correct. Loading is felt: 404 ms for a frame with 38 new textures, 231 ms for one with 20
+  (PNG decoding and the mip levels, about 10 ms a texture). Loading in the background (the original shown until
+  the replacement is ready) would remove that; **left as it is for now by the user's decision (2026-10-06)**: a
+  short freeze instead of a visible swap.
