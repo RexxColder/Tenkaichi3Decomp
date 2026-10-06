@@ -1474,6 +1474,13 @@ static void frame_end(void) {
     SDL_Event ev;
     Uint32 sw = 0, sh = 0;
     int cur = -1, best = -1, bound = -1, i;
+    bool acquired;
+    uint64_t sEndT[5];
+    int lastPipe = -1, lastUni = -1, lastSampler = -1, haveFu = 0, haveScissor = 0; /* what the pass has set (the replay loop) */
+    SDL_GPUTexture *lastTex = NULL;
+    struct { int32_t mode[4]; float misc[4]; float rect[4]; } lastFu;
+    SDL_Rect lastScissor;
+    float lastBlend = -1.0f;
     uint32_t n;
 
     while (SDL_PollEvent(&ev)) {
@@ -1527,6 +1534,7 @@ static void frame_end(void) {
             }
         }
     }
+    sEndT[0] = gpu_now();
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
     copy = SDL_BeginGPUCopyPass(cmd);
@@ -1627,7 +1635,9 @@ static void frame_end(void) {
     }
     SDL_EndGPUCopyPass(copy);
     gGsFbUploads = 0;
+    sEndT[1] = gpu_now();
     /* replay the frame */
+    lastPipe = lastUni = lastSampler = -1;
     for (n = 0; n < sDrawCount; n++) {
         const Draw *d = &sDraws[n];
         SDL_GPUBufferBinding vb;
@@ -1796,6 +1806,10 @@ static void frame_end(void) {
             pass = SDL_BeginGPURenderPass(cmd, cts, 2, &dt);
             cur = d->target;
             bound = -1;
+            lastPipe = lastUni = lastSampler = -1; /* a new pass: everything is set again */
+            lastTex = NULL;
+            haveFu = haveScissor = 0;
+            lastBlend = -1.0f;
         }
         if (bound != (d->vu != 0)) {
             vb.buffer = d->vu ? sVuVbuf : sVbuf;
@@ -1803,25 +1817,46 @@ static void frame_end(void) {
             SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
             bound = d->vu != 0;
         }
-        if (d->vu) {
+        /* Only what changed since the previous draw is set again: most of a frame's 2,000 draws differ from their
+           neighbour in one thing (the matrix, or the texture), and each call below costs time in the graphics
+           driver (a texture binding makes the library write a new descriptor set). */
+        if (d->vu && (int)d->uniform != lastUni) {
             SDL_PushGPUVertexUniformData(cmd, 0, &sVuUni[d->uniform], sizeof(Vu0Uniform));
+            lastUni = (int)d->uniform;
         }
-        SDL_BindGPUGraphicsPipeline(pass, sPipes[d->pipeline].p);
-        {
+        if ((int)d->pipeline != lastPipe) {
+            SDL_BindGPUGraphicsPipeline(pass, sPipes[d->pipeline].p);
+            lastPipe = (int)d->pipeline;
+        }
+        if (d->tex != lastTex || (int)d->sampler != lastSampler) {
             SDL_GPUTextureSamplerBinding two[2];
+            lastTex = d->tex;
+            lastSampler = (int)d->sampler;
             two[0].texture = d->tex;
             two[0].sampler = sSamplers[d->sampler];
             two[1].texture = sDateCopy;
             two[1].sampler = sSamplers[6];
             SDL_BindGPUFragmentSamplers(pass, 0, two, 2);
         }
+        memset(&fu, 0, sizeof(fu));
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
         memcpy(fu.rect, d->rect, sizeof(fu.rect));
-        SDL_PushGPUFragmentUniformData(cmd, 0, &fu, sizeof(fu));
-        bc.r = bc.g = bc.b = bc.a = d->blendc;
-        SDL_SetGPUBlendConstants(pass, bc);
-        SDL_SetGPUScissor(pass, &d->scissor);
+        if (!haveFu || memcmp(&fu, &lastFu, sizeof(fu)) != 0) {
+            SDL_PushGPUFragmentUniformData(cmd, 0, &fu, sizeof(fu));
+            memcpy(&lastFu, &fu, sizeof(fu));
+            haveFu = 1;
+        }
+        if (d->blendc != lastBlend) {
+            bc.r = bc.g = bc.b = bc.a = d->blendc;
+            SDL_SetGPUBlendConstants(pass, bc);
+            lastBlend = d->blendc;
+        }
+        if (!haveScissor || memcmp(&d->scissor, &lastScissor, sizeof(SDL_Rect)) != 0) {
+            SDL_SetGPUScissor(pass, &d->scissor);
+            lastScissor = d->scissor;
+            haveScissor = 1;
+        }
         SDL_DrawGPUPrimitives(pass, d->count, 1, d->first, 0);
     }
     if (pass != NULL) {
@@ -1836,7 +1871,10 @@ static void frame_end(void) {
     for (i = 0; best < 0 && i < sTargetCount; i++) {
         best = i;
     }
-    if (SDL_WaitAndAcquireGPUSwapchainTexture(cmd, sWindow, &swap, &sw, &sh) && swap != NULL && best >= 0 && sTargets[best].cleared) {
+    sEndT[2] = gpu_now();
+    acquired = SDL_WaitAndAcquireGPUSwapchainTexture(cmd, sWindow, &swap, &sw, &sh);
+    sEndT[3] = gpu_now();
+    if (acquired && swap != NULL && best >= 0 && sTargets[best].cleared) {
         SDL_GPUBlitInfo bl;
         SDL_zero(bl);
         bl.source.texture = sTargets[best].color;
@@ -1940,7 +1978,27 @@ static void frame_end(void) {
             }
         }
     }
+    sEndT[4] = gpu_now();
     SDL_SubmitGPUCommandBuffer(cmd);
+    {   /* BT3_GS_VERBOSE: once a second, where the end of the frame spends its time */
+        static uint64_t sum[5];
+        static int count;
+        uint64_t now = gpu_now();
+        sum[0] += sEndT[1] - sEndT[0];
+        sum[1] += sEndT[2] - sEndT[1];
+        sum[2] += sEndT[3] - sEndT[2];
+        sum[3] += sEndT[4] - sEndT[3];
+        sum[4] += now - sEndT[4];
+        if (++count == 60) {
+            if (getenv("BT3_GS_VERBOSE") != NULL) {
+                fprintf(stderr, "time:   of ending the frame: uploads %.2f ms, issuing the draws %.2f, waiting for the screen's buffer %.2f, "
+                                "showing %.2f, handing over to the driver %.2f\n",
+                        (double)sum[0] / 60e6, (double)sum[1] / 60e6, (double)sum[2] / 60e6, (double)sum[3] / 60e6, (double)sum[4] / 60e6);
+            }
+            count = 0;
+            memset(sum, 0, sizeof(sum));
+        }
+    }
     /* BT3_SHOT=<n>: every n frames, read the shown buffer back and write port/build/shots/gpu_NNNNN.ppm */
     {
         static int every = -1;
