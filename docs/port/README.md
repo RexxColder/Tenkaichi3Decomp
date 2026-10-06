@@ -828,3 +828,18 @@ with a third of the interpreter's work gone.
   effects. Written by the overlay on every change and by F11; read at start, where an environment variable still
   wins. Checked with scripted keys and a scratch file: changed values written, next start came up at the saved
   resolution. Test runs should set `BT3_SETTINGS=` so the player's file neither changes them nor is changed.
+- **Settings window** (F1; replaces the text overlay of the entry above, whose font tool and `BT3_KEYS` /
+  `BT3_OV_DUMP` hooks are gone): `port/src/gs/ui.cpp` with Dear ImGui 1.92.9b (MIT, `port/third_party/imgui`, SDL3
+  + SDL_GPU back ends; the build now has C++: `g++ -m32` in undefined.py, `-lstdc++` in link.py, the library only
+  recompiled when it changes). Mouse-driven; tabs Video (resolution, aspect, full screen, display for the next
+  start), Effects, Audio, Controls. `ui.h` is the C interface: `GsGpu_GetSettings` / `GsGpu_SetSettings`
+  (`PortVideo`) and the bindings of gs_input.c.
+- **Bindings** (gs_input.c): per player one key per action (16 buttons + 8 stick directions), one controller
+  button or trigger per pad button, and a controller slot (n-th connected controller or none); sticks pass
+  through. Saved as `key_p1_cross`, `pad_p1_cross`, `padslot_p1` ... in the settings file. Click a binding, press
+  the key or button; Esc keeps, Delete clears. While the window is open the keyboard does not reach the game;
+  while it waits for a binding nothing does. Esc closes the window if it is open, else quits as before.
+- Testing hooks: `BT3_UI_OPEN=<tab>` opens the window at start on a tab, `BT3_UI_SHOT=<frame>:<file.ppm>` writes the
+  window's picture with the settings window on it. Checked that way: all four tabs draw. NOT checked (needs a
+  person): clicking, rebinding a key and a controller button, controller assignment with real controllers, the
+  second player on the keyboard.

@@ -72,6 +72,20 @@ def main():
             print("FAILED", f.name, "\n".join(l for l in r.stderr.splitlines() if "error" in l)[:400])
         else:
             objs.append(str(o))
+    # C++: the settings window (port/src/gs/ui.cpp) and Dear ImGui. The library is only compiled when it changed.
+    imgui = ROOT / "port/third_party/imgui"
+    for f in sorted(imgui.glob("*.cpp")) + sorted((ROOT / "port/src/gs").glob("*.cpp")):
+        o = OBJ / ("cxx_" + f.stem + ".o")
+        if f.parent == imgui and o.exists() and o.stat().st_mtime > f.stat().st_mtime:
+            objs.append(str(o))
+            continue
+        r = subprocess.run(["g++", "-m32", "-std=c++17", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-exceptions",
+                            "-fno-rtti", "-w", f"-I{imgui}", f"-I{ROOT / 'port/src/gs'}", str(f), "-o", str(o)], cwd=ROOT,
+                           capture_output=True, text=True)
+        if r.returncode:
+            print("FAILED", f.name, "\n".join(l for l in r.stderr.splitlines() if "error" in l)[:600])
+        else:
+            objs.append(str(o))
     for f in [ROOT / "src/port/vu0_a.c", ROOT / "src/port/vu0_b.c"] + sorted((ROOT / "port/src").glob("*.c")):
         o = OBJ / ("pc_" + f.stem + ".o")
         names = ["-include", "vu0_names.h", "-DREF_VU0_EXTERN_ARITH"] if f.parent.name == "port" and f.parent.parent.name == "src" else []

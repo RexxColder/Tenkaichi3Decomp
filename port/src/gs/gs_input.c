@@ -1,59 +1,169 @@
 /*
  * Controller input for the windowed PC build: fills the game's pad buffer (the libpad2 layout the game reads in
- * src/sys/pad.c) from the keyboard and from SDL gamepads.
+ * src/sys/pad.c) from the keyboard and from SDL gamepads, through bindings the settings window (ui.cpp) edits and
+ * the settings file keeps.
  *
- * Player 1: the keyboard and the first gamepad together. Player 2: the second gamepad.
- * Keyboard:  arrows = d-pad        W A S D = left stick       Enter = START      Right Shift = SELECT
- *            K = cross   L = circle   J = square   I = triangle
- *            U = L1   O = R1   7 = L2   9 = R2
- * Gamepad: the usual layout (south = cross, east = circle, west = square, north = triangle, triggers = L2 / R2).
- * The pressure bytes of the buffer are left at zero.
+ * Each player has: one key per action (the 16 buttons and the 8 stick directions), one controller button or
+ * trigger per pad button, and a controller slot (the n-th connected controller, or none). Defaults:
+ *   player 1   first controller; arrows = d-pad, W A S D = left stick, Enter = START, Right Shift = SELECT,
+ *              K = cross, L = circle, J = square, I = triangle, U = L1, O = R1, 7 = L2, 9 = R2
+ *   player 2   second controller, no keys
+ *   controller the usual layout (south = cross, east = circle, west = square, north = triangle, triggers = L2 / R2)
+ * The sticks of a controller are passed through. The pressure bytes of the buffer are left at zero.
  */
 #include <SDL3/SDL.h>
-
-int gPortOverlayOpen; /* set by the renderer (gs_gpu.c) */
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "gs_internal.h"
+#include "ui.h"
+
+int gPortOverlayOpen, gPortInputCapture;
+extern int Port_Setting(const char *name, int def); /* plat_settings.c */
+extern void Port_SettingSave(const char *name, int value), Port_SettingsWrite(void);
 
 /* bits of the two button bytes together (byte 0 low), as include/sys/pad.h has them; 1 = pressed here */
 enum { B_SELECT = 0x0001, B_L3 = 0x0002, B_R3 = 0x0004, B_START = 0x0008, B_UP = 0x0010, B_RIGHT = 0x0020, B_DOWN = 0x0040,
        B_LEFT = 0x0080, B_L2 = 0x0100, B_R2 = 0x0200, B_L1 = 0x0400, B_R1 = 0x0800, B_TRIANGLE = 0x1000, B_CIRCLE = 0x2000,
        B_CROSS = 0x4000, B_SQUARE = 0x8000 };
 
-static SDL_Gamepad *sPads[2];
-static int sInit;
+/* The actions in the order the settings window lists them. 16..23: left stick up, down, left, right, then right. */
+static const struct { const char *name, *label; unsigned bit; int key; int pad; } kActions[PORT_ACTIONS] = {
+    {"up", "D-pad up", B_UP, SDL_SCANCODE_UP, SDL_GAMEPAD_BUTTON_DPAD_UP},
+    {"down", "D-pad down", B_DOWN, SDL_SCANCODE_DOWN, SDL_GAMEPAD_BUTTON_DPAD_DOWN},
+    {"left", "D-pad left", B_LEFT, SDL_SCANCODE_LEFT, SDL_GAMEPAD_BUTTON_DPAD_LEFT},
+    {"right", "D-pad right", B_RIGHT, SDL_SCANCODE_RIGHT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT},
+    {"cross", "Cross", B_CROSS, SDL_SCANCODE_K, SDL_GAMEPAD_BUTTON_SOUTH},
+    {"circle", "Circle", B_CIRCLE, SDL_SCANCODE_L, SDL_GAMEPAD_BUTTON_EAST},
+    {"square", "Square", B_SQUARE, SDL_SCANCODE_J, SDL_GAMEPAD_BUTTON_WEST},
+    {"triangle", "Triangle", B_TRIANGLE, SDL_SCANCODE_I, SDL_GAMEPAD_BUTTON_NORTH},
+    {"l1", "L1", B_L1, SDL_SCANCODE_U, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER},
+    {"r1", "R1", B_R1, SDL_SCANCODE_O, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
+    {"l2", "L2", B_L2, SDL_SCANCODE_7, PORT_PAD_LT},
+    {"r2", "R2", B_R2, SDL_SCANCODE_9, PORT_PAD_RT},
+    {"l3", "L3", B_L3, 0, SDL_GAMEPAD_BUTTON_LEFT_STICK},
+    {"r3", "R3", B_R3, 0, SDL_GAMEPAD_BUTTON_RIGHT_STICK},
+    {"start", "START", B_START, SDL_SCANCODE_RETURN, SDL_GAMEPAD_BUTTON_START},
+    {"select", "SELECT", B_SELECT, SDL_SCANCODE_RSHIFT, SDL_GAMEPAD_BUTTON_BACK},
+    {"ls_up", "Left stick up", 0, SDL_SCANCODE_W, -1}, {"ls_down", "Left stick down", 0, SDL_SCANCODE_S, -1},
+    {"ls_left", "Left stick left", 0, SDL_SCANCODE_A, -1}, {"ls_right", "Left stick right", 0, SDL_SCANCODE_D, -1},
+    {"rs_up", "Right stick up", 0, 0, -1}, {"rs_down", "Right stick down", 0, 0, -1},
+    {"rs_left", "Right stick left", 0, 0, -1}, {"rs_right", "Right stick right", 0, 0, -1},
+};
 
-static void pads_open(void) {
+static int sKeys[2][PORT_ACTIONS], sPadBtn[2][PORT_PAD_BUTTONS], sPadSlot[2];
+static pthread_once_t sLoadOnce = PTHREAD_ONCE_INIT;
+
+static void defaults(int player) {
+    int a;
+    for (a = 0; a < PORT_ACTIONS; a++) {
+        sKeys[player][a] = player == 0 ? kActions[a].key : 0;
+        if (a < PORT_PAD_BUTTONS) {
+            sPadBtn[player][a] = kActions[a].pad;
+        }
+    }
+    sPadSlot[player] = player;
+}
+
+static void load(void) {
+    char name[32];
+    int p, a;
+    for (p = 0; p < 2; p++) {
+        defaults(p);
+        for (a = 0; a < PORT_ACTIONS; a++) {
+            snprintf(name, sizeof(name), "key_p%d_%s", p + 1, kActions[a].name);
+            sKeys[p][a] = Port_Setting(name, sKeys[p][a]);
+            if (a < PORT_PAD_BUTTONS) {
+                snprintf(name, sizeof(name), "pad_p%d_%s", p + 1, kActions[a].name);
+                sPadBtn[p][a] = Port_Setting(name, sPadBtn[p][a]);
+            }
+        }
+        snprintf(name, sizeof(name), "padslot_p%d", p + 1);
+        sPadSlot[p] = Port_Setting(name, sPadSlot[p]);
+    }
+}
+
+const char *PortInput_ActionLabel(int action) { return kActions[action].label; }
+int *PortInput_Keys(int player) { pthread_once(&sLoadOnce, load); return sKeys[player]; }
+int *PortInput_PadButtons(int player) { pthread_once(&sLoadOnce, load); return sPadBtn[player]; }
+int *PortInput_PadSlot(int player) { pthread_once(&sLoadOnce, load); return &sPadSlot[player]; }
+void PortInput_ResetDefaults(int player) { pthread_once(&sLoadOnce, load); defaults(player); }
+
+void PortInput_Save(void) {
+    char name[32];
+    int p, a;
+    for (p = 0; p < 2; p++) {
+        for (a = 0; a < PORT_ACTIONS; a++) {
+            snprintf(name, sizeof(name), "key_p%d_%s", p + 1, kActions[a].name);
+            Port_SettingSave(name, sKeys[p][a]);
+            if (a < PORT_PAD_BUTTONS) {
+                snprintf(name, sizeof(name), "pad_p%d_%s", p + 1, kActions[a].name);
+                Port_SettingSave(name, sPadBtn[p][a]);
+            }
+        }
+        snprintf(name, sizeof(name), "padslot_p%d", p + 1);
+        Port_SettingSave(name, sPadSlot[p]);
+    }
+    Port_SettingsWrite();
+}
+
+/* The connected controllers, in SDL's order (the order the settings window lists them in), kept open. */
+#define MAX_PADS 8
+static struct { SDL_JoystickID id; SDL_Gamepad *pad; } sOpen[MAX_PADS];
+static SDL_JoystickID sIds[MAX_PADS];
+static int sIdCount, sInit;
+
+static void pads_refresh(void) {
+    static unsigned calls;
     SDL_JoystickID *ids;
-    int n = 0, i, k = 0;
+    int n = 0, i, k;
 
     if (!sInit) {
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         sInit = 1;
-    }
-    for (i = 0; i < 2; i++) { /* drop a pad that was unplugged */
-        if (sPads[i] != NULL && !SDL_GamepadConnected(sPads[i])) {
-            SDL_CloseGamepad(sPads[i]);
-            sPads[i] = NULL;
-        }
-    }
-    if (sPads[0] != NULL && sPads[1] != NULL) {
+    } else if (calls++ % 120 != 0) { /* look for plugged and unplugged controllers about once a second */
         return;
     }
     ids = SDL_GetGamepads(&n);
-    for (i = 0; ids != NULL && i < n && k < 2; i++) {
-        if ((sPads[0] != NULL && SDL_GetGamepadID(sPads[0]) == ids[i]) || (sPads[1] != NULL && SDL_GetGamepadID(sPads[1]) == ids[i])) {
-            continue;
-        }
-        for (k = 0; k < 2 && sPads[k] != NULL; k++) {
-        }
-        if (k < 2) {
-            sPads[k] = SDL_OpenGamepad(ids[i]);
-        }
+    sIdCount = 0;
+    for (i = 0; ids != NULL && i < n && sIdCount < MAX_PADS; i++) {
+        sIds[sIdCount++] = ids[i];
     }
     SDL_free(ids);
+    for (k = 0; k < MAX_PADS; k++) { /* close the ones that are gone */
+        for (i = 0; i < sIdCount && sIds[i] != sOpen[k].id; i++) {
+        }
+        if (sOpen[k].pad != NULL && i == sIdCount) {
+            SDL_CloseGamepad(sOpen[k].pad);
+            sOpen[k].pad = NULL;
+        }
+    }
+    for (i = 0; i < sIdCount; i++) { /* open the new ones */
+        for (k = 0; k < MAX_PADS && !(sOpen[k].pad != NULL && sOpen[k].id == sIds[i]); k++) {
+        }
+        if (k == MAX_PADS) {
+            for (k = 0; k < MAX_PADS && sOpen[k].pad != NULL; k++) {
+            }
+            if (k < MAX_PADS) {
+                sOpen[k].id = sIds[i];
+                sOpen[k].pad = SDL_OpenGamepad(sIds[i]);
+            }
+        }
+    }
+}
+
+static SDL_Gamepad *pad_of(int player) {
+    int slot = sPadSlot[player], k;
+    if (slot < 0 || slot >= sIdCount) {
+        return NULL;
+    }
+    for (k = 0; k < MAX_PADS; k++) {
+        if (sOpen[k].pad != NULL && sOpen[k].id == sIds[slot]) {
+            return sOpen[k].pad;
+        }
+    }
+    return NULL;
 }
 
 /* BT3_PAD="frame:button,frame:button,...": scripted presses for player 1, each held for 4 frames from that frame
@@ -106,50 +216,47 @@ static unsigned char axis(SDL_Gamepad *g, SDL_GamepadAxis a) {
 /* Fills `data` (18 bytes) for controller port `socket`. Returns 0 when there is no window (the caller keeps the
    idle pad). */
 int Port_PadRead(int socket, unsigned char *data) {
-    static const struct { SDL_GamepadButton b; unsigned bit; } map[] = {
-        {SDL_GAMEPAD_BUTTON_BACK, B_SELECT}, {SDL_GAMEPAD_BUTTON_START, B_START}, {SDL_GAMEPAD_BUTTON_LEFT_STICK, B_L3},
-        {SDL_GAMEPAD_BUTTON_RIGHT_STICK, B_R3}, {SDL_GAMEPAD_BUTTON_DPAD_UP, B_UP}, {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, B_RIGHT},
-        {SDL_GAMEPAD_BUTTON_DPAD_DOWN, B_DOWN}, {SDL_GAMEPAD_BUTTON_DPAD_LEFT, B_LEFT}, {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, B_L1},
-        {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, B_R1}, {SDL_GAMEPAD_BUTTON_NORTH, B_TRIANGLE}, {SDL_GAMEPAD_BUTTON_EAST, B_CIRCLE},
-        {SDL_GAMEPAD_BUTTON_SOUTH, B_CROSS}, {SDL_GAMEPAD_BUTTON_WEST, B_SQUARE},
-    };
-    static const struct { SDL_Scancode k; unsigned bit; } keys[] = {
-        {SDL_SCANCODE_RSHIFT, B_SELECT}, {SDL_SCANCODE_RETURN, B_START}, {SDL_SCANCODE_UP, B_UP}, {SDL_SCANCODE_RIGHT, B_RIGHT},
-        {SDL_SCANCODE_DOWN, B_DOWN}, {SDL_SCANCODE_LEFT, B_LEFT}, {SDL_SCANCODE_7, B_L2}, {SDL_SCANCODE_9, B_R2}, {SDL_SCANCODE_U, B_L1},
-        {SDL_SCANCODE_O, B_R1}, {SDL_SCANCODE_I, B_TRIANGLE}, {SDL_SCANCODE_L, B_CIRCLE}, {SDL_SCANCODE_K, B_CROSS},
-        {SDL_SCANCODE_J, B_SQUARE},
-    };
-    unsigned btn = 0, i;
+    unsigned btn = 0;
     unsigned char rx = 0x80, ry = 0x80, lx = 0x80, ly = 0x80;
     SDL_Gamepad *g;
+    int a;
 
     if (!GsGpu_Enabled() || socket < 0 || socket > 1) {
         return 0;
     }
-    pads_open();
-    g = sPads[socket];
+    pthread_once(&sLoadOnce, load);
+    pads_refresh();
+    g = gPortInputCapture ? NULL : pad_of(socket);
     if (g != NULL) {
-        for (i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-            if (SDL_GetGamepadButton(g, map[i].b)) {
-                btn |= map[i].bit;
+        for (a = 0; a < PORT_PAD_BUTTONS; a++) {
+            int src = sPadBtn[socket][a];
+            if (src == PORT_PAD_LT ? SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 12000 :
+                src == PORT_PAD_RT ? SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 12000 :
+                src >= 0 && SDL_GetGamepadButton(g, (SDL_GamepadButton)src)) {
+                btn |= kActions[a].bit;
             }
         }
-        if (SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 12000) { btn |= B_L2; }
-        if (SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 12000) { btn |= B_R2; }
         lx = axis(g, SDL_GAMEPAD_AXIS_LEFTX); ly = axis(g, SDL_GAMEPAD_AXIS_LEFTY);
         rx = axis(g, SDL_GAMEPAD_AXIS_RIGHTX); ry = axis(g, SDL_GAMEPAD_AXIS_RIGHTY);
     }
-    if (socket == 0 && !gPortOverlayOpen) { /* the settings overlay takes the keyboard while it is open */
+    if (!gPortOverlayOpen) { /* the settings window takes the keyboard while it is open */
         const bool *ks = SDL_GetKeyboardState(NULL);
-        for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-            if (ks[keys[i].k]) {
-                btn |= keys[i].bit;
+        const int *k = sKeys[socket];
+        for (a = 0; a < PORT_PAD_BUTTONS; a++) {
+            if (k[a] > 0 && k[a] < SDL_SCANCODE_COUNT && ks[k[a]]) {
+                btn |= kActions[a].bit;
             }
         }
-        if (ks[SDL_SCANCODE_A]) { lx = 0x00; }
-        if (ks[SDL_SCANCODE_D]) { lx = 0xFF; }
-        if (ks[SDL_SCANCODE_W]) { ly = 0x00; }
-        if (ks[SDL_SCANCODE_S]) { ly = 0xFF; }
+#define HELD(n) (k[n] > 0 && k[n] < SDL_SCANCODE_COUNT && ks[k[n]])
+        if (HELD(16)) { ly = 0x00; }
+        if (HELD(17)) { ly = 0xFF; }
+        if (HELD(18)) { lx = 0x00; }
+        if (HELD(19)) { lx = 0xFF; }
+        if (HELD(20)) { ry = 0x00; }
+        if (HELD(21)) { ry = 0xFF; }
+        if (HELD(22)) { rx = 0x00; }
+        if (HELD(23)) { rx = 0xFF; }
+#undef HELD
     }
     if (socket == 0) {
         btn |= script_buttons();
