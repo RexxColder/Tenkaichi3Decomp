@@ -298,7 +298,7 @@ Use: `BT3_GS=1 BT3_SHOT=<n>` writes port/build/shots/frame_NNNNN.ppm every n fra
 uploads; `BT3_GS_VERBOSE=1` prints per-frame counts. Compiled with hardware float (it is not
 simulation code).
 
-Verified by looking at the output (docs/port/img/): the loading screen (the sword-field
+Verified by looking at the output: the loading screen (the sword-field
 mini-game, character sprite and 30 swords, correct colours and transparency) and the game
 logo overlay during the battle intro. The 3D scene is black: models go through the VU1
 vertex programs, whose data the VIF1 interpreter currently skips. About 8 frames per second
@@ -372,7 +372,7 @@ first E bit); then per batch UNPACK header (3 quadwords at TOPS) + vertices (3 q
 at TOPS + 3), MSCNT. The program's main loop: transform by the matrix in vf1..vf4 and a
 second one in vf5..vf8, divide, ftoi4, clip test with a branch to a clipper, XGKICK.
 
-Verified by looking at the GPU read-back (docs/port/img/): both fighters are drawn
+Verified by looking at the GPU read-back: both fighters are drawn
 correctly (textured, cel-shaded, with their after-images) during the battle intro, and the
 sky is drawn.
 Wrong or missing: the sky shows as vertical stripes (first_stage_sky.png), the stage itself
