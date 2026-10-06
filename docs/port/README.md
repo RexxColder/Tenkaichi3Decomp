@@ -331,7 +331,7 @@ draws, and paces to 30 frames per second. `BT3_GS=gpu` selects it (`port/run.sh`
 - SDL GPU's clip space has +Y up on every back end: the vertex shader flips y.
 Verified by reading the render target back (`BT3_SHOT=<n>` writes
 port/build/shots/gpu_NNNNN.ppm): the loading screen and the logo overlay are drawn correctly
-at twice the PS2's resolution, at full speed (docs/port/img/gpu_loading_screen.png).
+at twice the PS2's resolution, at full speed.
 The 32-bit SDL3 GPU device works on the development machine (Vulkan, NVIDIA; lib32-sdl3,
 lib32-nvidia-utils).
 
@@ -382,7 +382,7 @@ their upload generation changes).
 
 ## Renderer, step 4: the whole scene in the software reference (2026-10-06)
 
-Verified by looking at it (docs/port/img/reference_full_scene.png): the software reference
+Verified by looking at it: the software reference
 draws a complete battle frame: sky, the plains stage, both fighters, the logo overlay.
 
 What was missing, found by drawing only the first N vertices of a frame (`BT3_GS_STOP`):
@@ -443,7 +443,7 @@ everything else stays on the generic path. Step 1 of that, done:
   sampling the depth buffer's memory or a buffer's top byte as an 8-bit index; sprites that
   copy one frame buffer into another or into itself. About 240 primitives per battle frame.
   Triangles textured with a buffer are kept (the projected shadow).
-Verified by reading the render target back (docs/port/img/gpu_full_scene.png): the same
+Verified by reading the render target back: the same
 frame as the reference's, at twice the resolution: sky, stage, both fighters with their
 outlines, the shadow on the ground, the logo overlay.
 Missing on purpose until their native versions exist, so the GPU picture is brighter and
@@ -502,7 +502,7 @@ pixel's value is larger than a neighbour's. Where the ids come from (verified on
 the frame's alpha is set to 0xFF, the fighters are drawn with their part numbers as alpha,
 and that alpha is what the pass reads (on the PS2 through a copy in the depth page's top
 byte). `BT3_FX_DEBUG=1` shows the numbers instead of the lines.
-Verified by looking at the read-back (docs/port/img/gpu_full_scene.png): a dark line around
+Verified by looking at the read-back: a dark line around
 both fighters and between body parts with different table values.
 Not matched exactly: the PS2 line's thickness and strength (it draws the edge image three
 times, one line up, one down and centred, with different alphas); decoded textures keep
