@@ -1169,3 +1169,22 @@ needs care for determinism), the GIF packet walk, the page hash, the graphics dr
   cause not found). `session5.pad` was recorded with `BT3_NOMOVIE=1` and is played back with it.
 - The speed changes of v0.1.4 re-checked on session5 (menus and a split-screen fight): 62 of 62 screenshots
   byte-identical to the code before them.
+
+## Speed: what is left for later (2026-10-06)
+
+Speed is good enough for now (the user's i5 12th gen uses 8 to 10 ms of the 33.4 ms a fight frame has). Not
+started; in the order I would take them:
+
+1. **Render thread by default** (`BT3_GS_THREAD=1`): the largest gain left (the game's side of a frame fell to
+   3.5 to 4.1 ms on the i5). Blocked by the race above; to try: hand the thread its own copy of the frame's list
+   (guess: about 1 ms per frame, not measured). Afterwards also find the 4-of-121 edge-column difference.
+2. **Draw order of the two-layer character pieces**: each piece is drawn twice back to back (base, then shading:
+   pipelines 13 / 14 alternating), so nearly all of the 2,170 draws change pipeline, texture and matrix. Issuing
+   them costs 1.7 to 2.3 ms on the i5 (0.5 to 0.8 here). Sending each layer as one run would cut that, but can
+   change the picture where pieces overlap: only with screenshot comparison on every recording.
+3. **Float add / multiply with the processor's instructions** (about a quarter of what is left, all game code):
+   only after netplay's per-frame state hash exists to catch a mismatch between machines.
+4. Smaller: the GIF packet walk, the page hash (hash only what a texture lookup needs).
+
+Still to measure: a destructible stage and the big attack effects (no working recording), integrated graphics,
+and a processor from before 2015.
