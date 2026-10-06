@@ -309,15 +309,16 @@ static void stop(int mask, int id, int handle) {
 
 /* ------------------------------------------------------------ what the game calls (Sony's library functions) */
 
-typedef struct SifDmaData { void *data, *addr; int32_t size, mode; } SifDmaData;
+/* the game's structure: its two pointers are 4 bytes wide in every build (PS2 layout) */
+typedef struct SifDmaData { uint32_t data, addr; int32_t size, mode; } SifDmaData;
 
 /* sceSifSetDma: main memory -> the second processor's memory. Here both are ordinary memory. */
 uint32_t sceSifSetDma(SifDmaData *d, int count) {
     int i;
 
     for (i = 0; i < count; i++) {
-        if (d[i].addr != NULL && d[i].data != NULL && d[i].size > 0) {
-            memcpy(d[i].addr, d[i].data, (size_t)d[i].size);
+        if (d[i].addr != 0 && d[i].data != 0 && d[i].size > 0) {
+            memcpy((void *)(uintptr_t)d[i].addr, (void *)(uintptr_t)d[i].data, (size_t)d[i].size);
         }
     }
     return 1;

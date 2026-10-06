@@ -12,10 +12,21 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 VARIANT = os.environ.get("BT3_CC", "gcc")
 OBJ = ROOT / ("port/build/obj" if VARIANT == "gcc" else "port/build/obj_" + VARIANT)
 
+# BT3_CC=clang64: the same, as a 64-bit program in which the game's pointers stay 4 bytes wide (ptr32.py); objects
+# in port/build/obj_clang64, the game's data assembled again into port/build/obj_data64, program port/build/bt3_64.
+BITS64 = VARIANT == "clang64"
+
 def variant(cmd):
+    """The command for this build variant: clang for everything built with software float, 64-bit flags."""
+    if BITS64:
+        cmd = ["-m64" if a == "-m32" else a for a in cmd if a != "-malign-double"]
     if VARIANT == "gcc" or "-msoft-float" not in cmd:
         return cmd
-    return ["clang"] + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"]
+    return ["clang"] + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"] + (["-fms-extensions"] if BITS64 else [])
+
+def run(cmd, **kw):
+    return subprocess.run(variant(cmd), **kw)
+
 CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O2", "-g", "-fno-strict-aliasing", "-ffp-contract=off", "-fcommon", "-w", "-fno-pic", "-fno-stack-protector", "-fno-builtin", "-msoft-float", "-mno-sse", "-mno-mmx", "-malign-double", "-include", "port_libm.h",
       "-Iinclude", "-Iport/include", "-include", "port_compat.h"]
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
@@ -29,6 +40,14 @@ def compile_ee(cmd, src, o):
         return r
     i = pathlib.Path(str(o)[:-2] + ".i")
     i.write_text(eeconst.transform(r.stdout))
+    if BITS64 and cmd[0] == "clang" and not o.name.startswith("nl_"):  # the game's pointers: 4 bytes (not the maths library: no game text)
+        import ptr32
+        std = next((a for a in cmd if a.startswith("-std=")), "-std=gnu89")
+        try:
+            text = ptr32.transform(str(i), ["-x", "cpp-output", "-m64", std, "-fms-extensions", "-w", "-Wno-error=return-mismatch"])
+        except RuntimeError as e:
+            return subprocess.CompletedProcess(cmd, 1, "", f"ptr32: {e}\n")
+        i.write_text(text, encoding="latin-1")
     if cmd[0] == "clang":  # no -fpreprocessed: the input is named as preprocessed, and the forced includes are dropped
         c2, skip = [], False
         for a in cmd:
@@ -38,6 +57,15 @@ def compile_ee(cmd, src, o):
                 skip = True
             else:
                 c2.append(a)
+        if BITS64:  # through LLVM IR: irfix.py repairs what the code generator cannot select for 4-byte pointers
+            import irfix
+            ll = pathlib.Path(str(o)[:-2] + ".ll")
+            r = subprocess.run(c2 + ["-S", "-emit-llvm", "-x", "cpp-output", str(i), "-o", str(ll)], cwd=ROOT, capture_output=True, text=True)
+            if r.returncode:
+                return r
+            text, _ = irfix.fix(ll.read_text())
+            ll.write_text(text)
+            return subprocess.run(["llc", "-O2", "-filetype=obj", "-relocation-model=static", str(ll), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
         return subprocess.run(c2 + ["-x", "cpp-output", str(i), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
     return subprocess.run(cmd + ["-fpreprocessed", str(i), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
 
@@ -56,9 +84,18 @@ def main():
         res = list(ex.map(cc, fs))
     bad = [(f, e) for o, f, e in res if o is None]
     for f, e in bad:
-        print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l), "")[:150])
+        print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l or l.startswith("ptr32")), e.strip()[:150])[:200])
     objs = [str(o) for o, _, _ in res if o]
-    objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
+    if BITS64:  # the game's data (gen_data.py's assembly sources) assembled as 64-bit objects
+        d64 = ROOT / "port/build/obj_data64"
+        d64.mkdir(exist_ok=True)
+        for f in sorted((ROOT / "port/build/gen/data").glob("*.s")):
+            r = subprocess.run(["as", "--64", str(f), "-o", str(d64 / (f.name[:-2] + ".o"))], capture_output=True, text=True)
+            if r.returncode:
+                print("FAILED", f.name, r.stderr.splitlines()[0][:150])
+        objs += [str(o) for o in sorted(d64.glob("*.o"))]
+    else:
+        objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
     # PC-only code: the vector-library references under the game's names, and port/src.
     for f in sorted((ROOT / "port/third_party/newlib_libm").glob("*.c")):  # the PS2's maths library, software float
         o = OBJ / ("nl_" + f.stem + ".o")
@@ -85,7 +122,7 @@ def main():
     (gen / "shaders.h").write_text("/* generated from port/src/gs/shaders by port/tools/undefined.py */\n" + "".join(arrays))
     for f in sorted((ROOT / "port/src/gs").glob("*.c")):
         o = OBJ / ("gs_" + f.stem + ".o")
-        r = subprocess.run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
+        r = run(["gcc", "-m32", "-std=gnu99", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-strict-aliasing",
                             "-Wall", "-Wno-unused", "-Wno-misleading-indentation", f"-I{gen}", str(f), "-o", str(o)], cwd=ROOT,
                            capture_output=True, text=True)
         if r.returncode:
@@ -99,7 +136,7 @@ def main():
         if f.parent == imgui and o.exists() and o.stat().st_mtime > f.stat().st_mtime:
             objs.append(str(o))
             continue
-        r = subprocess.run(["g++", "-m32", "-std=c++17", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-exceptions",
+        r = run(["g++", "-m32", "-std=c++17", "-c", "-O2", "-g", "-fno-pic", "-msse2", "-mfpmath=sse", "-fno-exceptions",
                             "-fno-rtti", "-w", f"-I{imgui}", f"-I{ROOT / 'port/src/gs'}", str(f), "-o", str(o)], cwd=ROOT,
                            capture_output=True, text=True)
         if r.returncode:
@@ -115,7 +152,7 @@ def main():
         if soft and not names:  # the port's own soft-float code: PS2 constants; the vector references are written for the host
             r = compile_ee(cmd, f, o)
         else:
-            r = subprocess.run(variant(cmd) + [str(f), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
+            r = run(cmd + [str(f), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
             print("FAILED", f.name, r.stderr.splitlines()[0][:150])
         else:

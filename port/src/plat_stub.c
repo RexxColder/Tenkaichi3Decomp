@@ -11,12 +11,14 @@
 
 /* ---- second processor (IOP): heap and remote calls ---- */
 int sceSifInitIopHeap() { return 0; }
-void *sceSifAllocIopHeap(int size) { return calloc(1, (size_t)size); } /* "IOP memory": ordinary memory */
-int sceSifFreeIopHeap(void *addr) { free(addr); return 0; }
+extern void *Port_LowAlloc(size_t size); /* plat_mem.c: the game keeps these addresses in 4 bytes */
+extern void Port_LowFree(void *addr);
+void *sceSifAllocIopHeap(int size) { return Port_LowAlloc((size_t)size); } /* "IOP memory": ordinary memory */
+int sceSifFreeIopHeap(void *addr) { Port_LowFree(addr); return 0; }
 int sceSifQueryTotalFreeMemSize() { return 0x100000; }
 int sceSifQueryMaxFreeMemSize() { return 0x100000; }
 /* The bind is answered at once: sceSifClientData.serve (offset 0x24) becomes non-NULL. */
-int sceSifBindRpc(void *client, int id, int mode) { (void)id; (void)mode; *(void **)((uint8_t *)client + 0x24) = client; return 0; }
+int sceSifBindRpc(void *client, int id, int mode) { (void)id; (void)mode; *(uint32_t *)((uint8_t *)client + 0x24) = (uint32_t)(uintptr_t)client; /* a 4-byte pointer field of the game */ return 0; }
 int func_002B4AF0() { return 0; }      /* sceSifCheckStatRpc: never busy */
 /* sceSifCallRpc, sceSifSetDma, sceSdRemote: the sound effects, port/src/gs/snd_se.c */
 int sceSifDmaStat() { return -1; }     /* transfer finished */

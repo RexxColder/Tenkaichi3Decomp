@@ -78,7 +78,14 @@ int sceClose(int fd) { (void)fd; return 0; }
  * BT3_TRACE=<n>: every n vertical blanks, print the state of the fight (sequence state, battle clock words, health
  * and position of the two fighters). Read-only; called from the vertical blank (plat_stub.c).
  */
-extern struct { int state; } *gBtlSeq;
+/* A pointer variable of the game: 4 bytes wide in the 64-bit build too (port/tools/ptr32.py does this for the game's
+   own files; a declaration written in a port file has to say it itself). */
+#if defined(__x86_64__) && defined(__clang__)
+#define GAME_PTR *__ptr32 __uptr
+#else
+#define GAME_PTR *
+#endif
+extern struct { int state; } GAME_PTR gBtlSeq;
 extern int *BtlSeq_GetClock(void);
 extern int BtlCharApi_GetHp(int objId);
 extern void BtlCharApi_GetPos(int objId, float *out);

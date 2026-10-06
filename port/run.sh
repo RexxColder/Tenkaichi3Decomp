@@ -8,4 +8,5 @@ case "${1:-gamedata/validation/replay01.bin}" in
     menu) unset BT3_REPLAY BT3_DEMO ;;
     *) export BT3_REPLAY="${1:-gamedata/validation/replay01.bin}" ;;
 esac
-BT3_GS=gpu exec port/build/bt3
+# BT3_64=1 in front: the 64-bit build (port/build/bt3_64, made with BT3_CC=clang64 port/tools/undefined.py and link.py)
+BT3_GS=gpu exec port/build/bt3${BT3_64:+_64}

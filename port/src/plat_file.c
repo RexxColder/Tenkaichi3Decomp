@@ -26,6 +26,8 @@ typedef struct PortFile {
 static char sPartDir[8][64];
 char gPortMoviePath[512]; /* host path of the movie file opened last */
 int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size);
+extern void *Port_LowAlloc(size_t size); /* plat_mem.c */
+extern void Port_LowFree(void *addr);
 
 static const char *root(void) {
     const char *r = getenv("BT3_DATA");
@@ -51,7 +53,7 @@ static PortFile *open_rel(const char *rel) {
     fseek(fp, 0, SEEK_END);
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    f = calloc(1, sizeof(PortFile));
+    f = Port_LowAlloc(sizeof(PortFile)); /* the game keeps the handle in a 4-byte pointer */
     f->fp = fp;
     f->sizeSct = (int32_t)((size + SECTOR - 1) / SECTOR);
     f->stat = STAT_STOP;
@@ -140,7 +142,7 @@ void ADXF_Close(void *h) {
 
     if (f != NULL) {
         fclose(f->fp);
-        free(f);
+        Port_LowFree(f);
     }
 }
 

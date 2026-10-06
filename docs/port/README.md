@@ -896,3 +896,28 @@ function-pointer call sites, ARM64's arithmetic, low memory on macOS and Windows
   two float -> u64 conversions written through u32 under `PORT`, because clang's 32-bit software-float code
   generator stops with an internal error on any float -> 64-bit integer conversion (the 64-bit target compiles
   them). Only the windowless replay was run with the clang build; it has not been played.
+- **64-bit build works** (`BT3_CC=clang64 python3 port/tools/undefined.py && BT3_CC=clang64 python3 port/tools/link.py`
+  -> `port/build/bt3_64`; `BT3_64=1 port/run.sh ...` starts it; the 32-bit gcc build is unchanged and still the
+  default). The replay check prints the same line as the 32-bit build, the heap at that tick differs in 397 words
+  (245 addresses, 152 the uninitialised field noted above), and a recorded session (menus, island stage, fight
+  with debris and a beam) plays in the window with the same picture, at about 14.5 ms of work per frame where
+  the 32-bit build takes about 19. How it is done (nothing in the game sources was edited for it):
+  - `port/tools/ptr32.py` rewrites the preprocessed text of the game's files with libclang, three passes:
+    (1) every `*` of a declarator or type name becomes `* __ptr32 __uptr` (45,000 lines), so every structure,
+    global and local of the game keeps its PS2 size (24,234 records, typedefs and globals compared with the 32-bit
+    build: no game type differs); (2) calls through function pointers and pointers in variable argument lists get
+    casts; (3) **call arguments are evaluated right to left**, as the game's compiler and 32-bit gcc do and clang
+    does not (1,174 calls with side effects in their arguments). Without (3) `BtlKiBlast_GetSpeed`
+    (`f(chr, kind, Get(chr, &kind)->speed)`) read `kind` before it was set and clang dropped the rest of the
+    function. Text of the port's own files and of system headers is not rewritten.
+  - `port/tools/irfix.py` repairs the LLVM IR between `clang -emit-llvm` and `llc`: memory intrinsics and calls on
+    4-byte pointers, and addresses in static data (written as `i32 ptrtoint`), which LLVM 22's x86-64 code
+    generator or assembly printer reject.
+  - Memory (plat_mem.c): program linked at 0x20000000; the game's `main` runs on a thread whose stack is mapped at
+    0x60000000; `Port_LowAlloc` (mmap below 2 GB) for what the port hands to the game by address (file handles,
+    sound-bank memory); malloc kept in the break area. The game's data objects are assembled again with `as --64`.
+  - Port code that read game memory with its own 8-byte pointers: `SifDmaData` (snd_se.c), `sceSifBindRpc`
+    (plat_stub.c), `gBtlSeq` (headless.c). `port/build/scope/globals.py`-style checks found no others; more may
+    exist on paths not run yet.
+  Not done / not checked: sound in the 64-bit build (runs were silent), the movie, saving, the settings window,
+  split screen, long play; evaluation order of *operators* (only call arguments are forced); Windows, macOS, ARM64.
