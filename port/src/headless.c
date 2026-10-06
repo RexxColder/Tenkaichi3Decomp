@@ -116,18 +116,22 @@ void Port_Trace(unsigned vblanks) {
                     FILE *fp;
 
                     snprintf(name, sizeof(name), "port/build/heap_%u.bin", now);
-                    fp = fopen(name, "wb");
-                    fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
-                    fclose(fp);
+                    fp = fopen(name, "wb"); /* a developer's dump: skipped where port/build does not exist */
+                    if (fp != NULL) {
+                        fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
+                        fclose(fp);
+                    }
                     {   /* the game's global variables too: [__data_start, _end), base address first */
                         extern char __data_start[], _end[];
                         uint32_t base = (uint32_t)(uintptr_t)__data_start;
 
                         snprintf(name, sizeof(name), "port/build/glob_%u.bin", now);
                         fp = fopen(name, "wb");
-                        fwrite(&base, 4, 1, fp);
-                        fwrite(__data_start, 1, (size_t)(_end - __data_start), fp);
-                        fclose(fp);
+                        if (fp != NULL) {
+                            fwrite(&base, 4, 1, fp);
+                            fwrite(__data_start, 1, (size_t)(_end - __data_start), fp);
+                            fclose(fp);
+                        }
                         snprintf(name, sizeof(name), "port/build/heap_%u.bin", now);
                     }
                     printf("bt3: tick %u (vblank %u, seq %d): hp %d %d; %s\n", now, vblanks, gBtlSeq->state,
@@ -150,8 +154,10 @@ void Port_Trace(unsigned vblanks) {
         } else if (vblanks - since == 600) {
             FILE *fp = fopen(getenv("BT3_DUMP"), "wb");
 
-            fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
-            fclose(fp);
+            if (fp != NULL) {
+                fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
+                fclose(fp);
+            }
             clock = BtlSeq_GetClock();
             printf("bt3: end of battle: gBtlSeq %p clock %08x %08x %08x %08x hp %d %d; heap dumped\n", (void *)gBtlSeq,
                    clock[0], clock[1], clock[2], clock[3], BtlCharApi_GetHp(0), BtlCharApi_GetHp(1));

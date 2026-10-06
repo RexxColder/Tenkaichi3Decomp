@@ -18,16 +18,31 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
+#include "native.h"
 
 enum Page { PAGE_PICK, PAGE_RUN, PAGE_DONE, PAGE_FAILED };
 enum State { PENDING, RUNNING, OK, SKIPPED, FAILED };
 struct StepRow { std::string title, detail; State state = PENDING; Uint64 start = 0, end = 0; };
 struct Missing { std::string name, why, pkg; };
 
-static const char *kSteps[6] = {"Requirements", "Disc image", "Game data", "Executable data", "Build", "Self-test"};
-static const char *kStepHelp[6] = {
-    "Compilers and tools on this computer", "Your disc image is read and checked", "Models, sounds and text are unpacked",
-    "The data tables of the game's programs", "The port is compiled (a few minutes)", "The game's demo fight, without a window"};
+// The steps of the two ways to install: from a source checkout (install.py does the work and needs build tools) and
+// in a release folder (bt3 and bt3.dat next to this program: native.cpp unpacks the disc itself).
+static const char *kSourceSteps[] = {"Requirements", "Disc image", "Game data", "Executable data", "Build", "Self-test"};
+static const char *kReleaseSteps[] = {"Disc image", "Game data", "Self-test"};
+static const struct { const char *title, *help; } kHelp[] = {
+    {"Requirements", "Compilers and tools on this computer"}, {"Disc image", "Your disc image is read and checked"},
+    {"Game data", "Models, sounds and text are unpacked"}, {"Executable data", "The data tables of the game's programs"},
+    {"Build", "The port is compiled (a few minutes)"}, {"Self-test", "The game's demo fight, without a window"}};
+static bool sRelease;
+
+static const char *step_help(const std::string &title) {
+    for (auto &h : kHelp) {
+        if (title == h.title) {
+            return h.help;
+        }
+    }
+    return "";
+}
 
 static SDL_Window *sWindow;
 static SDL_GPUDevice *sDevice;
@@ -37,6 +52,7 @@ static std::string sRoot, sError, sLauncher, sLine;
 static std::vector<StepRow> sRows;
 static std::vector<Missing> sMissing;
 static SDL_Process *sProc;
+static bool sNative; // the native installer is at work (release folder)
 static std::mutex sDialogLock;
 static std::string sDialogResult;
 static bool sDialogReady, sQuit;
@@ -49,9 +65,13 @@ static bool file_exists(const char *path) {
     return path[0] != '\0' && SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_FILE;
 }
 
-// The folder that holds install.py: the program's own folder or one of its parents.
+// The folder to install into: a release folder (this program's own), or the source checkout that holds install.py.
 static std::string find_root() {
     std::string dir = SDL_GetBasePath() ? SDL_GetBasePath() : "./";
+    if (file_exists((dir + "bt3").c_str()) && file_exists((dir + "bt3.dat").c_str())) {
+        sRelease = true; // a release folder: the finished program is here, only the game data is missing
+        return dir;
+    }
     for (int up = 0; up < 4; up++) {
         if (file_exists((dir + "install.py").c_str())) {
             return dir;
@@ -85,6 +105,14 @@ static void style() {
 
 // ---------------------------------------------------------------------------------------------- the engine script
 
+static void reset_rows() {
+    size_t n = sRelease ? sizeof(kReleaseSteps) / sizeof(kReleaseSteps[0]) : sizeof(kSourceSteps) / sizeof(kSourceSteps[0]);
+    sRows.assign(n, StepRow());
+    for (size_t i = 0; i < n; i++) {
+        sRows[i].title = sRelease ? kReleaseSteps[i] : kSourceSteps[i];
+    }
+}
+
 static void start_install() {
     static std::string iso;
     const char *args[8];
@@ -92,6 +120,18 @@ static void start_install() {
     std::string script = sRoot + "install.py";
     int n = 0;
 
+    if (sRelease) {
+        SDL_DestroyProperties(props);
+        reset_rows();
+        sMissing.clear();
+        sError.clear();
+        sLauncher.clear();
+        sRunStart = SDL_GetTicks();
+        sNative = true;
+        Native_Start(sRoot, sIso);
+        sPage = PAGE_RUN;
+        return;
+    }
     iso = sIso;
     args[n++] = "python3";
     args[n++] = script.c_str();
@@ -107,10 +147,7 @@ static void start_install() {
     SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
     SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
     SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
-    sRows.assign(6, StepRow());
-    for (int i = 0; i < 6; i++) {
-        sRows[i].title = kSteps[i];
-    }
+    reset_rows();
     sMissing.clear();
     sError.clear();
     sLine.clear();
@@ -194,6 +231,32 @@ static void pump_install() {
     SDL_IOStream *out;
     int code = 0;
 
+    if (sNative) {
+        std::string line;
+        bool ended = !Native_Running(); // asked before the queue is emptied: nothing is left behind
+        while (Native_Poll(line)) {
+            event(line);
+        }
+        if (ended) {
+            sNative = false;
+            sRunEnd = SDL_GetTicks();
+            for (auto &r : sRows) {
+                if (r.state == RUNNING) {
+                    r.state = FAILED;
+                    r.end = sRunEnd;
+                }
+            }
+            if (!sLauncher.empty()) {
+                sPage = PAGE_DONE;
+            } else {
+                if (sError.empty()) {
+                    sError = "The setup stopped unexpectedly.";
+                }
+                sPage = PAGE_FAILED;
+            }
+        }
+        return;
+    }
     if (sProc == NULL) {
         return;
     }
@@ -296,9 +359,9 @@ static void page_pick() {
     if (sIso[0] != '\0' && !ok) {
         ImGui::TextColored(kRed, "That file does not exist.");
     } else if (sRoot.empty()) {
-        ImGui::TextColored(kRed, "install.py was not found next to this program.");
+        ImGui::TextColored(kRed, "Neither the game (bt3, bt3.dat) nor install.py was found next to this program.");
     } else {
-        ImGui::TextColored(kDim, "Needs about 4 GB of free space and takes 5 to 10 minutes.");
+        ImGui::TextColored(kDim, sRelease ? "Needs about 4 GB of free space and takes a minute or two." : "Needs about 4 GB of free space and takes 5 to 10 minutes.");
     }
     bottom_row(2);
     if (big_button("Close", false)) {
@@ -346,7 +409,7 @@ static void step_list() {
         ImGui::BeginGroup();
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 1.0f));
         ImGui::TextColored(r.state == PENDING ? kDim : ImGui::GetStyleColorVec4(ImGuiCol_Text), "%s", r.title.c_str());
-        ImGui::TextColored(kDim, "%s", !r.detail.empty() ? r.detail.c_str() : kStepHelp[i]);
+        ImGui::TextColored(kDim, "%s", !r.detail.empty() ? r.detail.c_str() : step_help(r.title));
         ImGui::PopStyleVar();
         ImGui::EndGroup();
         if (r.state == RUNNING) {
@@ -369,20 +432,25 @@ static void page_run() {
         done += r.state == OK || r.state == SKIPPED;
     }
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
-    ImGui::ProgressBar((float)done / 6.0f, ImVec2(-FLT_MIN, 8.0f), "");
+    ImGui::ProgressBar((float)done / (float)(sRows.empty() ? 1 : sRows.size()), ImVec2(-FLT_MIN, 8.0f), "");
     bottom_row(1);
     if (big_button("Cancel", false)) {
         if (sProc != NULL) {
             SDL_KillProcess(sProc, false);
         }
+        Native_Cancel();
         sError = "Cancelled. Finished steps are kept; Install continues from where it stopped.";
     }
 }
 
 static void page_done() {
     char sub[128];
-    snprintf(sub, sizeof(sub), "The game is installed and its demo fight ran correctly.  (%d min %d s)", (int)((sRunEnd - sRunStart) / 60000),
-             (int)((sRunEnd - sRunStart) / 1000 % 60));
+    if (sRunEnd > sRunStart) {
+        snprintf(sub, sizeof(sub), "The game is installed and its demo fight ran correctly.  (%d min %d s)", (int)((sRunEnd - sRunStart) / 60000),
+                 (int)((sRunEnd - sRunStart) / 1000 % 60));
+    } else {
+        snprintf(sub, sizeof(sub), "The game is installed.");
+    }
     heading("Ready to play", sub);
     step_list();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
@@ -395,10 +463,17 @@ static void page_done() {
     if (big_button("Play", true)) {
         const char *args[2] = {sLauncher.c_str(), NULL};
         SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_Environment *env = SDL_CreateEnvironment(true);
+        SDL_SetEnvironmentVariable(env, "BT3_GS", "gpu", true); // the window and the GPU renderer
+        SDL_UnsetEnvironmentVariable(env, "BT3_DEMO");
+        SDL_UnsetEnvironmentVariable(env, "BT3_REPLAY");
         SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
+        SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ENVIRONMENT_POINTER, env);
+        SDL_SetStringProperty(props, SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING, sRoot.c_str());
         SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
         SDL_Process *game = SDL_CreateProcessWithProperties(props);
         SDL_DestroyProperties(props);
+        SDL_DestroyEnvironment(env);
         if (game != NULL) {
             SDL_DestroyProcess(game);
             sQuit = true;
@@ -527,6 +602,29 @@ int main(int argc, char **argv) {
     ImGui_ImplSDLGPU3_InitInfo info;
     int shots = 0, shotKey = -1;
 
+    if (argc > 2 && strcmp(argv[1], "--install") == 0) {
+        // Without a window: bt3-setup --install <disc.iso>. A release folder only; prints the event lines.
+        std::string line;
+        bool ok = false;
+        SDL_Init(0);
+        sRoot = find_root();
+        if (!sRelease) {
+            fprintf(stderr, "bt3-setup --install works in a release folder (bt3 and bt3.dat next to it).\nIn a source checkout: python3 install.py --iso <file>\n");
+            return 2;
+        }
+        Native_Start(sRoot, argv[2]);
+        for (bool last = false; !last;) {
+            last = !Native_Running(); // one more round after the worker has ended: nothing is left behind
+            while (Native_Poll(line)) {
+                printf("%s\n", line.c_str());
+                fflush(stdout);
+                ok = ok || line.rfind("@done", 0) == 0;
+            }
+            SDL_Delay(50);
+        }
+        Native_Join();
+        return ok ? 0 : 1;
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "bt3-setup: %s\n", SDL_GetError());
         return 1;
@@ -555,6 +653,15 @@ int main(int argc, char **argv) {
     info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
     ImGui_ImplSDLGPU3_Init(&info);
     sRoot = find_root();
+    if (sRelease && Native_Installed(sRoot) && getenv("BT3_SETUP_ISO") == NULL) { // nothing left to do: offer Play
+        reset_rows();
+        for (auto &r : sRows) {
+            r.state = SKIPPED;
+            r.detail = "already done";
+        }
+        sLauncher = sRoot + "bt3";
+        sPage = PAGE_DONE;
+    }
     if (argc > 1) {
         SDL_strlcpy(sIso, argv[1], sizeof(sIso));
     }
@@ -623,6 +730,7 @@ int main(int argc, char **argv) {
         SDL_KillProcess(sProc, false);
         SDL_DestroyProcess(sProc);
     }
+    Native_Join();
     SDL_WaitForGPUIdle(sDevice);
     ImGui_ImplSDL3_Shutdown();
     ImGui_ImplSDLGPU3_Shutdown();

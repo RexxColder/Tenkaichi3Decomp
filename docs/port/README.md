@@ -973,3 +973,19 @@ and exit when it is drawn. It is the only game function without code in the port
   program gives the replay result of the other builds; without `bt3.dat` and without the game data it stops with a
   plain message. A developer's build (no `.dat` next to it, flag 2) is unchanged. The decompiled code itself,
   including tables written as C, is of course still in the program.
+- **Release zip** (`python3 port/tools/package.py` -> `port/build/bt3-port-linux-x64.zip`, 4.9 MB): `bt3` + `bt3.dat`
+  (stripped as above), `bt3-setup`, `lib/libSDL3.so.0` (both programs are linked with rpath `$ORIGIN/lib`),
+  `play.sh`, README, licences. No game data, no build tools needed by the user.
+- **The setup window installs natively in a release folder** (`port/setup/native.cpp`): when `bt3` and `bt3.dat`
+  are next to it, it reads the disc image itself (ISO 9660), checks the SHA-1 of both programs, writes the loose
+  files and splits the AFS archives into `gamedata/` (the layout of extract_disc.py; a marker `gamedata/.installed`
+  at the end), and runs the demo fight. Three steps instead of six; no Python, no 7z. In a source checkout it
+  still runs install.py. Started again when everything is installed, it opens on the Ready page with Play.
+  `bt3-setup --install <disc.iso>` does the same without a window and prints the event lines.
+- Checked (2026-10-06, windowless because the desktop reported no displays at that hour): the zip unpacked into an
+  empty folder, `bt3-setup --install` with the disc image: 8 seconds, 68,611 files, identical file by file
+  (`diff -rq`) to the extraction made by extract_disc.py; the demo fight ran; the replay check from that folder
+  prints the same line as the other builds. NOT checked: the window on the native path (pages, Play), which only
+  differs from the tested script path in where the events come from; another machine or distribution.
+- Fixed on the way: the developer's heap dump of `BT3_AT` wrote through a NULL file where `port/build` does not
+  exist (crash in a release folder); the last event line of the native installer could be dropped.
