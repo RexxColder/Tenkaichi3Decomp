@@ -1064,3 +1064,24 @@ Rule: release zips come from `port/release/build_linux.sh` (and the mingw cross-
   started from the menus without input): the opening plays after the logos. The sound was already separate (ADX).
 - A consequence: the movie now takes the same number of frames everywhere, so recorded sessions (`*.pad`) replay
   under Wine as on Linux (the fight of `session2.pad` starts at vertical blank 2377 on both).
+
+## Building without a disc (2026-10-06)
+
+- `port/data/` (72 files, 424 KB, committed): the game's data tables as shape only. Made by
+  `port/tools/make_skeleton.py` from a build with the disc: per table file its labels, `.space N` (N bytes whose
+  values come from the disc: 210,773 in 2,388 runs), `.zero N` (zero on PC: padding, addresses of PS2 code,
+  .bss), `.long symbol` (1,872 addresses for the linker), and `index.txt` (which of the user's two files each
+  table comes from and where; a checksum of all values in order). No value of the game's data is in them.
+- `undefined.py` assembles these in place of gen_data.py's real tables when `BT3_SKELETON=1` or when
+  `port/build/gen/data` does not exist, and marks the object folder; `link.py` then runs `make_dat.py`, which
+  writes `<program>.dat` from the linker's map and port/data and sets the program's "needs its list" flag. No
+  comparison with the disc is involved (strip_data.py remains for a program built with the values).
+- `port/release/build.sh` -> `port/release/inside.sh` in the container (now also with glslangValidator, the
+  mingw-w64 cross-compiler with POSIX threads and SDL3's mingw package): both archives from the repository alone.
+  Checked from a fresh `git clone` with no gamedata, asm or previous build: 81 seconds for both; the Linux
+  archive installed with the disc image and passed the replay check; the Windows archive passed its self-test
+  and the replay check under Wine.
+- `.github/workflows/release.yml`: the same on GitHub's machines (artifacts on every push to main, a draft release
+  on a `v*` tag). Written and syntax-checked; NOT run yet (it runs only once pushed).
+- make_skeleton.py has to be run again (with the disc) when gen_data.py or the decompilation's data split changes;
+  a stale port/data shows as a size mismatch in make_dat.py or as a checksum failure at start.

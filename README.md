@@ -41,9 +41,10 @@ does everything on Linux: checks the tools, reads the disc, builds the 64-bit pr
 fight as a test. `python3 install.py --check` lists what is missing. `port/setup/build.sh && ./bt3-setup` is
 the same with a window.
 
-The release archives are made with `port/release/build_linux.sh` (in a container, so that the result runs on
-other machines) and, for Windows, `BT3_CC=win64` with a mingw-w64 cross-compiler; the details are in
-[docs/port/README.md](docs/port/README.md).
+The release archives for Linux and Windows are built from the repository alone, with no disc involved:
+`port/release/build.sh` (needs only docker) or the GitHub workflow in `.github/workflows/release.yml`. The
+repository carries the shape of the game's built-in data tables without their values (`port/data`); the
+finished program fetches the values from your disc when it starts.
 
 ## Layout
 
@@ -52,6 +53,8 @@ other machines) and, for Windows, `BT3_CC=win64` with a mingw-w64 cross-compiler
 | `src/`, `include/` | The game's code, from BT3-Decompiled; changes for PC are inside `#ifdef PORT` |
 | `port/src/` | The PC side: memory, files, memory card, movies; `gs/` renderer, sound, input, settings window |
 | `port/tools/` | The build: pointer rewriting for 64-bit, packaging, extraction |
+| `port/data/` | The game's built-in data tables as shape only (labels, sizes, pointer slots), no values |
+| `port/release/` | The container and scripts that build the release archives |
 | `port/setup/` | The setup window |
 | `port/third_party/` | Dear ImGui (MIT), the maths library of newlib |
 | `docs/` | Notes on the game (from the decompilation) and `docs/port/` on the port |
