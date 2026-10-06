@@ -1099,3 +1099,18 @@ user's request). Inside the build the programs are still `port/build/bt3`, `bt3_
   program's folder (data, saves, settings). `BT3_GS=none` means no renderer; the setup's self-test and install.py
   set it. A developer's build (data linked in) still draws nothing by default. Checked: the Linux release
   started from `/` with nothing set opens the window and writes its files next to itself.
+
+## First run on real Windows, and the getenv cost (2026-10-06)
+
+- The user ran v0.1.1 in a Windows VM with `BT3_GS_VERBOSE=1` (log: `metrics.txt`): Vulkan, mailbox present mode,
+  WASAPI sound, menus at 0.2 to 7 ms of work per frame, and a fight (2,233 draws per frame, no interpreter runs)
+  at **29 to 31 ms on average**, with 8 of 60 frames over the 33.4 ms budget in the last second.
+- Cause, found by running the same replay fight on the development machine with both programs: Linux 8 to 10 ms,
+  the Windows program under Wine 16 to 25 ms. `GsVu1_Call` evaluates eight `getenv(...)` per call, about 40,000
+  per frame; the C library's getenv is nearly free on Linux and slow on Windows. In the renderer's files getenv
+  is now `Port_GetEnv` (gs_internal.h / gs_core.c): one real lookup per name, remembered. After: Windows under
+  Wine 8 to 11 ms, Linux 7 to 10 ms.
+- The log's "worst 18446744073709.5 ms" and the inflated "n of 60 over budget" in the menus were the statistic,
+  not the game: it subtracted the sleep that was ASKED for, and Windows' sleep returns early. `vblank_wait`
+  (plat_stub.c) now measures the wait, and on Windows asks for 1 ms timer resolution and waits the last
+  millisecond and a half in `Sleep(0)` slices.

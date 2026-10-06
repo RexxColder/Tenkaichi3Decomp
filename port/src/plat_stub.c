@@ -5,6 +5,10 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+#endif
 #include <stdlib.h>
 #include <time.h>
 #include <time.h>
@@ -46,18 +50,39 @@ unsigned gPortVBlanks; /* vertical blanks since start: the headless build's cloc
 extern int GsGpu_Enabled(void);
 unsigned long long gPortSleptNs; /* time spent waiting here (the renderer's frame timing subtracts it) */
 
+static unsigned long long now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (unsigned long long)ts.tv_sec * 1000000000ull + (unsigned long long)ts.tv_nsec;
+}
+
 static void vblank_wait(void) {
     static unsigned long long next;
     struct timespec ts;
-    unsigned long long t;
+    unsigned long long t = now_ns(), after;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    t = (unsigned long long)ts.tv_sec * 1000000000ull + (unsigned long long)ts.tv_nsec;
     if (next > t && next - t < 100000000ull) {
+#ifdef _WIN32
+        /* Windows' sleep is only good to about a millisecond, and only once the timer resolution has been asked
+           for: sleep to within a millisecond and a half of the moment, then give the rest away in small slices. */
+        static int asked;
+        if (!asked) {
+            asked = 1;
+            timeBeginPeriod(1);
+        }
+        if (next - t > 1500000ull) {
+            Sleep((DWORD)((next - t - 1500000ull) / 1000000ull));
+        }
+        while (now_ns() < next) {
+            Sleep(0);
+        }
+#else
         ts.tv_sec = 0;
         ts.tv_nsec = (long)(next - t);
         nanosleep(&ts, NULL);
-        gPortSleptNs += next - t;
+#endif
+        after = now_ns();
+        gPortSleptNs += after - t; /* the time really spent waiting (a sleep can return early or late) */
         next += 16683350ull;
     } else {
         next = t + 16683350ull; /* late (or the first one): start a new grid from now */

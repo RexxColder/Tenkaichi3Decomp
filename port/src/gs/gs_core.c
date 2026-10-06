@@ -940,6 +940,33 @@ static uint64_t now_ns(void) {
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
+/* getenv for the renderer's files (gs_internal.h): remembered per name. The names are string literals, so the
+   same call site always passes the same pointer and the search is a few pointer comparisons. */
+#undef getenv
+const char *Port_GetEnv(const char *name) {
+    static struct { const char *name, *value; } known[256];
+    static volatile int count;
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    const char *value;
+    int i, n = count;
+
+    for (i = 0; i < n; i++) {
+        if (known[i].name == name) {
+            return known[i].value;
+        }
+    }
+    value = getenv(name);
+    pthread_mutex_lock(&lock);
+    if (count < 256) {
+        known[count].name = name;
+        known[count].value = value;
+        count++; /* published last: a reader never sees a half-written entry */
+    }
+    pthread_mutex_unlock(&lock);
+    return value;
+}
+#define getenv(name) Port_GetEnv(name)
+
 /* Which renderer: BT3_GS = "gpu" (the window), "1" (the software reference), "none" (nothing is drawn: tests).
    Without the variable a release program opens its window, so that it can be started by a double click; a
    developer's build draws nothing, as the checks expect. */
@@ -1037,7 +1064,8 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
     t = now_ns();
     if (start != 0) {
         extern unsigned long long gPortSleptNs;
-        uint64_t work = t - start - (uint64_t)gPortSleptNs; /* without the waiting for the vertical blank */
+        uint64_t waited = (uint64_t)gPortSleptNs;
+        uint64_t work = t - start > waited ? t - start - waited : 0; /* without the waiting for the vertical blank */
         gPortSleptNs = 0;
         {   /* a frame over budget: where the time went and what was created in it */
             extern unsigned gGpuNewTex, gGpuNewTexPixels, gGpuNewPipes;

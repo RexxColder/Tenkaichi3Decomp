@@ -69,4 +69,13 @@ void GsGpu_DrawVu6(int ctx, const float *vertices, uint32_t count, const float *
 void Gs_RegWrite(uint32_t addr, uint64_t d);
 void GsGpu_Native(int effect); /* marker register 0x7F: a native effect goes here */
 void GsGpu_FrameEnd(void);
+/* Settings are read from the environment all over the renderer, some of them for every batch a model sends
+   (tens of thousands of times per frame). The C library's getenv is cheap on Linux and slow on Windows (a lock
+   and a case-insensitive search of a much larger environment): there it cost more than half of a frame. In the
+   renderer's files getenv is this instead: the answer for a name is looked up once and remembered. (Nothing here
+   changes the environment while the game runs.) */
+#include <stdlib.h>
+const char *Port_GetEnv(const char *name);
+#define getenv(name) Port_GetEnv(name)
+
 #endif
