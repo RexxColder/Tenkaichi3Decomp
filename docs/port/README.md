@@ -886,8 +886,12 @@ function-pointer call sites, ARM64's arithmetic, low memory on macOS and Windows
 - **64-bit step 1: the game code built with clang, still 32-bit** (`BT3_CC=clang` for undefined.py and link.py;
   objects in `port/build/obj_clang`, program `port/build/bt3_clang`; the gcc build is unchanged and stays the
   default). Result: the replay check prints the same line (`tick 2111 ... hp 23050 0`), and the whole heap at
-  that tick (7.1 million words) differs from the gcc build's in 399 words, all of them addresses (of the program
-  image or of host allocations). Needed for it: preprocessed input passed as `-x cpp-output`; `-mno-x87`;
+  that tick (7.1 million words) differs from the gcc build's in 399 words: 246 are addresses (of the program
+  image or of host allocations); the other 153 are one field of an array with stride 0xD0 at heap offset
+  0x15D149C.., which holds leftover-looking values in the gcc build (0x008D5F71, ...) and small numbers in the
+  clang build (0x7D..0x80): a field written from something uninitialised, different per compiler. Not traced
+  yet; it does not affect the fight's outcome here, but it is exactly the kind of thing that breaks online
+  determinism, so it has to be found before netplay. Needed for it: preprocessed input passed as `-x cpp-output`; `-mno-x87`;
   `-Wno-error=return-mismatch` (three old-style functions); `__unorddf2` (plat_libm.c); and in `StgPanBlur_DrawView`
   two float -> u64 conversions written through u32 under `PORT`, because clang's 32-bit software-float code
   generator stops with an internal error on any float -> 64-bit integer conversion (the 64-bit target compiles
