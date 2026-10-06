@@ -59,6 +59,14 @@ finished program fetches the values from your disc when it starts.
 | `port/third_party/` | Dear ImGui (MIT), the maths library of newlib |
 | `docs/` | Notes on the game (from the decompilation) and `docs/port/` on the port |
 
+## Licence
+
+The port's own code (everything under `port/` except `port/third_party/`, the setup, the build tools, and the
+PC changes inside `#ifdef PORT`) is under the [MIT licence](LICENSE). The libraries in `port/third_party/`
+keep their own licences (Dear ImGui: MIT; newlib's maths library: its BSD-style terms, in that folder).
+The game's code in `src/` and `include/` comes from the decompilation and is not ours to license: it belongs
+to the game's rights holders.
+
 ## Legal
 
 This project is not affiliated with or endorsed by the game's developers, publishers or rights holders. It
