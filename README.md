@@ -13,10 +13,10 @@ game's data from it, and it stays on your computer.
 - A GPU renderer (Vulkan) with the PS2's effects (outline, glow, depth tint, distance blur), each switchable.
 - Internal resolution from 1x to 8x; 4:3, 16:9, 21:9 and wider without stretching the fight.
 - Music, voices and sound effects; keyboard and controllers, fully rebindable; two players.
-- In the game, **F1** opens the settings.
+- In the game, **F1** opens the settings. Its Cheats tab has "Unlock everything" (a debug function the game's
+  developers left in: all characters, stages, music, items and Zenni).
 
-Not there yet: online play (the goal of the project), and one drawing routine a small number of character
-models need (`ObjSeam_TransformVtx`; the game stops if such a model is shown). See
+Not there yet: online play (the goal of the project). See
 [docs/port/README.md](docs/port/README.md) for the running log of what is done, what is verified and what is not.
 
 ## Requirements
