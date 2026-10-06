@@ -109,7 +109,11 @@ void MovieTag_BuildBlocks(u32 *tags, u8 *image, s32 step, s32 x, s32 y, s32 w, s
             p++;
             MovieTag_SetGifTag(p->w, 0, 0, 2, 0, 0, eop, 0x40);
             p++;
+#ifdef PORT
+            MovieTag_SetDmaTag(&p->d[0], 0, (u32)image, 0, 3, 0, 0x40); /* the pointer itself, see DMA_PHYS */
+#else
             MovieTag_SetDmaTag(&p->d[0], 0, (u32)image & 0x0FFFFFFF, 0, 3, 0, 0x40);
+#endif
             p++;
             image += step;
         }
@@ -162,7 +166,11 @@ void MovieTag_SetTrxDir(u32 *p, s32 dir) {
 
 /* Starts an upload chain on the GIF DMA channel without waiting for it. */
 void MovieTag_Send(u32 *tags) {
+#ifdef PORT
+    *D2_TADR = (u32)tags;
+#else
     *D2_TADR = (u32)tags & 0x0FFFFFFF;
+#endif
     *D2_QWC = 0;
     *D2_CHCR = 0x105;
 }

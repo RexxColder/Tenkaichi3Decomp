@@ -14,13 +14,116 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
+#include <string.h>
 
 #define HEAP_BASE 0x003BE000u  /* page that holds the first address */
 #define HEAP_FIRST 0x003BE730u /* what the PS2's malloc returns for the game heap (gHeapStart in a PCSX2 save state) */
 #define HEAP_END 0x02000000u
 
-static uint32_t sHeapNext = HEAP_FIRST;
+static uint32_t sHeapNext = HEAP_FIRST, sHeapEnd = HEAP_END;
+
+#ifdef _WIN32
+/* ------------------------------------------------------------------------------------------------------ Windows
+   The same needs, with Windows' means (the 64-bit build only; its pointers are 4 bytes wide, see ptr32.py):
+     - the program is linked at 0x20000000 and not relocated (port/tools/link.py);
+     - the hardware-register areas and the scratchpad are reserved at their PS2 addresses, which a 64-bit Windows
+       process leaves free;
+     - the game heap: at its PS2 address if that is free, else anywhere below 2 GB. A Windows process has its first
+       stack and heap in that low area, so the PS2 address is often taken; nothing in the game depends on it (only
+       comparing memory with a console dump does), and Port_Malloc just starts from wherever the region is;
+     - the game's stack: if the process's own stack is above 4 GB, main() runs on a stack reserved low. */
+#include <windows.h>
+
+/* Reserves `size` bytes somewhere between 0x30000000 and 2 GB (clear of the program at 0x20000000). */
+static void *low_alloc(size_t size) {
+    uintptr_t addr = 0x30000000u;
+    MEMORY_BASIC_INFORMATION mbi;
+
+    size = (size + 0xFFFF) & ~(size_t)0xFFFF;
+    while (addr < 0x7F000000u && VirtualQuery((void *)addr, &mbi, sizeof(mbi)) != 0) {
+        uintptr_t base = ((uintptr_t)mbi.BaseAddress + 0xFFFF) & ~(uintptr_t)0xFFFF;
+        uintptr_t end = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_FREE && base + size <= end && base + size <= 0x7F000000u) {
+            void *p = VirtualAlloc((void *)base, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            if (p != NULL) {
+                return p;
+            }
+        }
+        addr = end > addr ? end : addr + 0x10000;
+    }
+    return NULL;
+}
+
+static void map(uint32_t addr, uint32_t size, const char *what) {
+    uint32_t base = addr & ~0xFFFFu; /* reservations start on 64 KB boundaries */
+
+    if (VirtualAlloc((void *)(uintptr_t)base, size + (addr - base), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != (void *)(uintptr_t)base) {
+        fprintf(stderr, "bt3: cannot reserve %s at 0x%08X (error %lu)\n", what, addr, (unsigned long)GetLastError());
+        exit(2);
+    }
+}
+
+static void map_heap(void) {
+    uint32_t base = HEAP_BASE & ~0xFFFFu;
+    uint8_t *p = VirtualAlloc((void *)(uintptr_t)base, HEAP_END - base, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+    if (p != NULL) {
+        return; /* at the PS2's address */
+    }
+    p = low_alloc(HEAP_END - HEAP_BASE);
+    if (p == NULL) {
+        fprintf(stderr, "bt3: no room for the game heap (%u MB) below 2 GB\n", (HEAP_END - HEAP_BASE) >> 20);
+        exit(2);
+    }
+    sHeapNext = (uint32_t)(uintptr_t)p + (HEAP_FIRST - HEAP_BASE);
+    sHeapEnd = (uint32_t)(uintptr_t)p + (HEAP_END - HEAP_BASE);
+}
+
+extern int __real_main(int argc, char **argv);
+extern void Port_CallOnStack(void (*fn)(void), void *top);
+static int sArgc, sResult;
+static char **sArgv;
+
+/* fn() with the stack pointer at `top` (Windows x64 calling convention: fn in rcx, top in rdx). */
+__asm__(".text\n.globl Port_CallOnStack\nPort_CallOnStack:\n"
+        "    pushq %rbp\n    movq %rsp, %rbp\n    movq %rdx, %rsp\n    subq $32, %rsp\n    callq *%rcx\n"
+        "    movq %rbp, %rsp\n    popq %rbp\n    retq\n");
+
+static void game_main(void) {
+    sResult = __real_main(sArgc, sArgv);
+}
+
+int __wrap_main(int argc, char **argv) {
+    enum { STACK_SIZE = 0x01000000 };
+    NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+    void **dealloc = (void **)((uint8_t *)tib + 0x1478); /* TEB.DeallocationStack */
+    void *base = tib->StackBase, *limit = tib->StackLimit, *old = *dealloc;
+    uint8_t *stack;
+
+    sArgc = argc;
+    sArgv = argv;
+    if ((uintptr_t)&stack < 0xFFF00000u) {
+        return __real_main(argc, argv); /* the process's own stack is low already */
+    }
+    stack = low_alloc(STACK_SIZE);
+    if (stack == NULL) {
+        fprintf(stderr, "bt3: no room for the game's stack below 2 GB\n");
+        return 2;
+    }
+    tib->StackBase = stack + STACK_SIZE; /* the system checks these on exceptions and when the stack grows */
+    tib->StackLimit = stack;
+    *dealloc = stack;
+    Port_CallOnStack(game_main, stack + STACK_SIZE);
+    tib->StackBase = base;
+    tib->StackLimit = limit;
+    *dealloc = old;
+    return sResult;
+}
+
+#else
+/* -------------------------------------------------------------------------------------------------------- Linux */
+#include <sys/mman.h>
+#include <unistd.h>
 
 static void map(uint32_t addr, uint32_t size, const char *what) {
     void *p = mmap((void *)(uintptr_t)addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
@@ -30,6 +133,10 @@ static void map(uint32_t addr, uint32_t size, const char *what) {
         fprintf(stderr, "bt3: cannot map %s at 0x%08X\n", what, addr);
         exit(2);
     }
+}
+
+static void map_heap(void) {
+    map(HEAP_BASE, HEAP_END - HEAP_BASE, "the game heap");
 }
 
 #ifdef __x86_64__
@@ -70,14 +177,13 @@ int __wrap_main(int argc, char **argv) {
     return sResult;
 }
 #endif
+#endif
 
 /* ---- The game's own data, fetched from the user's disc (release builds).
    A program made by port/tools/strip_data.py has the data tables of the game's two programs and the VU1
    microprograms set to zero, and a list next to it (<program>.dat) of where each run of bytes comes from: the
    user's SLUS_216.78 (as a flat image from 0x100000) or BIN/DBZP.BIN. This copies them in before anything else
    runs. A program without that list still has the data linked in (the developer's build) and nothing happens. */
-#include <string.h>
-#include <unistd.h>
 #define ROM_BASE 0x100000u
 #define ROM_END 0x2FF180u
 
@@ -120,12 +226,19 @@ static void Port_LoadGameData(void) {
     size_t listSize = 0, elfSize = 0, srcSize[2] = {0, 0};
     uint64_t hash = 0xCBF29CE484222325ull, want;
     uint32_t count, i, k;
-    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+#ifdef _WIN32
+    long n = (long)GetModuleFileNameA(NULL, exe, sizeof(exe) - 1);
+#else
+    long n = (long)readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+#endif
 
-    if (n <= 0) {
+    if (n <= 0 || n >= (long)sizeof(exe) - 1) {
         return;
     }
     exe[n] = '\0';
+    if (n > 4 && (strcmp(exe + n - 4, ".exe") == 0 || strcmp(exe + n - 4, ".EXE") == 0)) {
+        exe[n - 4] = '\0'; /* bt3.exe keeps its list in bt3.dat */
+    }
     snprintf(path, sizeof(path), "%s.dat", exe);
     list = read_file(path, &listSize);
     if (list == NULL) {
@@ -190,15 +303,14 @@ static void Port_LoadGameData(void) {
     }
 }
 
-static void map(uint32_t addr, uint32_t size, const char *what);
 __attribute__((constructor)) static void Port_MapMemory(void) {
     Port_LoadGameData();
-#ifdef __x86_64__
+#if defined(__x86_64__) && !defined(_WIN32)
     mallopt(M_MMAP_MAX, 0);
     mallopt(M_ARENA_MAX, 1);
     map(STACK_BASE, STACK_SIZE, "the game thread's stack");
 #endif
-    map(HEAP_BASE, HEAP_END - HEAP_BASE, "the game heap");
+    map_heap();
     map(0x10000000u, 0x10000, "the hardware registers");
     map(0x12000000u, 0x2000, "the GS registers");
     map(0x70000000u, 0x4000, "the scratchpad");
@@ -208,7 +320,7 @@ __attribute__((constructor)) static void Port_MapMemory(void) {
 void *Port_Malloc(uint32_t size) {
     uint32_t p = (sHeapNext + 15) & ~15u;
 
-    if (size > HEAP_END - p) {
+    if (size > sHeapEnd - p) {
         fprintf(stderr, "bt3: malloc(0x%X) does not fit in the game heap\n", size);
         exit(2);
     }
@@ -219,8 +331,45 @@ void *Port_Malloc(uint32_t size) {
 /* Memory the port hands to the game by address (file handles, the "second processor's" memory): zeroed, and below
    4 GB in the 64-bit build, where the game keeps such an address in 4 bytes. The C library's malloc is not safe
    for this there: it moves to mappings far above 4 GB whenever the break area cannot grow. */
+#ifdef _WIN32
+enum { LOW_POOL = 0x100000, LOW_SMALL = 0x1000 };
+static void *sLowFreed[LOW_SMALL / 256];
+#endif
+
 void *Port_LowAlloc(size_t size) {
-#ifdef __x86_64__
+#ifdef _WIN32
+    /* small blocks from a pool (file handles come and go by the thousand; a reservation of its own would cost
+       64 KB of address space each), large ones reserved singly. Freed small blocks are reused by size. */
+    static uint8_t *pool, *poolEnd;
+    void **freed = sLowFreed;
+    size_t total = (size + 16 + 15) & ~(size_t)15;
+    uint64_t *p;
+
+    if (total > LOW_SMALL) {
+        p = low_alloc(total);
+    } else {
+        size_t cls = (total - 1) / 256; /* 256-byte steps up to LOW_SMALL */
+        total = (cls + 1) * 256;
+        if (freed[cls] != NULL) {
+            p = freed[cls];
+            freed[cls] = *(void **)p;
+            memset(p, 0, total);
+        } else {
+            if (pool == NULL || (size_t)(poolEnd - pool) < total) {
+                pool = low_alloc(LOW_POOL);
+                poolEnd = pool != NULL ? pool + LOW_POOL : NULL;
+            }
+            p = (uint64_t *)pool;
+            pool = pool != NULL ? pool + total : NULL;
+        }
+    }
+    if (p == NULL) {
+        fprintf(stderr, "bt3: no memory below 2 GB for %u bytes\n", (unsigned)size);
+        exit(2);
+    }
+    p[0] = total;
+    return p + 2;
+#elif defined(__x86_64__)
     size_t total = (size + 16 + 4095) & ~(size_t)4095;
     uint64_t *p = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
 
@@ -236,7 +385,18 @@ void *Port_LowAlloc(size_t size) {
 }
 
 void Port_LowFree(void *addr) {
-#ifdef __x86_64__
+#ifdef _WIN32
+    if (addr != NULL) {
+        uint64_t *p = (uint64_t *)addr - 2;
+        if (p[0] > LOW_SMALL) {
+            VirtualFree(p, 0, MEM_RELEASE);
+        } else { /* back to the list of its size */
+            size_t cls = (size_t)(p[0] - 1) / 256;
+            *(void **)p = sLowFreed[cls];
+            sLowFreed[cls] = p;
+        }
+    }
+#elif defined(__x86_64__)
     if (addr != NULL) {
         uint64_t *p = (uint64_t *)addr - 2;
         munmap(p, p[0]);

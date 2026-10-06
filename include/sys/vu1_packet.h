@@ -12,7 +12,13 @@
 #define VU1_DMA_CALL 0x50000000
 #define VU1_DMA_CNT 0x10000000
 #define VU1_DMA_END 0x70000000
+#ifdef PORT
+/* On PC the address is the pointer itself (like DMA_PHYS in dma.h). The mask did nothing while the game heap sat at
+   its PS2 address, and cut the addresses of the models' chains where it does not (Windows): nothing 3D was drawn. */
+#define VU1_ADDR_MASK 0xFFFFFFFF
+#else
 #define VU1_ADDR_MASK 0x0FFFFFFF
+#endif
 
 /* VIF codes. */
 #define VU1_VIF_NOP 0x00000000

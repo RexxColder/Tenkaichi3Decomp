@@ -68,7 +68,7 @@ static bool file_exists(const char *path) {
 // The folder to install into: a release folder (this program's own), or the source checkout that holds install.py.
 static std::string find_root() {
     std::string dir = SDL_GetBasePath() ? SDL_GetBasePath() : "./";
-    if (file_exists((dir + "bt3").c_str()) && file_exists((dir + "bt3.dat").c_str())) {
+    if ((file_exists((dir + "bt3").c_str()) || file_exists((dir + "bt3.exe").c_str())) && file_exists((dir + "bt3.dat").c_str())) {
         sRelease = true; // a release folder: the finished program is here, only the game data is missing
         return dir;
     }
@@ -660,7 +660,7 @@ int main(int argc, char **argv) {
             r.state = SKIPPED;
             r.detail = "already done";
         }
-        sLauncher = sRoot + "bt3";
+        sLauncher = sRoot + (file_exists((sRoot + "bt3.exe").c_str()) ? "bt3.exe" : "bt3");
         sPage = PAGE_DONE;
     }
     if (argc > 1) {

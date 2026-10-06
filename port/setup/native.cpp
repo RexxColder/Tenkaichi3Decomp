@@ -25,6 +25,11 @@ namespace {
 const char *kRomSha1 = "caee6c2269bba89fc51eea9e7beac3adbec9dc52";
 const char *kDbzpSha1 = "4f910969e05d9b25c83af7642b60da9949a4348b";
 const Uint32 kRomBase = 0x100000, kRomEnd = 0x2FF180;
+#ifdef _WIN32
+const char *kGame = "bt3.exe";
+#else
+const char *kGame = "bt3";
+#endif
 
 std::mutex sLock;
 std::vector<std::string> sLines;
@@ -328,7 +333,7 @@ void step_data(Iso &iso, const std::string &root) {
 }
 
 void step_test(const std::string &root) {
-    std::string exe = root + "bt3", saves = root + "gamedata/.selftest";
+    std::string exe = root + kGame, saves = root + "gamedata/.selftest";
     const char *args[2] = {exe.c_str(), NULL};
     say("@step 3 3 Self-test");
     say("@note the game's demo fight, no window");
@@ -379,7 +384,7 @@ void work(std::string root, std::string path) {
         step_data(iso, root);
         check_cancel();
         step_test(root);
-        say("@done " + root + "bt3");
+        say("@done " + root + kGame);
     } catch (const Stop &s) {
         std::string why = s.why;
         for (size_t i = 0; (i = why.find('\n', i)) != std::string::npos;) {

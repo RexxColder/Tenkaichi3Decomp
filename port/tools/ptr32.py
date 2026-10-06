@@ -18,6 +18,7 @@ import bisect, ctypes, re, sys
 import clang.cindex as ci
 from clang.cindex import CursorKind as K, TokenKind, TypeKind
 
+ROOT_B = str(__import__("pathlib").Path(__file__).resolve().parents[2]).replace("\\", "/").encode() + b"/"
 P32 = "* __ptr32 __uptr "
 TYPE_EXPRS = {K.CSTYLE_CAST_EXPR, K.CXX_UNARY_EXPR, K.COMPOUND_LITERAL_EXPR, K.DECL_STMT}  # expressions that contain a type name
 
@@ -36,9 +37,13 @@ def origins(data):
     out = [(0, False)]
     for m in re.finditer(rb'^# \d+ "([^"\n]*)"[^\n]*\n', data, re.M):
         f = m.group(1)
-        # the game's sources are compiled from prepared copies under port/build/gen/src; its headers are in include/
-        game = b"port/build/gen/src/" in f or (not f.startswith(b"/usr") and not f.startswith(b"<") and b"/port/" not in f and
-                                               not f.startswith(b"port/"))
+        # The game's text: its sources (compiled from prepared copies under port/build/gen/src) and its headers in
+        # include/. Not the port's own files (port/, src/port, include/port) and not system headers, wherever
+        # those are installed.
+        f = f.replace(b"\\\\", b"/").replace(b"\\", b"/")
+        rel = f[len(ROOT_B):] if f.startswith(ROOT_B) else f
+        game = b"port/build/gen/src/" in f or ((rel.startswith(b"src/") or rel.startswith(b"include/")) and
+                                               not rel.startswith(b"src/port/") and not rel.startswith(b"include/port/"))
         out.append((m.end(), game))
     return out
 
@@ -76,11 +81,52 @@ def transform(path, args, stats=None):
     tarr = (ci.Token * n)(*toks)
     carr = (ci.Cursor * n)()
     ci.conf.lib.clang_annotateTokens(tu, tarr, n, carr)
+    # The outermost pointer of a parameter and of a return type stays an ordinary 64-bit pointer: arguments and
+    # results then travel in full, whoever is on the other side of the call (the port's own code is compiled with
+    # ordinary pointers) and wherever the calling convention puts them. A 4-byte pointer passed on the stack has
+    # garbage above it (Windows passes the fifth argument onwards there: seen as a crash in Vec3_Add4).
+    # Found per declaration: the last `*` that belongs to the parameter itself (stars of nested parameters belong to
+    # those), unless it is declared as an array (`T *p[]`: the star is the element's); and for a function, the
+    # last `*` before its name.
+    keep = set()
+    by_decl = {}
+    for i, t in enumerate(toks):
+        if carr[i]._kind_id in (K.PARM_DECL.value, K.FUNCTION_DECL.value):  # (the raw id: other tokens can have no cursor)
+            carr[i]._tu = tu  # cursors that come out of a plain array do not know their translation unit
+            by_decl.setdefault((carr[i].kind, carr[i].extent.start.offset, carr[i].extent.end.offset, carr[i].spelling), []).append(i)
+    # A parameter whose address is taken (`T **link = &head;`) is memory like any local: it stays 4 bytes.
+    addressed = set()
+    def find_addressed(c):
+        for ch in c.get_children():
+            find_addressed(ch)
+        if c.kind == K.UNARY_OPERATOR:
+            first = next(iter(c.get_tokens()), None)
+            ch = list(c.get_children())
+            while len(ch) == 1 and ch[0].kind in (K.PAREN_EXPR, K.UNEXPOSED_EXPR):
+                ch = list(ch[0].get_children())
+            if first is not None and first.spelling == "&" and len(ch) == 1 and ch[0].kind == K.DECL_REF_EXPR:
+                ref = ch[0].referenced
+                if ref is not None and ref.kind == K.PARM_DECL:
+                    addressed.add((ref.extent.start.offset, ref.extent.end.offset))
+    find_addressed(tu.cursor)
+    for (kind, start, end, name), idx in by_decl.items():
+        stars = [i for i in idx if toks[i].kind == TokenKind.PUNCTUATION and toks[i].spelling == "*"]
+        if not stars:
+            continue
+        if kind == K.PARM_DECL:
+            if any(toks[i].spelling == "[" for i in idx) or (start, end) in addressed:
+                continue
+            keep.add(stars[-1])
+        else:
+            at = next((i for i in idx if toks[i].kind == TokenKind.IDENTIFIER and toks[i].spelling == name), None)
+            before = [i for i in stars if at is None or i < at]
+            if before:
+                keep.add(before[-1])
     for i, t in enumerate(toks):
         if t.kind != TokenKind.PUNCTUATION or t.spelling != "*":
             continue
         off = t.extent.start.offset
-        if not game(off):
+        if not game(off) or i in keep:
             continue
         kind = carr[i].kind
         verdict = is_type_star(kind)

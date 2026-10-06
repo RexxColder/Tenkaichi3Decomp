@@ -6,23 +6,24 @@ import portsrc
 import eeconst
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-# BT3_CC=clang: the game code and everything else built with software float goes through clang instead of gcc
-# (objects in port/build/obj_clang, linked to port/build/bt3_clang). The step towards a 64-bit build, where only
-# clang can send float operations to our PS2-accurate routines.
-VARIANT = os.environ.get("BT3_CC", "gcc")
-OBJ = ROOT / ("port/build/obj" if VARIANT == "gcc" else "port/build/obj_" + VARIANT)
-
-# BT3_CC=clang64: the same, as a 64-bit program in which the game's pointers stay 4 bytes wide (ptr32.py); objects
-# in port/build/obj_clang64, the game's data assembled again into port/build/obj_data64, program port/build/bt3_64.
-BITS64 = VARIANT == "clang64"
+# The build variants (BT3_CC): see toolchain.py.
+from toolchain import VARIANT, WIN, BITS64, PREFIX, CLANG_TARGET, OBJ, DATA, sdl3
 
 def variant(cmd):
-    """The command for this build variant: clang for everything built with software float, 64-bit flags."""
+    """The command for this build variant: clang for everything built with software float, 64-bit or Windows flags."""
     if BITS64:
         cmd = ["-m64" if a == "-m32" else a for a in cmd if a != "-malign-double"]
+    if WIN:
+        cmd = [a for a in cmd if a != "-m64"]
+        inc = [f"-I{sdl3() / 'include'}"] if sdl3() else []
+        if cmd[0] in ("gcc", "g++") and "-msoft-float" not in cmd:  # the renderer, the settings window: the Windows gcc
+            return [PREFIX + cmd[0]] + cmd[1:] + inc
     if VARIANT == "gcc" or "-msoft-float" not in cmd:
         return cmd
-    return ["clang"] + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"] + (["-fms-extensions"] if BITS64 else [])
+    extra = ["-fms-extensions"] if BITS64 else []
+    if WIN:  # GCC's structure layout, not Microsoft's bit-field rules: the game's structures are the PS2's
+        extra += ["-mno-ms-bitfields", "-D__CRT__NO_INLINE"]  # (no inline maths of the headers: they use long double) + ([f"-I{sdl3() / 'include'}"] if sdl3() else [])
+    return ["clang"] + CLANG_TARGET + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"] + extra
 
 def run(cmd, **kw):
     return subprocess.run(variant(cmd), **kw)
@@ -44,7 +45,8 @@ def compile_ee(cmd, src, o):
         import ptr32
         std = next((a for a in cmd if a.startswith("-std=")), "-std=gnu89")
         try:
-            text = ptr32.transform(str(i), ["-x", "cpp-output", "-m64", std, "-fms-extensions", "-w", "-Wno-error=return-mismatch"])
+            text = ptr32.transform(str(i), ["-x", "cpp-output"] + (CLANG_TARGET or ["-m64"]) + [std, "-fms-extensions", "-w", "-Wno-error=return-mismatch"] +
+                                   (["-mno-ms-bitfields"] if WIN else []))
         except RuntimeError as e:
             return subprocess.CompletedProcess(cmd, 1, "", f"ptr32: {e}\n")
         i.write_text(text, encoding="latin-1")
@@ -86,14 +88,13 @@ def main():
     for f, e in bad:
         print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l or l.startswith("ptr32")), e.strip()[:150])[:200])
     objs = [str(o) for o, _, _ in res if o]
-    if BITS64:  # the game's data (gen_data.py's assembly sources) assembled as 64-bit objects
-        d64 = ROOT / "port/build/obj_data64"
-        d64.mkdir(exist_ok=True)
+    if BITS64:  # the game's data (gen_data.py's assembly sources) assembled for this target
+        DATA.mkdir(exist_ok=True)
         for f in sorted((ROOT / "port/build/gen/data").glob("*.s")):
-            r = subprocess.run(["as", "--64", str(f), "-o", str(d64 / (f.name[:-2] + ".o"))], capture_output=True, text=True)
+            r = subprocess.run([PREFIX + "as"] + ([] if WIN else ["--64"]) + [str(f), "-o", str(DATA / (f.name[:-2] + ".o"))], capture_output=True, text=True)
             if r.returncode:
                 print("FAILED", f.name, r.stderr.splitlines()[0][:150])
-        objs += [str(o) for o in sorted(d64.glob("*.o"))]
+        objs += [str(o) for o in sorted(DATA.glob("*.o"))]
     else:
         objs += [str(o) for o in sorted((ROOT / "port/build/obj_data").glob("*.o"))]  # from gen_data.py
     # PC-only code: the vector-library references under the game's names, and port/src.
@@ -158,7 +159,7 @@ def main():
         else:
             objs.append(str(o))
     defined, undef = set(), collections.Counter()
-    out = subprocess.run(["nm", "-A"] + objs, capture_output=True, text=True).stdout
+    out = subprocess.run([PREFIX + "nm", "-A"] + objs, capture_output=True, text=True).stdout
     for l in out.splitlines():
         m = re.match(r"\S+:\s*([0-9a-f]*)\s+(\w)\s+(\S+)$", l)
         if not m:

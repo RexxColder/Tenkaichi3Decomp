@@ -4,6 +4,7 @@ code generator of LLVM 22 cannot select:
 
   - memcpy / memmove / memset intrinsics on such pointers ("cannot lower memory intrinsic in address space 271")
   - calls through such a pointer ("Cannot select: X86ISD::CALL")
+  - a `bitcast` between the two kinds of pointer, which clang emits for some conditional expressions and LLVM rejects
 
 Each operand is first cast to an ordinary pointer (`addrspacecast`, a zero extension), which is what the source
 means anyway. Text in, text out; used by undefined.py between `clang -emit-llvm` and `llc`."""
@@ -35,6 +36,7 @@ def data_line(line):
     line = line.replace("ptr addrspace(271) null", "i32 0").replace("ptr addrspace(271) undef", "i32 undef").replace("ptr addrspace(271) poison", "i32 poison")
     return line.replace("ptr addrspace(271)", "i32")
 
+BITCAST = re.compile(r'^(\s*%[\w.$-]+ = )bitcast (ptr(?: addrspace\(271\))? \S+) to (ptr(?: addrspace\(271\))?)(?=,|$)')
 GLOBAL = re.compile(r'^@[^=]+ = .*\b(global|constant)\b')
 TYPEDEF = re.compile(r'^%[^=]+ = type ')
 
@@ -44,6 +46,13 @@ def fix(text):
         if "addrspace(271)" in line and (GLOBAL.match(line) or TYPEDEF.match(line)):
             out.append(data_line(line))
             continue
+        if " bitcast " in line and "addrspace(271)" in line:
+            # clang writes a plain bitcast between a 4-byte and an ordinary pointer in a conditional expression that
+            # mixes the two (`a ? param : &obj->field`); the conversion that exists for that is addrspacecast
+            fixed = BITCAST.sub(r"\1addrspacecast \2 to \3", line)
+            if fixed != line:
+                n += 1
+                line = fixed
         if line.startswith("declare"):
             m = MEM.search(line)
             if m:

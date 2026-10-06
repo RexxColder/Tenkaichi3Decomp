@@ -991,3 +991,39 @@ and exit when it is drawn. It is the only game function without code in the port
   clicking (Browse, drag and drop, Play, Cancel); another machine or distribution.
 - Fixed on the way: the developer's heap dump of `BT3_AT` wrote through a NULL file where `port/build` does not
   exist (crash in a release folder); the last event line of the native installer could be dropped.
+
+## Windows (2026-10-06)
+
+- **`BT3_CC=win64`** (toolchain.py holds the variants now): a 64-bit Windows program, `port/build/bt3.exe`.
+  Cross-built on Linux with mingw-w64 (`x86_64-w64-mingw32-gcc/g++/as`, clang with `--target=x86_64-w64-mingw32`
+  for the game code, SDL3's mingw development package unpacked under `port/build/win`), or built on Windows in an
+  MSYS2 shell with that shell's tools. `port/setup/build.sh win` makes `bt3-setup.exe`;
+  `BT3_CC=win64 python3 port/tools/package.py` makes `port/build/bt3-port-windows-x64.zip` (bt3.exe, bt3.dat,
+  bt3-setup.exe, SDL3.dll, play.bat, README, licences; 4.6 MB, no game data).
+- What Windows needed:
+  - plat_mem.c: the hardware-register areas and the scratchpad reserved at their PS2 addresses with VirtualAlloc; the
+    game heap at its PS2 address if free, else anywhere below 2 GB (a Windows process has its first stack and heap
+    there); `Port_LowAlloc` from a low pool; `main` on a low stack if the process's own is above 4 GB (stack switch
+    with the TEB's stack fields updated); the program linked at 0x20000000 without relocation
+    (`--image-base`, `--disable-dynamicbase`), runtime libraries linked in, `-mwindows` (no console window; output
+    goes to the parent terminal or the setup's pipe).
+  - plat_crash.c (exception code, address, return addresses to bt3_crash.txt), plat_movie.c (`_popen`, binary),
+    plat_mc.c (`_mkdir`), `-D__CRT__NO_INLINE` (the headers' inline maths uses long double, which the
+    software-float mode forbids), `#undef __ptr32` in port files (mingw's headers define it away).
+- **Two bugs Windows exposed, both real on every platform:**
+  - A 4-byte pointer passed on the stack has garbage above it; Windows passes the fifth argument onwards there
+    (crash in `Vec3_Add4`). ptr32.py now leaves the outermost pointer of every parameter and return type an
+    ordinary 64-bit pointer (except a parameter whose address is taken or that is declared as an array), so
+    arguments travel in full whoever is on the other side. irfix.py also turns clang's `bitcast` between the
+    two kinds of pointer into `addrspacecast`.
+  - `VU1_ADDR_MASK` (0x0FFFFFFF on the chain addresses of the models) and two masks in movie.c did nothing while
+    the heap sat at its PS2 address and cut the addresses where it does not: nothing 3D was drawn (the user saw
+    the black fight). Under `PORT` they are the pointer itself now.
+- Checked under Wine 11: the replay check prints the same line as the Linux builds; the validation replay in the
+  window shows the fight correctly (2,202 draws per frame, all vertex programs through shaders); the zip unpacked
+  into an empty folder and `bt3-setup.exe --install <iso>`: 68,611 files, identical to the reference extraction,
+  demo fight ran (284 s there: Wine's file access is slow); replay check from that folder; the setup window opens
+  on the Ready page. NOT checked: real Windows (heap placement, the stack switch and the crash report run for
+  the first time there), sound, the movie (needs ffmpeg.exe), the settings window, a gamepad.
+- The recorded sessions (`*.pad`) do not replay under Wine: without ffmpeg the opening movie takes a different
+  number of frames, so the inputs arrive at the wrong moments.

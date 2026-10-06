@@ -15,9 +15,10 @@ distance between program address and PS2 address; every run of bytes equal to th
 address is game data. Bytes that differ are addresses the linker filled in (they belong to this build, not to the
 game) and stay. The list contains no game data, only numbers.
 Sources: 0 = SLUS_216.78 as a flat image from 0x100000, 1 = BIN/DBZP.BIN (loaded at 0x334C00 on the PS2)."""
-import argparse, pathlib, re, struct, subprocess
-
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+import argparse, pathlib, re, struct, subprocess, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import toolchain
+from toolchain import ROOT, PREFIX
 ROM_BASE, ROM_END, DBZP_BASE = 0x100000, 0x2FF180, 0x334C00
 MIN_RUN = 4  # shorter runs of equal bytes are left (a coincidence inside an address)
 
@@ -40,8 +41,8 @@ def fnv(data, h=0xCBF29CE484222325):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exe", default=str(ROOT / "port/build/bt3_64"))
-    ap.add_argument("--out", default=str(ROOT / "port/build/release"))
+    ap.add_argument("--exe", default=str(toolchain.EXE if toolchain.BITS64 else ROOT / "port/build/bt3_64"))
+    ap.add_argument("--out", default=str(ROOT / ("port/build/release-win" if toolchain.WIN else "port/build/release")))
     ap.add_argument("--data", default=str(ROOT / "gamedata"))
     a = ap.parse_args()
     exe = pathlib.Path(a.exe)
@@ -50,10 +51,13 @@ def main():
     base = [ROM_BASE, DBZP_BASE]
     # loaded sections of the program: address -> file offset
     secs = []
-    for l in subprocess.run(["readelf", "-S", "-W", str(exe)], capture_output=True, text=True).stdout.splitlines():
-        m = re.match(r"\s*\[\s*\d+\]\s+(\S+)\s+PROGBITS\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)", l)
-        if m:
-            secs.append((int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16)))
+    # (objdump -h reads both kinds of program: ELF and Windows PE. Columns: index, name, size, address, load
+    # address, file offset; a section with CONTENTS in the next line has bytes in the file.)
+    lines = subprocess.run([PREFIX + "objdump", "-h", str(exe)], capture_output=True, text=True).stdout.splitlines()
+    for k, l in enumerate(lines):
+        m = re.match(r"\s*\d+\s+(\S+)\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)", l)
+        if m and k + 1 < len(lines) and "CONTENTS" in lines[k + 1]:
+            secs.append((int(m.group(3), 16), int(m.group(5), 16), int(m.group(2), 16)))
     def file_off(addr):
         for va, off, size in secs:
             if va <= addr < va + size:
@@ -67,7 +71,7 @@ def main():
             if m:
                 known[m.group(1)] = int(m.group(2), 16)
     syms = []
-    for l in subprocess.run(["nm", str(exe)], capture_output=True, text=True).stdout.splitlines():
+    for l in subprocess.run([PREFIX + "nm", str(exe)], capture_output=True, text=True).stdout.splitlines():
         p = l.split()
         if len(p) == 3:
             m = re.fullmatch(r"D_([0-9A-F]{8})", p[2])
@@ -118,21 +122,22 @@ def main():
                 taken += run
                 image[off + i:off + j] = bytes(j - i)
             i = j
-    flag = next((int(l.split()[0], 16) for l in subprocess.run(["nm", str(exe)], capture_output=True, text=True).stdout.splitlines()
+    flag = next((int(l.split()[0], 16) for l in subprocess.run([PREFIX + "nm", str(exe)], capture_output=True, text=True).stdout.splitlines()
                  if l.endswith(" gPortDataStripped")), None)
     if flag is None or file_off(flag) is None:
         raise SystemExit("gPortDataStripped not found in the program's data: is this a current build?")
     image[file_off(flag):file_off(flag) + 4] = struct.pack("<I", 1)  # the program now insists on its list
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "bt3").write_bytes(image)
-    (out / "bt3").chmod(0o755)
+    prog = out / ("bt3.exe" if exe.suffix == ".exe" else "bt3")
+    prog.write_bytes(image)
+    prog.chmod(0o755)
     head = struct.pack("<4sIQ", b"BT3D", len(records), fnv(bytes(taken)))
     (out / "bt3.dat").write_bytes(head + b"".join(struct.pack("<IIII", *r) for r in records))
     print(f"{len(pieces)} data objects, {total} bytes; {len(taken)} bytes of game data taken out in {len(records)} runs "
           f"({total - len(taken)} bytes stay: addresses of this build and zeros)")
     for name, size, same in odd:
         print(f"  NOT matched to the game's executable: {name} ({size} bytes, {same} equal)")
-    print(f"wrote {out / 'bt3'} and {out / 'bt3.dat'} ({(out / 'bt3.dat').stat().st_size} bytes)")
+    print(f"wrote {prog} and {out / 'bt3.dat'} ({(out / 'bt3.dat').stat().st_size} bytes)")
 
 main()

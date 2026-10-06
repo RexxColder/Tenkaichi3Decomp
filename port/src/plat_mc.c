@@ -24,6 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path) /* Windows: no permission bits */
+#endif
 
 #define MC_FILES 8
 #define MC_FREE_CLUSTERS 8000 /* an empty 8 MB card */

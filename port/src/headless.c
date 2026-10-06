@@ -81,6 +81,8 @@ int sceClose(int fd) { (void)fd; return 0; }
 /* A pointer variable of the game: 4 bytes wide in the 64-bit build too (port/tools/ptr32.py does this for the game's
    own files; a declaration written in a port file has to say it itself). */
 #if defined(__x86_64__) && defined(__clang__)
+#undef __ptr32 /* the Windows headers of mingw define these two away */
+#undef __uptr
 #define GAME_PTR *__ptr32 __uptr
 #else
 #define GAME_PTR *
@@ -121,6 +123,7 @@ void Port_Trace(unsigned vblanks) {
                         fwrite((void *)0x3BE730, 1, 0x1EFB014 - 0x3BE730, fp);
                         fclose(fp);
                     }
+#ifndef _WIN32 /* the linker symbols of an ELF program */
                     {   /* the game's global variables too: [__data_start, _end), base address first */
                         extern char __data_start[], _end[];
                         uint32_t base = (uint32_t)(uintptr_t)__data_start;
@@ -134,6 +137,7 @@ void Port_Trace(unsigned vblanks) {
                         }
                         snprintf(name, sizeof(name), "port/build/heap_%u.bin", now);
                     }
+#endif
                     printf("bt3: tick %u (vblank %u, seq %d): hp %d %d; %s\n", now, vblanks, gBtlSeq->state,
                            BtlCharApi_GetHp(0), BtlCharApi_GetHp(1), name);
                     fflush(stdout);

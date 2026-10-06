@@ -28,7 +28,11 @@ static uint8_t sFrame[MOVIE_W * MOVIE_H * 4];
 
 static void movie_close(void) {
     if (sPipe != NULL) {
+#ifdef _WIN32
+        _pclose(sPipe);
+#else
         pclose(sPipe);
+#endif
         sPipe = NULL;
     }
     sStarted = 0;
@@ -44,8 +48,16 @@ static void movie_start(void) {
     if ((!GsGpu_Enabled() && getenv("BT3_PAD_PLAY") == NULL) || gPortMoviePath[0] == '\0' || strchr(gPortMoviePath, '\'') != NULL || getenv("BT3_NOMOVIE") != NULL) {
         return;
     }
+#ifdef _WIN32
+    if (strchr(gPortMoviePath, '"') != NULL) {
+        return;
+    }
+    snprintf(cmd, sizeof(cmd), "ffmpeg -v error -i \"%s\" -f rawvideo -pix_fmt rgba -s %dx%d - 2>NUL", gPortMoviePath, MOVIE_W, MOVIE_H);
+    sPipe = _popen(cmd, "rb"); /* binary: the picture's bytes as they are */
+#else
     snprintf(cmd, sizeof(cmd), "ffmpeg -v error -i '%s' -f rawvideo -pix_fmt rgba -s %dx%d - 2>/dev/null", gPortMoviePath, MOVIE_W, MOVIE_H);
     sPipe = popen(cmd, "r");
+#endif
     sEnd = sPipe == NULL;
 }
 
