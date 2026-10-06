@@ -2,7 +2,7 @@
  * Texture packs: replacement textures in the naming of PCSX2's texture replacement, so packs made for the game
  * under that emulator work as they are.
  *
- * A file is named <texture hash>-<palette hash>-<bits>.dds (two parts, without the palette hash, for a texture
+ * A file is named <texture hash>-<palette hash>-<bits>.dds (or .png) (two parts, without the palette hash, for a texture
  * without a palette), the hashes in hexadecimal without leading zeros:
  *   texture hash   XXH3 (64 bits) over the texture's raw 256-byte blocks of GS memory, block after block in
  *                  row-major block order over the texture's rectangle: the data as it lies in GS memory
@@ -13,7 +13,8 @@
  * at any depth below the folder `textures` next to the program (or the one BT3_TEXTURES names). A pack's alpha
  * is the GS's own (0x80 = opaque), like the textures it replaces.
  *
- * Read so far: DDS with DXT1 / DXT3 / DXT5 data or plain 32-bit pixels, with its smaller copies (mip levels).
+ * Read: DDS with DXT1 / DXT3 / DXT5 data or plain 32-bit pixels, with its smaller copies (mip levels), and PNG
+ * (the smaller copies are made here). Where a name exists as both, the first one found is used.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,7 +60,7 @@ static void add(const char *dir, const char *name) {
     size_t i;
     Entry e;
 
-    if (n < 8 || SDL_strcasecmp(name + n - 4, ".dds") != 0) {
+    if (n < 8 || (SDL_strcasecmp(name + n - 4, ".dds") != 0 && SDL_strcasecmp(name + n - 4, ".png") != 0)) {
         return;
     }
     for (i = 0; i < n - 4; i++) {
@@ -229,12 +230,77 @@ const char *TexPack_Lookup(uint32_t tbp, uint32_t tbw, uint32_t psm, uint32_t tw
     }
 }
 
+/* A PNG: decoded by SDL, and its smaller copies (mip levels) made here, each the average of 2 x 2 pixels of the one
+   before. */
+static int load_png(const char *path, TexPackImage *img) {
+    SDL_Surface *png = SDL_LoadPNG(path), *rgba;
+    uint32_t w, h, total = 0, lw, lh, at = 0, x, y, c;
+    int level, levels = 0;
+    uint8_t *f;
+
+    if (png == NULL) {
+        return 0;
+    }
+    rgba = SDL_ConvertSurface(png, SDL_PIXELFORMAT_RGBA32);
+    SDL_DestroySurface(png);
+    if (rgba == NULL || rgba->w <= 0 || rgba->h <= 0 || rgba->w > 8192 || rgba->h > 8192) {
+        SDL_DestroySurface(rgba);
+        return 0;
+    }
+    w = (uint32_t)rgba->w;
+    h = (uint32_t)rgba->h;
+    for (lw = w, lh = h; levels < TEXPACK_MAX_LEVELS; lw = lw > 1 ? lw / 2 : 1, lh = lh > 1 ? lh / 2 : 1) {
+        total += lw * lh * 4;
+        levels++;
+        if (lw == 1 && lh == 1) {
+            break;
+        }
+    }
+    f = SDL_malloc(total);
+    for (y = 0; y < h; y++) {
+        memcpy(f + y * w * 4, (const uint8_t *)rgba->pixels + y * (uint32_t)rgba->pitch, w * 4);
+    }
+    SDL_DestroySurface(rgba);
+    img->file = f;
+    img->w = w;
+    img->h = h;
+    img->format = 0;
+    img->levels = levels;
+    for (level = 0, lw = w, lh = h; level < levels; level++) {
+        img->data[level] = f + at;
+        img->bytes[level] = lw * lh * 4;
+        if (level + 1 < levels) {
+            const uint8_t *src = f + at;
+            uint32_t nw = lw > 1 ? lw / 2 : 1, nh = lh > 1 ? lh / 2 : 1;
+            uint8_t *dst = f + at + lw * lh * 4;
+            for (y = 0; y < nh; y++) {
+                for (x = 0; x < nw; x++) {
+                    uint32_t x0 = x * 2 < lw ? x * 2 : lw - 1, x1 = x * 2 + 1 < lw ? x * 2 + 1 : lw - 1;
+                    uint32_t y0 = y * 2 < lh ? y * 2 : lh - 1, y1 = y * 2 + 1 < lh ? y * 2 + 1 : lh - 1;
+                    for (c = 0; c < 4; c++) {
+                        dst[(y * nw + x) * 4 + c] = (uint8_t)((src[(y0 * lw + x0) * 4 + c] + src[(y0 * lw + x1) * 4 + c] +
+                                                               src[(y1 * lw + x0) * 4 + c] + src[(y1 * lw + x1) * 4 + c] + 2) / 4);
+                    }
+                }
+            }
+            at += lw * lh * 4;
+            lw = nw;
+            lh = nh;
+        }
+    }
+    return 1;
+}
+
 int TexPack_Load(const char *path, TexPackImage *img) {
     size_t size = 0;
-    uint8_t *f = SDL_LoadFile(path, &size);
+    uint8_t *f;
     uint32_t w, h, mips, flags, fourcc, bpp, blk, at = 128, level;
 
     memset(img, 0, sizeof(*img));
+    if (strlen(path) > 4 && SDL_strcasecmp(path + strlen(path) - 4, ".png") == 0) {
+        return load_png(path, img);
+    }
+    f = SDL_LoadFile(path, &size);
     if (f == NULL || size < 128 || memcmp(f, "DDS ", 4) != 0) {
         SDL_free(f);
         return 0;

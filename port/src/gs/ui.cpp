@@ -220,7 +220,7 @@ static void video_tab(PortVideo &v) {
         bool off = false;
         ImGui::Checkbox("Texture pack (none found)", &off);
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("Put a pack's files (PCSX2 naming, .dds) into a folder \"textures\" next to the game.");
+        ImGui::SetItemTooltip("Put a pack's files (PCSX2 naming, .dds or .png) into a folder \"textures\" next to the game.");
     }
 }
 

@@ -29,7 +29,7 @@ README = """Dragon Ball Z: Budokai Tenkaichi 3 - PC port (Linux, 64-bit)
 
 In the game, F1 opens the settings: resolution, widescreen, controls and sound.
 Saves are kept in saves/. A file placed in gamedata/mods/<same path as the original> replaces the original.
-Texture packs (PCSX2 naming, .dds) go into textures/: see the note there.
+Texture packs (PCSX2 naming, .dds or .png) go into textures/: see the note there.
 
 This package contains no game data. The game's data comes from your disc and stays on your computer.
 """
@@ -42,7 +42,7 @@ TEXTURES_NOTE = """Texture packs go here.
 Put a pack's replacement textures into this folder, in subfolders or not: the game looks through all of it when it
 starts. The files have to be named the way the PCSX2 emulator names texture replacements for this game
 (for example 1dd4c76113969303-56e3d4469d2ad392-00005e54.dds), so a pack made for PCSX2 can be copied in as it is.
-Read so far: .dds files (DXT1, DXT3, DXT5 or plain 32-bit).
+Read: .dds files (DXT1, DXT3, DXT5 or plain 32-bit) and .png files.
 
 In the game, F1 > Video has a switch for the pack.
 """

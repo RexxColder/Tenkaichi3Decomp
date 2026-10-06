@@ -1277,6 +1277,7 @@ The replacements are DXT5 at 4 times the size (512 x 512 for a 128 x 128 origina
      writing its texture's alpha; the original stays at 0x7F, the pack's redrawn sheet reaches 0x80..0x8E near
      one end, so the first layer set bit 7 there and the next was not drawn (seen in 16:9, by luck not in 4:3).
      A replacement's alpha is kept at or below the ORIGINAL's largest (`TexPack_Lookup` returns it; orig.z).
-- Not done: PNG; textures smaller than one block; loading in the background (files are read when first needed);
+- PNG is read too (SDL_LoadPNG; mip levels made by averaging), checked with nine of the HUD files converted from the DDS pack.
+- Not done: textures smaller than one block; loading in the background (files are read when first needed);
   choosing between a pack's alternative folders (first name found wins); a pack on the Windows program has not
   been run.
