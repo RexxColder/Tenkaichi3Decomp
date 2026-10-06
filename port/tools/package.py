@@ -30,12 +30,10 @@ In the game, F1 opens the settings: resolution, widescreen, controls and sound.
 Saves are kept in saves/. A file placed in gamedata/mods/<same path as the original> replaces the original.
 
 This package contains no game data. The game's data comes from your disc and stays on your computer.
-The opening movie needs the program "ffmpeg" to be installed; everything else works without it.
 """
 
 WIN_README = README.replace("(Linux, 64-bit)", "(Windows, 64-bit)").replace("Start  bt3-setup\n", "Start  bt3-setup.exe\n") \
-    .replace("start  bt3-setup  again and press Play, or run  ./play.sh", "start  bt3-setup.exe  again and press Play, or run  play.bat") \
-    .replace('The opening movie needs the program "ffmpeg" to be installed', 'The opening movie needs ffmpeg.exe next to bt3.exe or installed (in the PATH)')
+    .replace("start  bt3-setup  again and press Play, or run  ./play.sh", "start  bt3-setup.exe  again and press Play, or run  play.bat")
 
 def main_win():
     """BT3_CC=win64: bt3.exe (cross-built or built in MSYS2), bt3-setup.exe (port/setup/build.sh win), SDL3.dll."""

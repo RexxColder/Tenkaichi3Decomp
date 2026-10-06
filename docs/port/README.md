@@ -1046,3 +1046,21 @@ Checked: the three files need at most glibc 2.34 and carry no stamp; a fresh ins
 check on the host; the demo fight run inside a plain `ubuntu:22.04` container; the setup window and the renderer
 start with the bundled SDL3. The Windows zip was never affected (0 AVX in our programs, the official SDL3.dll).
 Rule: release zips come from `port/release/build_linux.sh` (and the mingw cross-build), never from a plain host build.
+
+## The movies without ffmpeg (2026-10-06)
+
+- `port/src/plat_mpeg2.c`: the port's own decoder for the opening and the ending (`DATA/ZS3USOP.PSS`,
+  `ZS3USED.PSS`). Both are MPEG-2 program streams with one video stream, 512 x 448, 4:2:0, progressive, and
+  **every picture is an intra picture** (2,810 and 4,200; made for the PS2's picture decoder), all with
+  intra_dc_precision 0, q_scale_type 1, intra_vlc_format 1 (table B-15), zigzag scan, the default matrix, one
+  slice per macroblock row. So the decoder is the intra part of ISO/IEC 13818-2 only: program-stream demux,
+  headers, slices, DC and AC coefficient tables, inverse quantisation with mismatch control, the reference
+  decoder's integer inverse DCT, BT.601 to RGB. Integer arithmetic only; a P or B picture would show as the
+  previous one.
+- Verified against ffmpeg, picture by picture, on both whole files (`-DMPEG2_TEST` builds a test program that
+  writes planar 4:2:0): all 7,010 pictures differ by at most 1 in any sample (the usual difference between two
+  inverse DCTs; mean 0.010 and 0.012). The opening decodes in about 3 seconds in total.
+- `plat_movie.c` uses it in place of the pipe to the `ffmpeg` program. Seen in the game (64-bit Linux build,
+  started from the menus without input): the opening plays after the logos. The sound was already separate (ADX).
+- A consequence: the movie now takes the same number of frames everywhere, so recorded sessions (`*.pad`) replay
+  under Wine as on Linux (the fight of `session2.pad` starts at vertical blank 2377 on both).

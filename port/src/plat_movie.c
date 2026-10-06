@@ -5,11 +5,10 @@
  * and asks for one decoded picture per frame. A picture comes back as 16 x 16 blocks of RGBA, columns first, which
  * the game uploads straight into the frame buffer. The sound is a separate ADX file (port/src/gs/snd_adx.c).
  *
- * Here the decoding is done by the `ffmpeg` program: when the first picture is asked for, it is started on the
- * movie file (the path the game opened last, from plat_file.c) and writes raw 512 x 448 RGBA frames into a pipe;
- * each sceMpegGetPicture reads one and rearranges it into the block order. The bytes the game feeds to
- * sceMpegDemuxPss are ignored. Without ffmpeg (or without a window) a movie ends at once, as before.
- * A temporary arrangement: a 32-bit MPEG-2 library is not installed; a 64-bit build can link a decoder directly.
+ * Here the pictures come from the port's own decoder (plat_mpeg2.c: both movies are intra-only MPEG-2), reading
+ * the movie file the game opened last (the path from plat_file.c): each sceMpegGetPicture decodes one picture and
+ * rearranges it into the block order. The bytes the game feeds to sceMpegDemuxPss are ignored. Without a window a
+ * movie ends at once, except when recorded input is played back (the movie has to take the same number of frames).
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -22,43 +21,35 @@
 extern char gPortMoviePath[512];
 extern int GsGpu_Enabled(void);
 
-static FILE *sPipe;
+typedef struct Mpeg2 Mpeg2;
+extern Mpeg2 *Mpeg2_Open(const char *path);
+extern int Mpeg2_Next(Mpeg2 *m, uint8_t *rgba);
+extern int Mpeg2_Width(const Mpeg2 *m);
+extern int Mpeg2_Height(const Mpeg2 *m);
+extern void Mpeg2_Close(Mpeg2 *m);
+
+static Mpeg2 *sMovie;
 static int sStarted, sEnd;
 static uint8_t sFrame[MOVIE_W * MOVIE_H * 4];
 
 static void movie_close(void) {
-    if (sPipe != NULL) {
-#ifdef _WIN32
-        _pclose(sPipe);
-#else
-        pclose(sPipe);
-#endif
-        sPipe = NULL;
+    if (sMovie != NULL) {
+        Mpeg2_Close(sMovie);
+        sMovie = NULL;
     }
     sStarted = 0;
     sEnd = 0;
 }
 
 static void movie_start(void) {
-    char cmd[800];
-
     sStarted = 1;
     sEnd = 1;
     /* without a window too when recorded input is played back: the movie has to take the same number of frames */
-    if ((!GsGpu_Enabled() && getenv("BT3_PAD_PLAY") == NULL) || gPortMoviePath[0] == '\0' || strchr(gPortMoviePath, '\'') != NULL || getenv("BT3_NOMOVIE") != NULL) {
+    if ((!GsGpu_Enabled() && getenv("BT3_PAD_PLAY") == NULL) || gPortMoviePath[0] == '\0' || getenv("BT3_NOMOVIE") != NULL) {
         return;
     }
-#ifdef _WIN32
-    if (strchr(gPortMoviePath, '"') != NULL) {
-        return;
-    }
-    snprintf(cmd, sizeof(cmd), "ffmpeg -v error -i \"%s\" -f rawvideo -pix_fmt rgba -s %dx%d - 2>NUL", gPortMoviePath, MOVIE_W, MOVIE_H);
-    sPipe = _popen(cmd, "rb"); /* binary: the picture's bytes as they are */
-#else
-    snprintf(cmd, sizeof(cmd), "ffmpeg -v error -i '%s' -f rawvideo -pix_fmt rgba -s %dx%d - 2>/dev/null", gPortMoviePath, MOVIE_W, MOVIE_H);
-    sPipe = popen(cmd, "r");
-#endif
-    sEnd = sPipe == NULL;
+    sMovie = Mpeg2_Open(gPortMoviePath);
+    sEnd = sMovie == NULL;
 }
 
 int sceMpegInit(void) { return 0; }
@@ -87,7 +78,7 @@ int sceMpegGetPicture(void *mp, void *rgb, int blocks) {
     if (!sStarted) {
         movie_start();
     }
-    if (sPipe == NULL || fread(sFrame, 1, sizeof(sFrame), sPipe) != sizeof(sFrame)) {
+    if (sMovie == NULL || !Mpeg2_Next(sMovie, sFrame) || Mpeg2_Width(sMovie) != MOVIE_W || Mpeg2_Height(sMovie) != MOVIE_H) {
         sEnd = 1;
         return -1;
     }

@@ -147,7 +147,6 @@ def requirements(want32):
             ("llc", have("llc"), "code generation for the game code", "llvm"),
             ("python clang module", clang_py, "rewrites the game's pointers for 64-bit", "python bindings of clang (python-clang, or `pip install libclang`)"),
         ]
-    rows.append(("ffmpeg (optional)", have("ffmpeg"), "plays the opening movie", "ffmpeg"))
     return rows
 
 
