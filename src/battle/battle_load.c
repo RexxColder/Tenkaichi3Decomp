@@ -182,11 +182,18 @@ s32 BtlLoad_StepStageReload(BtlJob *job) {
         break;
     case 1:
         BtlLoad_BeginStageSwap();
+#ifdef PORT
+        /* PC build: maps added from outside the disc live past file id 0x1BB, and the split-model range overlaps
+           the menu archives (baseFile 0x1C1) and the stage transitions; the single model serves split screen too,
+           so no split file is ever asked for. */
+        id = Battle_GetStage() + BTL_FILE_STAGE;
+#else
         if (Battle_IsSplitScreen()) {
             id = Battle_GetStage() + BTL_FILE_STAGE_SPLIT;
         } else {
             id = Battle_GetStage() + BTL_FILE_STAGE;
         }
+#endif
         res->stage = File_Request3(id, res->stage, res->stageSize);
         res->bank = File_Request3(Battle_GetStage() + BTL_FILE_SND_STAGE, res->bank, res->bankSize);
         job->state++;
@@ -525,11 +532,16 @@ s32 BtlLoad_StepInitial(BtlJob *job) {
                 memset(m->buf[1], 0, BTL_MEMBER_BUF_SIZE);
             }
         }
+#ifdef PORT
+        /* PC build: see the note in the stage-swap job: the single model serves split screen too. */
+        id = Battle_GetStartStage() + BTL_FILE_STAGE;
+#else
         if (Battle_IsSplitScreen()) {
             id = Battle_GetStartStage() + BTL_FILE_STAGE_SPLIT;
         } else {
             id = Battle_GetStartStage() + BTL_FILE_STAGE;
         }
+#endif
         res->stage = File_Request3(id, res->stage, res->stageSize);
         for (side = 0; side < 2; side++) {
             for (i = 0; (u32)i < (u32)BattleSide_GetMemberCount(side); i++) {

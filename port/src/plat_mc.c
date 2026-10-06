@@ -104,6 +104,9 @@ int func_002A1E58(int port, int slot, char *name, int mode) {
     if (f == NULL) {
         return request(2, -4);
     }
+    if (getenv("BT3_MC_LOG") != NULL) {
+        fprintf(stderr, "mc: open %s (mode %d)\n", path, mode);
+    }
     sFiles[fd] = f;
     return request(2, fd);
 }
@@ -139,10 +142,15 @@ int func_002A2078(int fd, int offset, int origin) {
 
 /* sceMcRead */
 int func_002A2208(int fd, void *buf, int size) {
+    int n;
     if (fd < 0 || fd >= MC_FILES || sFiles[fd] == NULL) {
         return request(5, -4);
     }
-    return request(5, (int)fread(buf, 1, (size_t)size, sFiles[fd]));
+    n = (int)fread(buf, 1, (size_t)size, sFiles[fd]);
+    if (getenv("BT3_MC_LOG") != NULL) {
+        fprintf(stderr, "mc: read fd %d size %d -> %d bytes\n", fd, size, n);
+    }
+    return request(5, n);
 }
 
 /* sceMcWrite */
