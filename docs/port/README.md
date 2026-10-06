@@ -1114,3 +1114,17 @@ user's request). Inside the build the programs are still `port/build/bt3`, `bt3_
   not the game: it subtracted the sleep that was ASKED for, and Windows' sleep returns early. `vblank_wait`
   (plat_stub.c) now measures the wait, and on Windows asks for 1 ms timer resolution and waits the last
   millisecond and a half in `Sleep(0)` slices.
+- **Pacing bug found through the VM's logs** (`metrics3.txt`: i5 12th gen, 10 logical processors, RTX 3070 passed
+  through; fight at 18 to 20 ms of work per frame = game code 6 to 8 ms, display list 11 to 13 ms, submit 3 ms,
+  each about 2 to 2.5 times this machine's figure). The new `pace:` line showed 30 of 60 vertical blanks "started
+  late": a fight frame waits for two blanks, and when its work took longer than one period (16.7 ms) the first
+  wait found its moment passed and `vblank_wait` started a NEW grid from then, so the frame lasted work + 16.7 ms
+  (about 37 ms) and the fight ran at about 27 frames per second, unevenly, although the work was within the
+  budget. Now a blank that is late by less than 0.1 s is not waited for and the grid is kept. Checked with
+  `BT3_BURN_MS=12` (burns that much per frame): frames last 31.9 to 35.2 ms on Linux, 29.6 to 37.6 under Wine.
+  This affected every machine that needs more than 16.7 ms per fight frame; this development machine never did.
+- Verbose log additions: `time:   of the average: game code / display list (texture decoding, pipeline creation,
+  ending and submitting)`, `time:   frames lasted A to B ms`, `pace:` (blank intervals, how many were reached late,
+  new grids), and the processor count and memory at start.
+- Open: why that VM is 2 to 2.5 times slower in every part alike (suspected: its processors run on the host's
+  efficiency cores; not confirmed).

@@ -1043,7 +1043,7 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
 
 /* Carries out a source-chain transfer on VIF1 that starts at `tadr` (PS2 address = host address). */
 void Port_GsVif1Chain(uint32_t tadr, int tte) {
-    static uint64_t next, start, sum, worst, sumGame, sumList, sumTex, sumPipe, sumEnd;
+    static uint64_t next, start, sum, worst, sumGame, sumList, sumTex, sumPipe, sumEnd, perMin = ~0ull, perMax;
     static unsigned n, over;
     uint64_t t, tChain;
 
@@ -1086,6 +1086,11 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
             gGpuNewTex = gGpuNewTexPixels = gGpuNewPipes = 0;
             gGpuTexNs = gGpuPipeNs = gGpuEndNs = 0;
         }
+        if (getenv("BT3_BURN_MS") != NULL) { /* testing: a slower machine, by burning time in every frame */
+            uint64_t until = now_ns() + (uint64_t)atoi(getenv("BT3_BURN_MS")) * 1000000ull;
+            while (now_ns() < until) {
+            }
+        }
         sum += work;
         if (work > worst) { worst = work; }
         if (work > 33366700ull) { over++; }
@@ -1097,14 +1102,24 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
                                 "pipeline creation %.1f, ending and submitting the frame %.1f)\n",
                         (double)sumGame / 60e6, (double)sumList / 60e6, (double)sumTex / 60e6, (double)sumPipe / 60e6, (double)sumEnd / 60e6);
             }
+            if (getenv("BT3_GS_VERBOSE") != NULL) {
+                fprintf(stderr, "time:   frames lasted %.1f to %.1f ms (33.4 in a fight, 16.7 in the menus)\n", (double)perMin / 1e6, (double)perMax / 1e6);
+            }
             n = 0; sum = 0; worst = 0; over = 0;
             sumGame = sumList = sumTex = sumPipe = sumEnd = 0;
+            perMin = ~0ull;
+            perMax = 0;
         }
     }
     /* pacing is done at the vertical blank (Port_VBlank in plat_stub.c): 60 per second, the game waits for one
        per menu frame and two per battle frame */
     (void)next;
-    start = now_ns();
+    t = now_ns();
+    if (start != 0) { /* the frame from start to start, waiting included */
+        if (t - start < perMin) { perMin = t - start; }
+        if (t - start > perMax) { perMax = t - start; }
+    }
+    start = t;
     if (sThreaded) {
         render_post(2, tadr, tte);
     }

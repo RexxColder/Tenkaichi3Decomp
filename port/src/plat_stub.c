@@ -57,14 +57,23 @@ static unsigned long long now_ns(void) {
 }
 
 static unsigned long long sPacePrev, sPaceMin = ~0ull, sPaceMax;
-static unsigned sPaceCount, sPaceOff, sPaceLate;
+static unsigned sPaceCount, sPaceOff, sPaceLate, sPaceReset;
 
 static void vblank_wait(void) {
     static unsigned long long next;
     struct timespec ts;
     unsigned long long t = now_ns(), after;
 
-    if (next > t && next - t < 100000000ull) {
+    if (next != 0 && t >= next && t - next < 100000000ull) {
+        /* Late, but not hopelessly: this blank has passed already, so do not wait, and keep the grid. A fight
+           frame waits for two blanks; when its work takes longer than one period (16.7 ms) but less than two, the
+           first wait is skipped here and the second one ends on time, so the frame still lasts 33.4 ms. (Starting
+           a new grid instead, as this did before, added a full period to every such frame: a machine that needed
+           20 ms per frame ran the fight at 27 frames per second and unevenly, though it was within the budget.) */
+        after = t;
+        next += 16683350ull;
+        sPaceLate++;
+    } else if (next > t && next - t < 100000000ull) {
 #ifdef _WIN32
         /* Windows' sleep is only good to about a millisecond, and only once the timer resolution has been asked
            for: sleep to within a millisecond and a half of the moment, then give the rest away in small slices. */
@@ -89,8 +98,8 @@ static void vblank_wait(void) {
         next += 16683350ull;
     } else {
         after = t;
-        next = t + 16683350ull; /* late (or the first one): start a new grid from now */
-        sPaceLate++;
+        next = t + 16683350ull; /* the first one, or more than a tenth of a second behind: a new grid from now */
+        sPaceReset++;
     }
     /* BT3_GS_VERBOSE: once a second, how evenly the vertical blanks came (they should be 16.68 ms apart) */
     if (sPacePrev != 0) {
@@ -103,11 +112,11 @@ static void vblank_wait(void) {
     if (++sPaceCount == 60) {
         if (getenv("BT3_GS_VERBOSE") != NULL) {
             /* (whole numbers: this file is built with the game's software float, which has no 64-bit conversions) */
-            fprintf(stderr, "pace: 60 vertical blanks: %u.%02u to %u.%02u ms apart, %u more than 1.3 ms off, %u started late\n",
+            fprintf(stderr, "pace: 60 vertical blanks: %u.%02u to %u.%02u ms apart, %u reached late (not waited for), %u new grids\n",
                     (unsigned)(sPaceMin / 1000000ull), (unsigned)(sPaceMin / 10000ull % 100), (unsigned)(sPaceMax / 1000000ull),
-                    (unsigned)(sPaceMax / 10000ull % 100), sPaceOff, sPaceLate);
+                    (unsigned)(sPaceMax / 10000ull % 100), sPaceLate, sPaceReset);
         }
-        sPaceCount = sPaceOff = sPaceLate = 0;
+        sPaceCount = sPaceOff = sPaceLate = sPaceReset = 0;
         sPaceMin = ~0ull;
         sPaceMax = 0;
     }
