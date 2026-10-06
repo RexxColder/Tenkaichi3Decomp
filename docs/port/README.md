@@ -1286,3 +1286,5 @@ The replacements are DXT5 at 4 times the size (512 x 512 for a 128 x 128 origina
   (PNG decoding and the mip levels, about 10 ms a texture). Loading in the background (the original shown until
   the replacement is ready) would remove that; **left as it is for now by the user's decision (2026-10-06)**: a
   short freeze instead of a visible swap.
+- The Windows program under Wine, session5 in 16:9: the DDS pack (557 lookups found, 70 missing) and the PNG pack
+  (55 found) both load and draw correctly; no crash.
