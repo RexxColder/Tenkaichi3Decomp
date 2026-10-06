@@ -59,6 +59,12 @@ finished program fetches the values from your disc when it starts.
 | `port/third_party/` | Dear ImGui (MIT), the maths library of newlib |
 | `docs/` | Notes on the game (from the decompilation) and `docs/port/` on the port |
 
+## How this was made
+
+This project was developed with substantial help from AI (Anthropic's Claude, working through Claude Code),
+directed and tested by the maintainer. Results were checked by machine wherever possible: decompiled code by
+compiling it back to the original bytes, the port by comparing it with a fight recorded on the console.
+
 ## Licence
 
 The port's own code (everything under `port/` except `port/third_party/`, the setup, the build tools, and the
