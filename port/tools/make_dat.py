@@ -51,7 +51,7 @@ def main():
                 off += int(p[1])
             elif p[0] == ".long":
                 off += 4
-        if off != size:
+        if not off <= size < off + 16:  # (a Windows object's section is padded to its 16-byte alignment)
             raise SystemExit(f"{name}: {off} bytes in port/data, {size} in the program")
     # the mark that this program does not work without its list (gPortDataStripped, plat_mem.c)
     secs = []

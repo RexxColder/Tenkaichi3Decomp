@@ -9,15 +9,16 @@ export BT3_SKELETON=1
 run() { # the build of one variant; a compile failure must stop the release (undefined.py only reports it)
     python3 port/tools/undefined.py > port/build/compile_$BT3_CC.txt 2>&1 || { tail -5 port/build/compile_$BT3_CC.txt; exit 1; }
     if grep -q "^FAILED" port/build/compile_$BT3_CC.txt; then grep "^FAILED" port/build/compile_$BT3_CC.txt | head -20; exit 1; fi
-    python3 port/tools/link.py | tee port/build/link_$BT3_CC.txt
-    grep -q "link OK" port/build/link_$BT3_CC.txt
+    python3 port/tools/link.py > port/build/link_$BT3_CC.txt 2>&1 || { cat port/build/link_$BT3_CC.txt; exit 1; }
+    cat port/build/link_$BT3_CC.txt
 }
 mkdir -p port/build
 echo "== Linux"
 export BT3_CC=clang64
 run
 sh port/setup/build.sh
-python3 port/tools/package.py | tee port/build/package_linux.txt
+python3 port/tools/package.py > port/build/package_linux.txt 2>&1 || { cat port/build/package_linux.txt; exit 1; }
+cat port/build/package_linux.txt
 grep -q "^portable: yes" port/build/package_linux.txt
 echo "== Windows"
 export BT3_CC=win64
