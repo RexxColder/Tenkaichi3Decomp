@@ -214,7 +214,7 @@ static uint8_t *read_file(const char *path, size_t *size) {
 }
 
 static void data_fail(const char *what, const char *path) {
-    fprintf(stderr, "bt3: %s%s%s\n     The game's data comes from your own disc image; run the setup (bt3-setup) to unpack it.\n", what,
+    fprintf(stderr, "bt3: %s%s%s\n     The game's data comes from your own disc image; run the setup (Tenkaichi3Decomp-setup) to unpack it.\n", what,
             path != NULL ? ": " : "", path != NULL ? path : "");
     exit(2);
 }
@@ -237,7 +237,7 @@ static void Port_LoadGameData(void) {
     }
     exe[n] = '\0';
     if (n > 4 && (strcmp(exe + n - 4, ".exe") == 0 || strcmp(exe + n - 4, ".EXE") == 0)) {
-        exe[n - 4] = '\0'; /* bt3.exe keeps its list in bt3.dat */
+        exe[n - 4] = '\0'; /* Name.exe keeps its list in Name.dat */
     }
     snprintf(path, sizeof(path), "%s.dat", exe);
     list = read_file(path, &listSize);

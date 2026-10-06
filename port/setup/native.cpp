@@ -1,4 +1,4 @@
-// The setup's own installer, for a release folder (bt3, bt3.dat and bt3-setup together, no build tools):
+// The setup's own installer, for a release folder (Tenkaichi3Decomp, Tenkaichi3Decomp.dat and Tenkaichi3Decomp-setup together, no build tools):
 // reads the user's disc image directly, checks it, unpacks the game data and runs the self-test. No Python, no 7z.
 // It reports through the same event lines as install.py (@step, @note, @ok, @skip, @fail, @stopped, @done), so the
 // window (setup.cpp) shows both the same way.
@@ -26,9 +26,9 @@ const char *kRomSha1 = "caee6c2269bba89fc51eea9e7beac3adbec9dc52";
 const char *kDbzpSha1 = "4f910969e05d9b25c83af7642b60da9949a4348b";
 const Uint32 kRomBase = 0x100000, kRomEnd = 0x2FF180;
 #ifdef _WIN32
-const char *kGame = "bt3.exe";
+const char *kGame = "Tenkaichi3Decomp.exe";
 #else
-const char *kGame = "bt3";
+const char *kGame = "Tenkaichi3Decomp";
 #endif
 
 std::mutex sLock;

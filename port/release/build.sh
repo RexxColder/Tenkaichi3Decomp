@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds both release archives (Linux and Windows) in the container of port/release/Dockerfile:
-#     port/release/build.sh   ->   port/build_release/bt3-port-linux-x64.zip, bt3-port-windows-x64.zip
+#     port/release/build.sh   ->   port/build_release/Tenkaichi3Decomp-linux-x64.zip, Tenkaichi3Decomp-windows-x64.zip
 # Needs only docker and this repository: no disc, no game data, no build on the host.
 set -e
 cd "$(dirname "$0")/../.."

@@ -2,7 +2,7 @@
 # Runs INSIDE the release container (port/release/Dockerfile), in the repository's top folder: builds both release
 # archives from the repository alone. No disc and no game data are involved: the game's data tables are built blank
 # (port/data) and the finished program fetches their values from the user's disc at start.
-#   -> port/build/bt3-port-linux-x64.zip, port/build/bt3-port-windows-x64.zip
+#   -> port/build/Tenkaichi3Decomp-linux-x64.zip, port/build/Tenkaichi3Decomp-windows-x64.zip
 # port/release/build.sh starts this in the container; the GitHub workflow does the same.
 set -e
 export BT3_SKELETON=1

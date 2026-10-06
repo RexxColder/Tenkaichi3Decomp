@@ -4,7 +4,7 @@
 // none of the work itself: it runs `python3 install.py --machine --iso <file>` next to it and shows the events
 // that script prints (one line each: @step, @note, @ok, @skip, @fail, @missing, @stopped, @done; see install.py).
 //
-//   build:  port/setup/build.sh   ->  ./bt3-setup
+//   build:  port/setup/build.sh   ->  ./Tenkaichi3Decomp-setup
 //   test:   BT3_SETUP_ISO=<file> starts the installation at once; BT3_SETUP_SHOT=<prefix> writes the window's
 //           picture to <prefix>_<n>.ppm whenever the page or the step changes (no person needed to check it)
 #include <stdio.h>
@@ -20,13 +20,15 @@
 #include "imgui_impl_sdlgpu3.h"
 #include "native.h"
 
+#define GAME "Tenkaichi3Decomp" /* the program this sets up: GAME, GAME.dat; this program is GAME-setup */
+
 enum Page { PAGE_PICK, PAGE_RUN, PAGE_DONE, PAGE_FAILED };
 enum State { PENDING, RUNNING, OK, SKIPPED, FAILED };
 struct StepRow { std::string title, detail; State state = PENDING; Uint64 start = 0, end = 0; };
 struct Missing { std::string name, why, pkg; };
 
 // The steps of the two ways to install: from a source checkout (install.py does the work and needs build tools) and
-// in a release folder (bt3 and bt3.dat next to this program: native.cpp unpacks the disc itself).
+// in a release folder (Tenkaichi3Decomp and Tenkaichi3Decomp.dat next to this program: native.cpp unpacks the disc itself).
 static const char *kSourceSteps[] = {"Requirements", "Disc image", "Game data", "Executable data", "Build", "Self-test"};
 static const char *kReleaseSteps[] = {"Disc image", "Game data", "Self-test"};
 static const struct { const char *title, *help; } kHelp[] = {
@@ -68,7 +70,7 @@ static bool file_exists(const char *path) {
 // The folder to install into: a release folder (this program's own), or the source checkout that holds install.py.
 static std::string find_root() {
     std::string dir = SDL_GetBasePath() ? SDL_GetBasePath() : "./";
-    if ((file_exists((dir + "bt3").c_str()) || file_exists((dir + "bt3.exe").c_str())) && file_exists((dir + "bt3.dat").c_str())) {
+    if ((file_exists((dir + GAME).c_str()) || file_exists((dir + GAME ".exe").c_str())) && file_exists((dir + GAME ".dat").c_str())) {
         sRelease = true; // a release folder: the finished program is here, only the game data is missing
         return dir;
     }
@@ -345,7 +347,7 @@ static void page_pick() {
     static const SDL_DialogFileFilter filters[] = {{"PS2 disc image", "iso;bin;img"}, {"All files", "*"}};
     bool ok = file_exists(sIso);
 
-    heading("Budokai Tenkaichi 3 for PC", "This sets the game up on your computer from your own PlayStation 2 disc.");
+    heading(GAME, "This sets the game up on your computer from your own PlayStation 2 disc.");
     ImGui::TextWrapped("Choose your disc image of Dragon Ball Z: Budokai Tenkaichi 3, USA release (SLUS-21678), as an .iso file. "
                        "The game's data is taken from it and stays on this computer. %s",
                        sRelease ? "Nothing is downloaded." : "Nothing is downloaded except one small tool.");
@@ -360,7 +362,7 @@ static void page_pick() {
     if (sIso[0] != '\0' && !ok) {
         ImGui::TextColored(kRed, "That file does not exist.");
     } else if (sRoot.empty()) {
-        ImGui::TextColored(kRed, "Neither the game (bt3, bt3.dat) nor install.py was found next to this program.");
+        ImGui::TextColored(kRed, "Neither the game (" GAME ", " GAME ".dat) nor install.py was found next to this program.");
     } else {
         ImGui::TextColored(kDim, sRelease ? "Needs about 4 GB of free space and takes a minute or two." : "Needs about 4 GB of free space and takes 5 to 10 minutes.");
     }
@@ -604,13 +606,13 @@ int main(int argc, char **argv) {
     int shots = 0, shotKey = -1;
 
     if (argc > 2 && strcmp(argv[1], "--install") == 0) {
-        // Without a window: bt3-setup --install <disc.iso>. A release folder only; prints the event lines.
+        // Without a window: Tenkaichi3Decomp-setup --install <disc.iso>. A release folder only; prints the event lines.
         std::string line;
         bool ok = false;
         SDL_Init(0);
         sRoot = find_root();
         if (!sRelease) {
-            fprintf(stderr, "bt3-setup --install works in a release folder (bt3 and bt3.dat next to it).\nIn a source checkout: python3 install.py --iso <file>\n");
+            fprintf(stderr, GAME "-setup --install works in a release folder (" GAME " and " GAME ".dat next to it).\nIn a source checkout: python3 install.py --iso <file>\n");
             return 2;
         }
         Native_Start(sRoot, argv[2]);
@@ -627,13 +629,13 @@ int main(int argc, char **argv) {
         return ok ? 0 : 1;
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        fprintf(stderr, "bt3-setup: %s\n", SDL_GetError());
+        fprintf(stderr, GAME "-setup: %s\n", SDL_GetError());
         return 1;
     }
-    sWindow = SDL_CreateWindow("Budokai Tenkaichi 3 PC port - Setup", 760, 560, SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    sWindow = SDL_CreateWindow(GAME " - Setup", 760, 560, SDL_WINDOW_HIGH_PIXEL_DENSITY);
     sDevice = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL, false, NULL);
     if (sWindow == NULL || sDevice == NULL || !SDL_ClaimWindowForGPUDevice(sDevice, sWindow)) {
-        fprintf(stderr, "bt3-setup: no window: %s\nThe same setup runs in a terminal: python3 install.py\n", SDL_GetError());
+        fprintf(stderr, GAME "-setup: no window: %s\nThe same setup runs in a terminal: python3 install.py\n", SDL_GetError());
         return 1;
     }
     SDL_SetGPUSwapchainParameters(sDevice, sWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
@@ -660,7 +662,7 @@ int main(int argc, char **argv) {
             r.state = SKIPPED;
             r.detail = "already done";
         }
-        sLauncher = sRoot + (file_exists((sRoot + "bt3.exe").c_str()) ? "bt3.exe" : "bt3");
+        sLauncher = sRoot + (file_exists((sRoot + GAME ".exe").c_str()) ? GAME ".exe" : GAME);
         sPage = PAGE_DONE;
     }
     if (argc > 1) {

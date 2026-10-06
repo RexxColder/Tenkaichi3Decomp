@@ -28,7 +28,7 @@ models need (`ObjSeam_TransformVtx`; the game stops if such a model is shown). S
 
 ## Installing a release
 
-Unpack the release, start `bt3-setup` (`bt3-setup.exe` on Windows), choose your disc image, press Play. The
+Unpack the release, start `Tenkaichi3Decomp-setup` (`Tenkaichi3Decomp-setup.exe` on Windows), choose your disc image, press Play. The
 setup checks that the image is the unmodified USA release and unpacks the game's data next to the program.
 
 ## Building from source
@@ -38,7 +38,7 @@ python3 install.py --iso <your disc image>
 ```
 
 does everything on Linux: checks the tools, reads the disc, builds the 64-bit program and runs the game's demo
-fight as a test. `python3 install.py --check` lists what is missing. `port/setup/build.sh && ./bt3-setup` is
+fight as a test. `python3 install.py --check` lists what is missing. `port/setup/build.sh && ./Tenkaichi3Decomp-setup` is
 the same with a window.
 
 The release archives for Linux and Windows are built from the repository alone, with no disc involved:

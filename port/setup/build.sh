@@ -1,14 +1,14 @@
 #!/bin/sh
 # Builds the setup window (port/setup/setup.cpp, native.cpp).
-#   port/setup/build.sh        -> ./bt3-setup            (needs g++ and SDL3; Dear ImGui is in the repository)
-#   port/setup/build.sh win    -> port/build/bt3-setup.exe
+#   port/setup/build.sh        -> ./Tenkaichi3Decomp-setup            (needs g++ and SDL3; Dear ImGui is in the repository)
+#   port/setup/build.sh win    -> port/build/Tenkaichi3Decomp-setup.exe
 #        on Linux: cross-compiled with mingw-w64 (x86_64-w64-mingw32-g++) and SDL3's mingw development package
 #                  unpacked under port/build/win (or its x86_64-w64-mingw32 folder named by BT3_SDL3);
 #        on Windows (MSYS2 shell): with that shell's g++ and SDL3.
 cd "$(dirname "$0")/../.." || exit 1
 I=port/third_party/imgui
 if [ "$1" = win ]; then
-    O=port/build/setup_win; OUT=port/build/bt3-setup.exe; LIBS="-lSDL3 -static -static-libgcc -static-libstdc++ -mwindows"
+    O=port/build/setup_win; OUT=port/build/Tenkaichi3Decomp-setup.exe; LIBS="-lSDL3 -static -static-libgcc -static-libstdc++ -mwindows"
     case "$(uname -s)" in
         MINGW*|MSYS*|CYGWIN*) CXX=g++; SDL="" ;;
         *) CXX=x86_64-w64-mingw32-g++
@@ -17,7 +17,7 @@ if [ "$1" = win ]; then
            SDL="-I$S/include -L$S/lib" ;;
     esac
 else
-    O=port/build/setup; OUT=bt3-setup; CXX=g++; SDL=""; LIBS="-lSDL3 -lpthread -static-libstdc++ -static-libgcc -Wl,-rpath,\$ORIGIN/lib"
+    O=port/build/setup; OUT=Tenkaichi3Decomp-setup; CXX=g++; SDL=""; LIBS="-lSDL3 -lpthread -static-libstdc++ -static-libgcc -Wl,-rpath,\$ORIGIN/lib"
 fi
 mkdir -p $O
 for f in $I/imgui.cpp $I/imgui_draw.cpp $I/imgui_tables.cpp $I/imgui_widgets.cpp $I/imgui_impl_sdl3.cpp $I/imgui_impl_sdlgpu3.cpp port/setup/native.cpp port/setup/setup.cpp; do

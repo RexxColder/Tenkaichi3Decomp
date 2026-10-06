@@ -1085,3 +1085,12 @@ Rule: release zips come from `port/release/build_linux.sh` (and the mingw cross-
   on a `v*` tag). Written and syntax-checked; NOT run yet (it runs only once pushed).
 - make_skeleton.py has to be run again (with the disc) when gen_data.py or the decompilation's data split changes;
   a stale port/data shows as a size mismatch in make_dat.py or as a checksum failure at start.
+
+## Names (2026-10-06)
+
+In a release the program is `Tenkaichi3Decomp` (`.exe` on Windows) with `Tenkaichi3Decomp.dat`, the setup is
+`Tenkaichi3Decomp-setup`, the archives are `Tenkaichi3Decomp-linux-x64.zip` / `-windows-x64.zip` with a top folder
+`Tenkaichi3Decomp/`, and both windows carry that name in their title (after the repository's name, at the
+user's request). Inside the build the programs are still `port/build/bt3`, `bt3_64`, `bt3.exe`; messages keep the
+`bt3:` prefix, and the files the game writes keep their names (`bt3_settings.txt`, `bt3_crash.txt`,
+`bt3_pipelines.txt`).
