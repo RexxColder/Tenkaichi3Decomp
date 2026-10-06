@@ -56,6 +56,9 @@ static unsigned long long now_ns(void) {
     return (unsigned long long)ts.tv_sec * 1000000000ull + (unsigned long long)ts.tv_nsec;
 }
 
+static unsigned long long sPacePrev, sPaceMin = ~0ull, sPaceMax;
+static unsigned sPaceCount, sPaceOff, sPaceLate;
+
 static void vblank_wait(void) {
     static unsigned long long next;
     struct timespec ts;
@@ -85,7 +88,28 @@ static void vblank_wait(void) {
         gPortSleptNs += after - t; /* the time really spent waiting (a sleep can return early or late) */
         next += 16683350ull;
     } else {
+        after = t;
         next = t + 16683350ull; /* late (or the first one): start a new grid from now */
+        sPaceLate++;
+    }
+    /* BT3_GS_VERBOSE: once a second, how evenly the vertical blanks came (they should be 16.68 ms apart) */
+    if (sPacePrev != 0) {
+        unsigned long long d = after - sPacePrev;
+        if (d < sPaceMin) { sPaceMin = d; }
+        if (d > sPaceMax) { sPaceMax = d; }
+        if (d > 18000000ull || d < 15400000ull) { sPaceOff++; }
+    }
+    sPacePrev = after;
+    if (++sPaceCount == 60) {
+        if (getenv("BT3_GS_VERBOSE") != NULL) {
+            /* (whole numbers: this file is built with the game's software float, which has no 64-bit conversions) */
+            fprintf(stderr, "pace: 60 vertical blanks: %u.%02u to %u.%02u ms apart, %u more than 1.3 ms off, %u started late\n",
+                    (unsigned)(sPaceMin / 1000000ull), (unsigned)(sPaceMin / 10000ull % 100), (unsigned)(sPaceMax / 1000000ull),
+                    (unsigned)(sPaceMax / 10000ull % 100), sPaceOff, sPaceLate);
+        }
+        sPaceCount = sPaceOff = sPaceLate = 0;
+        sPaceMin = ~0ull;
+        sPaceMax = 0;
     }
 }
 
