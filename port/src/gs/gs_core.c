@@ -1043,7 +1043,7 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
 
 /* Carries out a source-chain transfer on VIF1 that starts at `tadr` (PS2 address = host address). */
 void Port_GsVif1Chain(uint32_t tadr, int tte) {
-    static uint64_t next, start, sum, worst;
+    static uint64_t next, start, sum, worst, sumGame, sumList, sumTex, sumPipe, sumEnd;
     static unsigned n, over;
     uint64_t t, tChain;
 
@@ -1077,6 +1077,12 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
                 fprintf(stderr, "slow:   of the display list time: texture decoding %.1f ms, pipeline creation %.1f ms, submitting the frame %.1f ms\n",
                         (double)gGpuTexNs / 1e6, (double)gGpuPipeNs / 1e6, (double)gGpuEndNs / 1e6);
             }
+            /* per second: where the work goes (the game's own code, walking the list, and of that the GPU side) */
+            sumGame += tChain - start > waited ? tChain - start - waited : 0;
+            sumList += t - tChain;
+            sumTex += gGpuTexNs;
+            sumPipe += gGpuPipeNs;
+            sumEnd += gGpuEndNs;
             gGpuNewTex = gGpuNewTexPixels = gGpuNewPipes = 0;
             gGpuTexNs = gGpuPipeNs = gGpuEndNs = 0;
         }
@@ -1087,8 +1093,12 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
             if (getenv("BT3_GS_VERBOSE") != NULL) {
                 fprintf(stderr, "time: frame %u: work per frame: average %.1f ms, worst %.1f ms, %u of 60 over the 33.4 ms budget\n",
                         sFrame, (double)sum / 60e6, (double)worst / 1e6, over);
+                fprintf(stderr, "time:   of the average: game code %.1f ms, display list %.1f ms (of which: texture decoding %.1f, "
+                                "pipeline creation %.1f, ending and submitting the frame %.1f)\n",
+                        (double)sumGame / 60e6, (double)sumList / 60e6, (double)sumTex / 60e6, (double)sumPipe / 60e6, (double)sumEnd / 60e6);
             }
             n = 0; sum = 0; worst = 0; over = 0;
+            sumGame = sumList = sumTex = sumPipe = sumEnd = 0;
         }
     }
     /* pacing is done at the vertical blank (Port_VBlank in plat_stub.c): 60 per second, the game waits for one
