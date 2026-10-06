@@ -860,3 +860,26 @@ with a third of the interpreter's work gone.
   interpreter (`BT3_VU_INTERP=1`) on that recording: same picture in a close crop of the fighter; frames differ by
   a few thousand pixels at most where the two runs' captures line up. With this, no vertex program runs on the
   interpreter in any recording so far (programs 0, 1, 2a, 2b, 4, 6, 7, 8 are shaders; 5 is unused by the game).
+
+## 64-bit: scoping (2026-10-06, nothing converted yet)
+
+Measured on the port's copy of the game sources (269 files):
+- 1,813 pointer members in structures (171 files), 41 of them function pointers; 1,872 pointers inside the game's
+  static data (relocations in `port/build/obj_data`); 157 calls of `Res_RelocateOffsets` plus a dozen other
+  fix-up functions that turn offsets in loaded files into pointers in place (4-byte slots); 69 allocations with
+  literal sizes; 231 integer <-> pointer casts the compiler reports (41 files). No file fails to parse as 64-bit.
+- The exact arithmetic depends on `gcc -m32 -msoft-float`, which sends float operations to our PS2-accurate
+  routines. gcc cannot do that for x86-64 ("SSE register return with SSE disabled"); **clang can**
+  (`-mno-sse -mno-mmx -mno-x87 -msoft-float` emits `__addsf3` etc.). ARM64 has no such mode in either compiler.
+- Tried and working with clang 22 on x86-64 Linux: `T * __ptr32 __uptr member` (with `-fms-extensions`) keeps a
+  pointer member 4 bytes wide inside a 64-bit program and dereferences transparently; a test structure kept its
+  PS2 size. A call *through* such a function pointer crashes the compiler's back end; calling through a normal
+  local pointer works. The same declaration is accepted for Windows x64 and ARM64 targets (syntax only).
+
+Approach this points to ("PS2 memory model in a 64-bit program"), not started: compile the game code with clang as
+64-bit; declare every pointer that is stored in memory (structure members, globals, tables) 4 bytes wide through
+one macro, by script; keep all game memory below 4 GB (non-PIE link, heap and game-thread stack from a low
+mapping); leave locals and parameters as ordinary pointers. Layouts, file formats, static data and literal sizes
+then stay as they are. Checks available: every structure's size compared between the 32-bit and 64-bit builds,
+and the replay result. Open: clang instead of gcc for the game code (does the replay still match?), the
+function-pointer call sites, ARM64's arithmetic, low memory on macOS and Windows.
