@@ -126,6 +126,7 @@ static int sPipeCount;
 #define MAX_VU_UNIFORMS 8192
 typedef struct Vu0Uniform { /* std140 layout of the block in shaders/vu0.vert */
     float boneA[16], boneB[16], pivotA[4], pivotB[4], screen[16], light[4], color0[4], color1[4], misc[4];
+    float light2[4]; /* program 1: the y components of 10..13 (the second texture coordinate of its layer 1) */
 } Vu0Uniform;
 static float *sVuVerts;         /* 12 floats per vertex, as the vertex program gets them */
 static uint32_t sVuVertCount;
@@ -1382,6 +1383,7 @@ void GsGpu_DrawVu0(int layer, int ctx, const float *vertices, uint32_t count, co
     u.misc[1] = (float)((gGs.xyoffset[ctx] >> 32) & 0xFFFF) / 16.0f;
     u.misc[2] = ((gGs.zbuf[ctx] >> 24) & 15) == 0 ? 4294967295.0f : ((gGs.zbuf[ctx] >> 24) & 15) == 1 ? 16777215.0f : 65535.0f;
     u.misc[3] = (float)layer;
+    u.light2[0] = consts[41]; u.light2[1] = consts[45]; u.light2[2] = consts[49]; u.light2[3] = consts[53];
     d.vu = 1;
     d.first = sVuVertCount;
     for (i = 0; i + 2 < count; i++) { /* strip -> list */

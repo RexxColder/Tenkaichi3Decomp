@@ -852,3 +852,11 @@ with a third of the interpreter's work gone.
   single view the glare does; in split screen nothing had, so the copy read stage texture data as the mask. Fix:
   a dropped 16-bit-view pass now marks the buffer as written (and stale), so its readers are dropped too.
   Confirmed by the user in play; the replay check is unchanged. Not re-captured by me afterwards.
+- **Program 1 as a shader** (`hle_program1`, layer 5 of `vu0.vert`; uniform gained `light2`): the last program on
+  the interpreter. It is not a fade seen rarely: it runs every frame for fighters with a part flagged for it
+  (user's `session4.pad`: Raditz, 78 runs per frame; on screen it is the scouter's lens). Layer 0 = program 0's
+  layer 0; layer 1 = texture from constant 26, coordinates 0.5 + 0.5 * (M * (normal, 1)).xy with M = constants
+  10..13; batches whose first normal has 0 in the low 16 bits of its 4th word are skipped. Checked against the
+  interpreter (`BT3_VU_INTERP=1`) on that recording: same picture in a close crop of the fighter; frames differ by
+  a few thousand pixels at most where the two runs' captures line up. With this, no vertex program runs on the
+  interpreter in any recording so far (programs 0, 1, 2a, 2b, 4, 6, 7, 8 are shaders; 5 is unused by the game).

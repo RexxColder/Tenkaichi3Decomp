@@ -473,6 +473,37 @@ static int hle_program0(void) {
     return 1;
 }
 
+/* Program 1 (124 instructions): a second pass over some fighters' parts. The batch is program 0's. Layer 0 is
+   program 0's layer 0 (model texture, colour from constant 22); layer 1 takes its texture from constant 26 and
+   its coordinates from the normal in a camera-aligned frame (vu0.vert layer 5). A batch whose first normal has
+   0 in the low 16 bits of its 4th word is not drawn. */
+static int hle_program1(void) {
+    uint8_t pkt[32];
+    uint64_t tag[2];
+    uint32_t top = vu.top & 0x3FF, count, mark;
+    int layer;
+
+    memcpy(tag, &vu.mem[(top + 3) * 16], 16);
+    count = (uint32_t)(tag[0] & 0x7FFF);
+    if (count < 3 || top + 5 + count * 3 > 1024) {
+        return 0;
+    }
+    memcpy(&mark, &vu.mem[(top + 6) * 16 + 12], 4);
+    if ((mark & 0xFFFF) == 0) {
+        return 1;
+    }
+    for (layer = 0; layer < 2; layer++) {
+        memcpy(pkt, &vu.mem[top * 16], 16);
+        memcpy(pkt + 16, layer == 0 ? &vu.mem[(top + 1) * 16] : &vu.mem[26 * 16], 16);
+        Gs_Gif(pkt, 2); /* the layer's TEX0 */
+        memcpy(tag, &vu.mem[(top + 3 + (uint32_t)layer) * 16], 16);
+        Gs_RegWrite(0, (tag[0] >> 47) & 0x7FF); /* PRIM from the tag */
+        GsGpu_DrawVu0(layer == 0 ? 0 : 5, (int)((tag[0] >> 56) & 1), (const float *)&vu.mem[(top + 5) * 16], count, (const float *)vu.mem);
+    }
+    sStatKicks++;
+    return 1;
+}
+
 /* Program 4 (the stage; 399 instructions uploaded). After MSCALF 0 the first MSCNT only takes a one-quadword
    object header; every later MSCNT is a batch: +0 GIF tag "one A+D register" with EOP, +1 its data (the texture),
    +2 the primitive tag (NLOOP = vertices, PRIM in the tag, registers ST, RGBAQ, XYZ2), +3 the vertices, three
@@ -670,6 +701,15 @@ void GsVu1_Call(int addr) {
         }
         run(0); /* a batch the shader path cannot take: give the interpreter the registers the setup loads */
         vu.pc = 16;
+    }
+    if (sProgSize == 124 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
+        /* MSCALF 0 only loads registers; every MSCNT is one batch */
+        if (addr >= 0 || hle_program1()) {
+            sHle++;
+            return;
+        }
+        run(0);
+        vu.pc = 15;
     }
     if (sProgSize == 127 && GsGpu_Enabled() && getenv("BT3_VU_INTERP") == NULL) {
         /* MSCALF 0 only prepares derived constants (the shader derives them itself); every MSCNT is one batch */

@@ -19,7 +19,8 @@ layout(set = 1, binding = 0) uniform U {
     mat4 screen;         // 14..17
     vec4 light;          // xyz: the x components of 10..12, w: of 13
     vec4 color0, color1; // 22, 23 (0..255)
-    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1; 2 = programs 2a / 2b; 3 = program 8; 4 = program 7)
+    vec4 misc;           // x, y: XYOFFSET in pixels, z: depth maximum, w: layer (0 or 1; 2 = programs 2a / 2b; 3 = program 8; 4 = program 7; 5 = program 1 layer 1)
+    vec4 light2;         // program 1: the y components of 10..13
 } u;
 void main() {
     float w = u.misc.w == 4.0 ? 1.0 : inPos.w; // layer 4 (debris, rigid): the 4th word is a flag, not a weight
@@ -36,7 +37,13 @@ void main() {
         // triangle: depth clamped into range instead of clipped.
         gl_Position.z = clamp(s.z / u.misc.z, 0.0, s.w);
     }
-    if (u.misc.w >= 3.0) {
+    if (u.misc.w == 5.0) {
+        // program 1, layer 1: the model's second texture looked up by the direction of the normal in a
+        // camera-aligned frame (one matrix, not blended between the bones): (u, v) = 0.5 + 0.5 * (M * (n, 1)).xy
+        vec4 n1 = vec4(inNormal.xyz, 1.0);
+        vColor = u.color1 / 255.0;
+        vStq = vec3(dot(u.light, n1) * 0.5 + 0.5, dot(u.light2, n1) * 0.5 + 0.5, 1.0);
+    } else if (u.misc.w >= 3.0) {
         // programs 8 and 7: the colour of each vertex (0..255 floats in the second quadword); 7 takes the mesh's alpha
         vColor = clamp(floor(vec4(inNormal.rgb, u.misc.w == 4.0 ? u.color0.a : inNormal.a)), 0.0, 255.0) / 255.0;
         vStq = vec3(inSt.xy, 1.0);
