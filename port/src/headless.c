@@ -23,6 +23,14 @@ extern void Demo_SetupBattle(void);
 static int sBattles;
 static int sFromMenu;
 
+#if defined(__x86_64__) && defined(__clang__)
+#undef __ptr32 /* the Windows headers of mingw define these two away */
+#undef __uptr
+#define GAME_PTR *__ptr32 __uptr
+#else
+#define GAME_PTR *
+#endif
+
 /* Linked with --wrap=Progress_Main: the game's call in Game_Main comes here. BT3_REPLAY or BT3_DEMO: the battle is
    set up without menus (below); otherwise the real menus run (the overlay's Progress_Main, src/menu/menu_a_b.c). */
 extern int __real_Progress_Main(int arg);
@@ -63,6 +71,15 @@ int __wrap_Progress_Main(int arg) {
     } else {
         Demo_SetupBattle();
         printf("bt3: attract-demo battle\n");
+        /* BT3_CHARA=<id> (and BT3_COSTUME=<n>, BT3_VARIANT=1 for the damaged model): side 0's fighter of the demo
+           battle, for looking at one character's model without going through the menus */
+        if (getenv("BT3_CHARA") != NULL) {
+            extern struct { int chara, costume, variant; } GAME_PTR BattleSide_GetMember(int side, int index);
+            BattleSide_GetMember(0, 0)->chara = atoi(getenv("BT3_CHARA"));
+            BattleSide_GetMember(0, 0)->costume = getenv("BT3_COSTUME") != NULL ? atoi(getenv("BT3_COSTUME")) : 0;
+            BattleSide_GetMember(0, 0)->variant = getenv("BT3_VARIANT") != NULL;
+            printf("bt3: side 0 is character %d, costume %d\n", BattleSide_GetMember(0, 0)->chara, BattleSide_GetMember(0, 0)->costume);
+        }
     }
     fflush(stdout);
     return 0;
@@ -80,13 +97,6 @@ int sceClose(int fd) { (void)fd; return 0; }
  */
 /* A pointer variable of the game: 4 bytes wide in the 64-bit build too (port/tools/ptr32.py does this for the game's
    own files; a declaration written in a port file has to say it itself). */
-#if defined(__x86_64__) && defined(__clang__)
-#undef __ptr32 /* the Windows headers of mingw define these two away */
-#undef __uptr
-#define GAME_PTR *__ptr32 __uptr
-#else
-#define GAME_PTR *
-#endif
 extern struct { int state; } GAME_PTR gBtlSeq;
 extern int *BtlSeq_GetClock(void);
 extern int BtlCharApi_GetHp(int objId);

@@ -1188,3 +1188,15 @@ started; in the order I would take them:
 
 Still to measure: a destructible stage and the big attack effects (no working recording), integrated graphics,
 and a processor from before 2015.
+
+## Seam models: first look at who has them (2026-10-06)
+
+- New test switches: `BT3_DEMO=1 BT3_CHARA=<id> [BT3_COSTUME=<n>] [BT3_VARIANT=1]` puts that character on side 0 of
+  the demo battle; `BT3_SEAM_SKIP=1` makes the missing routine return instead of stopping the game (the stub is
+  now `port/src/plat_seam.c`).
+- With them, the routine was reached for character ids 55, 56, 57, 110 and 134 (costume 0), which agrees with the
+  scan's offsets 550.., 560.., 570.., 1100.., 1340.. read as `chara * 10 + costume` (0-based). Seen on screen:
+  56 is Videl; 57 wears a cape and turban (Great Saiyaman, by the look: not confirmed by name).
+- Not reached within 12 to 20 s of the demo for the other 18 ids of the scan (3..9, 17..20, 26, 60, 61, 69, 101,
+  102, 118): cause unknown (the costume numbers I passed, or the seam is only drawn in some states). The demo's
+  opponent is a Super Saiyan Goku, so screenshots alone do not tell those apart.
