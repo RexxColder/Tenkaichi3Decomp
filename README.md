@@ -62,10 +62,13 @@ finished program fetches the values from your disc when it starts.
 ## Licence
 
 The port's own code (everything under `port/` except `port/third_party/`, the setup, the build tools, and the
-PC changes inside `#ifdef PORT`) is under the [MIT licence](LICENSE). The libraries in `port/third_party/`
-keep their own licences (Dear ImGui: MIT; newlib's maths library: its BSD-style terms, in that folder).
-The game's code in `src/` and `include/` comes from the decompilation and is not ours to license: it belongs
-to the game's rights holders.
+PC changes inside `#ifdef PORT`) is free software under the [GNU General Public License, version 3](LICENSE) or
+any later version: you may use, change and share it, and if you distribute a changed version you have to make
+its source available under the same licence. Copyright (c) 2026 z3xox and contributors.
+
+The libraries in `port/third_party/` keep their own licences (Dear ImGui: MIT; newlib's maths library: its
+BSD-style terms, in that folder), which allow this use. The game's code in `src/` and `include/` comes from the
+decompilation and is not ours to license: it belongs to the game's rights holders.
 
 ## Legal
 
