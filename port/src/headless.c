@@ -102,6 +102,14 @@ extern int *BtlSeq_GetClock(void);
 extern int BtlCharApi_GetHp(int objId);
 extern void BtlCharApi_GetPos(int objId, float *out);
 
+/* F9 in the window: the game's own leftover debug function Save_UnlockAll (0x266088, no caller in the game): every
+   character, stage, music track and item, the unlock flags, and the largest amount of Zenni. It changes the save
+   in memory (the records list is emptied too); the game writes it to the card the next time it saves. The key
+   only sets the request; it is carried out here, on the game's side, at a vertical blank. */
+volatile int gPortUnlockAll;
+extern struct SaveData GAME_PTR gSaveData;
+extern void Save_UnlockAll(void *opt);
+
 void Port_Trace(unsigned vblanks) {
     static int every = -1;
     float p[2][4] __attribute__((aligned(16)));
@@ -109,6 +117,14 @@ void Port_Trace(unsigned vblanks) {
     int *clock;
     int i;
 
+    if (gPortUnlockAll) {
+        gPortUnlockAll = 0;
+        if (gSaveData != NULL) {
+            Save_UnlockAll(gSaveData);
+            printf("bt3: everything unlocked (Save_UnlockAll)\n");
+            fflush(stdout);
+        }
+    }
     if (every < 0) {
         every = getenv("BT3_TRACE") != NULL ? atoi(getenv("BT3_TRACE")) : 0;
     }

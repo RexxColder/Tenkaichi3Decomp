@@ -1215,3 +1215,7 @@ and a processor from before 2015.
   both versions put 0 into vf19.z / w (only x and y are read here).
 - Seen: Videl (first costume) is drawn completely in the demo battle. Not compared with the software reference
   renderer or with a console picture yet.
+- **F9** (2026-10-06): calls the game's leftover debug function `Save_UnlockAll` (0x266088; no caller in the game)
+  on the save in memory: all characters, stages, music, items, unlock flags, maximum Zenni; it also empties the
+  records list. Requested by the key, carried out at the next vertical blank on the game's side (`Port_Trace`).
+  Built on all three programs; NOT yet tried (it needs a key press in the window).

@@ -1497,6 +1497,10 @@ static void frame_end(void) {
         if (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE) {
             exit(0);
         }
+        if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key == SDLK_F9) {
+            extern volatile int gPortUnlockAll; /* headless.c: the game's debug "unlock everything" */
+            gPortUnlockAll = 1;
+        }
         if (ev.type == SDL_EVENT_KEY_DOWN && !ev.key.repeat && ev.key.key == SDLK_F11) {
             fullscreen_set(!sFullscreen);
             Port_SettingSave("fullscreen", sFullscreen);
