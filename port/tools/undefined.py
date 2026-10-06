@@ -88,9 +88,20 @@ def main():
     for f, e in bad:
         print("FAILED", f.name, next((l for l in e.splitlines() if "rror" in l or l.startswith("ptr32")), e.strip()[:150])[:200])
     objs = [str(o) for o, _, _ in res if o]
-    if BITS64:  # the game's data (gen_data.py's assembly sources) assembled for this target
+    if BITS64:
+        # The game's data tables, assembled for this target: with their values (gen_data.py's sources, made from the
+        # user's disc) when those exist, else as blank tables of the same shape (port/data, make_skeleton.py), whose
+        # values the program fetches from the disc at start. BT3_SKELETON=1 takes the blank ones in any case; that
+        # is how releases are built, so that a build needs no disc.
+        real = sorted((ROOT / "port/build/gen/data").glob("*.s"))
+        blank = os.environ.get("BT3_SKELETON") == "1" or not real
         DATA.mkdir(exist_ok=True)
-        for f in sorted((ROOT / "port/build/gen/data").glob("*.s")):
+        for old in DATA.glob("*.o"):
+            old.unlink()
+        (DATA / "SKELETON").unlink(missing_ok=True)
+        if blank:
+            (DATA / "SKELETON").write_text("built from port/data: finish with make_dat.py\n")
+        for f in (sorted((ROOT / "port/data").glob("*.s")) if blank else real):
             r = subprocess.run([PREFIX + "as"] + ([] if WIN else ["--64"]) + [str(f), "-o", str(DATA / (f.name[:-2] + ".o"))], capture_output=True, text=True)
             if r.returncode:
                 print("FAILED", f.name, r.stderr.splitlines()[0][:150])
@@ -118,7 +129,10 @@ def main():
         if shutil.which("glslc") is None and spv.exists() and spv.stat().st_mtime >= src.stat().st_mtime:
             pass  # no shader compiler here (the release container): the compiled shader that was put in place is current
         else:
-            r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(src), "-o", str(spv)], capture_output=True, text=True)
+            if shutil.which("glslc") is not None:
+                r = subprocess.run(["glslc", f"-fshader-stage={stage}", str(src), "-o", str(spv)], capture_output=True, text=True)
+            else:  # the reference compiler of the same language (package glslang-tools)
+                r = subprocess.run(["glslangValidator", "-V", "-S", stage, str(src), "-o", str(spv)], capture_output=True, text=True)
             if r.returncode:
                 print("FAILED shader", src.name, r.stderr[:300])
                 continue

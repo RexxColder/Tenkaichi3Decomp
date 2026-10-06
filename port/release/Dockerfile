@@ -1,8 +1,8 @@
-# The system the Linux release is built on: Ubuntu 22.04 (glibc 2.35), so that the programs run on any distribution
-# of the last few years and on any x86-64 CPU. Building on the developer's own machine is not safe for that: a
+# The system the releases are built on: Ubuntu 22.04 (glibc 2.35), so that the Linux programs run on any distribution
+# of the last few years and on any x86-64 CPU; the Windows programs are cross-compiled in it too. Building on the developer's own machine is not safe for that: a
 # distribution compiled for a newer CPU level stamps its start-up code into every program, and its libraries really
 # do use those instructions.
-#   docker build -t bt3-port-release:jammy port/release        (port/release/build_linux.sh does this)
+#   docker build -t bt3-port-release:jammy port/release        (port/release/build.sh does this)
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive TZ=UTC LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,8 +26,13 @@ RUN curl -fsSL -o /tmp/sdl.tar.gz https://github.com/libsdl-org/SDL/releases/dow
              -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
     && cmake --build /tmp/sdl-build && cmake --install /tmp/sdl-build && ldconfig \
     && rm -rf /tmp/sdl.tar.gz /tmp/SDL3-${SDL_VERSION} /tmp/sdl-build
-# glslc (the shader compiler): from the Vulkan SDK's shaderc build for Linux
-RUN curl -fsSL -o /tmp/shaderc.tgz https://storage.googleapis.com/shaderc/artifacts/prod/graphics_shader_compiler/shaderc/linux/continuous_gcc_release/470/20250408-134447/install.tgz \
-    && tar -xzf /tmp/shaderc.tgz -C /tmp && cp /tmp/install/bin/glslc /usr/local/bin/glslc && rm -rf /tmp/shaderc.tgz /tmp/install \
-    || echo "glslc not installed: the build will use the shaders compiled on the host"
+# The shader compiler (glslangValidator), and for the Windows release: the mingw-w64 cross-compiler (the variant with
+# POSIX threads) and SDL3's development package for it
+RUN apt-get update && apt-get install -y --no-install-recommends glslang-tools mingw-w64 zip unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix \
+    && update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix \
+    && curl -fsSL -o /tmp/sdl-mingw.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSION}/SDL3-devel-${SDL_VERSION}-mingw.tar.gz \
+    && mkdir -p /opt/sdl3-mingw && tar -xzf /tmp/sdl-mingw.tar.gz -C /opt/sdl3-mingw && rm /tmp/sdl-mingw.tar.gz
+ENV BT3_SDL3=/opt/sdl3-mingw/SDL3-${SDL_VERSION}/x86_64-w64-mingw32
 WORKDIR /src

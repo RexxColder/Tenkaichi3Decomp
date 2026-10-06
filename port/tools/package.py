@@ -35,6 +35,25 @@ This package contains no game data. The game's data comes from your disc and sta
 WIN_README = README.replace("(Linux, 64-bit)", "(Windows, 64-bit)").replace("Start  bt3-setup\n", "Start  bt3-setup.exe\n") \
     .replace("start  bt3-setup  again and press Play, or run  ./play.sh", "start  bt3-setup.exe  again and press Play, or run  play.bat")
 
+def take_program(exe, out):
+    """The program without the game's data, and its list, into the release folder. A program built from the blank
+    tables (port/data) is that already; one built with the tables' values has them taken out by strip_data.py."""
+    import toolchain
+    out.mkdir(parents=True)
+    name = "bt3.exe" if exe.suffix == ".exe" else "bt3"
+    if (toolchain.DATA / "SKELETON").exists():
+        dat = pathlib.Path(str(exe)[:-4] + ".dat" if exe.suffix == ".exe" else str(exe) + ".dat")
+        if not dat.exists():
+            sys.exit(f"missing {dat.name}: link.py makes it")
+        shutil.copy2(exe, out / name)
+        shutil.copy2(dat, out / "bt3.dat")
+        print("program built from the blank data tables (no disc involved)")
+        return
+    r = subprocess.run([sys.executable, str(ROOT / "port/tools/strip_data.py"), "--exe", str(exe), "--out", str(out)], capture_output=True, text=True)
+    print(r.stdout.strip())
+    if r.returncode or "NOT matched" in r.stdout:
+        sys.exit("strip_data.py failed or left game data in the program: not packaging\n" + r.stderr)
+
 def main_win():
     """BT3_CC=win64: bt3.exe (cross-built or built in MSYS2), bt3-setup.exe (port/setup/build.sh win), SDL3.dll."""
     import toolchain
@@ -50,10 +69,7 @@ def main_win():
         sys.exit("SDL3.dll not found")
     if out.exists():
         shutil.rmtree(out)
-    r = subprocess.run([sys.executable, str(ROOT / "port/tools/strip_data.py"), "--exe", str(exe), "--out", str(out)], capture_output=True, text=True)
-    print(r.stdout.strip())
-    if r.returncode or "NOT matched" in r.stdout:
-        sys.exit("strip_data.py failed or left game data in the program: not packaging\n" + r.stderr)
+    take_program(exe, out)
     shutil.copy2(setup, out / "bt3-setup.exe")
     shutil.copy2(dll, out / "SDL3.dll")
     (out / "README.txt").write_text(WIN_README.replace("\n", "\r\n"))
@@ -84,10 +100,7 @@ def main():
             sys.exit(f"missing {need.relative_to(ROOT)}: build first (see the top of this file)")
     if OUT.exists():
         shutil.rmtree(OUT)
-    r = subprocess.run([sys.executable, str(ROOT / "port/tools/strip_data.py"), "--exe", str(exe), "--out", str(OUT)], capture_output=True, text=True)
-    print(r.stdout.strip())
-    if r.returncode or "NOT matched" in r.stdout:
-        sys.exit("strip_data.py failed or left game data in the program: not packaging\n" + r.stderr)
+    take_program(exe, OUT)
     shutil.copy2(setup, OUT / "bt3-setup")
     (OUT / "lib").mkdir()
     lib = next((p for d in ("/usr/local/lib", "/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu") for p in sorted(pathlib.Path(d).glob("libSDL3.so.0"))), None)
