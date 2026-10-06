@@ -364,6 +364,29 @@ void step_test(const std::string &root) {
     std::string text = out != NULL ? std::string(out, size) : "";
     SDL_free(out);
     SDL_DestroyProcess(proc);
+    // How the game ended goes into the log too: when it never got as far as printing anything (the system refused
+    // to start it, or something stopped it), the exit code is all there is to go on.
+    char ended[160];
+    const char *why = "";
+    switch ((unsigned)code) {
+    case 0xC0000135u: why = " (a DLL the program needs was not found)"; break;
+    case 0xC0000018u: why = " (the program could not be loaded at its fixed address)"; break;
+    case 0xC0000022u: why = " (access denied: often security software blocking the program)"; break;
+    case 0xC000007Bu: why = " (a DLL of the wrong kind was loaded)"; break;
+    case 0xC0000005u: why = " (crashed: bad memory access)"; break;
+    case 0xC0000409u: why = " (stopped by a security check)"; break;
+    default: break;
+    }
+    snprintf(ended, sizeof(ended), "\n[setup] the game exited with code %d (0x%08X)%s\n", code, (unsigned)code, why);
+    text += ended;
+    {   // a crash report the game wrote itself
+        size_t n = 0;
+        char *crash = (char *)SDL_LoadFile((root + "bt3_crash.txt").c_str(), &n);
+        if (crash != NULL) {
+            text += "[setup] bt3_crash.txt:\n" + std::string(crash, n);
+            SDL_free(crash);
+        }
+    }
     SDL_IOStream *log = SDL_IOFromFile((root + "install.log").c_str(), "wb");
     if (log != NULL) {
         SDL_WriteIO(log, text.data(), text.size());
