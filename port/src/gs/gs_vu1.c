@@ -93,6 +93,45 @@ void GsVu1_Unpack(uint32_t cmd, uint32_t num, uint32_t imm, const uint32_t *data
     uint32_t cl = vu.cl ? vu.cl : 1, wl = vu.wl ? vu.wl : 1, cyc = 0, bitpos = 0, k, c;
     const uint8_t *src = (const uint8_t *)data;
 
+    /* The usual case by far (every vertex of every model): no mask, no row arithmetic, consecutive vectors. The
+       same result as the general loop below, one tight loop per format. */
+    if (!masked && vu.mode == 0 && cl == wl && !(vn == 3 && vl == 3) && vn != 0 && vl != 3) {
+        uint32_t comps = vn + 1;
+        if (vn == 3 && vl == 0) { /* four words per vector, which is all the game's models and effects send: a copy */
+            for (k = 0; k < n; k++) {
+                uint32_t at = (addr + k) & 0x3FF, run = 0x400 - at;
+                if (run > n - k) {
+                    run = n - k;
+                }
+                memcpy(&vu.mem[at * 16], src + k * 16, run * 16);
+                k += run - 1;
+            }
+            return;
+        }
+        for (k = 0; k < n; k++) {
+            uint32_t out[4] = {0, 0, 0, 0};
+            if (vl == 0) {
+                for (c = 0; c < comps; c++) {
+                    memcpy(&out[c], src + c * 4, 4);
+                }
+                src += comps * 4;
+            } else if (vl == 1) {
+                for (c = 0; c < comps; c++) {
+                    uint16_t w;
+                    memcpy(&w, src + c * 2, 2);
+                    out[c] = usn ? (uint32_t)w : (uint32_t)(int32_t)(int16_t)w;
+                }
+                src += comps * 2;
+            } else {
+                for (c = 0; c < comps; c++) {
+                    out[c] = usn ? (uint32_t)src[c] : (uint32_t)(int32_t)(int8_t)src[c];
+                }
+                src += comps;
+            }
+            memcpy(&vu.mem[((addr + k) & 0x3FF) * 16], out, 16);
+        }
+        return;
+    }
     for (k = 0; k < n; k++) {
         uint32_t v[4] = {0, 0, 0, 0}, out[4];
         int have = !(wl > cl && cyc >= cl); /* filling write: vectors beyond CL come from the registers only */

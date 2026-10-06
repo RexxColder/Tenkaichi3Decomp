@@ -50,6 +50,11 @@
 
 #include <string.h>
 #include "port/vu0_a.h"
+#ifdef REF_VU0_EXTERN_ARITH
+/* The port compiles this file without the compiler's built-in functions, which made every float <-> bit pattern
+   conversion below (a memcpy of four bytes) a call into the C library: several per float operation. */
+#define memcpy(d, s, n) __builtin_memcpy(d, s, n)
+#endif
 
 #ifndef REF_VU0_NATIVE_FLOAT
 #define REF_VU0_NATIVE_FLOAT 0
@@ -261,6 +266,11 @@ uint32_t RefVu0_DivBits(uint32_t a, uint32_t b) {
 }
 
 #endif /* REF_VU0_EXTERN_ARITH */
+#ifdef REF_VU0_EXTERN_ARITH /* the port: the same arithmetic, in place instead of through calls */
+#include "softfloat_ps2_inl.h"
+#define RefVu0_AddBits Sf_AddBits
+#define RefVu0_MulBits Sf_MulBits
+#endif
 
 /* sqrt(|a|), truncated. */
 uint32_t RefVu0_SqrtBits(uint32_t a) {

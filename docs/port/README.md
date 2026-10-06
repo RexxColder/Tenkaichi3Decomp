@@ -1128,3 +1128,27 @@ user's request). Inside the build the programs are still `port/build/bt3`, `bt3_
   new grids), and the processor count and memory at start.
 - Open: why that VM is 2 to 2.5 times slower in every part alike (suspected: its processors run on the host's
   efficiency cores; not confirmed).
+
+## Speed, first round (2026-10-06)
+
+The development machine (Ryzen 7 9800X3D) had hidden how slow the port was on ordinary processors: the user's
+i5 12th gen needs 17 to 21 ms of work per fight frame where this machine needed 8 to 10. Profiled with
+`perf record` on the replay fight (uncapped); all measured, results checked identical (below).
+
+| Where | What it was | Change |
+|---|---|---|
+| `GsVu1_Unpack` (26% of the time) | a general per-component loop for every vector | everything the game sends in a fight is V4-32 without mask or row mode: a plain copy (other unmasked formats get a tight loop) |
+| `transfer_data` + `vram_rw` (18%) | each uploaded pixel through the general address function, with a division and a remainder | per-row loops over tables of the place inside a page (`sIn32/16/8/4`) for the formats textures and palettes use |
+| `Gs_PageHash` (7%) | a byte-serial 32-bit hash of each touched 8 KB page | four 64-bit lanes |
+| vector library (`src/port/vu0_a.c`, `vu0_b.c`) | built with `-fno-builtin`, so each float <-> bits `memcpy` of four bytes was a CALL into the C library (667 call sites), and each multiply three calls deep | `__builtin_memcpy`; the add / multiply core moved to `port/src/softfloat_ps2_inl.h` and inlined |
+
+Replay fight, work per frame on this machine: 8.6 -> 3.6 ms (frame 721), 10.1 -> 4.7 ms (frame 1081); game code
+2.7 -> 1.6 ms, display list 5.9 -> 2.0 ms. The Windows program under Wine: the same within 0.3 ms.
+
+Checked: the replay's tick line on all three programs; screenshots every 150 frames of the replay fight (11) and
+every 400 frames of `session2.pad` (destructible stage, 34) and `session4.pad` (33) byte-identical to the
+program from before the changes.
+
+What is left in the profile, largest first: the software float add and multiply themselves (about a quarter:
+`f_mul`, `add_core`; the next step there would be the host's float instructions with the PS2's rounding, which
+needs care for determinism), the GIF packet walk, the page hash, the graphics driver (8%).
