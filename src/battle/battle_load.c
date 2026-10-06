@@ -9,6 +9,15 @@
 #include "sys/loading.h"
 #include "sys/save.h"
 
+#ifdef PORT
+/* A stage added from outside the disc (id 0x24 on) has no sound-bank file id of its own: 0x14E + stage would
+   land on the model file of a disc stage (the file id ranges are packed; 0x14E + 0x24 = 0x172 is the model of
+   disc stage 1). So it borrows the first stage's bank, and the file layer is left alone (no risky alias). */
+#define BTL_STAGE_BANK(stage) (((stage) >= 0x24 ? 0 : (stage)) + BTL_FILE_SND_STAGE)
+#else
+#define BTL_STAGE_BANK(stage) ((stage) + BTL_FILE_SND_STAGE)
+#endif
+
 /*
  * Battle loader, result block, events, battle setup and replay block: 0x127120..0x12B570, one object file in
  * the original (its .rodata only lines up as one object: the jump table of BtlLoad_StepStageChange at +0, the
@@ -195,7 +204,7 @@ s32 BtlLoad_StepStageReload(BtlJob *job) {
         }
 #endif
         res->stage = File_Request3(id, res->stage, res->stageSize);
-        res->bank = File_Request3(Battle_GetStage() + BTL_FILE_SND_STAGE, res->bank, res->bankSize);
+        res->bank = File_Request3(BTL_STAGE_BANK(Battle_GetStage()), res->bank, res->bankSize);
         job->state++;
         return 0;
     case 2:
@@ -252,7 +261,7 @@ s32 BtlLoad_StepStageChange(BtlJob *job) {
         return 0;
     case 4:
         res->stage = File_Request3(Battle_GetStage() + BTL_FILE_STAGE, res->stage, res->stageSize);
-        res->bank = File_Request3(Battle_GetStage() + BTL_FILE_SND_STAGE, res->bank, res->bankSize);
+        res->bank = File_Request3(BTL_STAGE_BANK(Battle_GetStage()), res->bank, res->bankSize);
         job->state++;
         return 0;
     case 5:
@@ -481,7 +490,7 @@ s32 BtlLoad_StepInitial(BtlJob *job) {
     switch (job->state) {
     case 0:
         res->sndCommon = File_Request3(BTL_FILE_SND_COMMON, NULL, 0);
-        res->sndStage = File_Request3(Battle_GetStartStage() + BTL_FILE_SND_STAGE, NULL, 0);
+        res->sndStage = File_Request3(BTL_STAGE_BANK(Battle_GetStartStage()), NULL, 0);
         res->sndChara[0] = File_Request3(BattleSide_GetStartChara(0) + ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE), NULL, 0);
         res->sndChara[1] = File_Request3(BattleSide_GetStartChara(1) + ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE), NULL, 0);
         job->state++;
@@ -1317,6 +1326,9 @@ void BattleSetup_FixForMode(void) {
     s32 j;
 
     if (Battle_GetMode() != 0 && Battle_GetMode() != 4) {
+#ifdef PORT
+        if (getenv("BT3_SPLIT") == NULL) /* keep the forced split-screen for testing */
+#endif
         if (rule->screenMode == 1) {
             rule->screenMode = 0;
         }
@@ -1471,6 +1483,11 @@ void BattleSetup_SetOption14(s32 val) {
 void BattleSetup_SetRule(s32 screenMode, s32 mode, s32 bgm, s32 timeLimit, s32 announcer, s32 stage, s32 unk10) {
     BattleRule *rule = &SETUP()->rule;
 
+#ifdef PORT
+    if (getenv("BT3_SPLIT") != NULL) {
+        screenMode = 1; /* PC build: force split-screen (two cameras), to exercise both back ends' halves */
+    }
+#endif
     rule->screenMode = screenMode;
     rule->mode = mode;
     if (bgm == 24) {

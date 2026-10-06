@@ -53,11 +53,6 @@ static void add_stage(const char *file, const char *name) {
     snprintf(sAliases[sAliasCount].target, sizeof(sAliases[sAliasCount].target), "stages/%s", file);
     sAliasCount++;
 
-    /* sound bank: file id 0x14E + stage -> the shared bank of the first stage, so the map has music */
-    snprintf(sAliases[sAliasCount].rel, sizeof(sAliases[sAliasCount].rel), "pzs3us1/%05d.bin", 0x14D + id);
-    snprintf(sAliases[sAliasCount].target, sizeof(sAliases[sAliasCount].target), "pzs3us1/00333.bin");
-    sAliasCount++;
-
     gPortExtraStageCount++;
 }
 
