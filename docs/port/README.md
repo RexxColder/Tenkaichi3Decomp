@@ -921,3 +921,21 @@ function-pointer call sites, ARM64's arithmetic, low memory on macOS and Windows
     exist on paths not run yet.
   Not done / not checked: sound in the 64-bit build (runs were silent), the movie, saving, the settings window,
   split screen, long play; evaluation order of *operators* (only call arguments are forced); Windows, macOS, ARM64.
+
+## Open: the seam routine (noted 2026-10-06, to do later)
+
+`ObjSeam_TransformVtx` (0x10FFD0, hand-written VU0 assembly; maths described in the header of `src/sys/gfxm_d_c.c`)
+has no C version, so in the port it is a stub: a model with seam vertices makes the port print "not implemented"
+and exit when it is drawn. It is the only game function without code in the port (`port/tools/undefined.py -v`).
+- Scan of the disc (models are entry 2 of each character pack, magic `pmdl`, `seamOfs` at +0x70): 73 of 742 model
+  files have a seam section with vertices (12..120 vertices), in 23 character slots. Offsets from file 1423:
+  31 35 41 45 51 55 61 65 70 71 74 75 80 81 84 85 90 91 94 95 171 181 191 200 201 204 205 262 266 550 551 554 555
+  560 561 562 564 565 566 570 571 572 574 575 576 600 601 604 605 610 611 614 615 690 691 694 695 1011 1015 1020
+  1024 1100 1101 1104 1105 1180 1181 1184 1185 1340 1341 1344 1345 (ten files per character: slot = offset / 10;
+  `battle_load.c`: model = chara * 10 + costume + BTL_FILE_CHARA, +4 for the variant).
+- Not done: tying slots to character names (not plain text in the data; whether the port's file numbers are
+  0- or 1-based against BTL_FILE_CHARA = 0x590 is unchecked, so the slot numbers may be off by one file), and what
+  seams are for (only 10% of models have them, so "every joint" was wrong). Characters played without the stub
+  firing: Goku (Early), Kid Gohan, Raditz.
+- To do: write the portable routine from the notes, find one affected character, compare with the software
+  reference renderer.
