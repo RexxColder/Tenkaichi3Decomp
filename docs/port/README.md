@@ -939,3 +939,26 @@ and exit when it is drawn. It is the only game function without code in the port
   firing: Goku (Early), Kid Gohan, Raditz.
 - To do: write the portable routine from the notes, find one affected character, compare with the software
   reference renderer.
+
+## Setup (2026-10-06)
+
+- `install.py` (repository root, standard library only, Linux): the whole way from a fresh copy of the repository
+  and the user's own disc image to a playable build, in six steps that are skipped when already done:
+  requirements (with the package to install for each missing tool), disc image (7z; `SLUS_216.78` flattened in
+  Python and checked against the sha1 of config/SLUS_216.78.yaml, `DBZP.BIN` against config/DBZP.yaml), game data
+  (extract_disc.py), executable data (splat64 0.50.0 from pip into `.venv`, run on both yamls; this is what
+  gen_data.py needs and what used to come from the decomp checkout's `asm/`), build (gen_data, undefined, link;
+  64-bit by default, `--32`), self-test (the attract demo without a window must print "battle finished"). Writes
+  `play.sh`. Output of every tool goes to `install.log`. `--machine` prints one event per line for the window.
+- `bt3-setup` (`port/setup/setup.cpp`, built by `port/setup/build.sh`; SDL3 + the vendored Dear ImGui): the same as
+  a window. Pick or drop the disc image, a list of the six steps with a spinner, check marks and times, then Play;
+  on a failure the reason, the table of missing packages, and a button for the log. It only runs install.py and
+  shows its events. Test hooks: `BT3_SETUP_ISO`, `BT3_SETUP_SHOT`, `BT3_SETUP_QUIT`, `BT3_SETUP_ARGS`.
+- Checked: install.py on a fresh `git clone` of this repository with the disc image, start to finish (68,611
+  files unpacked, 64-bit build, demo fight ran); the window on that clone (all steps, Ready page) and with a file
+  that is not a disc image (failure page), by pictures written by the test hook. Not checked: clicking (Browse,
+  drag and drop, Play, Cancel), a machine with a requirement missing, other distributions.
+- What it is not yet: an installer for people without compilers. It builds from source, so it needs gcc, clang,
+  llvm, glslc, SDL3, Python and 7z. A download-and-run release needs the program prebuilt, and the program
+  contains the game's own data tables (linked in from the user's executable), so a prebuilt program cannot be
+  shipped as it is: the tables would have to be loaded from the user's disc at start instead.

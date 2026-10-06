@@ -26,3 +26,6 @@ bt3_settings.txt
 docs/port/img/
 port/tests/ps2float/test.elf
 port/tests/ps2float/*.o
+/bt3-setup
+/play.sh
+install.log
