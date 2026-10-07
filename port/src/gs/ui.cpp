@@ -8,9 +8,11 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
+#include "imgui_impl_opengl3.h"
 #include "ui.h"
 
 static bool sReady, sOpen;
+static int sGL;                                // 1: the OpenGL back end (ImGui's OpenGL3 backend, no GPU device)
 static int sForceTab = -1;                     // BT3_UI_OPEN=<tab>: open at start on that tab (testing)
 static int sCapKind, sCapPlayer, sCapAction;   // waiting for a key (1) or a controller button (2) to bind
 static SDL_GPUDevice *sDevice;
@@ -168,7 +170,7 @@ static void style() {
     c[ImGuiCol_TableRowBgAlt] = ImVec4(1.0f, 1.0f, 1.0f, 0.03f);
 }
 
-int Ui_Init(SDL_Window *window, SDL_GPUDevice *device) {
+int Ui_Init(SDL_Window *window, SDL_GPUDevice *device, void *gl_context) {
     static const char *fonts[] = { // a proportional system font if there is one; else the library's built-in font
         "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
@@ -189,6 +191,25 @@ int Ui_Init(SDL_Window *window, SDL_GPUDevice *device) {
             io.Fonts->AddFontFromFileTTF(fonts[i], 18.0f);
             break;
         }
+    }
+    if (device == NULL) {
+        /* The OpenGL back end: ImGui's OpenGL3 backend. The name overlays are drawn by gs_gl.c itself, so no
+           strips are loaded here. */
+        sGL = 1;
+        if (!ImGui_ImplSDL3_InitForOpenGL(window, (SDL_GLContext)gl_context)) {
+            return 0;
+        }
+        if (!ImGui_ImplOpenGL3_Init("#version 330 core")) {
+            return 0;
+        }
+        sDevice = NULL;
+        sReady = true;
+        if (getenv("BT3_UI_OPEN") != NULL) {
+            sForceTab = atoi(getenv("BT3_UI_OPEN"));
+            sOpen = true;
+            gPortOverlayOpen = 1;
+        }
+        return 1;
     }
     if (!ImGui_ImplSDL3_InitForSDLGPU(window)) {
         return 0;
@@ -522,6 +543,18 @@ void Ui_DrawAgain(SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *target) {
     pass = SDL_BeginGPURenderPass(cmd, &ti, 1, NULL);
     ImGui_ImplSDLGPU3_RenderDrawData(dd, cmd, pass);
     SDL_EndGPURenderPass(pass);
+}
+
+void Ui_DrawGL(void) {
+    if (!sReady || !sGL || !sOpen) {
+        return;
+    }
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+    build();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void Ui_Draw(SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *target) {

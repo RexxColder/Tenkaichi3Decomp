@@ -45,6 +45,7 @@ typedef void GLvoid; typedef ptrdiff_t GLsizeiptr; typedef ptrdiff_t GLintptr; t
     X(glFinish, void, (void), ()) \
     X(glPixelStorei, void, (GLenum, GLint), (GLenum, GLint)) \
     X(glBlendFuncSeparate, void, (GLenum, GLenum, GLenum, GLenum), (GLenum, GLenum, GLenum, GLenum)) \
+    X(glBlendFunc, void, (GLenum, GLenum), (GLenum, GLenum)) \
     X(glBlendEquationSeparate, void, (GLenum, GLenum), (GLenum, GLenum)) \
     X(glBlendColor, void, (GLfloat, GLfloat, GLfloat, GLfloat), (GLfloat, GLfloat, GLfloat, GLfloat)) \
     X(glColorMaski, void, (GLuint, GLboolean, GLboolean, GLboolean, GLboolean), (GLuint, GLboolean, GLboolean, GLboolean, GLboolean)) \
@@ -67,6 +68,7 @@ typedef void GLvoid; typedef ptrdiff_t GLsizeiptr; typedef ptrdiff_t GLintptr; t
     X(glGetUniformLocation, GLint, (GLuint, const GLchar *), (GLuint, const GLchar *)) \
     X(glUniform1i, void, (GLint, GLint), (GLint, GLint)) \
     X(glUniform2f, void, (GLint, GLfloat, GLfloat), (GLint, GLfloat, GLfloat)) \
+    X(glUniform4f, void, (GLint, GLfloat, GLfloat, GLfloat, GLfloat), (GLint, GLfloat, GLfloat, GLfloat, GLfloat)) \
     X(glGetUniformBlockIndex, GLuint, (GLuint, const GLchar *), (GLuint, const GLchar *)) \
     X(glUniformBlockBinding, void, (GLuint, GLuint, GLuint), (GLuint, GLuint, GLuint)) \
     X(glBindBufferBase, void, (GLenum, GLuint, GLuint), (GLenum, GLuint, GLuint)) \
@@ -111,6 +113,7 @@ GL_FUNCS(GL_DECL)
 #define GL_DEPTH_BUFFER_BIT 0x00000100
 #define GL_POINTS 0x0000
 #define GL_LINES 0x0001
+#define GL_TRIANGLE_STRIP 0x0005
 #define GL_TRIANGLES 0x0004
 #define GL_UNSIGNED_BYTE 0x1401
 #define GL_FLOAT 0x1406
@@ -140,6 +143,7 @@ GL_FUNCS(GL_DECL)
 #define GL_ARRAY_BUFFER 0x8892
 #define GL_STREAM_DRAW 0x88E0
 #define GL_DYNAMIC_DRAW 0x88E8
+#define GL_STATIC_DRAW 0x88E4
 #define GL_UNIFORM_BUFFER 0x8A11
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31
@@ -322,6 +326,126 @@ static GLuint make_present_program(void) {
     glUniform1i(glGetUniformLocation(p, "tex"), 0);
     glUniform2f(glGetUniformLocation(p, "uvScale"), 512.0f / (float)GS_W, 448.0f / (float)GS_H);
     return p;
+}
+
+/* ---- the menu name overlays (the added stages/songs) -------------------------------------------- */
+/* A small textured quad drawn over the presented picture, at the rectangle the game's menu publishes (the same
+   globals the Vulkan back end feeds to Dear ImGui), showing one image of a name strip. */
+static GLuint sNameProg, sNameVao, sNameVbo, sNameTex, sSongTex;
+static uint32_t sNameW, sNameH, sNameCount, sSongW, sSongH, sSongCount;
+
+static GLuint make_name_program(void) {
+    static const char *vs = "#version 330 core\n"
+        "layout(location = 0) in vec2 p;\n"
+        "layout(location = 1) in vec2 t;\n"
+        "out vec2 vT;\n"
+        "uniform vec4 uvrect;\n" /* u0, v0 (top), u1, v1 (bottom) within the strip */
+        "void main() {\n"
+        "    vT = vec2(mix(uvrect.x, uvrect.z, t.x), mix(uvrect.w, uvrect.y, t.y));\n"
+        "    gl_Position = vec4(p, 0.0, 1.0);\n}\n";
+    static const char *fs = "#version 330 core\nin vec2 vT;\nout vec4 o;\nuniform sampler2D tex;\n"
+        "void main() { o = texture(tex, vT); }\n";
+    GLuint v = compile(GL_VERTEX_SHADER, vs, "name.vs"), f = compile(GL_FRAGMENT_SHADER, fs, "name.fs"), p;
+    GLint ok = 0;
+    p = glCreateProgram();
+    glAttachShader(p, v);
+    glAttachShader(p, f);
+    glLinkProgram(p);
+    glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        fprintf(stderr, "bt3: gl: name overlay link FAILED\n");
+        exit(1);
+    }
+    glDeleteShader(v);
+    glDeleteShader(f);
+    glUseProgram(p);
+    glUniform1i(glGetUniformLocation(p, "tex"), 0);
+    return p;
+}
+
+/* Loads a name strip file (raw RGBA: w, h, count, then count images of w x h) into a GL texture. */
+static GLuint load_name_strip(const char *env, const char *rel, uint32_t *w, uint32_t *h, uint32_t *count,
+                              const char *what) {
+    const char *paths[3];
+    uint8_t *pix = NULL;
+    size_t bytes = 0;
+    GLuint tex;
+    uint32_t i;
+
+    paths[0] = getenv(env);
+    paths[1] = rel;
+    paths[2] = "names.rgba";
+    for (i = 0; i < 3 && pix == NULL; i++) {
+        FILE *fp;
+        uint32_t hdr[3];
+        if (paths[i] == NULL) {
+            continue;
+        }
+        fp = fopen(paths[i], "rb");
+        if (fp == NULL) {
+            continue;
+        }
+        if (fread(hdr, sizeof(hdr), 1, fp) != 1 || hdr[0] == 0 || hdr[1] == 0 || hdr[2] == 0) {
+            fclose(fp);
+            continue;
+        }
+        *w = hdr[0];
+        *h = hdr[1];
+        *count = hdr[2];
+        bytes = (size_t)hdr[0] * hdr[1] * hdr[2] * 4;
+        pix = malloc(bytes);
+        if (pix == NULL || fread(pix, 1, bytes, fp) != bytes) {
+            free(pix);
+            pix = NULL;
+        }
+        fclose(fp);
+    }
+    if (pix == NULL) {
+        return 0;
+    }
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei)*w, (GLsizei)(*h * *count), 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    free(pix);
+    fprintf(stderr, "bt3: gl: %s overlay: %u names, %ux%u each\n", what, *count, *w, *h);
+    return tex;
+}
+
+/* Draws one strip's image idx over the picture, at the game rectangle (gx,gy,gw,gh) mapped through the
+   letterbox (dx,dy,w,h) just presented, in a window sh pixels tall. */
+static void draw_name_overlay(GLuint tex, uint32_t count, int ready, int idx, int gx, int gy, int gw, int gh,
+                              int dx, int dy, int w, int h, int sh) {
+    float sx = (float)w / 512.0f, sy = (float)h / 448.0f;
+    int nx, nyTop, nw, nh;
+
+    if (!ready || tex == 0 || idx < 0 || count == 0) {
+        return;
+    }
+    nx = dx + (int)((float)gx * sx);
+    nyTop = dy + (int)((float)gy * sy);
+    nw = (int)((float)gw * sx);
+    nh = (int)((float)gh * sy);
+    if (nw <= 0 || nh <= 0) {
+        return;
+    }
+    glViewport(nx, sh - (nyTop + nh), nw, nh); /* glViewport counts y from the bottom */
+    glUseProgram(sNameProg);
+    glUniform4f(glGetUniformLocation(sNameProg, "uvrect"), 0.0f, (float)idx / (float)count, 1.0f,
+                (float)(idx + 1) / (float)count);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glBindSampler(0, 0); /* the texture's own (linear, clamped) filtering */
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBindVertexArray(sNameVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
 /* ---- state -------------------------------------------------------------------------------------- */
@@ -633,6 +757,25 @@ static int gl_init(void) {
     sDclutProg = make_program(kFxVertGlsl, kDclutFragGlsl, "dclut", sDclutSamplers, 3);
     sPresentProg = make_present_program();
 
+    /* the menu name overlays: the quad program, its unit quad, and the strips */
+    sNameProg = make_name_program();
+    {
+        static const float quad[4][4] = {{-1, -1, 0, 0}, {1, -1, 1, 0}, {-1, 1, 0, 1}, {1, 1, 1, 1}};
+        glGenVertexArrays(1, &sNameVao);
+        glBindVertexArray(sNameVao);
+        glGenBuffers(1, &sNameVbo);
+        glBindBuffer(GL_ARRAY_BUFFER, sNameVbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    }
+    sNameTex = load_name_strip("BT3_STAGE_NAMES", "gamedata/stages/names.rgba", &sNameW, &sNameH, &sNameCount, "stage-name");
+    gUiNameReady = sNameTex != 0;
+    sSongTex = load_name_strip("BT3_SONG_NAMES", "gamedata/songs/names.rgba", &sSongW, &sSongH, &sSongCount, "song-name");
+    gUiSongReady = sSongTex != 0;
+
     glGenBuffers(1, &sVboGs);
     glBindBuffer(GL_ARRAY_BUFFER, sVboGs);
     glBufferData(GL_ARRAY_BUFFER, MAX_VERTS * sizeof(Vtx), NULL, GL_STREAM_DRAW);
@@ -688,8 +831,10 @@ static int gl_init(void) {
     glEnable(GL_SCISSOR_TEST);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glViewport(0, 0, GS_W * SCALE, GS_H * SCALE);
-    /* F1's window is not wired to OpenGL yet (Fase 5): Ui_Init is left uncalled, so every Ui_* the frame
-       calls is a no-op (ui.cpp guards on its own ready flag). */
+    /* F1 opens the settings window here too: ImGui's OpenGL3 backend, with the GL context current. */
+    if (!Ui_Init(sWindow, NULL, (void *)sCtx)) {
+        fprintf(stderr, "bt3: gl: the settings window is not available\n");
+    }
     return 1;
 }
 
@@ -900,9 +1045,21 @@ static void frame_end(void) {
             glBindTexture(GL_TEXTURE_2D, sTgCol[best]);
             glBindSampler(0, sSamplers[7]); /* linear, clamped */
             glDrawArrays(GL_TRIANGLES, 0, 3);
+            /* The menu name overlays (the added stages/songs), mapped through the picture's rectangle: the same
+               globals the Vulkan back end feeds to Dear ImGui. */
+            gUiPresentX = dx;
+            gUiPresentY = dy;
+            gUiPresentW = w;
+            gUiPresentH = h;
+            draw_name_overlay(sNameTex, sNameCount, (int)gUiNameReady, (int)gUiNameIdx, (int)gUiNameX,
+                              (int)gUiNameY, (int)gUiNameW, (int)gUiNameH, dx, dy, w, h, sh);
+            draw_name_overlay(sSongTex, sSongCount, (int)gUiSongReady, (int)gUiSongIdx, (int)gUiSongX,
+                              (int)gUiSongY, (int)gUiSongW, (int)gUiSongH, dx, dy, w, h, sh);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
     }
+    /* the settings window (F1), over the picture and the name overlays */
+    Ui_DrawGL();
     /* BT3_GL_WINSHOT=<n>: dump the window's own framebuffer every n frames (what the user sees) */
     if (getenv("BT3_GL_WINSHOT") != NULL && atoi(getenv("BT3_GL_WINSHOT")) > 0 && (int)gGsFrame % atoi(getenv("BT3_GL_WINSHOT")) == 0) {
         int sw, sh, x, y;

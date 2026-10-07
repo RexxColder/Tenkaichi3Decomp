@@ -43,11 +43,12 @@ extern int gPortOverlayOpen;   /* the settings window is open: the keyboard does
 extern int gPortInputCapture;  /* it is waiting for a key or button to bind: nothing reaches the game */
 
 /* ui.cpp */
-int Ui_Init(SDL_Window *window, SDL_GPUDevice *device);
+int Ui_Init(SDL_Window *window, SDL_GPUDevice *device, void *gl_context); /* device for the SDL GPU back end, gl_context for the OpenGL one (the other NULL) */
 int Ui_Event(const SDL_Event *ev); /* 1 = the window used the event */
 void Ui_Toggle(void);
 void Ui_Draw(SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *target);      /* builds and draws this frame's window */
 void Ui_DrawAgain(SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *target); /* the same picture onto another texture */
+void Ui_DrawGL(void);                                                 /* the OpenGL back end's settings window (ImGui's OpenGL3 backend; the context is current) */
 
 /* Stage-name overlay: the names of stages added from outside the disc are drawn by the port (its font has no
    stylized glyphs), over the picture, in the game's own coordinates. gs_gpu.c fills the present rectangle (the
