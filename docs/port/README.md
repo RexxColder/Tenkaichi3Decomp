@@ -1408,6 +1408,53 @@ of the vertices into the transfer buffer could be saved by recording straight in
   in shreds in the next. Layer 5 goes through `interp_bone` now.
 - Checked: the same six consecutive pictures before and after; after, the shine is whole and the same in each.
 
+## Texture packs: broken letters and logos, text that tears while it moves (2026-10-11)
+
+Reported by a player on 0.1.22 with a pack: "some things are pixelated". Seen with the 18,704-file pack: the
+publishers' logos had steps along their edges, the copyright text had letters with columns missing ("righ:s",
+"SH.JEISHA"), and the main menu's entries tore while they glided. Without the pack the same screens were clean.
+Two faults of the rule a replacement is sampled by as 2D art (gs.frag, mode 3):
+
+- **The texel was chosen on its boundary.** The rule takes the original texel the GS pixel shows (`floor(at *
+  size)`) and shows the matching part of the replacement. Where a piece has whole-texel coordinates, `at` lies ON
+  the boundary between two texels, and its rounding chose one side or the other from pixel to pixel. Now a 64th of
+  a texel in the piece's direction decides, as where the piece's rectangle is worked out (GsGpu_Draw).
+- **The picture was held to the GS's pixel grid.** A piece that glides by parts of a GS pixel (the main menu's
+  entries) moved smoothly as geometry while each letter's picture stepped a whole GS pixel at another moment. A
+  replacement now takes the rule of the game's own smooth 2D art: the plain coordinate of each output pixel, held
+  inside the piece's rectangle of its sheet. This does not depend on the setting "2D filtering": sharp means the
+  game's own art as blocks of a GS pixel, which a replacement of several texels per GS pixel is not.
+  `BT3_TEX_GRID=1` gives the grid rule back, to compare.
+
+Checked: frames of the boot and the main menu with the pack, before and after, smooth and sharp, beside the
+frames without the pack (windowless, the processor's own Radeon, Vulkan); the recorded fight ends as before. The
+user saw on screen: the logos, the copyright text and the menu's motion right in both settings, the fight's HUD
+unchanged in sharp. Not checked: widescreen with a pack; the OpenGL renderer with a pack.
+
+## The settings window opens from a controller (2026-10-11)
+
+Asked for by the user. Until now only F1 opened the settings window, and with it open only the keyboard was kept
+from the game.
+
+- **START + SELECT** of any connected controller opens and closes it (the controller's own two buttons, whatever
+  the game's bindings are). `PortInput_Hotkey` (gs_input.c) decides for both renderers' event loops.
+- **A row "Open this window"** heads the Controls list: a key (F1) and a controller button (none) of the settings
+  file (`key_overlay`, `pad_overlay`). A cleared key is F1 again, so a keyboard always has a way in; a trigger
+  is not taken as the button. START + SELECT works beside a bound button.
+- **The window is worked with the controller** (Dear ImGui's gamepad navigation), and **nothing of a controller
+  reaches the game while it is open**, as with the keyboard. The buttons that opened or closed it do not reach
+  the game until they are let go (START would pause).
+- **Found by the user: pressed in the same moment, the two did nothing.** Both "down" events come in one round and
+  each already finds the other button held, so the window opened and closed again at once; only "hold one, press
+  the other" worked. The pair counts once per press now (a latch, cleared when either is let go).
+
+Known: START pressed a moment before SELECT reaches the game first (a pause in a fight). With the controller,
+Cross on a binding starts waiting for a button and the next press is taken; Esc on the keyboard leaves it as it
+was, and there is no way back from the controller yet (the user bound SELECT alone this way without meaning to).
+
+Checked by the user on screen (Linux): START + SELECT opens and closes it, pressed together. Not checked by
+anyone: Windows; a second controller; the online screen with a controller.
+
 ## The wait while an online match is set up (2026-10-11)
 
 - What was shown while the two games got in touch: the lobby window alone while the other player was being found
