@@ -300,9 +300,6 @@ extern float Net_ScreenPhase(void);
 extern void Net_ScreenBegin(void);
 extern void Net_ScreenEnd(void);
 extern int Net_ScreenIsFound(void);
-extern void Net_ScreenDemoTick(void);
-extern void Net_ScreenDemoStart(void); /* F7: the test trigger below */
-extern void Net_ScreenDemoStop(void);  /* F8 */
 extern int Port_Autosave(void);        /* plat_autosave.c: save without asking */
 extern void Port_AutosaveSet(int on);
 }
@@ -694,19 +691,6 @@ static void bind(int value) {
 }
 
 int Ui_Event(const SDL_Event *ev) {
-    /* The connecting screen's test trigger, before the window checks: F7 plays the whole cycle on its own and F8
-       opens or closes the screen, so the fade, the radar and the sound can be seen without a second player.
-       Not during an online match: there the screen belongs to the real thing. */
-    if (ev->type == SDL_EVENT_KEY_DOWN && !ev->key.repeat && !Port_NetActive()) {
-        if (ev->key.key == SDLK_F7) {
-            Net_ScreenDemoStart();
-            return 1;
-        }
-        if (ev->key.key == SDLK_F8) {
-            Net_ScreenDemoStop();
-            return 1;
-        }
-    }
     if (!sReady || !sOpen) {
         return 0;
     }
@@ -1281,8 +1265,7 @@ static bool frame_build(void) {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
     if (connect) {
-        Net_ScreenDemoTick(); // F7's sequence runs on its own from here (net_screen.c)
-        net_connect_draw();    // the fade and the radar, under the online window (its room code stays readable)
+        net_connect_draw(); // the fade and the radar, under the online window (its room code stays readable)
     }
     if (sOpen) {
         if (sNet) {

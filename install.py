@@ -371,6 +371,13 @@ def step_test(args, exe):
 
 
 def write_launcher(exe, bits32):
+    # the loop under the connecting screen: the port's own sound, put where plat_extras.c looks first. A release
+    # already has it in sounds/ (port/tools/package.py); a checkout has only the repository.
+    sound = ROOT / "port/extras/sounds/net.wav"
+    if sound.is_file():
+        (ROOT / "sounds").mkdir(exist_ok=True)
+        if not (ROOT / "sounds/net.wav").is_file():
+            shutil.copy2(sound, ROOT / "sounds/net.wav")
     play = ROOT / "play.sh"
     play.write_text("#!/bin/sh\n# Starts the game from its menus. Written by install.py.\n"
                     f'cd "$(dirname "$0")" && {"" if bits32 else "BT3_64=1 "}exec port/run.sh menu\n')

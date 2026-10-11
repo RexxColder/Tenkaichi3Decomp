@@ -271,51 +271,6 @@ static void sound_find(void) {
     }
 }
 
-/* ---- the test trigger (F7 / F8), so the whole thing can be seen without a second player ---- */
-
-#define DEMO_WAIT_MS 6000u /* how long the radar searches before "Opponent Found!" in the F7 demo */
-
-static int sDemo;         /* 0 none, 1 the sequence is running, 2 waiting out "Opponent Found!" */
-static uint32_t sDemoAt;
-
-void Net_ScreenDemoStart(void) {
-    if (sState == OFF) {
-        Net_ScreenBegin();
-    }
-    sDemo = 1;
-    sDemoAt = now_ms();
-}
-
-void Net_ScreenDemoStop(void) {
-    sDemo = 0;
-    if (sState == OFF) {
-        Net_ScreenBegin(); /* closed: open it */
-    } else {
-        Net_ScreenEnd(); /* up: take it down */
-    }
-}
-
-void Net_ScreenDemoTick(void) {
-    uint32_t now;
-
-    if (sDemo == 0) {
-        return;
-    }
-    if (sState == OFF) {
-        sDemo = 0; /* it faded away on its own */
-        return;
-    }
-    now = now_ms();
-    if (sDemo == 1 && now - sDemoAt >= DEMO_WAIT_MS) {
-        Net_ScreenFound(); /* "Opponent Found!" */
-        sDemo = 2;
-        sDemoAt = now;
-    } else if (sDemo == 2 && now - sDemoAt >= FOUND_MS) {
-        Net_ScreenEnd(); /* and the black fades away */
-        sDemo = 0;
-    }
-}
-
 /* ---- presenting while the game thread waits ---- */
 
 void Net_ScreenPump(void) {

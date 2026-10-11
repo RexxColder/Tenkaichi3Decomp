@@ -44,12 +44,4 @@ float Net_ScreenPhase(void);
    the handshake loop can call it every iteration. */
 void Net_ScreenPump(void);
 
-/* The test trigger (F7 / F8, in ui.cpp's Ui_Event; not during an online match). It plays the whole thing without
-   a second player, so the fade, the radar and the sound can be seen and heard on their own:
-     - F7: the full cycle on its own — searching, then "Opponent Found!", then the black fading away;
-     - F8: the screen by hand: the first press opens it, the next closes it. */
-void Net_ScreenDemoStart(void); /* F7 */
-void Net_ScreenDemoStop(void);  /* F8: opens it if it is closed, closes it if it is up */
-void Net_ScreenDemoTick(void);  /* advances the F7 sequence (called each frame the screen is up) */
-
 #endif /* NET_SCREEN_H */
